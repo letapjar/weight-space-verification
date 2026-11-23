@@ -280,10 +280,12 @@ are included with credit.
 
 ## Sources
 
-- Takehi, Teoh, Zhang and Khattab, *Sparks of Weight-Space Programming*, MIT CSAIL, November 2026: the
-  original experiment. Its prompt is `prompts/mitfull.txt`, and its four published networks are among the
-  files in `weights/`.
+- Takehi, Teoh, Zhang and Khattab, [*Sparks of Weight-Space Programming*](https://rikiyat.github.io/blog/weight-space-programming/),
+  MIT CSAIL, November 2026: the original experiment, with its
+  [logs repository](https://github.com/RikiyaT/lm_understand-logs). Its prompt is `prompts/mitfull.txt`, and
+  its four published networks are among the files in `weights/`.
 - Goworek, Hickey, Nanni and O'Reilly, *Replicating and Extending Weight-Space Programming: Frontier LLMs
-  Compile Programs into Weights and Read Input Layers*, arXiv:2611.21449, November 2026: the finding that
-  reading weights is mostly reading the input layer, and the heat maps.
-- `prompts/parkweights.txt` is Juho Park's weights-only preamble, from his own reproduction.
+  Compile Programs into Weights and Read Input Layers*, [arXiv:2611.21449](https://arxiv.org/abs/2611.21449),
+  November 2026: the finding that reading weights is mostly reading the input layer, and the heat maps.
+- Juho Park, [weights-only-replication](https://github.com/jhpark94/weights-only-replication): his own
+  reproduction. `prompts/parkweights.txt` is its weights-only preamble.
