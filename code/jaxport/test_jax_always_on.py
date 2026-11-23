@@ -72,6 +72,10 @@ def test_always_on_weights_train_in_step_with_the_bias_unless_frozen_or_slowed()
         assert 0 < np.abs(slowed_bias).max() < np.abs(normal_bias).max() / 10 and slowed_rest > 0
 
 
+# On a graphics card, a network trained in a group does not come out the same as that network trained alone:
+# the card computes a batch of networks in a different order of operations, and the numbers drift apart from the
+# start. On a processor the two agree, and that is where this test holds.
+@pytest.mark.skipif(jax.devices()[0].platform != "cpu", reason="group size changes the arithmetic on a graphics card")
 def test_strategies_side_by_side_train_as_they_do_alone():
     """One program holding every strategy gives each network what a program of that strategy alone gives."""
     init, advance = ppo.make_trainer(GAME, LEARNING_RATE, NUM_UPDATES, scale_steps=True)

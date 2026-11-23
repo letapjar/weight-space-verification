@@ -75,6 +75,6 @@ One row per (reader, effort, route, prompt, form of the networks). A read is cou
 | fable-5.2 | high | Claude Code in a container | mitfull | upright (200M steps) | 12 | 12 | 3/3 | 3/3 | 3/3 | 3/3 | 12/12 | 12/12 | 0 | 3/3 | 3/3 | 3/3 | 3/3 |
 | fable-5.2 | high | Claude Code in a container | mitfull | board turned 180 | 12 | 12 | 3/3 | 3/3 | 3/3 | 3/3 | 12/12 | 12/12 | 0 | 3/3 | 3/3 | 3/3 | 3/3 |
 | fable-5.2 | high | Claude Code in a container | mitfull | board turned 90 | 12 | 12 | 3/3 | 0/3 | 3/3 | 3/3 | 9/12 | 11/12 | 0 | 3/3 | 2/3 | 3/3 | 3/3 |
-| fable-5.2 | high | Claude Code in a container | mitfull | weights shuffled | 11 | 11 | 1/3 | 1/2 | 0/3 | 1/3 | 3/11 | 5/11 | 1 | 2/3 | 1/2 | 0/3 | 2/3 |
+| fable-5.2 | high | Claude Code in a container | mitfull | weights shuffled | 12 | 12 | 1/3 | 1/3 | 0/3 | 1/3 | 3/12 | 5/12 | 1 | 2/3 | 1/3 | 0/3 | 2/3 |
 | fable-5.2 | high | Claude Code in a container | mitunordered | cells scrambled | 12 | 12 | 3/3 | 3/3 | 3/3 | 3/3 | 12/12 | 12/12 | 0 | 3/3 | 3/3 | 3/3 | 3/3 |
 | fable-5.2 | high | Claude Code in a container | mitunordered | all 500 inputs shuffled | 12 | 12 | 3/3 | 3/3 | 3/3 | 3/3 | 12/12 | 12/12 | 0 | 3/3 | 3/3 | 3/3 | 3/3 |

@@ -15,7 +15,7 @@ import csv
 import json
 from collections import defaultdict
 
-from blind import ANSWER_KEY, PROJECT_DIR
+from layout import ANSWER_KEY, SCORING_DIR, reply_path
 from readings import (BOX_CORRECT, FILE_PATTERN, GAME_KEYWORDS, GAMES_PLAYED, READINGS_DIR, first_game_named,
                       game_line_box, true_games)
 from run_reads import RECORD_FILE, STATUS, FINISHED, countable
@@ -38,7 +38,7 @@ PROMPTS = ("mitfull", "mitfull8x512", "mitcells", "mitunordered", "parkweights",
 ROUTES = {"paste": "API", "container": "Claude Code in a container"}
 READERS = ("gpt-6-astra", "gpt-6.1-terra", "gpt-6-luna", "opus-5.5", "opus-4.6-1m", "sonnet-5.5", "haiku-5.5")
 EFFORTS = ("low", "medium", "high", "xhigh", "xhigh-verbosity-high", "max", "max-cap-64000")
-RESULTS_MD, RESULTS_CSV = PROJECT_DIR / "scoring" / "results.md", PROJECT_DIR / "scoring" / "results.csv"
+RESULTS_MD, RESULTS_CSV = SCORING_DIR / "results.md", SCORING_DIR / "results.csv"
 COLUMNS = ("reader", "effort", "route", "prompt", "networks_form", "networks", "reads_counted", *GAMES, "correct",
            "right_game_first", "reads_not_counted", *(f"{game}_first" for game in GAMES))
 
@@ -67,7 +67,7 @@ def rows() -> list:
             cell["not_counted"] += 1
             continue
         game = true_games(key[blind_id])[0]
-        reply = (record_path.parent.parent / f"{record_path.parent.name}.txt").read_text(encoding="utf-8")
+        reply = reply_path(record_path.parent).read_text(encoding="utf-8")
         correct = game_line_box(reply, game)[0] == BOX_CORRECT
         cell["networks"].add(blind_id)
         cell["games"][game][0] += correct
@@ -98,12 +98,12 @@ def main():
     lines = ["# Results", "", __doc__.split("\n\n")[2].replace("\n", " "), "",
              header, "|" + "---|" * len(COLUMNS)]
     lines += ["| " + " | ".join(str(row[column]) for column in COLUMNS) + " |" for row in table]
-    RESULTS_MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    RESULTS_MD.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")  # the same bytes on any system
     for row in table:
         print(f"{row['reader']:<14}{row['effort']:<8}{row['route'][:10]:<11}{row['prompt']:<13}{row['networks_form']:<30}"
               f"{row['correct']:>6}  first {row['right_game_first']:>6}  " + " ".join(f"{game[:4]} {row[game]:<4}" for game in GAMES)
               + (f"  not counted {row['reads_not_counted']}" if row["reads_not_counted"] else ""))
-    print(f"wrote {RESULTS_MD.relative_to(PROJECT_DIR)} and {RESULTS_CSV.relative_to(PROJECT_DIR)}")
+    print(f"wrote {RESULTS_MD} and {RESULTS_CSV}")
 
 
 if __name__ == "__main__":

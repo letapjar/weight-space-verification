@@ -33,7 +33,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
-from blind import BLIND_DIR, PROJECT_DIR
+from layout import CODE_DIR as PROJECT_DIR, PROMPTS_DIR, WEIGHTS_DIR as BLIND_DIR, reply_path
 from readings import DELIVERIES, FILE_PATTERN, PROMPTS, READINGS_DIR
 
 DEFAULT_MODEL = "claude-opus-5-5"
@@ -50,7 +50,6 @@ RATE_LIMIT_RESENDS = 5  # a rate refusal produced no reply, so sending the same 
 DELIVERY = "paste"
 DEFAULT_PROMPT = "open2"  # the open question in its corrected wording
 FIRST_PROMPT = "open"  # the wording as first typed and first sent; kept so those reads can be rebuilt
-PROMPTS_DIR = PROJECT_DIR / "prompts"
 PROMPT_JOIN = "\n\n"  # between the wording and the weights
 # A prompt that ends with the original experiment's weights heading (the MIT prompt and every variation of it)
 # sends the weights under the original's own section headings.
@@ -326,7 +325,7 @@ def run_read(provider, client, sdk: str, read: dict, commit: str) -> dict:
     print(f"  start   {read['blind_id']} {stem}", flush=True)
     try:
         response, record["request_id"], record["api_version"] = send_paced(provider, client, body, record)
-        save_response(provider, folder, folder.parent / f"{stem}.txt", response, record)
+        save_response(provider, folder, reply_path(folder), response, record)
     except Exception as error:  # every failure is recorded; the read does not count and is made again next time
         record.update({STATUS: FAILED, "error": f"{type(error).__name__}: {error}"})
     record["finished_utc"], record["seconds"] = utc_now(), round(time.monotonic() - started)

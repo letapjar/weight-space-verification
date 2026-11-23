@@ -167,8 +167,14 @@ Opus 5.5 on the twelve unchanged networks:
 
 With cells permuted, Opus names 34 of 36 when told what the inputs mean and 0 of 12 under the weights-only
 prompt. It still recovers a 10 x 10 grid with five channels per cell and a border of walls, and never reaches
-a game. The training trace can be read in any order only by a reader who knows what the inputs are. Without
-that, the layout is doing real work.
+a game. The signatures can be read in any order only by a reader who knows what the inputs are. Without that,
+the layout is doing real work.
+
+With nothing said about the network, Opus also fell back on a prior for the activation: 10 of 12 replies said
+ReLU for networks that use tanh, one of them calling a stuck unit "almost certainly a dead ReLU". It can tell
+the two apart from the weights, and did in the other two replies: "The activation function is almost certainly
+tanh (or something else with negative outputs, such as ELU), not ReLU." In the rest it did not check. Nothing
+told it otherwise, and nothing asked it to work it out.
 
 ## 4. A network trained on four games
 
@@ -213,15 +219,48 @@ exactly one game.
 | Folder | Contents |
 |---|---|
 | `weights/` | The networks that were read, one text file each, named by a random id. Numbers only. |
+| `networks/` | The same networks as arrays, `<id>.npz` for every file in `weights/`, at full precision where the network was saved that way (`how_made.json` says which). |
 | `prompts/` | The wording of every prompt. A prompt as sent is the wording, a blank line, and a weights file. |
 | `reads/` | Every read: `reply.txt`, `record.json` (model, effort, times, token counts, stop reason, hashes), the provider's own record of the exchange (`response.json` for an API read, `transcript.jsonl` for a read through Claude Code), and `marks.json` where a blind judge marked it. |
 | `answer_key/` | What each id is, and the judges' fact sheets. **Kept apart on purpose.** |
 | `scoring/` | The predictions and outcomes, the results tables, the rubric, and the judges' reports. |
 | `figures/` | The figures above, and others. |
-| `code/` | The games, the training code, and the programs that made the reads, the changed networks, the tables and the figures, as they were run. It is a record of what was run, not a package. |
+| `code/` | The games, the training code, and the programs that made the reads, the changed networks, the tables and the figures, as they were run. |
 
-**To run the test yourself, give your reader a file from `weights/` and a prompt from `prompts/`, and nothing
-else.** The replies in `reads/` name the games, and `answer_key/` says what each file is.
+**To run the reading test yourself, give your reader a file from `weights/` and a prompt from `prompts/`, and
+nothing else.** The replies in `reads/` name the games, and `answer_key/` says what each file is.
+
+## Running the code
+
+The `Dockerfile` at the top builds the environment the networks were trained in (Python 3.12 and the versions
+in `requirements-jax.txt`). It is separate from `code/docker/`, which is the sealed container the reader models
+ran in.
+
+```
+docker build -t weight-space .          # add --build-arg JAX_PACKAGE="jax[cuda12]==0.12.0.1" for an NVIDIA GPU
+docker run --rm weight-space            # runs the tests
+docker run --rm -it weight-space bash   # a shell in code/; add --gpus all to use the GPU
+```
+
+Without Docker: `pip install -r requirements-jax.txt` under Python 3.12, then work in `code/`. From there:
+
+```
+python -m jaxport.play_network ../networks/93b4f9dc.npz breakout   # play a published network: about 22.8
+python -m jaxport.check_originals                                  # the original's networks at our games
+python results_table.py                                            # rebuild scoring/results.md from reads/
+python -m jaxport.ppo --game breakout --activation tanh --seeds 0 --copies 256 --learning-rate 0.005 \
+    --steps 2000000 --runs-dir runs_quickstart                     # a short training run
+```
+
+The last line is the recipe of the twelve networks in the main table, cut from 200 million steps to 2 million.
+A billion steps trains in 30 to 60 minutes on a laptop GPU (an RTX 3060 in our case). Everything above also
+runs on a processor, more slowly.
+
+Making new reads needs your own API keys in `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` and the packages in
+`requirements.txt`: `python run_reads.py --files <id> --model <model> --efforts high --repeats 1 --prompt
+mitfull`, with `--dry-run` to list the reads and send nothing. The scripts under `code/docker/` made the reads
+that went through Claude Code; they sign in from a token store on the author's machine and are included as a
+record of what was run.
 
 Names in the files differ from the terms above in two places: "cells scrambled" and "inputs shuffled" in the
 repository are "cells permuted" and "inputs permuted" here. `scoring/results.md` has every row, including

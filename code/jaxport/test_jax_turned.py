@@ -53,13 +53,18 @@ def test_half_turned_breakout_has_its_paddle_at_the_top_and_left_still_moves_it_
         np.testing.assert_array_equal(agent_cells(moved)[:, 1], agent_cells(obs)[:, 1] + shift)
 
 
+# A rewired network adds the same products in a different order. On the card that trained these networks the
+# outputs came out identical; on a processor they differ in the last digits (about 1e-5 on outputs near 20).
+OUTPUT_TOLERANCE = 1e-4
+
+
 def test_a_rewired_network_plays_the_turned_game_as_the_original_plays_the_game():
     arrays = np.load(reference_npz(GAME))
     env, turned = GAMES[GAME](), make_game(turned_name(GAME, HALF_TURN))
     actor, rewired = actor_from_arrays(arrays), actor_from_arrays(turned_arrays(arrays, HALF_TURN))
     boards = jax.vmap(lambda key: env.reset(key)[0])(jax.random.split(jax.random.PRNGKey(1), 64))
-    np.testing.assert_array_equal(np.asarray(logits(rewired, boards[:, turned.inputs])),
-                                  np.asarray(logits(actor, boards))[:, game_action_of(HALF_TURN)])
+    np.testing.assert_allclose(np.asarray(logits(rewired, boards[:, turned.inputs])),
+                               np.asarray(logits(actor, boards))[:, game_action_of(HALF_TURN)], atol=OUTPUT_TOLERANCE)
     key = jax.random.PRNGKey(0)
     normal_score = play(env, actor, key, EPISODES)["returns"].mean()
     assert abs(play(turned, rewired, key, EPISODES)["returns"].mean() - normal_score) <= SCORE_TOLERANCE
@@ -80,7 +85,8 @@ def test_a_scramble_moves_whole_cells_and_a_rewired_network_gives_the_same_outpu
     actor = actor_from_arrays(arrays)
     rewired = actor_from_arrays(rewire(arrays, inputs, np.asarray(scrambled.game_action)))
     boards = jax.vmap(lambda key: env.reset(key)[0])(jax.random.split(jax.random.PRNGKey(1), 64))
-    np.testing.assert_array_equal(np.asarray(logits(rewired, boards[:, scrambled.inputs])), np.asarray(logits(actor, boards)))
+    np.testing.assert_allclose(np.asarray(logits(rewired, boards[:, scrambled.inputs])), np.asarray(logits(actor, boards)),
+                               atol=OUTPUT_TOLERANCE)
 
 
 def test_pong30_plays_on_where_pong_ends_its_episode():

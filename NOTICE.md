@@ -17,7 +17,10 @@ networks.
 - Every other prompt whose name begins `mit` is that prompt with changes made here: the sentences named in
   `answer_key/prompts.json` are reworded, added or removed.
 - Four of the files in `weights/` are its published networks (the answer key marks them). The numbers are
-  unchanged; the text layout around them is this project's.
+  unchanged; the text layout around them is this project's. The matching files in `networks/` are its own
+  network files, unchanged.
+- `code/reference/` holds those four network files and their training records unchanged, and
+  `gif_trace.json`, each of its published animations decoded here to one entry per step.
 
 **Juho Park's reproduction.** `prompts/parkweights.txt` is his weights-only preamble, unchanged, and
 `prompts/parkweights8x512.txt` is the same with the network's shape restated. They are included with credit so
