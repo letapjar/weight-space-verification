@@ -12,7 +12,7 @@ import random
 import sys
 from collections import Counter
 
-from blind import ANSWER_KEY, PROJECT_DIR
+from layout import ANSWER_KEY, SCORING_DIR, reply_path
 from readings import (BOX_CORRECT, BOX_HEDGED, BOX_OTHER, BOX_OTHER_MINATAR, BOX_WRONG, FILE_PATTERN, GAME_KEYWORDS,
                       READINGS_DIR, answers_with_a_minatar_game, first_game_named, game_line_box, games_named)
 from run_reads import RECORD_FILE, countable
@@ -29,7 +29,7 @@ NOT_IN_MINATAR = ("pong", "pacman")
 SHUFFLES, SHUFFLE_SEED = 10_000, 0
 SEVERAL = "several of the four"
 BOXES = (BOX_CORRECT, BOX_HEDGED, BOX_WRONG, BOX_OTHER_MINATAR, BOX_OTHER)
-REPORT_FILE = PROJECT_DIR / "scoring" / "haiku_effort_report.txt"
+REPORT_FILE = SCORING_DIR / "haiku_effort_report.txt"
 
 
 def load():
@@ -45,7 +45,7 @@ def load():
         group = next((title for title, source in SETS if network["source"].startswith(source)), None)
         if group is None or name["model"] not in READERS or name["effort"] not in EFFORTS:
             continue
-        reply = (record.parent.parent / f"{record.parent.name}.txt").read_text(encoding="utf-8")
+        reply = reply_path(record.parent).read_text(encoding="utf-8")
         rows.append({"blind_id": blind_id, "game": network["game"], "seed": network["seed"], "set": group,
                      "reader": name["model"], "effort": name["effort"], "reply": reply})
     return rows

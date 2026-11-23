@@ -22,27 +22,26 @@ import json
 import secrets
 
 from export import NPZ_FILE, bare_weights_text
+from layout import ANSWER_KEY, GAMES_PLAYED, WEIGHTS_DIR as BLIND_DIR  # noqa: F401
+from original import ACTOR, CRITIC  # which of a run's two networks a blind file holds
 from ppo import RESULT_FILE, RUN_DIR_GLOB, RUNS_DIR
 from settings import EVAL_BY_GAME, HIDDEN_SIZES, NUM_ENVS
 from report import (REFERENCE_NETWORKS, critic_from_npz, load_policy, policy_from_reference_npz, reference_npz,
                     reference_record)
 
 PROJECT_DIR = RUNS_DIR.parent
-BLIND_DIR = PROJECT_DIR / "blind"
-# In a folder of its own, not at the top level: a sparse checkout of BLIND_DIR alone must not include it.
-ANSWER_KEY = PROJECT_DIR / "answer_key" / "blind_answer_key.json"
+# BLIND_DIR and ANSWER_KEY come from layout.py. The key is in a folder of its own, not at the top level: a sparse
+# checkout of BLIND_DIR alone must not include it.
 ID_BYTES = 4  # 8 hex characters, like a short commit hash
 ORIGINAL_SOURCE = "original"  # key prefix for the original experiment's networks
 REWIRED_FACTS = ("turned_degrees", "scrambled_seed", "derived_from", "first_layer_from", "later_layers_from")  # extra result-file keys of a network rewired for a turned or scrambled board (experiments/rotate.py)
 START_FACTS = ("start_from", "start_steps")  # extra keys of a network that started from another run's weights
-GAMES_PLAYED = "games"  # in the key entry of a network trained on several games at once: which ones
 
 
 def blind_file_name(blind_id: str) -> str:
     return f"{blind_id}.txt"  # the bare id: even the word "weights" would be a hint
 
 
-ACTOR, CRITIC = "actor", "critic"  # which of a run's two networks a blind file holds
 
 
 def networks_of(source, facts, policy, critic):

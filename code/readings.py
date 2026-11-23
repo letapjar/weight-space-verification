@@ -25,10 +25,11 @@ import json
 import re
 from collections import defaultdict
 
-from blind import ACTOR, ANSWER_KEY, GAMES_PLAYED, PROJECT_DIR
+from layout import ANSWER_KEY, CODE_DIR as PROJECT_DIR, GAMES_PLAYED, READS_DIR
+from original import ACTOR
 from settings import EVAL_BY_GAME
 
-READINGS_DIR = PROJECT_DIR / "readings"  # the real test runs
+READINGS_DIR = READS_DIR  # the real test runs
 PILOT_DIR = PROJECT_DIR / "readings_pilot"  # the hand-run pilot reads; kept apart so they are never mixed in
 SUMMARY_NAME = "summary.csv"
 FILE_PATTERN = re.compile(

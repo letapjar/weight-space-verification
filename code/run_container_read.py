@@ -32,7 +32,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from blind import BLIND_DIR, PROJECT_DIR
+from layout import CODE_DIR as PROJECT_DIR, WEIGHTS_DIR as BLIND_DIR, reply_path
 from readings import DELIVERIES, FILE_PATTERN, READINGS_DIR
 from run_reads import (DEFAULT_MODEL, DEFAULT_PROMPT, EFFORTS, FAILED, FINISHED, MAX_TOKENS, NEWLINE, NORMAL, PROMPT_JOIN,
                        PROMPTS_DIR, RECORD_FILE, STATUS, WEIGHTS_HEADING,
@@ -199,7 +199,7 @@ def finish(args):
         record["transcript_saved"] = transcript.exists()
     record.update(output_cap_facts(folder, signed_in))
     if signed_in:
-        (folder.parent / f"{folder.name}.txt").write_text(result.get("result") or "", encoding="utf-8")
+        reply_path(folder).write_text(result.get("result") or "", encoding="utf-8")
         record[STATUS] = FINISHED
     else:
         errors = (folder / ERRORS_FILE).read_text(encoding="utf-8", errors="replace") if (folder / ERRORS_FILE).exists() else ""
