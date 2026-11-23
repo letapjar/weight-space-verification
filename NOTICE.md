@@ -10,7 +10,7 @@ several networks side by side, to save and resume, and to use this project's gam
 under the Apache License 2.0.
 
 **The original experiment** (Takehi, Teoh, Zhang and Khattab, *Sparks of Weight-Space Programming*, 2026, and
-its logs repository), used under the Creative Commons Attribution 4.0 International licence (CC BY 4.0,
+its logs repository, https://github.com/RikiyaT/lm_understand-logs), used under the Creative Commons Attribution 4.0 International licence (CC BY 4.0,
 https://creativecommons.org/licenses/by/4.0/legalcode), which its logs repository gives for its logs, data and
 networks.
 - `prompts/mitfull.txt` is its prompt, unchanged.
@@ -22,7 +22,7 @@ networks.
 - `code/reference/` holds those four network files and their training records unchanged, and
   `gif_trace.json`, each of its published animations decoded here to one entry per step.
 
-**Juho Park's reproduction.** `prompts/parkweights.txt` is his weights-only preamble, unchanged, and
+**Juho Park's reproduction** (https://github.com/jhpark94/weights-only-replication). `prompts/parkweights.txt` is his weights-only preamble, unchanged, and
 `prompts/parkweights8x512.txt` is the same with the network's shape restated. They are included with credit so
 the reads can be checked, and belong to their author.
 
