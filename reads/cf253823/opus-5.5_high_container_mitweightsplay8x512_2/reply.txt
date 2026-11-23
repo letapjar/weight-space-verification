@@ -1,0 +1,79 @@
+**Observations:**
+
+*Channel 0 (agent).* This channel carries the largest first-layer weights, and they cover almost the whole 8×8 interior. Examples:
+- (1,1): `-0.469 -0.594 1.590 -2.275 …`
+- (2,5): `-0.421 3.268 …`
+- (3,4): `0.493 2.415 …`
+- (4,6): `1.869 …`
+- (5,2): `-0.275 2.732 …`
+- (6,6): `2.123 …`
+- (8,8): `1.488 …`
+
+Exactly 16 interior cells have near-zero agent weights, all |w| < 0.2: (2,2) `0.021 -0.072…`, (2,3), (2,6), (2,7), (3,2), (3,7), (4,4), (4,5), (5,4), (5,5), (6,2), (6,7), (7,2), (7,3), (7,6) and (7,7). They form a 4-fold symmetric layout of internal walls:
+
+```
+. . . . . . . .
+. # # . . # # .
+. # . . . . # .
+. . . # # . . .
+. . . # # . . .
+. # . . . . # .
+. # # . . # # .
+. . . . . . . .
+```
+
+The agent never stands on these cells, so they are fixed walls. The ring of row 1, row 8, column 1 and column 8 is a fully open corridor. The layout is the same in every episode.
+
+*Channel 1 (moving objects).* There are strong weights scattered through the corridors:
+- (4,7): `… 2.827`
+- (5,7): `1.572`
+- (4,6): `1.514`
+- (4,2): `-1.291`
+- (5,3): `-1.166`
+- (6,4): `-1.214`
+- (7,5): `-1.351`
+- (8,7): `-1.537`
+
+The same 16 wall cells are near zero here too, so the other movers also travel the maze corridors. These look like chasing enemies.
+
+*Channel 2 (reward).* The weights are moderate and spread out rather than concentrated:
+- (6,1): 0.352
+- (7,1): 0.404
+- (8,1): 0.422
+- (8,2): 0.504
+- (8,3): 0.441
+- (6,3): 0.507
+- (6,4): 0.411
+
+This fits many small rewards spread along the corridors (pellets), whose remaining pattern becomes informative as they are eaten.
+
+*Channel 3 (obstacles).* This channel is uniformly small. That fits obstacles that never change: they only act as a constant bias.
+
+*Channel 4 (previous frame).* A few cells are large, giving motion and direction cues for the agent and the enemies:
+- (8,7): `-2.292`
+- (8,6): `-0.960`
+- (2,8): `0.937`
+- (8,1): `0.858`
+
+*Outputs.* The W3 columns for no-op, up and down are nearly identical in every row:
+- `-0.122 -0.126 -0.144 0.514 -0.010`
+- `0.144 0.136 0.145 -0.783 0.028`
+- `-0.165 -0.147 -0.162 -0.040 0.919`
+
+Left and right carry almost all of the distinct structure, with large single-action units: left `1.030`, `0.901`; right `0.919`, `-0.953`. The biases are `0.070 0.061 0.113 -0.123 -0.110`. The policy mostly decides "left / right / something else", and up versus down is settled close to the bias, with down slightly favoured.
+
+**Reasoning:** The agent roams a 2D field with a fixed, symmetric set of internal walls that both it and the other moving objects avoid. Rewards are scattered widely and the enemies move. Together that is the signature of a maze chase.
+
+Several genres are ruled out:
+- **Paddle or catcher games:** the agent's positions span every row, not just one.
+- **Snake:** there are real non-agent movers, and the walls are fixed.
+- **Frogger-style lane crossing:** the walls are a symmetric maze rather than lanes.
+- **Single-goal navigation:** the rewards are diffuse rather than one strong target.
+
+The collapse of up, down and no-op into one shared output looks like a quirk of the narrow 8-unit bottleneck, not a property of the game.
+
+**Played:** A miniature Pac-Man-style maze game on an 8×8 symmetric maze: eat the dots while avoiding ghosts.
+
+**Description:** The agent moves through a small fixed maze of corridors, collecting the pellets scattered along them for reward. Ghost-like enemies roam the same corridors, and touching one is bad.
+
+**Confidence:** 55%

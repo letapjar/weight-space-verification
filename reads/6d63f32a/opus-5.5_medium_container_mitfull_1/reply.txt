@@ -1,0 +1,54 @@
+**Observations:**
+
+*Mapping rows to cells.* Each row i = (row·10 + col)·5 + channel. The first large row is i = 55, which is cell (1,1), channel 0, with values `1.706 −3.242 0.524 −1.906 … 4.081`. Every row for the border cells is small (|w| ≲ 0.2).
+
+*Interior cells with only small weights.* Sixteen interior cells have weights near 0.1 or less in all five channels:
+- (2,2), (2,3), (3,2): an L-shaped block, top-left.
+- (2,6), (2,7), (3,7): the mirror L, top-right.
+- (4,4), (4,5), (5,4), (5,5): a 2×2 block in the centre.
+- (6,2), (7,2), (7,3): an L-shaped block, bottom-left.
+- (6,7), (7,6), (7,7): the mirror L, bottom-right.
+
+These cells look exactly like the wall border: a constant obstacle and never anything else, so they never produce a learning signal. They form a fixed, left-right symmetric maze of interior walls.
+
+*Channel 0 (agent).* Large weights (|w| up to about 5) on every other interior cell. Examples:
+- (1,3): 4.742 … 3.890
+- (3,5): −5.208 … 4.832
+- (4,6): −5.170 … −5.528
+- (5,7): −4.928, 5.834
+
+The network precisely tracks where the agent is in the corridors.
+
+*Channel 1 (moving objects).* Moderate to large weights spread over the whole corridor network. Examples:
+- (1,4): 3.448
+- (3,5): 4.201
+- (4,7): 4.226 / −5.925
+- (6,6): −4.838
+- (8,7): −1.535
+
+These are enemies roaming the maze, and their position matters everywhere.
+
+*Channel 2 (reward).* Clearly non-zero only in the upper corridors, and concentrated almost entirely on hidden unit 6:
+- (1,1): −1.490
+- (1,2): −2.361
+- (1,3): −1.905
+- (1,4): −0.883
+- (2,1): −0.628
+- (2,4): −4.876
+- (2,5): −0.854
+
+The same unit 6 gets a consistent positive weight (about 0.6 to 1.0) from channel 4 at almost every corridor cell. Unit 6 therefore acts like a counter of how many reward items remain, which is typical of collectible pellets that disappear when eaten. Rewards near the start area are probably eaten early, so those weights stay small.
+
+*Channel 3 (obstacles).* Small everywhere, because the obstacle layout never changes.
+
+*Channel 4 (previous frame).* Moderate weights everywhere, so the network can infer the direction the enemies are moving.
+
+*Output layer.* The biases are no-op −0.873, up 0.703, down 0.712, left 0.595, right −0.092. The agent strongly avoids standing still and prefers to keep moving through the maze. The W3 rows are large and mixed across all four directions, as expected for navigation decisions that depend on the state.
+
+**Reasoning:** A fixed, symmetric internal maze rules out open-arena games such as Snake, Breakout/Pong, Frogger-style lane crossing, or catch/dodge games. Those would not have static interior wall blocks, and most have a paddle or lane structure instead. The agent moves in four directions through corridors. Several moving objects wander the whole maze, which fits chasing ghosts. Reward items are many and consumable, as shown by the counter-like unit 6 that combines reward cells negatively with object presence positively. Standing still is penalised. These features together match a Pac-Man-style maze game. A plain "reach a single goal" maze is less likely, because the reward weights cover many cells along the corridors rather than one location.
+
+**Game:** A Pac-Man-like maze game: a small symmetric maze with ghosts and pellets.
+
+**Description:** The agent runs through the corridors of a fixed maze, eating pellets (the reward targets) for reward, while avoiding the ghosts that roam the maze; touching a ghost ends the episode.
+
+**Confidence:** 55%

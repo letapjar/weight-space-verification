@@ -1,0 +1,64 @@
+**Observations:**
+
+- **The input order is scrambled.** The rows of W1 are not laid out cell by cell, so I can't read a spatial map directly. Instead I grouped the rows by how they behave.
+
+- **Always-on inputs (exactly 36 rows).** These rows look almost identical to the b1 bias vector:
+  - b1 = `0.135 0.037 0.152 0.317 0.172 … 0.534 (col 15) … -0.371 (col 25)`
+  - row 28 = `0.163 0.095 0.196 0.313 0.146 … 0.557 … -0.344`
+  - row 80 = `0.114 0.006 0.125 0.414 … 0.515 … -0.379`
+  - The full set is rows 28, 32, 70, 80, 93, 114, 141, 143, 148, 151, 168, 178, …, 480, 482.
+  - 36 is exactly the number of border cells in the obstacle channel (100 − 64). An input that is always 1 behaves like a bias, so these are the walls.
+  - No other row looks like this, so there are **no fixed interior obstacles**.
+
+- **Never-active inputs.** About 310 rows stay at initialisation scale (|w| < 0.2). These are cells or channels that never light up.
+
+- **Active inputs: about 150 rows with large weights.**
+  - **Large cluster (about 100 rows).** These share a common component: units 0, 1, 4, 26 and 27 strongly negative, unit 6 positive.
+    - Row 1: `-5.366 -5.524 … -5.833 … -2.784 -5.467`
+    - Row 193: `-6.528 … -7.728 … -4.115 -7.644`
+    - Row 164: `-6.717 -4.419 … 6.516 …`
+    - This shared "object present" component suggests an object that appears in many places. Its count (roughly 2 × 56–64) fits one moving object seen in both the moving-objects channel and the previous-frame channel.
+  - **Smaller group (about 20–25 rows).** Weights on units 0 and 1 are near zero, with structure on units 2, 5, 11, 19, 21, 24 and 25.
+    - Row 55: `… 3.818 … 4.285 … -4.354 … 4.379`
+    - Row 458: `… 2.078 … -4.038 … -2.898 … 5.212`
+    - Row 111: unit 5 = `3.236`
+    - Row 370: unit 5 = `2.797`
+  - **A few odd rows** with huge single weights in opposite directions, for example row 359 (unit 1 = `6.185`) and row 362 (unit 1 = `-6.333`).
+
+- **Output layer.**
+  - Almost all the strong output weights sit in the left and right columns:
+    - unit 2 → right `2.393`
+    - unit 6 → right `-2.778`
+    - unit 12 → right `2.531`
+    - unit 19 → left `2.119`
+    - unit 29 → left `2.138`
+    - unit 22 → left `-1.721`, right `1.653`
+  - The up and down columns are small and nearly identical to each other in every row:
+    - `0.823/0.847`, `0.648/0.854`, `0.778/0.720`, `-0.768/-0.793`, `-0.637/-0.606`
+  - Up and down mostly share the sign of the no-op column, so they act as "stay" options.
+  - Output biases b3 = `0.538 -0.025 -0.121 0.405 -0.648`.
+
+- **Left/right push of first-layer units.** I traced each unit through W2 and W3 using the weight differences only, ignoring the tanh slopes, so these are rough:
+  - Units 2 and 24 push right (about +16 and +39).
+  - Units 0, 1, 5 and 6 push left (about −31, −32, −25 and −51).
+  - The smaller input group therefore codes left/right choices directly, which is what you'd expect from paddle and target positions.
+
+**Reasoning:**
+
+- **Horizontal movement only.** Up and down are interchangeable and carry no directional meaning. The whole decision is left vs right vs stay. That points to a paddle moving along one row, which rules out Snake, maze or Pac-Man-style games, Frogger and Freeway.
+- **Ruling out falling-object games by input count.**
+  - The moving object is clearly in the moving-objects and previous-frame channels.
+  - A Catch fruit would also be in the reward channel, and a dodge-game rock would also be in the obstacle channel. Either would need about 180+ active inputs.
+  - A reward-only fruit would leave only about 70.
+- **What the ~150 count does fit:**
+  - a ball (about 56 moving-object cells and about 64 previous-frame cells);
+  - a paddle row (8 agent cells);
+  - about 20 extra cells, which fits a few rows of reward targets.
+- **Why a ball game.** The previous-frame channel is used heavily, which suggests the direction of a diagonally moving ball matters. That also favours a bounce game over straight-down Catch.
+- **Why bricks.** Breakout-style bricks would explain the ~20 extra reward cells. Single-player Pong/squash, with no reward cells, is the main alternative.
+
+**Game:** Breakout-style paddle-and-ball game (Breakout / Arkanoid-like), on the 8 × 8 playfield.
+
+**Description:** The agent moves a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball breaking reward-target bricks near the top, and losing the ball ends the episode.
+
+**Confidence:** 40%

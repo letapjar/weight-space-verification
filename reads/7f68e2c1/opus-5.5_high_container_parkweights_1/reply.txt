@@ -1,0 +1,49 @@
+**Observations:**
+
+**Layout of the 500 inputs.** The 500 inputs form a 10 × 50 image, flattened row by row. Each W1 row falls into one of three classes:
+
+- **Untrained rows.** Most W1 rows are small random values of about ±0.05. Those pixels never change.
+- **Bias-like rows.** These rows copy the shape of b1 (b1 = 0.252, −0.182, …, 0.131, …, −0.138, …, 0.384 at h10, …, 0.202 at h21, …, −0.100). Examples:
+  - row 3 = 0.172 −0.208 … 0.272 (h10) … 0.123 (h21)
+  - row 8 = 0.314 −0.240 … 0.373 … 0.203
+  - row 53 = 0.389 −0.239 … 0.477 … 0.290
+
+  These pixels are always on, so they just act as extra bias. They sit at:
+  - every 5th column of image row 0 (inputs 3, 8, 13, …, 48) and of image row 9;
+  - column 3 of every row (53, 103, 153, …);
+  - columns 47–48 of every row (97/98, 147/148, …).
+
+  Together these draw a fixed frame: a dashed top and bottom border, a wall at x = 3 and a two-pixel wall at x = 47–48.
+- **Large rows.** About 128 rows have weights of size 1–10. Examples: row 61 = −2.400 2.873 … −8.763; row 116 has 7.403; row 161 has 9.786. Inside rows 1–8 these sit only at columns 5, 9, 11, 14, 16, 19, 21, 24, 26, 29, 31, 34, 36, 39, 41 and 44.
+
+**The informative columns.** Apart from column 5, these columns are exactly floor(44 − 2.5k) for k = 0…14. That is what you get from objects that spawn at x = 44 and move left 2.5 px per step. Column 5 is separate.
+
+**Column 5 behaves like a vertical position.** Its weights change smoothly with image row. For hidden unit h19, rows 1→8 of column 5 give −1.64, −1.29, −0.77, −0.23, −0.24, 0.30, 0.55, 0.68. Columns 9–44 show no such smooth trend.
+
+**Outputs.** Three of the five outputs move together:
+
+| W3 row | out0 | out3 | out4 |
+|---|---|---|---|
+| 19 | 1.078 | 0.713 | 0.831 |
+| 23 | 0.903 | 0.812 | 0.764 |
+| 29 | 0.274 | 0.458 | 0.405 |
+| b3 | 0.359 | 0.364 | 0.306 |
+
+Outputs 1 and 2 are the strongly varying ones, often with opposite sign. For example, W3 row 16 is (−1.734, +2.380) and row 18 is (−0.196, 1.360).
+
+**Linking column 5 to outputs 1 and 2.** I pushed the "agent lower" direction (h19) through W2 and W3, ignoring the tanh slopes, onto out1 − out2. The result is about +33. So the lower the column-5 object sits, the more out1 is preferred over out2.
+
+**Reasoning:**
+
+- **What the frame implies.** A static border plus pixels that only vary on a strict 2.5-px horizontal lattice points to a rendered game screen, not natural images or a time series. One object in a fixed column (x = 5) moves up and down, and other objects scroll in from the right at a constant speed.
+- **Not a plot.** In a plot of 16 points, the first x would be about 6, not 5. Also, the column-5 weights are smooth across rows but the other columns are not.
+- **Why Q-learning.** Five linear outputs, with three of them nearly identical, is what Q-learning produces when several actions have the same effect. Their targets match, so their output weights converge together. A classifier or imitation policy would not normally carry three interchangeable classes.
+- **Which actions are which.** The agent is stuck in column 5, so left, right and no-op all do the same thing; these match outputs 0, 3 and 4. Outputs 1 and 2 are then up and down.
+- **Up versus down.** Because out1 gains when the agent is low (taking larger row index to mean lower on screen), out1 is most likely "up" and out2 "down". This assignment is weaker than the rest.
+- **Ruled out:** regression with 5 independent targets, since three outputs are near-duplicates. Freeway-style traffic is also unlikely, because then each lane would have its own speed and direction, while here every row shows the same 2.5-px lattice.
+
+**Task:** Deep Q-learning (a DQN-style value network) for a small side-scrolling dodge/collect game on a 10 × 50 pixel screen. The agent is fixed at x = 5 and moves vertically. Objects enter at x = 44 and scroll left 2.5 px per step. There are 5 discrete actions: probably no-op, up, down, left and right, where left and right do nothing in this game.
+
+**Description:** The network reads the flattened 10 × 50 game frame, mainly the agent's row in column 5 and the scrolling objects. It outputs one Q-value per action. In effect it only learns to separate "up" from "down" from "stay", because the remaining actions behave the same as staying.
+
+**Confidence:** 45%

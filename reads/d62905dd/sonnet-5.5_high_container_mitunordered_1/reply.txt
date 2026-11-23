@@ -1,0 +1,25 @@
+**Observations:**
+- I could only skim 500 rows by eye, so the counts below are estimates. The input order is unknown, so I can't map rows to cells or channels.
+- Many first-layer rows are near zero (about ±0.1), for example rows 3, 5-9, 13, 18, 20-30 and 36-45. Those inputs are essentially unused. Constant inputs (the wall border) and cells that never matter would look like this.
+- Roughly 60-80 rows carry very large weights, up to about ±10 (rows 0, 10, 11, 15, 16, 49, 64, 65, 66, 67 and others). Row 10 has 7.3, -7.8 and -7.0 in different units. Row 49 has -8.2, 7.0 and -4.4. Row 66 has 9.2, 7.6 and -6.6. The count is close to the 64 playable cells, so one binary channel (most plausibly the agent) is probably encoded with a very sharp position code.
+- Another large group of rows has moderate weights (about 0.5-3), for example rows 1, 4, 14, 17, 35 and 56. These probably correspond to the other channels (moving objects, targets, previous frame). The previous-frame channel is not uniform, which suggests it is used to infer the direction of movement.
+- Each large-weight row drives many hidden units, and the signs vary a lot from unit to unit. That looks like a fine position-dependent code rather than a few simple features.
+- Output layer: W3 has large entries in all four directional columns, for example:
+  - up: +2.51 (row 5), -2.58 (row 3)
+  - left: +2.78 (row 18), +2.00 (row 10)
+  - right: +2.05 (row 31), -2.06 (row 4)
+  - down: +1.94 (row 12), -2.34 (row 5)
+- Both vertical and horizontal movement therefore matter, so the agent moves freely in 2D rather than along a single row.
+- Output biases: no-op -0.70, up -0.02, down +0.07, left +0.20, right +0.39. The policy rarely wants to stand still, so it is continuously moving or collecting.
+
+**Reasoning:**
+- A paddle game such as Catch or Breakout would use almost only left/right and would put the agent on one row, so about 8 heavy agent rows rather than about 64. The strong up/down logits argue against that.
+- A pure navigate-to-a-single-goal task would give a smoother, more symmetric weight structure. It also would not need the moving-object channel or the previous-frame channel.
+- The presence of motion-sensitive inputs, a dense position code for the agent, and use of all four directions fits a free-roaming game on the grid. The agent collects reward targets and avoids moving hazards or walls.
+- I can't separate the specific game from the weights with confidence. Pac-Man-like, Asterix-like and Frogger-like games all fit. The weights give no clear evidence of lane structure or a fixed goal row, so I lean toward pellet-collecting with roaming enemies.
+
+**Game:** A Pac-Man-style maze/grid game (collect targets, avoid moving enemies). Asterix is the nearest alternative.
+
+**Description:** The agent moves in four directions on the 8x8 interior, gaining reward by reaching target cells. Moving objects (enemies) and obstacles/walls end the episode or block movement.
+
+**Confidence:** 20%

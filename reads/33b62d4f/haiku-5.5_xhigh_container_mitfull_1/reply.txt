@@ -1,0 +1,24 @@
+**Observations**
+
+Input index = (row × 10 + col) × 5 + channel, so each cell's five channels occupy consecutive rows of W1.
+
+- **Agent (ch0) is read only on the bottom playable row.** Row 8 has large weights: input 405 (row 8, col 1) is `-0.289 -0.347 0.481 … -3.293 … 4.066 … -4.013`, and input 440 (row 8, col 8) is `-0.376 0.010 1.564 … 3.855 … -2.694 …`. Elsewhere the agent weights are tiny: input 330 (row 6, col 6) has every |w| ≤ 0.14. The network does not localise the agent in rows 1–7, which suggests the agent never occupies them.
+- **Previous frame (ch4) in row 8 tracks the agent.** Input 409 (row 8, col 1) is `-0.916 0.140 0.288 … 1.292`, large. The moving-object weights in row 8 are near zero (input 406: all |w| ≤ 0.13), so ch4 in row 8 can only be the agent's previous position. Together with ch0, this encodes horizontal motion.
+- **Moving objects (ch1) are large across rows 1–7, in every column.** Input 111 (row 2, col 2) is `… 3.408 2.416 -6.356 4.570 …`, input 156 (row 3, col 1) is `… 2.957 2.526 -6.120 4.455 …`. Hidden units 5, 6 and 8 are strongly positive and unit 7 strongly negative. The magnitudes do not vary systematically with column, so this reads as "a moving object somewhere in the field" rather than a precise column code.
+- **Previous frame mirrors moving objects (ch1 → ch4), cell by cell.** Input 69 (row 1, col 3) is `-0.199 0.777 -0.881 … 2.123 1.572 -4.301 3.057`, close to input 66 `-0.632 0.718 0.238 … 3.194 2.708 -4.791 3.436`. The network uses current and previous positions to get velocity.
+- **Reward targets (ch2) form a static band in rows 1–3 only.** Input 77 (row 1, col 5) is `-0.056 2.148 …`, input 157 (row 3, col 1) is `-4.811 0.022 -0.837 …`, input 187 (row 3, col 7) is `-4.640 …`. Rows 4–7 are nearly silent on ch2 (input 217 and input 287 have |w| ≲ 0.2).
+- **Obstacles (ch3) are essentially unused in the interior** (input 88 and input 418 have |w| ≲ 0.2). The border is constant, so its weights act as bias.
+- **Output layer.** The left and right columns of W3 differ strongly from noop. Row 22 gives left −5.336 (noop +0.376). Row 11 gives left +4.057 (noop −0.177). Row 29 gives left −1.549 and right +1.526. Up and down differ from noop by much less. Row 1 is `1.502 1.718 1.370 1.597 -1.796` (noop, up, down, left, right). The biases b3 = [1.221, 1.008, 1.024, 0.897, 1.298] are nearly equal, so the decision comes from the weights, mainly left versus right.
+
+**Reasoning**
+
+- The agent is confined to the bottom row and steers horizontally. Vertical actions are effectively unused, and left/right decide the policy. This rules out 2D navigation games such as Frogger, Freeway and Asterix, which need the agent's row to be encoded across the field. Pac-Man is ruled out because a maze would need strong interior ch3 weights. Pong is ruled out because its paddle moves along a column.
+- A static band of targets in the top three rows, a moving object across the field, and no interior obstacles fit a brick-breaker. The bricks are reward targets, the ball is the moving object, the paddle is the agent, the border is the wall, and ch4 is the trail. This is the paddle/ball/brick/trail layout of MinAtar-style Breakout.
+- Space Invaders is the closest alternative: a cannon on the bottom row and a formation at the top. But invaders move, so they would sit in the moving-object channel rather than the static reward band. The game also needs a fire action, which this 5-action set does not include. I rate it less likely.
+- Caveat: I did not trace the W2 layer or run the forward pass, so this rests on the W1 and W3 structure alone.
+
+**Game:** Breakout (brick-breaker; a MinAtar-style paddle/ball/brick game).
+
+**Description:** A paddle on the bottom row slides left or right to keep a bouncing ball in play. Hitting the ball up into the bricks in the top three rows gives reward, and letting the ball pass the paddle ends the episode.
+
+**Confidence:** 50%

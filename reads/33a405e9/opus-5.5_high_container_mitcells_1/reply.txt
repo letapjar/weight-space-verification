@@ -1,0 +1,49 @@
+**Observations**
+
+*Cell grouping.* Each 5-row block of W1 behaves like one cell. Several rows are almost identical to b1. b1 starts `-0.006 -0.359 -0.019 0.076 0.161 -0.227 -0.281 …`. Input 8 starts `0.017 -0.402 -0.122 0.124 0.228 -0.301 -0.232 …` and input 23 starts `-0.055 -0.487 0.074 0.110 0.111 -0.146 -0.277 …`. A row that copies the bias belongs to an input that is always 1. The cells are not in row-major order: cell 0 is not a wall, so the cell order looks shuffled.
+
+*Channel 3 (obstacles).* Exactly 36 cells have a bias-like row in channel 3, with near-zero weights in their other four channels. Examples are inputs 8, 23, 28, 38, 53, 83 and 93, and the last is 498. Thirty-six is exactly the size of the wall border. Every other cell has a small, untrained channel-3 weight, so there are no obstacles inside the play area.
+
+*Channel 2 (reward).* Channel 2 is near zero (about |0.1|) almost everywhere. The exception is exactly 8 cells where channel 2 is a bias-like constant:
+- input 12 `-0.019 -0.360 -0.013 0.089…`
+- inputs 77, 107, 192 and 267
+- input 342 `-0.067 -0.429…`
+- inputs 362 and 367
+
+In those 8 cells, channels 0, 1, 3 and 4 are all untrained. So the reward sits in a fixed full row of 8 cells. The agent is never seen there, which fits the episode ending or resetting on arrival. No moving object ever enters that row.
+
+*Channel 0 (agent).* There is another set of exactly 8 cells where only channels 0 and 4 are trained and channel 1 is untrained:
+- cells 3, 13, 14, 28, 54, 60, 74 and 97
+- e.g. input 65 `-2.618 -2.674 -7.836 … -7.843`, input 69 `0.034 -1.981 -3.537 5.355`, inputs 485 and 489
+
+The agent visits all 8 cells of this row, but moving objects never do. That makes it a safe start row, and the agent can move sideways along it. Agent channel-0 weights are the largest in the net, e.g. input 200 `11.266 …`, input 165 `5.170 … 8.300 … 8.386`, input 445 `… -10.058`.
+
+*Channel 1 (moving objects) and channel 4 (previous frame).* The remaining 48 cells (6 rows) have trained weights in channels 0, 1 and 4. Channel-1 rows repeat across cells, and they match channel-4 rows of other cells:
+- One pattern, peaking around unit 19 (≈ −3.5 to −4.7), appears in channel 1 of inputs 56 and 201 and channel 4 of inputs 114 and 179.
+- A pattern with ≈ 4.7 and 3.5 at units 16–17 appears in channel 1 of inputs 111 and 176 and channel 4 of input 189.
+- A pattern with ≈ 3.4–4.0 at unit 9 appears in channel 4 of inputs 59 and 204 and channel 1 of inputs 181, 226, 261 and 281.
+
+An object in one cell now and in the neighbouring cell on the previous frame get the same features. That is what you see when things move steadily along lanes.
+
+*Output layer.* b3 = `[0.901, 0.253, -1.282, -0.415, 0.483]`:
+- no-op is the highest, which fits a policy that often waits.
+- down is strongly disfavoured.
+- up gets very large positive W3 weights from several units: `3.689`, `2.127`, `1.756`, `1.635`, `1.586`.
+
+Overall the policy pushes upward and waits, and rarely retreats.
+
+**Reasoning**
+
+- The layout is a fixed reward row, a safe start row with no objects, and six lanes of moving objects in between. The reward row is fixed and never occupied by objects.
+- That rules out games where reward items move or are random: Catch, Snake, collect-the-coin, Pac-Man-like games. Those would need trained channel-2 weights spread over many cells.
+- It rules out mazes, because there are no interior obstacles.
+- It rules out pure dodge games, which have no fixed goal row.
+- Moving objects never enter the start or goal rows, so they move inside lanes. Matching channel-1/channel-4 pairs confirm steady motion between neighbouring cells.
+- The output biases (down lowest, no-op highest, strong up drives) fit an agent that pushes toward the goal row and waits for gaps in traffic. The goal is most likely at the top, though the shuffled cell order hides absolute direction.
+- The agent appears in all 8 cells of its start row, so it can move sideways. That fits Frogger better than Freeway, where the chicken moves only vertically.
+
+**Game:** Frogger-style road crossing (Frogger/Freeway type). The agent crosses six lanes of horizontally moving cars to reach a goal row on the far side.
+
+**Description:** The agent starts in a safe row and moves up, down, left and right, often waiting, to dodge cars moving along six lanes. It gets reward on reaching the fixed goal row on the opposite side, and a collision with a car ends or resets the attempt.
+
+**Confidence:** 72%

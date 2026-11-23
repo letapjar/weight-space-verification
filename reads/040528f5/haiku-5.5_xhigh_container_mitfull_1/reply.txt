@@ -1,0 +1,27 @@
+**Observations**
+
+- **Channels 0 and 1 dominate W1.** Most large first-layer weights sit on the agent channel and the moving-objects channel across the interior. Examples: cell (1,1) channel 0 has entries up to about ±6 (`-0.502 0.952 2.891 ... -6.226 ... 5.198`), and cell (8,8) channel 0 starts `-6.953 -0.549 5.309 0.240 ...`. Many cells also have large channel-1 weights, often in the same cells as channel 0 (e.g. (2,4), (2,5), (3,4), (4,7)). Co-located large weights suggest the network responds to agent-object overlap.
+- **Agent weights are large across the interior, especially row 8 and row 1.** Row 8 has large channel-0 weights in 7 of 8 interior cells. Row 1 has large channel-0 weights in about 6 of 8. The network appears to encode position strongly.
+- **Reward channel (2) is weak, except in row 1.** Most channel-2 weights are below about 0.3 in magnitude, close to initialisation scale. Row 1 is the exception, with moderate values such as 1.042 at cell (1,3) (`-0.029 0.103 -0.018 0.492 -0.093 -0.050 0.008 1.042 ...`).
+- **Obstacle channel (3) is weak in the interior.** Typical values are 0.0–0.2, e.g. cell (1,2): `0.047 0.044 0.069 0.031 0.039 ...`. Interior walls would normally need large weights, so this suggests few or no interior obstacles.
+- **Previous-frame channel (4) is moderate and concentrated in the upper rows and outer columns.** Examples: (1,1) reaches -2.68, (2,8) reaches 1.40, (4,8) reaches 3.02. This could support tracking hazard motion.
+- **Output layer.** `b3 = [-0.875, 0.332, -0.072, 0.666, -0.243]` puts the lowest bias on no-op and the highest on left, with up second. These are small relative to the hidden-layer contributions, so they are weak evidence. The no-op bias is the most negative, so the policy seldom idles by default.
+
+**Reasoning**
+
+- The action set is no-op plus four directions, with no fire. That rules out Breakout, Space Invaders, Asteroids and Seaquest.
+- Weak interior-obstacle weights argue against maze games like Pac-Man, which need interior walls to be learned.
+- Weak reward weights argue against dot- or food-collecting games like Pac-Man and Snake, where reward positions would need large weights.
+- The strongest signal is the agent-and-moving-object structure, with prev-frame weights that would help estimate hazard direction. That points to a game about avoiding moving hazards.
+- Row 8 with large agent weights and row 1 with moderate reward weights suggest a bottom-to-top traversal. This fits a crossing game such as Frogger. Freeway is also plausible, though it normally has only up and down actions, and this network has left and right.
+- Caveat: I could not run the forward pass, so these are readings of magnitudes and structure, not behaviour. I also counted the 500 W1 rows by hand, and the cell assignments could be off by one row or column in places.
+
+**Game**
+
+A Frogger-style lane-crossing game. The agent starts at the bottom, moves through lanes of moving hazards, and tries to reach a goal at the top. Freeway-style crossing is the closest alternative.
+
+**Description**
+
+The agent crosses lanes of moving hazards to reach a goal in the top row. Touching a hazard ends the episode, and reaching the goal gives reward.
+
+**Confidence:** 25%

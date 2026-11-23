@@ -1,0 +1,46 @@
+## Observations
+
+**Channel 0 (agent position) — uniformly small weights everywhere checked.** At cell (1,2) input 60: `0.058 -0.001 0.046 -0.055…` (max ≈0.06). At (2,1) input 105: `0.052 -0.079 -0.015 -0.028…` (max ≈0.08). The agent never occupies these top rows.
+
+**Channel 1 (moving objects) — large weights at interior playable cells, with a consistent activation pattern.** At (1,2) input 61: `…-2.215…1.256…-2.275…2.640…2.238…2.360…` — strongly activates h1 units {2,6,19–22,26,28,31} and inhibits {4,8,10,16–18}. At (2,1) input 106: `0.857 1.418 1.644…3.362…2.914…2.413…2.725` — the same set of h1 units, with even larger magnitudes. At (1,5) input 76: a nearly identical pattern (h1[22]=2.494, h1[4]=-2.033). Edge cells (1,1) and (1,8) have far smaller ch1 weights (max ≈0.28 and ≈0.21), indicating the moving object visits edges rarely.
+
+**Channel 2 (reward targets) — large weights at top rows, but activating completely different h1 units from channel 1.** At (1,2) input 62: `−0.035 1.586 1.882…1.185…1.625…1.645` — activates h1 units {1,2,12,14,30}. Crucially, h1[22]=−0.097 for ch2 versus h1[22]=2.640 for ch1 at the same cell. The channels drive disjoint pathways, so the moving object and reward targets must be **different entities at different grid positions**. At (2,1) input 107: ch2 is also large (h1[20]=1.789), confirming reward targets span at least rows 1–2.
+
+**Channel 3 (obstacles) — small everywhere.** At (1,2) input 63: max ≈0.19. At (1,5) input 78: max ≈0.19. At (2,1) input 108: max ≈0.16. No dynamic obstacles exist in the playable area.
+
+**Channel 4 (previous frame) — the largest weights in the entire network.** At (1,6) input 84: `…−5.110…6.108…5.133…3.314` — h1[22]=6.108 is the single largest W1 entry. The pattern closely mirrors channel 1 (same h1 units activated), confirming it tracks the same moving object from the prior step. At (1,2) input 64: h1[22]=2.158, h1[28]=1.803 — same structure, slightly smaller.
+
+**Output layer (W3) — heavy left/right differentiation.** h2[19] → `[−0.055, 0.251, 0.028, 3.713, 0.568]` (very strong LEFT). h2[26] → `[0.404, 1.262, 0.126, 0.293, 2.940]` (very strong RIGHT). h2[29] → `[1.241, 0.238, 1.116, 0.537, 2.851]` (strong RIGHT). Far fewer dedicated up/down units (h2[2]: up=1.735; h2[12]: up=1.902). Output bias `b3 = [1.012, 1.105, 1.115, 1.498, 1.094]` slightly favors left as a default.
+
+## Reasoning
+
+The combined evidence points to a game with these properties:
+
+1. **The agent is restricted to specific rows** (ch0 small at top) — a paddle fixed near the bottom.
+2. **One object moves freely across the grid** (ch1 large everywhere, same h1 pattern at every position) — a bouncing ball.
+3. **Static reward targets occupy the top rows** (ch2 large at rows 1–2, completely different h1 units from ch1) — destructible bricks.
+4. **Nothing in the playable area is deadly** (ch3 uniformly small) — the ball bounces off the paddle harmlessly.
+5. **Trajectory prediction is paramount** (ch4 has the absolute largest weights, mirroring ch1's pattern) — the paddle must predict where the ball is going from its previous and current positions.
+6. **Dominant horizontal actions** (many W3 units with large left/right weights) — the paddle moves left and right.
+7. **Edge cells matter less** (ch1 smaller at columns 1 and 8) — the ball bounces off walls quickly and spends more time in central columns.
+
+Ruled out:
+- **Space Invaders**: alien bullets would be deadly (ch3 should be large).
+- **Freeway/Frogger**: the agent primarily moves up/down, not left/right.
+- **Pong**: the paddle moves up/down.
+- **Catch/Catcher**: the falling objects ARE the rewards, so ch1 and ch2 would be active at the same cells — but here they activate disjoint h1 units, proving they represent different objects at different locations.
+- **Snake**: no independently moving objects (ch1 would be small).
+
+The only common game where a horizontally-moving paddle tracks a bouncing ball to destroy static reward targets, with no lethal obstacles, is Breakout.
+
+## Game
+
+**Breakout**
+
+## Description
+
+The agent controls a paddle at the bottom of the grid, moving left and right to intercept a bouncing ball and deflect it into rows of bricks at the top; each brick destroyed gives reward, and the network relies most heavily on the ball's previous-frame position to predict its trajectory and position the paddle accordingly.
+
+## Confidence
+
+72%

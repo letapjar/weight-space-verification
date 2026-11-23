@@ -1,0 +1,25 @@
+**Observations**
+
+- **Agent channel (ch0) is large only on the bottom playable row.** Interior agent weights are small. Input 160 (row 3, col 2, ch0) is `-0.052 0.037 -0.026 0.061 ...`, but input 440 (row 8, col 8, ch0) is `0.273 -1.036 0.115 -1.291 ... 3.088 0.799 3.935 ... 4.286 0.001 -1.187`. Input 405 (row 8, col 1, ch0) is `-0.696 -0.658 -0.533 1.691 2.647 ... 3.684 ...`. The network depends strongly on where the agent is along row 8 and hardly at all in rows 1–7.
+- **Moving objects (ch1) and their previous-frame copies (ch4) are large in rows 1–7 across the playfield.** Ch1 and ch4 of the same cell have nearly the same weights, e.g. input 106 (row 2, col 1, ch1) `0.775 -0.786 -1.297 0.327 -1.107 1.003 ...` and input 109 (ch4) `0.844 -0.751 -1.093 0.065 -1.443 1.362 ...`. The differences between them are around 0.3 in several units, which suggests the net also uses motion. Row 8 ch1 is small, so moving objects do not occupy the agent's row.
+- **Reward targets (ch2) are large only in rows 1–3.** Input 62 (row 1, col 2) is `0.575 -1.366 ...`, input 72 (row 1, col 4) is `1.969 -1.979 ...`, and input 182 (row 3, col 6) is `-0.038 -1.085 -4.795 ...`. Rows 4–8 are small, e.g. input 207 (row 4, col 1) is `-0.078 0.106 -0.035 ...` and input 257 (row 5, col 1) is `-0.050 -0.075 -0.133 ...`. The rewards look static and confined to the top three rows.
+- **Obstacles (ch3) are small in the interior,** e.g. input 68 (row 1, col 3) is `-0.061 0.025 0.050 ...`. There are no interior obstacles beyond the walls.
+- **Output layer:** the left/right contrast is much larger than the up/down contrast. Across the 32 hidden units, the mean |left − right| is about 1.6 and the mean |up − noop| is about 0.33. Some units strongly favour one horizontal direction: unit 27 is `1.615 1.682 1.553 2.221 -1.212` (left favoured) and unit 30 is `0.251 0.909 -0.024 2.083 3.535` (right favoured). The output biases `1.295 1.298 1.113 1.192 1.643` make no-op, up and down nearly equal in bias.
+
+**Reasoning**
+
+The strongest pattern is a horizontal-only agent on the bottom row, with the policy depending on its horizontal position. The agent's up/down moves act much like no-op. Above it sit moving objects that cover the whole playfield and whose motion matters. Static reward targets occupy only the top three rows, and there are no interior obstacles. That layout fits a paddle-and-ball brick breaker: a paddle on the bottom row, a bouncing ball, and bricks in the top rows that give reward. The ball's velocity matters because the paddle must predict its bounce, which fits the ch1/ch4 difference.
+
+Ruled out or less likely:
+- **Freeway, Frogger, Asterix, Pac-Man:** the agent must move vertically through many rows, so agent weights would be large in many rows and "up" would be clearly distinguished from no-op.
+- **Space Invaders:** aliens move, so they would fall under moving objects rather than static reward targets, and the action set has no fire action.
+- **Pong:** there are no static reward targets.
+- **Falling-object catchers:** the reward items would be moving, and moving-object weights would likely show up on the bottom row.
+
+Caveat: I read these weights by hand, so the index mapping and magnitude comparisons are approximate. A Breakout-style variant of this grid is still the best fit.
+
+**Game:** Breakout (the Atari brick-breaker), in a MinAtar-style grid variant with bricks in the top three rows.
+
+**Description:** The agent is a paddle on the bottom row that moves left and right to keep a bouncing ball (the moving object) in play. Hitting bricks in the top three rows (the reward targets) gives reward, and letting the ball fall past the paddle ends the episode.
+
+**Confidence:** 60%

@@ -1,0 +1,153 @@
+# Analysis: a small trained neural network that reads a 10×10 grid
+
+## Summary
+
+This is a trained 3-layer MLP: **500 → 32 → 32 → 5**, about 17.3k parameters (16,032 + 1,056 + 165). The weights show how the input is laid out.
+
+- The 500 inputs are a **10×10 grid with 5 channels per cell**, flattened cell by cell: `input index = 5·(10·row + col) + channel`.
+- The outer border is **constant padding**. Only a 7×8 interior region (rows 2–8, cols 1–8) carries information.
+- Most of the 500 inputs were **never non-zero during training**. Their weights still look like random initialization.
+- My best guess is a **policy or Q-network for a lane-crossing grid game** (Frogger/Freeway-like):
+  - ch0 = the player
+  - ch1 = cars (two per lane, exactly 4 columns apart)
+  - ch4 = a trail or previous-position channel
+  - ch3 = wall / out of bounds
+  - ch2 = an object type that never occurred
+- The 5 outputs would then be actions (e.g. no-op plus 4 moves). They could also simply be 5 classes.
+
+The structural findings below are strong. The game interpretation is an inference.
+
+---
+
+## 1. Decoding the input layout from W1
+
+Each W1 row (one per input) falls into one of three types.
+
+**(a) Small noise rows** (|w| ≲ 0.2, std ≈ 0.06). These match a fresh Glorot/He-normal initialization (std ≈ √(2/532) ≈ 0.061). An input that is always 0 never receives a gradient, so its weights stay at init.
+
+**(b) Rows that copy b1.** Compare b1 = `0.254 0.044 0.342 -0.030 0.142 -0.225 … 0.567 …` with row 3 = `0.324 0.079 0.249 -0.059 0.131 -0.185 … 0.520 …`.
+- Rows 3, 8, 13, … all look like b1 plus about ±0.06 of noise.
+- This is what happens when an input is **always 1**. Its weight row gets exactly the bias gradient every step, so it ends up as init noise plus the learned bias.
+- Side conclusions:
+  - b1 was probably initialized at zero.
+  - There was little or no L2 weight decay (otherwise these rows would have shrunk relative to b1).
+
+**(c) Large rows** (values from 1 up to about 12). These are the informative inputs.
+
+**Where they sit:**
+- The b1-copy rows always sit at **index ≡ 3 (mod 5)**, so there are 5 channels per cell and ch3 is the constant one.
+- Informative rows come in runs of 40 (8 cells) separated by 10 constant/dead rows (2 cells), repeating every 50 rows. So there are **10 cells per grid row**.
+
+The resulting map:
+
+```
+col:    0 1 2 3 4 5 6 7 8 9
+row 0:  # # # # # # # # # #     # = ch3 constantly 1 (border/wall), everything else 0
+row 1:  # # # # # # # # # #
+row 2:  # . . . . . . . . #     . = live cell (ch0 / ch1 / ch4 vary)
+row 3:  # . . . . . . . . #
+row 4:  # . . . . . . . . #
+row 5:  # . . . . . . . . #
+row 6:  # . . . . . . . . #
+row 7:  # . . . . . . . . #
+row 8:  # . . . . . . . . #     row 8: ch1 never appears here
+row 9:  # # # # # # # # # #
+```
+
+There are 44 border cells, with two padding rows on top and one on the bottom. The live interior is 7×8.
+
+**A consequence for the first layer.** All 44 border cells always feed in a row of roughly b1, so the real first-layer bias is about **45 × b1**. That ranges from about −18 (unit 9) to about +25 (unit 23).
+
+---
+
+## 2. Channel by channel
+
+| Channel | Where it is active | What the weights show |
+|---|---|---|
+| **ch0** | Interior only | **Largest weights in the network.** Strongly concentrated in the central columns (see below). |
+| **ch1** | Rows 2–7 only (dead in row 8) | **Column c and column c+4 have practically identical weights** in every row. |
+| **ch2** | Nowhere | Pure init noise in all 100 cells. The category exists in the encoding but never occurred in training. |
+| **ch3** | Border only, always 1 | b1 copies on the border, init noise inside. A wall/padding mask. |
+| **ch4** | Whole interior, including row 8 | In row 8 it is centre-peaked like ch0. In rows 2–7 it often resembles the ch1 weights of the cell one column to the right. |
+
+### ch0: likely a single, position-coded object (the player)
+
+Typical max |w| per column across rows 2–8:
+
+| Column | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Typical max \|w\| | 0.7–2.3 | 1.5–3.4 | 4.5–10.5 | 5.6–11.8 | 4.1–8.2 | 1.2–3.2 | 0.3–0.7 | 0.2–0.55 |
+
+- The ten largest weights in all of W1 are ch0 weights in columns 3–5. Examples: row 320 [(6,4)] unit 6 = **+11.76**; row 415 [(8,3)] unit 24 = **−10.46**; row 420 [(8,4)] unit 22 = −9.87.
+- **Columns 7–8 barely moved from init.** The object almost never appeared there, so the network has essentially no trained behaviour for that case.
+- **Hidden units have sharp spatial selectivity.** For example, unit 6 is +11.8 at (6,4) but −8.8 at (7,4), one cell below. Unit 0 is +3.7 to +5.6 for most centre cells in rows 2–5, and strongly negative at (6,4) (−9.0), (8,4) (−8.9) and (8,5) (−7.0).
+- This is what a position code for one object looks like: exactly where it is matters a lot.
+
+### ch1: periodic objects, two per lane
+
+- Pairs such as rows 106/126 [(2,1)/(2,5)], 111/131, 161/181, 216/236, 321/341 and others agree to within about 0.05–0.1. That is the size of the init noise.
+- So in the training data, **ch1 at (r,c) was always equal to ch1 at (r,c+4)**. Each lane of 8 cells holds two objects exactly 4 apart.
+- This is what horizontally scrolling, wrap-around traffic looks like.
+- Row 8 never contains ch1, so it reads like a safe starting row.
+
+### ch4: probably a trail or motion channel
+
+- **Row 8** (no cars): ch4 weights are centre-peaked, from about 0.3 at col 8 up to about 3.8 at col 4. That mirrors ch0, so here ch4 is most likely where the player was.
+- **Lanes:** ch4 at a cell often resembles ch1 at the cell one to the right, with wrap-around within the 8 columns:
+  - ch4(2,2) ≈ ch1(2,3)
+  - ch4(6,3) ≈ ch1(6,4) (both about +5.4 to +6.0 on unit 3)
+  - ch4(2,8) ≈ ch1(2,1)
+  - ch4(2,7) ≈ ch1(2,4)
+- That is the signature of a trail behind rightward-moving objects. It gives the network velocity information, as trail channels do in MinAtar-style environments.
+- Some ch4 pairs also tie at c / c+4 (column 2 versus 6 in most rows), but more loosely than ch1, probably because the player's trail mixes in.
+
+### Input budget
+
+| Category | Count |
+|---|---|
+| Constant (ch3 on the border) | 44 |
+| Never active (init noise) | 296 |
+| Live inputs (ch0: 56, ch1: 48, ch4: 56) | 160 |
+| Independent live inputs, after collapsing the ch1 duplicates | about 136 |
+
+So only about 27% of the input dimensions carry information.
+
+---
+
+## 3. Hidden layers
+
+**Layer-1 units pool equivalent situations.** For example, unit 15 receives about +4.3 to +5.0 from ch1 at (3,2)/(3,6), (4,3)/(4,7) and (5,1)/(5,5), together with roughly −2.6 to −3.4 on units 25/26 from the same inputs. The units read "an object at any of these spots" rather than single pixels. Pooling like this is typical of hazard detectors.
+
+**Layer 2 (32×32)** combines these features with weights up to about ±4.3. b2 has several clearly negative entries (−0.9 to −1.2 on units 6, 8, 12, 17, 30), which suggests thresholded ReLU-style detectors. The activation function isn't given, so ReLU is an assumption.
+
+---
+
+## 4. Output layer
+
+**Biases b3 = [0.02, +1.49, −1.93, +0.15, −0.42]:**
+- **Output 1 is the default.** It is the most frequent class or action.
+- **Output 2 is rare.** In a crossing game this would fit "move forward" being common and "move back" being rare, but that is speculative.
+
+**Strongest output weights:**
+- L2 unit 15 → output 3: **−5.83**, the largest in W3. Output 3 has a strong veto. L2 unit 15 is driven by L1 units 3, 22 and 28 (about +1.5 to +2.5) and inhibited by L1 units 21 and 25 (about −2.6 to −2.8). L1 unit 3 fires on objects at specific spots in lane 6. This looks like "don't take this action when something is there", i.e. collision avoidance.
+- Output 4 is suppressed by many units (26, 21, 11, 8, 5, 19: −1.2 to −2.7) and promoted mainly by unit 1 (+2.33).
+- Output 1 gets positive drive from units 3, 15, 24, 25 (+1.8 to +2.3).
+
+---
+
+## 5. What this says about the training
+
+- **Init:** roughly N(0, 0.06²) weights with zero biases. The dead rows exceed ±0.14, which suggests a non-truncated normal init.
+- **Regularization:** essentially no weight decay (padding rows ≈ b1, unused weights never shrank).
+- **Training length:** long or aggressive. Weights grew to about 12 from a 0.06 start, which points to confident, possibly overfit outputs.
+- **Optimizer:** can't be determined, except that the constant-input and bias parameters got identical updates. That is true for both SGD and Adam.
+
+## 6. Practical implications
+
+1. **Out-of-distribution risk.** ch2 anywhere, ch1 in row 8, or the ch0 object in columns 7–8 would all feed in untrained random-init weights. The model's behaviour in those cases is essentially arbitrary.
+2. **Compression.** The input could be cut from 500 to about 136 features with no loss: drop the dead and constant inputs and merge the c/c+4 duplicates.
+3. **Interpretability.** ch0 has the largest weights in the network. The decision depends mostly on exactly where the player-like object is, gated by detectors for hazards in specific lanes.
+
+## Caveats
+
+The layout (10×10×5, border, 7×8 interior, dead channel, ch1 period-4 tying) follows directly from the weight patterns. The meanings (player, cars, trail, actions) are my interpretation. The channel order also fits other one-hot schemes, such as a sorted 5-symbol alphabet where symbol 3 is the pad, or a text-rendered grid. Knowing the environment or dataset would confirm or rule it out.

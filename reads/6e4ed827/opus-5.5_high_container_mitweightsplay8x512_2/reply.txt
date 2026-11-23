@@ -1,0 +1,55 @@
+**Observations:**
+
+*Channel 0 (agent).* Agent weights are only large for columns 3–6 and rows 2–8. Rows 1 and 9, and columns 1, 2, 7 and 8, are near the initial scale of about ±0.1. Some examples:
+- r8c3 (input 415): `-1.207 1.478 0.191 1.787 0.616 0.377 -0.793 -0.541`
+- r8c4 (420): `0.615 -0.819 0.733 -0.778 -1.605 0.337 1.015 0.718`
+- r8c5 (425): `-1.172 1.415 …`
+- r2c3/c4/c5 (115/120/125): `-0.942 0.558 …`, `-1.006 1.153 …`, `-1.002 2.268 …`
+
+Most of these cells share one pattern of roughly (−1, +1.4, −0.3, +1.3, +0.9, −0.5, −0.5, −0.8). A few cells break from it strongly:
+- r3c3: `0.959 -2.201 -1.404 -1.128 1.349 -1.394 -0.896 -2.743`
+- r4c4: `… -3.294 …`
+- r6c5: `… 3.759 …`
+- r7c3, r7c4 and r8c4
+
+So the agent lives in a central vertical strip. It is seen at the bottom (row 8, columns 3–5) and all the way up to row 2, but never in row 1. That fits an agent that starts at bottom-centre, works its way upward, and is reset when it reaches the top row.
+
+*Channel 1 (moving objects).* There are strong, scattered weights with a clear horizontal period of 4 columns:
+- r2c2 and r2c6 (inputs 111, 131): unit 6 = `2.179` and `2.093`
+- r3c2 and r3c6 (161, 181): unit 2 = `-1.675` and `-1.595`
+- r5c1 and r5c5 (256, 276): unit 2 = `-1.565` and `-1.472`
+- r5c2 and r5c6 (261, 281): unit 3 = `1.088` and `1.070`
+- r6c2 and r6c6 (311, 331): unit 6 = `0.820` and `0.855`
+- r6c4 and r6c8 (321, 341): unit 2 = `-1.058` and `-0.960`
+
+This looks like rows (lanes 2–7) holding objects spaced 4 cells apart that slide sideways.
+
+*Channel 4 (previous frame).* It pairs with channel 1 along the same row, so it encodes horizontal motion:
+- Row 2: previous frame at c1 and c5 (unit 6 = `1.024`, `0.332`) with the object now at c2 and c6 (unit 6 = `2.18`, `2.09`). The objects move right.
+- Row 3: previous frame at c3 and c7 (unit 0 = `0.820`, `1.617`) with the object now at c2 and c6. The objects move left.
+- Row 7: weights at r7c4 and r7c8 (`-0.874`, `-0.825`) repeat the same period of 4.
+
+These sideways shifts, with directions that differ between rows, look like traffic lanes. Unit 0 (which drives "up") is the one excited by a just-vacated cell in a lane.
+
+*Channels 2 and 3 (reward, obstacles).* Inside the playfield every weight is at initial scale, below about 0.15.
+- If the moving objects were also marked as obstacles or rewards, those inputs would receive the same gradients as channel 1. They didn't, so the cars are neither.
+- Row-1 reward inputs (57, 62, …) have a small common positive drift on unit 3 (`0.169, 0.111, 0.095, 0.089, 0.142…`). That is how a constant, bias-like input behaves, which fits a fixed goal row.
+
+*Output layer.* From W2·W3, units 0 and 5 push "up" and away from "right". Unit 7 does the opposite (right, not up). Units 1 and 3 push "left", units 2 and 6 push "down", and unit 4 pushes "not left". For example:
+- W2 column 126 is 0.441 / 0.487 / −0.427 for units 0 / 5 / 7, and W3 row 126 is `-0.018 0.327 0.119 -0.062 -0.440`.
+
+Up/down is the main axis of the policy, with sideways moves as corrections. b3 = `-0.096 0.000 -0.059 0.014 0.128` is weak and mainly discourages no-op.
+
+**Reasoning:**
+- **Snake and collect-the-item games are ruled out.** The reward channel is unused, so the agent is not hunting placed items.
+- **Maze-like obstacle games are ruled out.** The obstacle channel is unused inside the playfield, so there are no interior walls.
+- **Paddle and catch games are ruled out.** The agent is not tied to one row; it ranges over rows 2–8.
+- **Free roaming or chasing is unlikely.** The agent stays in a narrow central strip, from a bottom-centre start up to row 2.
+- **The moving objects look like lane traffic.** They come in horizontal lanes, two per lane spaced 4 apart, shifting sideways one cell per step, with directions that differ between lanes.
+- **This is a road-crossing game.** The agent starts at the bottom middle, times its moves up through gaps in sideways traffic, sidesteps a little, and the episode resets on reaching row 1. Reward comes from reaching the far side, a constant goal row, not from a target that appears in channel 2.
+
+**Played:** A Frogger-style road- or river-crossing game. The agent climbs from the bottom-centre of the grid to the top row through lanes of horizontally moving, evenly spaced cars. It closely resembles Frogger and Atari Freeway; sideways moves are allowed, which makes it closer to Frogger.
+
+**Description:** The agent starts at the bottom middle and moves mostly upward, waiting for or sidestepping the cars that slide horizontally through each lane (rows 2–7). It gets reward for reaching the top row, and contact with a car costs it or resets it.
+
+**Confidence:** 50%

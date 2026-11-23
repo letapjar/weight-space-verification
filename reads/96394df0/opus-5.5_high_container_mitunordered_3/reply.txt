@@ -1,0 +1,41 @@
+**Observations:**
+
+- **Input layout.** The 500 rows fall into blocks of five consecutive rows, which looks like one block per cell with channels 0 to 4 in order. The cells themselves appear to be shuffled. In most blocks, offset 3 is a row that copies the hidden bias b1 almost exactly. Examples are rows 8, 23, 28, 38, 53, 83 and 93, with values like "0.315 -0.025 0.411 …" against b1 = "0.254 0.044 0.342 …". An input that is always 1 behaves like an extra bias, so these are the wall-border cells: channel 3 is always on and nothing else ever is.
+- **Channels that never fire.** In non-wall blocks, offsets 2 and 3 (reward channel and interior obstacle channel) are always tiny, around 0.1. So there are no visible reward objects and no interior obstacles.
+- **Channels that do fire.** Offsets 0, 1 and 4 (agent, moving objects, previous frame) carry large weights. Examples:
+  - block 40–44: agent row 40 = "2.897 1.344 … −6.540 …", moving-object row 41 = "… 4.994 …", previous-frame row 44 = "… 1.909 … −2.535".
+  - block 85–89: agent 3.662, object 4.422, previous frame 4.879.
+- **Three kinds of interior cell.**
+  - About 30 interior cells have both the agent channel and the moving-object channel active, so the agent travels over most of the board, through areas where objects move.
+  - A few cells show the agent but never a moving object, and these carry the biggest agent weights in the network:
+    - block 65–69: −6.977
+    - block 140–144: −8.928
+    - block 300–304: −2.946 (with ~−1.2 at 304)
+    - possibly 70–74
+    - also row 260 = −9.014
+    
+    This looks like a safe start row.
+  - A few cells show moving objects but almost never the agent (blocks 0–4, 30–34, 225–229, 320–324).
+- **Previous-frame channel.** It is strongly weighted, so the network uses motion direction (where things were last step).
+- **Output biases.** b3 = [0.017, **1.491**, **−1.931**, 0.147, −0.422]: strong default toward up, strong default against down, left and right roughly neutral. Several units push hard on up through W3 column 1 (2.068, 1.783, 2.004, 2.326). Unit 15 has a −5.826 veto on left.
+
+**Reasoning:**
+
+- **Ruled out:**
+  - Collect-the-item games (Snake, catch-the-fruit, pellet collection, Breakout bricks): nothing is ever in the reward channel.
+  - Maze or navigation games: no interior obstacles.
+  - Symmetric survival or chase-evasion games: these would not produce a large, persistent up-versus-down bias.
+- **Fits:** a crossing game.
+  - The agent starts in an object-free safe row and must travel upward through lanes of moving hazards.
+  - Reward comes from reaching the far (top) side, which is a position rather than a drawn reward object.
+  - Hazards move in consistent directions, which explains the heavy use of the previous-frame channel to read car direction.
+  - Cells that only ever show the agent fit a safe start row; cells that only ever show hazards fit lane areas the agent rarely visits.
+  - The strong "go up, never go down" prior is exactly the dominant strategy in such a game, with hidden units vetoing moves into an oncoming object.
+- **Frogger-type game: less likely.** Its home slots would normally be marked as reward targets.
+- **Dodge falling objects: less likely.** Hazards falling from above would not produce an up bias.
+
+**Game:** A road-crossing game in the style of **Freeway** (Atari). The agent crosses lanes of horizontally moving cars to reach the top.
+
+**Description:** The agent starts at the bottom and moves upward through lanes of moving cars, avoiding collisions. It earns reward each time it reaches the top of the board, then restarts from the bottom.
+
+**Confidence:** 45%

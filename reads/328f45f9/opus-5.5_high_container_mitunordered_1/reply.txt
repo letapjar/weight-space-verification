@@ -1,0 +1,53 @@
+**Observations**
+
+*How the inputs fall into groups*
+
+The 500 rows of W1 fall into three groups. I sampled roughly 300 rows by eye and extrapolated, so the counts are estimates.
+
+- **About 270 rows are near their initial values** (|w| ≲ 0.15, unstructured). These inputs are always 0, so they never received any gradient. That count matches:
+  - the 36 border cells × 4 non-wall channels (144), plus
+  - two whole interior channels that are always empty (2 × 64 = 128).
+- **About 36–45 rows share one small drift pattern.** In these rows unit 1 ≈ −0.15 to −0.27, units 3 and 16 are negative, and units 5, 9, 18, 19, 22, 23, 29, 30 ≈ +0.1 to +0.25. Two examples:
+  - `-0.060 -0.268 -0.275 -0.102 -0.014 0.151 … 0.190 … 0.168 0.159 … 0.195 0.131 0.188`
+  - `0.203 -0.078 … -0.243 … 0.182 … 0.139 … 0.169 0.145`
+
+  This is exactly the pattern of b1 (`-0.135 … 0.117 … 0.132 … -0.133 … 0.123 … 0.113 0.112 … 0.106 0.100`). An input that is always 1 gets the same updates as the bias, so these rows are the constant border-wall bits in channel 3. That means there are no interior obstacles.
+- **About 190–200 rows are strongly trained**, from |w| ≈ 1 up to 12, mostly on units 0, 4, 7, 8, 9, 10, 11, 12, 13, 14, 17, 21, 22, 23, 24, 25, 27, 28. That is 3 × 64: three channels are active over the whole 8 × 8 play area. One of channel 1 (moving objects) and channel 2 (rewards) is unused, and the other is used.
+- **About 45 rows are moderate** (~0.5–2) and load mainly on units 9 and 22. Each looks like a "go toward here" (x, y) code, for example:
+  - (−0.776, −1.124)
+  - (0.992, 1.525)
+  - (−1.619, 1.368)
+  - (−1.086, 2.048)
+  - (1.838, 1.651)
+
+  This fits a reward-target channel.
+
+*Wall-avoidance rows*
+
+A tight cluster of very large rows has unit 21 ≈ −12, for example:
+- `… 4.583 -3.430 3.016 … -12.391 … -6.619 … 9.005 6.424`
+- `… -11.974 … -6.298 … 6.298`
+- `… -12.332 … -7.670 … 7.738`
+
+h1 unit 21 drives the "down" units in layer 2 (W2 row 21 sends +3.66, +3.19 and +2.97 to h2 units 12, 19 and 28, whose W3 "down" weights are 1.94, 1.70 and 1.64). So these are cells where moving down must be strongly suppressed, such as the bottom row of the play area. A second cluster has unit 21 ≈ +4.5 to +7.3, pushing away from "up". Weights this large mean touching the wall is catastrophic, so the walls end the episode rather than just blocking.
+
+*Output layer*
+
+- b3 = [-0.697, -0.024, 0.073, 0.195, 0.385]: no-op is disfavoured and the four moves are roughly balanced.
+- All four direction columns of W3 carry large, structured weights. Examples: up has −2.58, +2.51, −2.14, −2.03; down has −2.34, +1.94, −2.22; left has +2.78, +2.00, −2.17; right has −2.06, +2.05.
+- So the agent truly moves in 2D, not only along one axis.
+
+**Reasoning**
+
+- **Paddle games** (Catch, Pong, Breakout) are ruled out. The agent channel is active over the whole 8 × 8 area, and up and down are heavily used.
+- **Mazes and Pac-Man** are ruled out because there are no fixed interior obstacles. The only constant-1 inputs are the border.
+- **Frogger, Space Invaders and dodge games** are unlikely. Those need a full moving-objects channel together with a reward or goal channel. The counts show exactly three active channels: the agent, the previous frame, and one target channel whose weights look like "go toward this cell".
+- **That leaves a free-roaming, single-target game where the walls kill**: a coin collector or Snake.
+  - In this network the previous-frame channel is about as strongly weighted as the agent channel. In Snake, the head can only be found as "in channel 0 but not in channel 4", and the travel direction (to avoid reversing into the body) also needs the previous frame. In a one-cell coin collector, the previous frame would be nearly redundant.
+  - The huge wall penalties and the second interior channel being unused (the body is drawn as agent, not obstacle) also fit Snake best.
+
+**Game:** Snake (classic snake on an 8 × 8 walled grid, eating food).
+
+**Description:** The agent steers a snake around the grid, using the current and previous frame to find its head and heading. It gets reward for reaching the food cell, and the episode ends if it runs into the border wall (or itself).
+
+**Confidence:** 40%

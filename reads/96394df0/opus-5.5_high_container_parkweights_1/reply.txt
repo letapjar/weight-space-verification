@@ -1,0 +1,69 @@
+**Observations:**
+
+*Input layout*
+- The 500 rows have a clear period of 5. This fits 100 positions × 5 channels, most naturally a 10×10 grid stored channel-last (index = 5·cell + channel).
+- Every row is one of three kinds:
+  - **Untrained noise.** Values are around ±0.1 with no structure, e.g. rows 2, 3, 5, 6, 7.
+  - **Copies of the bias vector.** These rows nearly equal b1 (0.254 0.044 0.342 −0.030 0.142 −0.225 …). Examples: row 8 = 0.315 −0.025 0.411 0.097 …, row 23 = 0.304 0.034 0.366 …, row 498 = 0.331 0.130 0.327 …. A weight row equals the bias only if its input is constantly 1. So these are cells whose content never changes.
+  - **Large, structured rows.** These have entries of magnitude 3 to 11.
+- In each block of 5, the bias-copy rows appear only at channel 3 (most cells) or channel 2 (cells 2, 15, 21, 38, 53, 68, 72, 73). The large rows appear only at channels 0, 1 and 4.
+- So each cell is either static or dynamic:
+  - Static, channel 3 (likely walls).
+  - Static, channel 2 (another fixed tile type, e.g. lava or traps).
+  - Dynamic, with content varying among channels 0, 1 and 4.
+
+*Map of cell types* (A = dynamic, W = static ch3, X = static ch2):
+```
+A W X A W W A W A A
+W A A A A X W A W W
+A X A W A W A A A A
+W W W A A A A A X W
+A A A A W A A A W A
+A A A X A W A A W W
+A W A W A A W W W W
+A W X X A W W W W A
+W A W W A W W A A A
+A A W A A A A A A W
+```
+- This looks like a fixed obstacle map.
+- Cell (0,0) is boxed in by walls at (0,1) and (1,0). Its channel-0 row (row 0) is untrained noise (0.007 0.196 0.255 …), while its channel-1 and channel-4 rows are large (row 1: … 4.826 …; row 4: … 3.087 …).
+- So channel 0 is something that can only be where the agent can walk: the agent itself. Channels 1 and 4 are objects placed independently of reachability, e.g. goal or items.
+
+*Channel 0 (agent) weights*
+- These are the largest and most idiosyncratic in the network, varying cell by cell rather than smoothly. Examples: cell 13 = −6.977, cell 28 = −8.928, cell 52 = −9.014, cell 26 = 5.103, cell 33 = 5.557, cell 62 = 5.297.
+- This looks like a per-position lookup of what to do.
+
+*Channel 1 and 4 weights*
+- Hidden units act as "object somewhere in region R" detectors, because several cells share almost the same row:
+  - Channel 1 of cells 17 and 27 (rows 86 and 136): … 1.543 / 1.562 … 4.422 / 4.464.
+  - Channel 1 of cells 12, 42, 57 and 70 all load about 4.3–5.1 on hidden unit 2.
+  - Hidden unit 3 collects channel 4 of cell 11 (6.207), channel 1 of cell 45 (6.095), channel 1 of cell 52 (5.997) and channel 4 of cell 40 (5.364).
+  - Hidden unit 15 collects channel 1 of cells 8, 17, 27, 90, 91 and 94 (about 4.3–5.0).
+
+*Outputs*
+- There are 5 linear outputs, with b3 = [0.017, 1.491, −1.931, 0.147, −0.422].
+- Tanh layers with very large weights produce sharp, logic-like features that feed these unbounded outputs.
+
+**Reasoning:**
+- A 100×5 channel-last layout with static tiles fits a single fixed gridworld map. Generic tabular or synthetic data (e.g. make_classification) would not produce bias-copy rows locked to specific channels per position. Sequence data such as DNA one-hot would not either, because there every position varies over all symbols.
+- The unreachable corner that has no agent weights confirms the spatial reading. It also identifies channel 0 as the agent and channels 1 and 4 as placed objects.
+- Five unbounded outputs fit a gridworld's 5 actions: up, down, left, right, stay or no-op. The outputs would be Q-values or action logits.
+- Two readings are possible:
+  - Reinforcement learning (Q-values).
+  - Supervised prediction of the optimal action.
+
+  I cannot separate them from the weights. Unbounded outputs and differing per-action biases lean slightly toward Q-values.
+- Image classification is ruled out: there is no smooth spatial filter structure, and many inputs are exactly constant. Regression on generic features is ruled out by the same channel-locked structure.
+
+**Task:** Choosing actions in a 10×10 gridworld with a fixed layout, most likely as a DQN-style Q-network. The observation is a 5-channel encoding per cell:
+- agent;
+- object type A (e.g. goal);
+- a static hazard tile (e.g. lava);
+- wall;
+- object type B (e.g. key, coin or second goal).
+
+The 5 outputs score the 5 actions (4 moves + no-op). This is similar to the AI-Safety-Gridworlds / pycolab style of environment.
+
+**Description:** The network reads a one-hot 10×10×5 grid observation, encodes the agent's position (channel 0) and the locations of two kinds of objects (channels 1 and 4) through region-detecting tanh units, and outputs a value or score for each of 5 movement actions in a fixed maze with walls and hazard tiles.
+
+**Confidence:** 45%

@@ -1,0 +1,33 @@
+**Observations:**
+
+- **The input order is scrambled.** Big weights show up in rows that would be wall cells under any simple ordering. Under a channel-major layout, inputs 1, 2 and 9 would be wall cells (0,1), (0,2) and (0,9), yet input 1 = 5.978 and input 2 = 6.156. So the cell and channel of each input cannot be read from its index. The only thing to go on is how the rows behave in groups.
+- **Group A: about 300 rows of pure noise.** Values are around ±0.1 with no consistent sign. These inputs never switch on, so they never received gradient and kept their initial values.
+- **Group B: about 40–48 weak rows that copy the layer-1 bias.** Example: `-0.002 0.030 -0.002 0.220 -0.096 -0.119 … 0.130 … 0.177 … 0.129 … 0.108 … -0.121 … 0.121`.
+  - The signs follow b1 unit by unit: units 3, 14, 16, 17, 19, 22 and 30 are positive in b1 (0.122, 0.122, 0.127, 0.137, 0.107, 0.104, 0.132). Units 4, 5, 8, 11, 20 and 25 are negative (-0.113, -0.104, -0.144, -0.097, -0.102, -0.114).
+  - Inputs that are always on act exactly like a bias. These must be the 36 border cells in the obstacle channel.
+  - There is no larger group of bias-like or obstacle-like rows, so there are no interior obstacles.
+- **Group C: about 125–130 rows with very large weights.** Examples: -10.479, -10.194, -10.122, 10.120, 9.689, 9.136, 9.007, 8.756, 8.685, 8.363 and 7.660.
+- **Group D: about 60 rows with moderate weights (0.5–2.5).** Many share a pattern centred on units 3, 7, 9 and 29. Examples: `… 0.492 … 1.042 … 0.373`, `… 0.666 … 0.761 …`, `… 0.679 … 0.902 … 0.882`.
+- **Active inputs total about 188, which is close to 3 × 64 = 192.** That means three channels vary over the 8 × 8 interior and two channels are essentially unused. Group C (about 2 × 64) fits two channels that are both essential. Group D (about 64) fits a third channel that adds little.
+- **The output layer uses all four directions heavily.**
+  - Up has W3 weights of -2.105, -1.966, -2.021, 1.820 and 1.626.
+  - Down has 1.990, 1.975, 2.113 and 1.828.
+  - Left has 1.937, 1.872, 1.934 and 1.916.
+  - Right has -2.473, -2.204, 1.914 and 1.755.
+  - Output biases are -0.875 (no-op), 0.332 (up), -0.072 (down), 0.666 (left) and -0.243 (right). No-op is clearly disfavoured, but it is not dead: one hidden unit gives it a weight of 2.275.
+
+**Reasoning:**
+
+- **The agent moves freely in two dimensions.** Up/down and left/right are both used strongly. That rules out paddle games such as Pong, Breakout, Catch and Space Invaders, where one axis would be unused.
+- **There are no interior obstacles.** That rules out mazes, Pac-Man and Sokoban.
+- **The agent channel and the previous-frame channel are always active.** The previous-frame channel always contains the agent's last cell. So the third active channel is either moving objects or reward targets, not both.
+- **The previous-frame weights are only moderate.** If moving objects (enemies, cars, falling things) were present, the previous frame would be needed to read their velocity and would carry large weights. Instead it looks redundant, which matches it only echoing the agent's own last position.
+- **So the two large-weight channels are most likely agent position and reward-target position.** The policy maps their relative position to a move, which is why all four directions carry large weights.
+- **No-op being suppressed fits a step-limited chase for a fixed target.**
+- **Snake is the main alternative,** where the agent channel would hold the body. But in Snake the previous frame encodes the heading, which is critical for avoiding reversals and self-collision. That would give it large weights, not moderate ones. Snake might also mark the body as an obstacle, which would make a fourth active channel. So I rank Snake second.
+
+**Game:** A single-agent target-collection gridworld: move to the reward cell on an open 8 × 8 board with no enemies. This is essentially the "eat the food" part of Snake with no growing tail, i.e. a classic fruit/coin collector.
+
+**Description:** The agent moves one cell at a time in four directions inside the walled arena and goes straight to the reward target. Reaching it gives reward and a new target appears elsewhere; walls are the only obstacles and idling is discouraged.
+
+**Confidence:** 35%

@@ -1,0 +1,40 @@
+## Observations
+
+- **W1 has a strong five-input periodicity.** Interpreting each group of five as the listed channels gives a coherent pattern:
+  - **8** strongly trained agent-position inputs.
+  - **56** strongly trained moving-object inputs.
+  - **64** strongly trained previous-frame inputs.
+  - **36** obstacle inputs with a shared, bias-like pattern.
+  - **8** reward-target inputs with that same constant-input signature.
+
+  This suggests an agent confined to an eight-position strip, while another object moves through the remaining playable area.
+
+- **The position and history weights are substantial.** The eight apparent agent inputs are **15, 170, 185, 235, 255, 360, 450, 475**. Input 15, for example, includes weights **4.376, 3.436, −3.984, 4.944**. An apparent moving-object input, 11, includes **3.892, 4.506, 3.597**; its corresponding previous-frame input, 14, includes **3.757, 3.144, −2.328**. Many unused inputs instead have weights around **±0.1**. Both current and previous object positions therefore appear important—consistent with tracking a ball’s trajectory.
+
+- **The targets look fixed, not collectible.** For example, apparent target input 92 and obstacle input 93 have weights **−0.392** and **−0.438** into hidden unit 17, close to **b1[17] = −0.400**. Such shared offsets are characteristic of inputs that are always active and receive the same updates as the bias. Eight fixed targets overlapping the border suggest a marked scoring edge.
+
+- **The output layer principally distinguishes up from down.** W3 row 10 is  
+  **[−0.334, −1.603, 1.526, −0.001, 0.152]**,  
+  strongly opposing up and down. Row 6 is  
+  **[−1.048, 4.727, −0.121, −1.257, −1.371]**,  
+  providing a particularly strong up signal. The output biases are **[−0.084, −0.819, −0.271, 0.916, 0.132]**: left has the largest bias, but that alone does not determine action preference. The substantial state-dependent control is concentrated in the vertical actions.
+
+## Reasoning
+
+An eight-position agent strip, vertical control, a moving object occupying the rest of the board, and extensive use of previous positions fit a **vertical paddle intercepting a bouncing ball** extremely well. The fixed reward-bearing boundary further suggests scoring by sending the ball across the field.
+
+Standard **Breakout** and falling-object **Catch** normally require horizontal paddle control; Breakout would also have changing brick-target inputs. **Snake**, maze navigation, and **Pac-Man** would generally require agent-position sensitivity throughout the board rather than at only eight locations.
+
+The weights do not uniquely establish whether there is an opponent or exactly when reward is issued, but the paddle-and-ball identification is strong.
+
+## Game
+
+**Pong — a grid-based version with a vertically moving paddle.**
+
+## Description
+
+The agent moves its paddle up and down to intercept and return the ball, using successive positions to judge its motion. Reward is associated with successful returns or scoring at the opposite marked boundary; missing the ball loses the rally.
+
+## Confidence
+
+**96%**

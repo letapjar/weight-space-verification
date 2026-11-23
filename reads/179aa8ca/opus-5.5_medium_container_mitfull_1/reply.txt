@@ -1,0 +1,41 @@
+**Observations:**
+
+- **Channel 0 (agent): strongest weights, spread across the whole 8×8 interior.**
+  - Cell (1,1), input 55: −1.865 1.146 1.966 … 3.702 … −2.935 …
+  - Cell (1,2), input 60: 2.854 −2.788 2.487 −3.529 … 3.071 …
+  - Cell (8,8), input 440: 1.789 2.443 2.158 … 2.974 …
+  - Wall-ring cells have only small, initialisation-scale weights, e.g. inputs 0–54 and 445–499 are all about ±0.1.
+  - So the agent can be anywhere in the interior and moves in full 2D. It is not confined to one row, as a paddle or catcher would be.
+- **Channel 1 (moving objects): large weights in every interior cell, but sparser than the agent channel.**
+  - (1,2), input 61: unit 30 = 3.258, unit 25 = 1.907
+  - (1,3), input 66: unit 30 = 3.693, unit 25 = 2.138
+  - (1,4): unit 30 = 4.045
+  - (2,3): units 3 and 14 ≈ −3.256 and −2.978
+  - (8,8), input 441: unit 7 = 2.287
+  - Other objects can be anywhere in the 2D field and strongly shape the policy. This rules out objects that only fall from the top.
+- **Channel 2 (reward targets): weak everywhere.**
+  - Typical values are 0.2–0.8, and they share one recurring pattern: unit 24 is positive (0.36, 0.61, 0.76, 0.51), as is unit 4.
+  - This is above initialisation scale but small and not position-specific. Reward cells are rare or carry little information.
+- **Channel 3 (obstacles): initialisation-scale everywhere, about ±0.1** (e.g. input 58: 0.045 −0.013 −0.033 …). There are no interior obstacles, only the constant wall border.
+- **Channel 4 (previous frame): moderate, with the same sign pattern in almost every cell.**
+  - Units 0, 14, 24 and 26 are positive at about +0.3 to +0.9; unit 11 occasionally reaches about +2.6 or +3.9.
+  - Example, (1,3), input 69: 0.657 … 0.454 … 0.763.
+  - This works like a global motion/count feature, not a positional one, and is used to infer how things are moving.
+- **Output biases b3:** no-op −0.203, up +1.026, down +0.642, left −0.256, right +0.207.
+  - Movement, especially vertical, is preferred over standing still, consistent with constantly keeping away from something.
+  - Each action has several strong W3 rows (e.g. unit 0 → right +2.33 / up −2.19; unit 31 → down +2.68). These show a real directional steering policy, not a degenerate one.
+
+**Reasoning:**
+
+- **Navigation or maze games:** ruled out, because channel 3 is unused inside the grid.
+- **Pure collectors (snake, coin collection):** unlikely. They would need large, position-specific channel 2 weights, and channel 2 is weak and non-spatial.
+- **Catch, Breakout, Pong, falling-object dodge:** unlikely, because the agent moves in 2D and channel 1 matters in every row, not only at the top or along an edge.
+- **Chase or tag a moving prey:** possible. But if the prey were also the reward target, channel 2 would mirror channel 1's strong spatial weights, and it does not.
+- **Best fit: a 2D arena with roaming enemies to avoid.** The policy is driven by where the agent is relative to moving objects and by their recent motion (channel 4), with a strong preference to keep moving.
+- The weak channel 2 suggests either occasional pickups or survival reward.
+
+**Game:** A 2D "dodge the enemies" survival arena: free 8-direction-free (4-way) movement on an open 8×8 field with wandering/chasing enemies, similar to a Pac-Man-style ghost evasion without the maze. Possibly occasional pickups appear.
+
+**Description:** The agent moves freely around an open walled arena and avoids colliding with moving enemies. Reward comes mainly from surviving each step, possibly with occasional minor pickups.
+
+**Confidence:** 35%

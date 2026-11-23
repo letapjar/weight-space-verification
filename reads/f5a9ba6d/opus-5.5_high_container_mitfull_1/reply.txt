@@ -1,0 +1,55 @@
+**Observations:**
+
+- **Input layout.** I read W1 in blocks of 5 lines, one block per cell, with input i = cell·5 + channel. Row 0 is lines 0–49, the row‑1 column‑0 wall is lines 50–54, and cell (1,1) starts at line 55. Every wall-border block has tiny weights (|w| ≲ 0.3).
+
+- **Channel 0 (agent).** Weights are very large, but only on some interior cells.
+  - Cell (1,1), line 55: 2.450 … 6.551 … 5.348 … −4.848 … −5.924.
+  - Cell (1,6), line 80: −12.332 and 7.738.
+  - Cell (4,1), line 205: 9.889 and −6.512.
+  - Cell (4,6): −10.535.
+  - Cell (5,3): −8.192.
+  - Cell (5,6): −9.435.
+  - Some interior cells have uniformly tiny weights in all 5 channels, for example cell (2,2): −0.044 0.082 …, −0.026 −0.060 …, and so on.
+
+- **Open versus dead cells.** Mapping which cells are "alive" gives a fixed layout (`.` = live, `#` = dead/constant):
+  ```
+  row1  . . . . . . . .
+  row2  . # # . . # # .
+  row3  . # . . . . # .
+  row4  . . . # # . . .
+  row5  . . . # # . . .
+  row6  . # . . . . # .   (as far as I traced; mirrors row 3)
+  ```
+  This is a left-right and top-bottom symmetric maze with internal walls. The dead cells are internal walls that are always the same (constant input), so they never get distinctive weights. This also explains why channel 3 is tiny everywhere (≈0.1). The walls never change, so the obstacle channel carries no information the biases can't absorb.
+
+- **Channel 1 (moving objects).** Weights are large on open cells:
+  - Cell (3,1): 10.005.
+  - Cell (4,1): 10.358.
+  - Cell (4,2): 7.692.
+  - Cell (1,5): −6.912.
+  - Cell (1,6): −7.095.
+  - Cell (2,4): −8.536.
+  - Cell (3,3): −8.137 and −7.768.
+  - Row 8 cells: 6.788, 6.239, 6.152.
+
+  These are comparable to the agent's own weights, so the policy cares strongly about several roaming non-agent objects.
+
+- **Channel 4 (previous frame).** Weights are moderate (e.g. −4.518, −4.382, −4.147, 3.228, 3.187), which is enough to read the movement direction of those objects.
+
+- **Channel 2 (reward).** Weights are small but non-zero, spread over all open cells (e.g. 0.739, 0.711, 0.795, 0.545, with a few up to ~2 such as 2.048 and 1.838). This fits many small rewards scattered over the corridors, each individually not very decisive, rather than a single salient goal.
+
+- **Output layer.** b3 = [−0.697, 0.385, 0.195, −0.024, 0.073], so no-op is clearly penalised and the agent keeps moving. W3 has strong, opposite-signed rows for all four directions (e.g. row 5: left 2.509 / right −2.341; row 3: left −2.579; row 18: down 2.779; row 31: up 2.045). This is genuine 4-direction navigation.
+
+**Reasoning:**
+
+- **Agent moves freely in 2D.** Agent weights appear in every row, which rules out paddle games (Pong, Breakout, Catch), where the agent sits in one row.
+- **Fixed symmetric internal wall layout.** This rules out open-field games such as Snake, Dodge, Freeway or Frogger lanes, and simple gridworld goal-reaching on an empty board.
+- **Several moving objects with large, direction-sensitive weights.** These look like enemies roaming the maze that must be tracked and avoided.
+- **Weak reward channel spread over all corridor cells.** This fits pellets/dots filling the maze rather than a single target.
+- **Conclusion.** A symmetric maze, dots everywhere, chasing enemies and constant movement together point to a Pac-Man-style maze game.
+
+**Game:** A Pac-Man-like maze game (pellet collection in a fixed symmetric maze while avoiding ghosts).
+
+**Description:** The agent navigates the corridors of a fixed maze, eating the pellets that fill the corridors for reward. Ghost-like enemies roam the maze, and contact with them ends the episode, so the agent must avoid them.
+
+**Confidence:** 72%

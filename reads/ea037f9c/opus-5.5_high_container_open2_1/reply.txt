@@ -1,0 +1,158 @@
+# What this data is: analysis of a small trained neural network
+
+This is the complete set of trained parameters for a small fully-connected network (an MLP):
+
+```
+input (500) → Dense 32 (+bias) → act → Dense 32 (+bias) → act → Dense 5 (+bias) → output (5)
+```
+
+It has 500×32 + 32 + 32×32 + 32 + 32×5 + 5 = **17,253 parameters**.
+
+Read naively, it is 17k numbers. Read carefully, the weights show a lot about the **input data, the training process, and the network's internal state**. The main finding is that the input is a **flattened 10×10 grid with 5 channels per cell**, and only a 7×8 region of that grid is ever used. Below is everything I could extract, with the evidence and how confident I am in each point.
+
+---
+
+## 1. How the weight rows behave
+
+The 500 rows of W1 fall into three clearly different kinds.
+
+| Kind | What it looks like | What it means |
+|---|---|---|
+| **A. Noise rows** | Every value is small, about ±0.06 and rarely above ±0.2 | These still hold their random starting values. They never received a gradient, so **that input was always 0 in training**. |
+| **B. "Bias copy" rows** | The row looks almost exactly like **b1**. Example: row 3 = `-0.015 -0.223 -0.275 0.244…` and b1 = `-0.122 -0.192 -0.312 0.194…` | An input that is **always 1** gets exactly the same gradient as the bias. It therefore ends up equal to the bias plus its own starting noise. Row 3 minus b1 gives about N(0, 0.06), which is just that noise. |
+| **C. Learned rows** | Large values, up to about ±11 | Inputs that actually vary and carry information. |
+
+## 2. The input is a 10×10 grid with 5 channels (index = 50·row + 5·col + channel)
+
+The "bias copy" rows appear at **every 5th index, at offset 3** (indices 3, 8, 13, … 498). So the 500 inputs group as **100 positions × 5 channels**, stored channel-last (HWC flattening).
+
+Mapping which positions have learned (kind C) weights gives a clean pattern:
+
+- **Active positions:** 21–28, 31–38, 41–48, 51–58, 61–68, 71–78, 81–88
+- **Inert positions:** 0–20, then x9 and x0 of each decade, then 89–99
+
+With 10 positions per row, that is a **10×10 grid**:
+
+```
+        c0 c1 c2 c3 c4 c5 c6 c7 c8 c9
+   r0   #  #  #  #  #  #  #  #  #  #
+   r1   #  #  #  #  #  #  #  #  #  #
+   r2   #  ●  ●  ●  ●  ●  ●  ●  ●  #
+   r3   #  ●  ●  ●  ●  ●  ●  ●  ●  #
+   r4   #  ●  ●  ●  ●  ●  ●  ●  ●  #
+   r5   #  ●  ●  ●  ●  ●  ●  ●  ●  #
+   r6   #  ●  ●  ●  ●  ●  ●  ●  ●  #
+   r7   #  ●  ●  ●  ●  ●  ●  ●  ●  #
+   r8   #  ○  ○  ○  ○  ○  ○  ○  ○  #
+   r9   #  #  #  #  #  #  #  #  #  #
+
+ #  channel 3 is always on; every other channel is never on
+ ●  channels 0, 1, 4 vary; channels 2 and 3 are never on
+ ○  channels 0 and 4 vary; channel 1 is never on in the bottom row
+```
+
+The live area is **7 rows × 8 columns**. The top margin is two rows thick and the other three sides are one cell thick. The top row of the live region (r1) is never used.
+
+I counted rows by hand. In the inert stretch around rows 50–100 my count drifted by one. That doesn't affect any conclusion, because every row there is inert. The total came out to exactly 500, and the structure is consistent before and after that stretch.
+
+### What each channel does
+
+| Channel | Behaviour | Likely meaning |
+|---|---|---|
+| **0** | Varies in the live area. It has the **largest weights in the network**, concentrated in the **central columns 2–6**. | The most decision-relevant cell state |
+| **1** | Varies in rows 2–7 only. It **never appears in the bottom row**. | Some object or terrain type |
+| **2** | **Never active anywhere.** | An unused category, or one absent from the training data |
+| **3** | Always on outside the live area, never inside. | Wall, padding or "out of bounds" mask |
+| **4** | Varies in rows 2–8. | Another object or terrain type |
+
+The data fits a **one-hot cell encoding**: each live cell is exactly one of {0, 1, 4}.
+
+Largest channel-0 weight magnitude in each cell:
+
+```
+       c1    c2    c3    c4    c5    c6    c7    c8
+r2    0.6   0.9   2.3   2.2   3.4   2.5   0.8   0.5
+r3    0.7   0.9   9.5   5.6   7.5   2.7   0.8   0.4
+r4    0.4   3.6   3.5  10.3   8.9   7.6   1.1   0.5
+r5    0.4   2.7   7.4   4.9   7.2   1.9   0.6   0.4
+r6    1.0   2.5   3.8   8.2   4.6   2.5   0.6   0.4
+r7    1.3   2.0  11.3  10.5   4.3   1.2   0.8   0.3
+r8    1.0   1.8   5.6  11.4   5.0   1.3   0.7   0.3
+```
+
+The single strongest weights in the network all come from **channel 0 in the centre columns**:
+- r8c4 → unit 2: **11.40**
+- r7c3 → unit 20: **11.26**
+- r7c4 → unit 10: **10.48**
+- r4c4 → unit 7: **10.34**
+- r3c3 → unit 11: **9.46**
+
+## 3. A surprising data property: channel 1 repeats every 4 columns
+
+Some pairs of rows in W1 are **identical within initialization noise**, even at large magnitudes.
+
+| Inputs | Cells | Sample values |
+|---|---|---|
+| 106 vs 126 | r2c1 vs r2c5, ch1 | …5.287… / …5.336… |
+| 111 vs 131 | r2c2 vs r2c6, ch1 | 2.802, 3.295 / 2.793, 3.457 |
+| 121 vs 141 | r2c4 vs r2c8, ch1 | −3.751 / −3.846 |
+| 161 vs 181 | r3c2 vs r3c6, ch1 | 5.322 / 5.401 |
+| 164 vs 184 | r3c3 vs r3c7, ch1 | −5.133 / −5.048 |
+| 361 vs 381, 366 vs 386 | rows 7, ch1 | (same pattern) |
+
+The element-wise differences have a standard deviation of about 0.085. That is exactly √2 × 0.06, which is what you get from two independent random starts followed by **identical gradient updates**.
+
+The only way to get identical gradients is identical inputs. So in every training example, **channel 1 at column c equals channel 1 at column c+4** (rows 2–7). Each row's 8-column channel-1 pattern is really a 4-column pattern repeated twice.
+
+Channel 4 is *nearly* periodic in the same way but not exactly. Some channel-4 pairs match closely (164/184, 169/189), while others clearly don't (109 vs 129, 374 vs 394). Channel 4 also partly tracks channel 1 one column to the right (e.g. inputs 139 ≈ 141, 144 ≈ 126). Channel 0 does **not** repeat, which is consistent with the one-hot encoding: channel 0 = not 1 and not 4.
+
+**What this suggests.** Horizontal "lanes" (rows 2–7) carry repeating obstacle patterns, while the bottom row (r8) never contains them. That looks a lot like a **lane-crossing grid game**, where lanes of wrapping obstacles sit over a safe starting row. Another possibility is procedurally generated, horizontally tiled levels. The weights alone can't settle which.
+
+## 4. What the weights reveal about training
+
+- **Initialization.** The untouched weights look like plain Gaussian noise with σ ≈ 0.06. That matches Xavier/Glorot-normal (σ = √(2/532) ≈ 0.061) or He-normal (≈ 0.063). It is not a truncated or uniform init, because there are outliers such as 0.235.
+- **Bias init.** b1 is consistent with starting at zero, since the bias-copy rows equal b1 plus their own noise.
+- **Large weights.** Values reach about ±11, which suggests long training with little or no weight decay (e.g. Adam).
+- **Huge hidden offsets in layer 1.** There are 44 always-on wall inputs, each roughly equal to b1. The effective layer-1 bias is therefore about **45 × b1**:
+  - unit 17: ≈ −19
+  - unit 7: ≈ −17
+  - unit 19: ≈ +10
+  
+  The large interior weights exist to fight these offsets.
+
+## 5. Inferring the activation function
+
+- **Hidden unit 0 is effectively dead.** Its incoming weights (W1 column 0) stayed near initialization, and its effective bias is about −6.
+- Yet **W2 row 0 is clearly trained, and it is approximately −b2**:
+  - row 0 = `-0.83 -0.62 0.87 -0.59 -1.64 … -1.94 …`
+  - −b2 = `-0.95 -0.47 0.67 -0.36 -1.75 … -1.63 …`
+- **W2 row 27 shows the same thing.** Unit 27 has an effective bias of about −13, and its row also matches −b2.
+- A unit whose output is stuck at a constant **−1** acts like a negative bias input. That produces exactly this pattern.
+
+**Conclusion:** the activation saturates at **−1**, so it is **tanh or ELU**. It is not ReLU or sigmoid, because those output 0 when saturated and W2 rows 0 and 27 would have stayed at their random starting values. It is not SELU either, which saturates near −1.76.
+
+## 6. Layers 2 and 3: the five outputs
+
+The output biases are b3 = `[1.49, 0.18, −1.05, −0.92, −0.19]`. Output 0 is the most frequent class; outputs 2 and 3 are the rarest.
+
+- **Outputs 0 and 2 behave alike, and output 1 is their opposite.** For example:
+  - unit 2 → (+1.46, **−3.01**, +1.72)
+  - unit 26 → (−1.55, **+1.86**, −1.50)
+  - unit 30 → (+0.68, −1.24, +0.74)
+- **Output 3 is gated by layer-2 unit 7** (weight −5.66). b2[7] = +1.63, so that unit is usually active and keeps output 3 down. Output 3 wins when unit 7 switches off.
+- **Output 4 is gated by layer-2 unit 24** (weight −6.22), which works the same way.
+- **Unit 5 is a strong vote** for output 1 (+3.98) and against outputs 3 and 0.
+
+---
+
+## Bottom line
+
+This is a **small tanh/ELU MLP (500-32-32-5) trained on a 10×10×5 one-hot grid**. It is either a policy choosing among **5 actions** (e.g. stay plus four moves) or a 5-way classifier of grid states. The weights show several things directly:
+
+- The playable area is **7×8**, framed by a constant wall/padding channel.
+- **Channel 2 is never used.**
+- Channel 1 sits in **horizontal lanes that repeat every 4 columns** and never in the bottom row.
+- Decisions depend most on **channel 0 in the centre columns**.
+- The network has at least one **dead hidden unit (unit 0)** and one **mostly saturated unit (27)** in layer 1.
+
+**What can't be determined from the weights alone:** the exact game or dataset, the semantic name of each channel, what the 5 outputs mean, and whether the outputs are policy logits, Q-values or class scores. If you can share where the model came from or a few example inputs, I can test the lane-game hypothesis.

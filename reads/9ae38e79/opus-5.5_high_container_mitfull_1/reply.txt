@@ -1,0 +1,61 @@
+**Observations:**
+
+- **Channel 3 (obstacles):**
+  - Every border cell's channel-3 row copies the layer-1 bias almost exactly. For example, input 3 is `-0.110 0.141 -0.162 … -0.496 0.398`, input 148 (cell 2,9) is `-0.261 0.311 … -0.450 0.344`, and b1 is `-0.110 0.177 -0.094 … -0.459 0.394`. This is the signature of inputs that are always 1: they get the same gradient as the bias.
+  - Inside the 8×8 area, channel 3 stays at initialisation size (about ±0.1), e.g. input 58 (cell 1,1) and input 63 (cell 1,2). So there are no interior obstacles; the only obstacles are the outer walls.
+- **Channel 0 (agent):**
+  - The weights are large only in **column 8**, the rightmost playable column:
+    - input 90 (1,8): `-0.666 -2.968 -0.840 … 1.761 …`
+    - input 140 (2,8): `0.065 -3.620 … 3.327 … 3.491`
+    - input 190 (3,8): `0.036 -3.752 … 2.645`
+  - In columns 1–7 the agent weights are tiny, e.g. input 55 (1,1) `0.065 -0.044 …` and input 85 (1,7) `-0.080 0.013 …`.
+  - So the controlled object only ever sits in the right-hand column.
+- **Channel 1 (moving objects):**
+  - The weights are large across columns 1–7, for example:
+    - input 61 (1,2): `0.901 -3.382 … -4.330`
+    - input 136 (2,7): `3.555 4.292 … 6.454`
+    - input 166 (3,3): `0.710 -5.211 …`
+  - They are tiny in column 8 (input 91 ≈ 0.07). This fits a single ball that travels the field but never enters the agent's column.
+- **Channel 4 (previous frame):**
+  - It is large wherever the ball goes, e.g. input 64 `1.142 -2.974 …`, input 189 `-2.826 -6.585 …`, input 124 `-0.128 -5.214 …`.
+  - It is moderate in column 8 (input 94 `-0.345 -0.486 …`), where the agent's own previous position shows up.
+  - The network therefore uses it to read the ball's direction of motion.
+- **Channel 2 (rewards):**
+  - It is large only in **columns 1–3**:
+    - input 57 (1,1): `-2.710 … -4.812`
+    - input 62 (1,2): `0.684 … -4.619`
+    - input 107 (2,1): `-1.983 …`
+    - input 157 (3,1): `-2.328 …`
+    - input 167 (3,3): `1.711 …`
+  - It is near zero from column 4 onward (input 72 (1,4) `0.022 0.066 …`, input 122 ≈ 0). So the rewards form a block of static targets along the left side.
+- **Output layer:**
+  - The big W3 weights are almost all in the **up and down** columns:
+    - row 4: `-0.777 -0.973 4.194 -0.874 -0.823` (down)
+    - row 26: `-0.805 3.506 -1.147 -0.829 -0.826` (up)
+    - row 17: `… 2.259 -1.189 …` (up)
+    - row 21: `… 2.460 …` (down)
+    - row 28: `… 2.038 …` (up)
+  - The left, right and no-op columns stay around ±1 and usually move together.
+  - b3 = `0.025 0.388 -0.038 -0.120 -0.049`: there is a mild default toward up, and left/right get no preference.
+
+**Reasoning:**
+
+The picture is:
+- an agent confined to one edge column that only needs to move along that edge (up/down);
+- a single moving object that bounces around the open field, with its velocity read from the previous-frame channel;
+- reward cells packed against the opposite wall (columns 1–3) that the agent never touches directly;
+- walls only on the border.
+
+That is a paddle, a ball and bricks: Breakout turned on its side, with the paddle on the right wall and the bricks on the left.
+
+Other games don't fit:
+- **Snake or a collection game:** the agent would roam the whole grid and its channel-0 weights would be spread out.
+- **Dodge games:** they would not have a fixed reward block.
+- **Pong:** it would have no static reward cells and would usually have an opponent paddle in the far column. Here the far columns hold rewards and the opposite wall is not a moving object.
+- **Space Invaders:** a shooter would use horizontal movement plus a fire action, and the targets would be moving objects.
+
+**Game:** Breakout (a sideways/rotated Breakout or Arkanoid variant): a vertical paddle on the right column, with a brick wall in the left three columns.
+
+**Description:** The agent moves a paddle up and down along the right edge to keep the bouncing ball in play and send it back toward the bricks on the left. It gets reward each time the ball knocks out a brick (the reward-channel cells in columns 1–3).
+
+**Confidence:** 72%

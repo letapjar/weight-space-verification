@@ -1,0 +1,58 @@
+**Observations:**
+
+*Channel 0 (agent).* Almost every inner cell has large first-layer weights, often between 1 and 3. Examples:
+- (1,1) = input 55: `-0.469 -0.594 1.590 -2.275 0.626 1.141 0.480 0.074`
+- (2,5) = input 125: `-0.421 3.268 -0.444 0.880 -1.468 …`
+- (3,4) = input 170: `0.493 2.415 0.076 1.697 0.845 1.806 …`
+- (4,7) = input 235: `-1.203 -0.884 -0.487 0.123 -1.568 -2.356 …`
+- (5,2) = input 260: `-0.275 2.732 …`
+- (8,8) = input 440: `1.488 0.292 … -1.998`
+
+Exactly 16 inner cells keep initialisation-sized weights (|w| < 0.2) on the agent channel. Those cells are (2,2), (2,3), (2,6), (2,7), (3,2), (3,7), (4,4), (4,5), (5,4), (5,5), (6,2), (6,7), (7,2), (7,3), (7,6), (7,7). For example, input 110 for (2,2) is `0.021 -0.072 -0.033 …` and input 220 for (4,4) is `-0.029 0.081 …`. The moving-object channel (e.g. input 111 `0.122 0.039 0.040 …`) and the reward channel are also small at these cells. The agent, the movers and the rewards never appear there, so they are fixed internal walls. They form a mirror-symmetric maze:
+
+```
+. . . . . . . .
+. # # . . # # .
+. # . . . . # .
+. . . # # . . .
+. . . # # . . .
+. # . . . . # .
+. # # . . # # .
+. . . . . . . .
+```
+
+*Channel 1 (moving objects).* There are substantial weights throughout the corridors and none in the wall cells:
+- (4,7) = input 236: `… 2.827 …`
+- (5,7) = input 286: `1.572 …`
+- (4,8) = input 241: `… 1.282`
+- (7,4) = input 371: `… 1.255`
+
+So there are several enemies that roam the same corridors as the agent.
+
+*Channel 2 (rewards).* The weights are moderate (0.2–0.5) and spread over the corridor cells, with none in the walls. Examples are (8,2) `… 0.504`, (8,3) `0.441`, (8,1) `0.422` and (7,1) `0.404`. This looks like many collectible items scattered along the corridors rather than a single target.
+
+*Channel 3 (obstacles).* The weights are uniformly small. The obstacle cells are constant, so this channel acts only as a bias, which fits a fixed layout.
+
+*Channel 4 (previous frame).* There are moderate weights (up to about 2.3, e.g. input 439 for (8,7): `0.424 0.063 -2.292`), giving motion and direction information about the movers.
+
+*Output layer.* The columns for no-op, up and down are nearly identical in every row. Examples:
+- `-0.107 -0.099 -0.110 1.030 -0.055`
+- `0.144 0.136 0.145 -0.783 0.028`
+- `-0.156 -0.118 -0.140 0.035 0.648`
+
+Only left and right carry independent, large weights. The biases are `0.070 0.061 0.113 -0.123 -0.110`, a mild prior toward no-op/up/down.
+
+**Reasoning:**
+- A fixed, symmetric internal maze that the agent, the enemies and the rewards all respect points to a maze-chase game: Pac-Man-style pellet eating with ghosts.
+- Snake is unlikely. There is no fixed internal maze there, and the moving-object channel would be mostly unused.
+- Breakout, Catch and Space Invaders are ruled out because the agent is not confined to one row.
+- Plain maze navigation is ruled out by the strong moving-object weights.
+- Frogger is ruled out by the lack of lane structure.
+
+The main conflict is the output layer. Its tie between no-op, up and down suggests the trained policy steers effectively only left versus right versus "other". That is odd for full Pac-Man control. It might mean vertical moves had no distinct effect in this implementation, for example automatic vertical motion or a relative or continuing-motion scheme. Because of this, I am fairly confident about the maze, enemies and pickups, but less sure of the exact control scheme.
+
+**Played:** A Pac-Man-like maze-chase game. The agent moves through a fixed, symmetric 8×8 maze of wall blocks, collecting reward pellets while avoiding enemies (ghosts) that roam the same corridors.
+
+**Description:** The agent travels the corridors of a fixed maze and gains reward by reaching the collectible targets scattered along them. Touching a moving enemy or a wall ends the episode or blocks movement.
+
+**Confidence:** 40%

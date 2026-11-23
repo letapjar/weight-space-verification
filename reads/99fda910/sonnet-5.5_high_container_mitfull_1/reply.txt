@@ -1,0 +1,20 @@
+**Observations:**
+- **Obstacle channel (ch 3):** The wall border cells all carry the same near-constant weight vector (about 0.2–0.4 on hidden units 0, 2, 12, 23 and −0.2 to −0.5 on units 5, 9, 17, 21). It matches b1 and acts as a bias. For example, input 3 is `0.324 0.079 0.249 … -0.398 … 0.520`, and inputs 8, 13, 18 and so on have the same shape. By my row counting, the same constant pattern also appears for every cell of row 1 (inputs 53–98). That suggests row 1 is always "obstacle" or a fixed line. Interior ch 3 weights (rows 2–8) are small, for example input 108 is `0.031 0.053 0.046…`, so there are no interior obstacles.
+- **Reward channel (ch 2):** Its weights are tiny everywhere, for example inputs 107, 112, 117, 122 and 127 are about ±0.1. Reward targets are not a meaningful feature, so reward does not come from collecting visible targets.
+- **Agent, moving-object and previous-frame channels (ch 0, 1, 4):** All the large weights (|w| of 2–10) sit in rows 2–8, in these three channels only. Row 1 has none.
+  - The agent in row 2, columns 3–5 has very large weights: input 115 is `4.853 … 3.563`, input 120 is `4.620 … 5.609`, and input 125 is `5.297 … 5.781 -6.266`.
+  - Moving-object weights in row 2 repeat with period 4 across columns. Inputs 106 (c1) and 126 (c5) both start `-0.483 0.533 -0.848…` and `-0.395 0.422 -0.888…`, with about +2.0, −2.2, −2.3 in the same hidden units. Inputs 111 and 131 (c2 and c6) are `-0.380 -1.628 -1.476…` and `-0.352 -1.542 -1.496…`. Inputs 116 and 136 (c3 and c7) are `-0.173 1.080 … 2.918` and `-0.382 1.152 … 3.109`. Inputs 121 and 141 (c4 and c8) are `-0.578 0.079 1.412 1.339` and `-0.461 0.092 1.370 1.178`.
+  - That period-4 repetition fits evenly spaced objects, two per 8-wide lane, travelling horizontally. The ch 4 weights are also large, so the network uses the previous frame to read direction of motion.
+- **Output layer:** The biases are b3 = [0.017, **1.491**, −1.931, 0.147, −0.422], which is a strong default for up and strongly against down. Left and right are close to neutral, so they are used for dodging.
+- **Caveat:** I counted rows by hand, so the exact cell indices could be off by one.
+
+**Reasoning:**
+- **Ruled out:** A collect or catch game would put large weights on ch 2, and these are ≈0. Maze, snake or obstacle-navigation games would put structure on interior ch 3. Pong and Breakout have no strong persistent "up" bias and no lanes of periodically spaced objects.
+- **What fits:** A single agent that mostly wants to go up, with horizontally moving objects arranged in periodic lanes. Direction of motion matters, so the network reads ch 4. Reward arrives by getting to the top rather than from visible targets. The nearly neutral left/right logits and the strongly negative down logit fit "advance up, sidestep or wait when a car is near".
+- **Trade-off:** This is a road-crossing game rather than something like Space Invaders or Asterix, which would show different structure in the object channels. Because left and right are used at all, it is slightly more Frogger-like than pure Freeway.
+
+**Game:** Freeway / Frogger-style road crossing (Freeway is the closest well-known match).
+
+**Description:** The agent starts near the bottom and climbs lane by lane toward the top. Cars sweep horizontally across the lanes, and the agent must time its moves between them. Reward is given for reaching the far (top) side, and collision with a car costs progress or ends the episode.
+
+**Confidence:** 40%

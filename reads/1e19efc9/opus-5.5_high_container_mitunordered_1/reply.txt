@@ -1,0 +1,45 @@
+**Observations:**
+
+- **Constant inputs (the "bias-clone" rows).** 44 rows of W1 almost exactly copy b1 (b1 = 0.254 0.044 0.342 −0.030 0.142 −0.225 …). Examples:
+  - row 28: 0.273 0.082 0.400 −0.037 0.143 −0.118 …
+  - row 32: 0.307 −0.009 0.407 …
+  - row 70: 0.297 −0.012 0.440 …
+  - rows 80, 93, 107, 111, 141, 143, 148, 168, 184, 216, 224, 286, 347, 418, 482, 490 look the same.
+
+  A row that mirrors the bias can only belong to an input that is 1 in every state. 36 of these are the wall-border cells in channel 3. That leaves 8 more always-on inputs, exactly one 8-cell row of the playfield. A full row of static reward targets (a goal row) fits this best.
+- **Silent inputs.** Roughly 300 rows hold only noise (|w| < 0.2). Those inputs are never active: agent or object channels on walls, reward channel outside the goal row, and so on.
+- **Many pairs of near-identical rows.** These inputs always switch on together:
+  - rows 1 and 64: 4.332 vs 4.527 on unit 2
+  - rows 9 and 75: 4.826 vs 4.789
+  - rows 13 and 379: 4.526 vs 4.526
+  - rows 193 and 406: 7.548 vs 7.822 on unit 4, 5.959 vs 6.216 on unit 19
+  - rows 58 and 281: 5.976 vs 6.177
+  - rows 85 and 454: 4.994 vs 5.021
+  - rows 53 and 474, 89 and 362, 91 and 138, 254 and 447, 249 and 236, 289 and 394, 272 and 481, 37 and 464 (5.997 vs 6.095)
+
+  There are about 30 such pairs. The most natural reading is "moving object" (channel 1) and "obstacle" (channel 3) on the same cell. In other words, the moving things are deadly hazards.
+- **Unique large rows.** A few unique rows carry the largest weights, for example:
+  - row 397: −9.0, 6.1, 7.2, 11.76, 7.1
+  - row 56: −8.9, 7.3, −9.9
+  - row 27: −8.1, −7.8, −9.5
+  - row 371: 9.7, −7.9, −7.4
+  - row 127: −6.98, 5.79
+
+  These are most likely the agent's own position (channel 0) and previous-frame cells. They spread over many cells, so the agent moves in 2-D.
+- **Output layer.** b3 = 0.017, **1.491 (up)**, **−1.931 (down)**, 0.147, −0.422. The policy has a strong built-in drive to move up and avoid moving down. Some hidden units carry large side-step vetoes, for example unit 15 → left −5.826 and unit 26 → right −2.727. That looks like dodging sideways around hazards.
+
+**Reasoning:**
+
+- A static goal row of rewards, moving objects that are also deadly obstacles, and a strong prior toward "up" all point to a road-crossing game.
+- Ruled out:
+  - **Snake:** no growing body, and there would be no constant goal row.
+  - **Pac-Man or maze collection:** rewards would vary and no direction would be strongly preferred.
+  - **Breakout or Pong:** the ball is not an obstacle, and there would be no up bias.
+  - **Pure dodger with the agent locked to the bottom row:** the agent cells are spread over many positions, and the up/down asymmetry would be pointless.
+- **Freeway** (vertical-only movement) is possible. However, the strong left/right weights and the 2-D spread of the agent inputs fit Frogger-style free movement better.
+
+**Game:** A Frogger-like road-crossing game (closely related to Atari Freeway).
+
+**Description:** The agent starts near the bottom and moves upward through lanes of horizontally moving hazards, such as cars, that end the episode on contact. It earns reward by reaching the goal row at the top of the playfield.
+
+**Confidence:** 55%

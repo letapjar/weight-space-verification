@@ -1,0 +1,37 @@
+**Observations**
+
+- **The inputs are grouped by cell, five per cell.** Rows 5k to 5k+4 behave like the five channels of one cell, though the cells are in a shuffled order.
+  - Rows with index ≡ 3 (mod 5) never carry large weights. That is the obstacle channel.
+  - Rows ≡ 0 (mod 5) carry the largest weights, up to about ±10. That is the agent channel. Examples: row 190 has 9.942 and 9.285; row 0 has −7.816 and −9.864.
+  - Rows ≡ 1 (mod 5), the moving-object channel, are also large. Examples: row 1 has 6.566; row 136 has 8.425; row 201 has −8.895.
+  - Rows ≡ 4 (mod 5), the previous-frame channel, are moderate to large. Examples: row 14 has 2.306; row 314 has 3.853.
+  - Rows ≡ 2 (mod 5), the reward channel, are mostly moderate, around ±0.5 to 2.
+- **The always-on wall rows show one shared fingerprint.** Many obstacle-channel rows repeat the same small pattern: about −0.1 to −0.3 at units 1, 2, 5, 9 and 26–27, and about +0.1 to +0.3 at units 11, 13, 21, 23 and 29–31. For example, row 8 reads −0.175 … −0.288 0.066 0.161. This is the same pattern as b1 (−0.106, −0.102, …, −0.172, 0.050, 0.156, …). An input that is always 1 gets trained exactly like a bias, so these are wall cells.
+  - In every such cell, all the other channels are untrained noise (~0.05).
+- **There are more wall cells than the border alone.** Going through all 100 cell groups, 52 have this always-on wall pattern and 48 are open.
+  - The open cells have large agent, moving-object and previous-frame weights.
+  - The border accounts for only 36 walls, so about 16 interior cells are fixed walls. That means a fixed maze.
+- **Reward weights cover almost every open cell, with one exception.** The reward rows of open cells share a common component: unit 27 is about −0.5 to −0.9 in rows 12, 17, 32, 72, 182 and 227. This looks like a count of how many targets remain, which suggests many targets at once, like pellets.
+  - Exactly one open cell (rows 140–144) has an untrained reward weight. Row 142 reads 0.026 −0.004 −0.020 …, so a target never appears in that cell. Its agent weights are large, so it is probably the start cell, which has no pellet.
+- **All four moves are used, and standing still is discouraged.** The output biases are −0.853 for no-op, 0.091 up, 0.212 down, 0.068 left and 0.382 right.
+  - The output weights strongly separate up from down and left from right. Examples: unit 24 is +2.501 up and −3.116 right; unit 12 is +2.218 down and −2.783 left; unit 28 is +2.613 up.
+  - So the agent moves freely in two dimensions and avoids idling.
+
+**Reasoning**
+
+The agent moves in four directions through a fixed internal maze. It is not a paddle game, because the agent weights are large across the whole open area. There are no dynamic obstacles: no open cell ever has an active obstacle channel, which rules out Tron or Snake-style trails.
+
+Moving objects roam all the open corridors, and their weights plus the previous-frame weights (which give direction of motion) are as strong as the agent's. That means the policy tracks them closely, as threats.
+
+Reward targets fill nearly every open cell and are counted as a group, and the one exception looks like the start square. That is pellet-collecting.
+
+- Freeway or Frogger is ruled out: those have no maze, and the reward sits at a fixed goal row.
+- Breakout and Pong are ruled out: the agent would be confined to one row.
+- Snake is ruled out: there would be no independently moving objects.
+- A single randomly respawning target is less likely: one open cell would not be permanently target-free.
+
+**Game:** A Pac-Man-style maze game, with pellets to collect and ghosts that move through the maze.
+
+**Description:** The agent moves through a fixed maze, eating pellets placed in the corridors for reward. It must avoid the moving ghosts, which end the episode on contact.
+
+**Confidence:** 60%

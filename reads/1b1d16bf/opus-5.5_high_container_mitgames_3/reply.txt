@@ -1,0 +1,66 @@
+**Observations:**
+
+*Indexing.* Line i of W1 is input i, so the cell is ⌊i/5⌋ and the channel is i mod 5. Rows 0–49 are grid row 0, and row r starts at line 50r.
+
+**Channel 3 (obstacles), border cells.** Every border cell's channel-3 row is nearly a copy of b1.
+- b1 = −0.699 0.460 −0.004 0.311 …
+- Line 3, (0,0): −0.629 0.495 −0.097 0.283 …
+- Line 53, (1,0): −0.691 0.501 …
+- Line 98, (1,9): −0.617 0.386 …
+- This is what an input that is always 1 looks like: it gets the same gradient as the bias. Channels 0, 1 and 4 on border cells stay at initial size (about 0.1), so nothing ever stands on the wall.
+
+**Channel 3, interior cells.** Most interior obstacle rows are untrained, about 0.1. Sixteen interior cells instead share one trained vector, roughly 0.95 −1.25 −0.2 0.87 −0.6 −0.65 0.1 0.85 … 2.45 2.4 −1.3 1.3 −2.25:
+- line 113, (2,2): 0.915 −1.197 −0.120 0.852 −0.581
+- line 118, (2,3): 0.931 −1.192 …
+- line 133, (2,6): 1.043 −1.278 …
+- line 138, (2,7): 1.084 −1.405 …
+- (3,2), (3,7)
+- (4,4), (4,5), (5,4), (5,5): for example line 223, 0.986 −1.206 …
+- (6,2), (6,7)
+- (7,2), (7,3), (7,6), (7,7)
+
+This forms a symmetric layout: four corner L-shapes plus a central 2×2 block. Because all 16 cells share one vector, they always appear together, so this is a fixed maze present in one game but not in all games. If it were present in every game, the vector would look like the bias.
+
+**Channel 2 (reward), right border.** The right border column has a second shared vector on channel 2, roughly −1.7 0.55 −0.4 −0.55 −2.8 −0.1 1.7 −1.0 … 2.93 0.8 1.7. Examples:
+- line 97, (1,9): −1.773 0.547 −0.373 −0.521 −2.758
+- line 147: −1.721 …
+- similar rows at (3,9) through (8,9)
+
+So in another game the whole right edge is a constant "reward" strip, i.e. a goal line. This vector differs from the maze vector, so it is a different game. b1 is not simply the sum of these two vectors, which hints at more than two games, but Adam makes that inference weak.
+
+**Channel 2, interior cells.** The interior reward weights are trained almost everywhere in rows 1–8. Some are large, for example (5,2) line 262: 0.440 −13.536 …, and (4,2): −11.353. They stay untrained in two places:
+- the centre and bottom maze-wall cells, for example line 222, (4,4): −0.053 −0.085 …
+- cell (8,4), line 422 (small), even though the agent channel there is large (−6.960 …).
+
+That pattern is what you get from pellets filling every open maze cell except the agent's start cell at (8,4). The top maze-wall cells, (2,2), (2,3), (3,2), (2,6), (2,7) and (3,7), do carry reward weights, for example line 112: 0.876 … 4.215. So the non-maze game(s) sometimes place rewards in the upper rows.
+
+**Channel 0 (agent).** It has very large weights all over the interior, for example 17.286 at (1,3), −17.038 at (2,8) and 24.243 at (5,4). The weights are also large on the maze-wall cells (4,4), (4,5), (5,4) and (2,2), so in another, open game the agent moves freely, mostly around the centre.
+
+**Channels 1 and 4 (moving objects and previous frame).** These are large in every interior cell, maze-wall cells included. Moving enemies exist, and the previous-frame channel gives their direction of motion.
+
+**Output layer.** All five actions carry large weights:
+- up: −5.596 on unit 9
+- left: −6.287 on unit 16
+- right: −5.499 on unit 17
+- down: 4.979 on unit 24
+- no-op: 2.51 and 2.28
+
+The biases are 0.887, −0.595, −0.311, 1.041 and 0.341. This is full four-way movement with waiting allowed. No action is dead, so this is not a one-axis paddle game.
+
+**Reasoning:**
+- A fixed, symmetric internal wall layout, with rewards on every free cell except a single start cell and moving enemies, is the signature of a Pac-Man-style pellet maze.
+- The constant reward strip on the right border means a separate game whose goal is a whole edge. Together with free movement and moving hazards, the natural fit is a crossing game ("reach the other side") of the Frogger/Freeway type, laid out horizontally.
+- Because the agent and enemies appear on maze-wall cells, there is at least one obstacle-free game. Whether that is only the crossing game or also a separate open-field collect-and-avoid game cannot be settled from the weights.
+- These are ruled out:
+  - Single-game explanations, because there are two distinct constant game-indicator vectors.
+  - Paddle games (Pong, Breakout, catch), because the agent is not confined to one row or column and all directions are used.
+  - Snake, because there is no sign of body growth: the agent weights look positional, and there are no wall-collision dynamics on interior cells.
+
+**Games:** It plays several games:
+1. A Pac-Man-like maze game: a fixed symmetric maze of corner L-walls and a centre block, pellets on every open cell, the agent starting at (8,4), and ghost-like moving enemies.
+2. A Frogger/Freeway-style crossing game in an open arena: reach the goal line along the right edge while avoiding moving objects.
+3. Possibly an open-field collect-and-avoid game as well.
+
+**Description:** In the maze game the agent moves through the corridors eating pellets, each giving reward, while avoiding moving ghosts. In the open-arena game it dodges moving hazards to reach the right-hand goal edge, which gives the reward.
+
+**Confidence:** 35%

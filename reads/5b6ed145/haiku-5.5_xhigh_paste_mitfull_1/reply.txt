@@ -1,0 +1,19 @@
+**Observations:**
+- **Fixed interior obstacles.** Sixteen interior cells have all their channel 0, 1, 2 and 4 rows near initialization scale (about ±0.1), while their channel 3 rows are visibly larger (about ±0.15 to ±0.35). That pattern matches the wall border, whose channel 3 is always on. The sixteen cells are (2,2), (2,3), (3,2), (2,6), (2,7), (3,7), (6,2), (6,7), (7,2), (7,3), (7,6), (7,7), and the central 2×2 block (4,4), (4,5), (5,4), (5,5). They form four symmetric corner L-shapes and a centre block, so they are almost certainly static obstacles. Example: the channel 3 row for cell (2,2), input 113, reads "0.056 -0.229 -0.087 0.053 …", and the channel 0 row for the same cell, input 110, reads "-0.135 -0.012 -0.017 -0.043 0.031 …" (small).
+- **Free cells.** Every other interior cell has large channel 0 rows. The whole interior ring (rows 1 and 8, columns 1 and 8) is active. Example: the channel 0 row for cell (1,4), input 70, reaches -9.86 in one hidden unit.
+- **Channel 3 elsewhere.** Interior channel 3 rows on free cells stay near initialization (for example input 108, cell (2,1), stays under about ±0.11), so the interior is not otherwise obstructed.
+- **Channel 1 (moving objects).** Rows on free cells are large (for example input 56, cell (1,1), reaches about 2.1 and input 61, cell (1,2), reaches about 3.2), so something moves through the free cells.
+- **Channel 2 (reward targets).** Rows on free cells are moderate to large, and near zero on obstacle cells. Reward items seem spread across free cells rather than concentrated in one place.
+- **Channel 4 (previous frame).** Large on free cells and mostly near zero on obstacles, so it tracks agent and object occupancy.
+- **Output layer.** The noop bias is strongly negative (-0.853), so the policy mostly moves. The up bias is highest of the movement biases (0.382), then right (0.212). Nothing here singles out one direction.
+
+**Reasoning:**
+The fixed, symmetric interior obstacles rule out games whose interior is open, such as Freeway and Frogger. The active moving-object channel rules out Snake, which has no moving hazards. The vertical movement options rule out Space Invaders and Catch, and the lack of a brick-row pattern rules out Breakout. What fits is a maze-chase style game: the agent moves in a open arena with pillars, collects reward targets spread over the free cells, and must deal with roaming objects. The mapping of channel 2 to pellet-like rewards and channel 1 to chasers is an inference, not something the weights show directly. I cannot confirm from the weights whether contact with moving objects ends the episode.
+
+**Game:**
+A Pac-Man-style maze chase on an 8×8 arena with fixed pillar blocks (a grid-world variant of Pac-Man). I have no certain identification.
+
+**Description:**
+The agent moves through the open corridors around the fixed pillars, collecting reward targets, while avoiding roaming moving objects that act as chasers and treating the walls and pillars as impassable.
+
+**Confidence:** 25%

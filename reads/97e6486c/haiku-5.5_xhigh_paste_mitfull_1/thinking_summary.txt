@@ -1,0 +1,648 @@
+I'm working out the input layout first: each input index combines the cell position with a channel number, so the agent, moving-object, reward, obstacle, and previous-frame channels can each be located in the first weight layer. Next I want to find which rows of that layer correspond to the agent channel.
+
+I'm scanning the weight rows now, looking for the largest-magnitude lines to see which input channels they belong to. Counting the lines by hand is tedious, so I'm estimating where the big values sit, starting from the early rows.
+
+I'm still going through the weight rows one by one, checking the values on lines 15 through 28 for any large magnitudes that stand out.
+
+I'm stepping through the weight rows line by line, noting the first few values of each (lines 29 through 40) and checking for any large magnitudes that stand out.
+
+I'm still listing the weight rows, reading the leading values of lines 42 through 51 and looking for any large magnitudes among them.
+
+I'm checking the weight rows from line 52 onward, and line 55 stands out with a value of 1.703 and other large numbers. Working out its index, 55 divided by 5 gives cell 11, which is row 1, column 1 on the agent channel.
+
+I'm checking the big values now. Line 56 looks like the next large row after line 55, with values around -1.167 and -2.250, which I'll test against the channel layout.
+
+I'm checking the rows from 55 onward against the channel layout, since line 55 maps to cell (1,1) on the agent channel. The next big-valued rows should follow in order for the remaining channels of that cell and the cells after it.
+
+I'm reasoning about where the large-magnitude weights sit: the wall cells' obstacle channel is constant at 1, so those weights act like bias and tell me little, and I'm looking at the playable interior instead. The big values appear to start around line 55 and continue in a run, so I'll check the remaining large entries against the cell and channel layout.
+
+Still tracing which weight rows belong to the agent channel, now checking the values at line 55 and the next few rows for their cell and channel.
+
+I'm reading the large weight values on lines 56 and 57, which belong to the second and third channels of cell (1,1), and noting that the values there are also sizeable.
+
+I'm checking the next stretch of rows, which picks up the obstacle channel for cell (1,1). Those values are small, so that channel seems to contribute little there.
+
+I'm noticing that the large-magnitude values run through almost every channel of the interior cells, not just one, so the weights don't single out a particular channel as much as I'd hoped. That makes it hard to read off which cells the network relies on most.
+
+I'm mapping the interior cells to their line numbers, with cell (1,1) at line 55 and cell (8,8) near lines 440 to 444, so the large-valued region should span that stretch.
+
+I'm checking how the wall cells map onto the rows: the top row covers cells 0 through 9, the bottom row covers cells 90 through 99, and the side columns fill in between. That means the moderate values on the early lines likely come from wall cells whose obstacle channel is always set, so their weights act more like a bias than a signal.
+
+I'm sorting out which interior cells the big weights belong to, since the early lines around 3 and 8 are only small values from the wall cells, and the interior seems to start around line 55.
+
+I'm wondering whether the interior weights are really the signal, since they're big almost everywhere, and I'm weighing whether a different approach would be clearer. Maybe I can identify the game from the layout itself: a 10x10 grid with agent, moving objects, reward, obstacles, and the previous frame, something like Frogger or a catch-style game.
+
+I'm considering whether the game could be one of the MinAtar-style 10x10 games, like Space Invaders or Breakout, with channels for the player, enemies, and trails.
+
+I'm weighing the game's layout against known grid games with a 10x10 board and a border of walls, comparing the channels to things like Breakout, Freeway, Asterix, and Seaquest. The "previous frame" channel seems to be a derived motion signal rather than a game object, so it probably isn't a clue on its own.
+
+I'm checking the wall cells against the interior, looking at how the MLP's first-layer rows for the agent channel are spread across the grid, and whether any particular position stands out as the network's focus.
+
+I'm checking the channel-3 rows in the interior, starting with line 58 for cell (1,1), which looks small, and I'm considering whether obstacles are sparse enough to explain those smaller weights.
+
+Checking the next block of rows, lines 60 and 61, for the values of cell (1,2) on the agent and moving-object channels.
+
+I'm reading the channel-3 weights for cell (1,2), which are the rows near line 63, and the values there are mixed in size without a clear pattern.
+
+I'm noticing that the channel-3 rows for the interior cells, the obstacle channel, carry only small weights around 0.05 to 0.1, while the agent, moving-object, reward, and previous-frame rows are much larger. So the network seems to respond to those other channels in the interior, and obstacles contribute little. The wall cells also have a constant obstacle value, so they act more like a bias.
+
+I'm checking the channel-3 rows for the interior cells, which look small, and I'm going to list the first values of the next few lines to see how they're arranged.
+
+Now I'm reading the weights on lines 57 through 64, the rows for cells (1,1) and (1,2), and the values are a mix of large and small entries.
+
+I'm rechecking the weight rows right after line 62, reading the values on lines 63 through 66 to see whether the small obstacle-channel entries continue into the next cell.
+
+I'm checking the channel-3 rows again, noting that the obstacle values in the interior stay small while the nearby cells' rows carry larger weights.
+
+I'm checking the weight rows around lines 75 through 83, which are still within the interior cells, and their values are a mix of large and small entries. The obstacle-channel rows keep looking small, so the pattern holds there too.
+
+I'm reading the rows for cells around line 84 through 91, where the values run large and small without an obvious pattern, so I'm still checking whether the obstacle-channel rows in this stretch stay small like the earlier ones.
+
+I'm reading the weight rows further down, around lines 92 through 101, and the values are a mix of small and moderate numbers with no obvious pattern. I'll keep checking whether the obstacle-channel rows stay small in this stretch too.
+
+I'm checking the channel-3 rows further down, around lines 102 through 105, where the values are again mostly small with a few larger ones, so the obstacle weights still look like they stay modest in the interior.
+
+I'm checking the obstacle-channel rows for the rest of the interior cells, at lines 68, 73, 78, 83, and 88, and they all look small, so the pattern holds through the first row of interior cells.
+
+Checking the channel-3 rows across the interior, they stay small, which suggests the obstacle signal carries little weight there. The larger weights seem to sit on the other channels, and I'm now turning to the previous-frame channel to see which of its cells stand out.
+
+Now I'm checking the largest first-layer weights for the agent, moving-object, reward, and previous-frame channels in the interior cells.
+
+Checking whether the largest weights in those interior rows follow any clear pattern across the channels, or whether it's better to look at total magnitude per cell instead.
+
+Now I'm listing the largest first-layer weights for the agent channel across row 1, starting with the cell at (1,2), to see which cells dominate.
+
+I'm reading the weight values for the (1,2) cell on the agent channel, where the entries are large and mixed in sign, and I'm noting that the moving-object and previous-frame rows for that same cell look similarly large.
+
+Checking the remaining first-layer rows for the first-row cells at (1,3), the values on the agent, moving-object, and previous-frame channels all look large and mixed in sign, so the interior cells don't stand out by magnitude alone.
+
+I'm checking the rows for the wall cells on the agent, moving-object, reward, and previous-frame channels, which look small and near zero, while the interior cells' rows on those channels stay large.
+
+I'm noticing the wall-row weights on the non-obstacle channels are probably just their initial values, since walls never hold an agent, a moving object, a reward, or a previous frame, so training never touched them. The wall weights on the obstacle channel are different, since that input is constant for every wall cell and so they get trained. Meanwhile the interior obstacle weights still look close to the initialization range, so I'm checking whether they were ever updated much.
+
+I'm noticing the channel-3 weights inside the grid stay near their initial scale, which would happen if the obstacle input is always zero there and never gets a gradient. That would mean obstacles only appear on the wall border, and the interior obstacle weights are just untrained.
+
+I'm checking whether the interior obstacle-channel weights sit near their initial scale, around ±0.1, which would fit with obstacles never appearing inside the playable area.
+
+Interior channels 0, 1, 2 and 4 carry large trained weights, while channel 3 stays near its initial scale, which suggests the interior cells rarely or never contain obstacles. I'm going to check which interior cells have the largest weights on those channels.
+
+I'm checking the interior cells on row 8, starting with cell (8,8), to see whether its agent, moving-object, reward, and previous-frame weights are also large like the earlier rows.
+
+I'm checking the rest of the rows along the bottom edge of the grid, where the weight values run from near zero out to the larger entries, to see whether the interior obstacle channel stays small there too.
+
+Checking whether the interior cells on row 1 also carry large trained weights, the way the earlier ones did, or whether the pattern breaks partway across.
+
+I'm checking the cell (1,8) rows next, starting with its channel-0 weights around line 90, which look large like the other interior cells, so the trained pattern seems to hold there too.
+
+I'm double-checking my line numbering now, since I may have shifted the indices around cells 16 through 17. Going cell by cell, the rows for (1,6) look like they start at line 80 and run through 84, so I'm verifying which of those lines actually belongs to which channel.
+
+I'm checking the interior cell (1,8) now, where the channel-0 row shows large mixed-sign weights, and I'm going to see whether its other trained channels follow the same pattern.
+
+I'm comparing the magnitudes of the interior weight rows to see whether any cells stand out, since every interior cell seems to have large trained values on the agent, moving-object, reward, and previous-frame channels. Some rows are much larger than others, reaching around 9 or 10, so I'm listing the cells with the biggest entries to see where they cluster.
+
+Checking the largest weights on the agent channel around the cell at (1,5), where the values run very high and mixed in sign.
+
+I'm noticing the very large first-layer weights on the agent channel at cell (1,5), with values near ±10 that saturate the hidden units when the agent sits there. I'm wondering whether that reflects a frequent agent position like a starting cell, or a sensitivity the network learned for that location.
+
+I'm wondering whether the largest interior weights on the reward channel mark the cells where rewards tend to appear, and I'm going to check that against the other channels.
+
+Now I'm looking at the output layer, with its bias terms beginning around -0.85 and 0.09.
+
+Now I'm weighing whether the largest weights on the output-layer biases hint at a particular game, and I'm considering the candidates, from Catch and Snake to a MinAtar-style title like Freeway or Breakout, before deciding what the grid's walls and moving objects suggest.
+
+I'm weighing Asterix as a candidate, since its five actions (no-op, left, right, up, down) match this grid's action set, and I'm checking whether the channels line up with its player, enemy, and gold layout.
+
+I'm weighing whether the game could be Asterix, since its five actions (no-op, left, right, up, down) match this grid's action set, though the extra previous-frame channel doesn't line up exactly with MinAtar's four channels.
+
+I'm working through the sensitivity question now: a forward pass on a few simple inputs would show how each cell's weights shape the output, but doing that by hand across 32 hidden units is heavy. I'll try a rough approximation, starting from a single agent position and checking how the hidden units respond.
+
+I'm estimating the constant contribution of the wall cells, since the 36 border cells all activate the obstacle channel and would add a fixed bias across the hidden units. Summing those 36 rows by hand is heavy, so I'll only approximate it.
+
+Checking the channel 1 weights next, to see whether the moving-object rows show the same large trained pattern as the agent channel.
+
+Comparing the interior channel-2 weights against channel 1 for the same cells, the magnitudes look about the same, so that alone doesn't tell me much. I'm going to look at how channel 4 compares with channel 0 on those cells to see whether the previous-frame signal tracks the agent.
+
+I'm comparing the first-layer weights on the agent channel with those on the previous-frame channel for the same cell, to see whether they move together or in opposite directions. The values for cell (1,1) look somewhat correlated, but the moving-object channel seems to follow its own pattern.
+
+I'm comparing the first-layer magnitudes on the reward and previous-frame channels, but the numbers are too tangled to read a clear pattern from them yet. I'll scan the rows for the largest entries to see where the big weights cluster.
+
+I'm listing the largest first-layer weights in the top rows, where the cell (1,1) agent channel reaches about 6.7 and the cell (1,3) channel reaches about 6.
+
+I'm scanning the larger weight rows near the top of the first layer, where the magnitudes reach about 3 to 6, and I'm checking whether the moving-object channel shows the same spikes as the agent channel in those cells.
+
+I'm reading off the first-layer weights for the cell at (1,4) on the agent channel, where one entry stands out at about 6.5 and the neighboring values are smaller.
+
+I'm reading off the first-layer weights for the cell at (1,5) on the agent channel, where the values reach about ±10, far larger than the neighboring entries.
+
+I'm checking the reward channel at cell (1,5), where the weights look small, around 0.35 to 1.0, far below the agent channel's values at that cell. I'm also looking at the wall channel, which I'd expect to be flat there.
+
+I'm checking the rows for cell (1,5) on the reward and previous-frame channels, where the weights reach about 3 and the values are mixed in sign.
+
+I'm checking the weights on the sixth cell of the agent channel, where the values swing between roughly ±3 and ±4, and comparing them with the moving-object and reward channels at that same position.
+
+Now I'm checking the first-layer weights on the (1,6) and (1,7) cells, where the agent channel reaches about 3.7 and 4.5 and the other channels stay somewhat smaller.
+
+Now I'm checking the weights on cell (1,8) for the agent channel, where the values reach about ±5, and comparing them with the moving-object and reward channels at that position.
+
+Now I'm checking the second row's first cell, where the agent-channel weights reach about 6 and the moving-object channel sits around 3.8.
+
+Now I'm comparing the first-layer weights for the cell at row 2, column 1, where the agent channel reaches about 6 and the moving-object channel sits around 3.8.
+
+I'm checking the channel 0 weights for the cell at row 2, column 2, where the values are small, mostly under 0.1 in magnitude, which stands out against the large entries in the cells just before it.
+
+I'm checking the weights for cell (2,2) on the agent channel, and they're all very small, around 0.1 or less, which stands out against the large entries in the neighboring cells. I'm also looking at the next channel's values for that same cell.
+
+I'm checking the (2,2) cell's weights on the remaining channels, and they all sit near zero too, which suggests this cell never gets activated during training.
+
+I'm checking the weights for the cell at row 2, column 3, starting with its agent channel to see whether the values there are trained or still near zero like the cell before it.
+
+I'm checking the (2,3) cell's weights on the agent channel next, which is where the scan of the second row continues.
+
+I'm reading the weights for cell (2,3) across the channels, starting with the agent channel. The values in that stretch of the table look like raw numbers, so I'm noting which entries are large and which are close to zero.
+
+I'm reading the weights for cell (2,3) across the channels, and the values in that block are mostly small, with a few larger entries that stand out.
+
+I'm reading through the second-row weights for cells (2,3) and onward, which are mostly raw numbers, and a few entries stand out as larger than the rest.
+
+I'm going through the second-row weights for cell (2,3) and the cells after it, and the values in this stretch are mostly raw numbers, with a handful of larger entries standing out against the rest.
+
+Still reading the weights across the grid...
+
+Still scanning the weight table for cells around row 2, column 5 onward...
+
+Still reading the first-layer weights for cells around row 2, column 5, where the values are mostly raw numbers with a few larger entries.
+
+Still reading the first-layer weights for the cells around row 2, column 5, where the values are long lists of raw numbers.
+
+Still reading the first-layer weights for cells around row 2, column 5, which are long lists of raw numbers.
+
+Still reading the weight values across row 2, going through the remaining cells in that block.
+
+Still reading the weight values in row 2, working through the numbers in the cells past column 5.
+
+Still reading the weight values in row 2, now through the cells at columns 6 and 7.
+
+Still reading the raw weight values across these cells, looking for the larger entries.
+
+Still reading the raw weight values in row 2, now past column 7 toward the end of that block.
+
+Still reading the raw weight values in row 2, now looking at the entries for the cells past column 7.
+
+Still reading the raw weight values in row 2, now through the entries for cells past column 7.
+
+Still reading the weight values in row 2, now through the numbers for cells past column 7.
+
+Still reading the raw weight values in row 2, now through the entries for cells past column 7...
+
+Still reading the raw weight values in row 2, now through the entries past column 7...
+
+Still reading the raw weight values in row 2, now through the entries for the cells at the end of that block.
+
+Still reading the raw weight values in row 2, now through the entries for cells near the end of that block...
+
+Still reading the raw weight values in row 2, now through the entries for cells near the end of that block...
+
+Still reading the raw weight values in row 2, now through the entries for cells near the end of that block...
+
+Still reading the raw weight values in row 2, now through the entries for the final cells in that block.
+
+Still reading the raw weight values in row 2, now through the entries for the last few cells in that block.
+
+Still reading the raw weight values in row 2, now through the entries for the cells near the end of that block...
+
+Still reading the raw weight values in row 2, now through the entries for the cells near the end of that block...
+
+Still reading the raw weight values in row 2, now through the entries for the cells at the end of that block...
+
+Still reading the raw weight values in row 2, now through the last few cells in that block...
+
+Still reading the raw weight values in row 2, now through the last cells in that block...
+
+Still reading the raw weight values in row 2, now through the last few cells in that block...
+
+Still reading the raw weight values in row 2, now through the entries for the cells near the end of that block...
+
+Still reading the raw weight values in row 2, now through the final entries in that block...
+
+I'm checking the numbers in the next block of rows, which are long lists of raw values. I'm also noticing that my running count of line numbers might be off, so I'll double-check the indexing before relying on it.
+
+I'm double-checking the cell indexing against the line numbers, since the count may have drifted, and verifying that lines 100 through 104 fall in cell (2,0).
+
+Still checking the weight lines for cells in row 2, confirming that the cells at columns 0 through 2 hold small values and that the next block starting at line 115 is the cell (2,3) stretch.
+
+Checking the weights for cell (2,3), the values in lines 115 through 119 are still small, so this cell also looks untrained. Cell (2,4) starts with much larger entries around lines 120 and 121.
+
+Still checking the weights for cell (2,4): the first two channels are large, the third and fourth are small, and the fifth is moderate.
+
+Still reading the first-layer weights for cells around row 2, column 5, where the values are large and mixed with small entries.
+
+I'm checking cells (2,6) and (2,7) now, and the first few weight lines for (2,6) all look small, so that cell seems untrained.
+
+I'm checking the cells in row 2 from column 7 onward, and cell (2,7) looks untrained since its weights are all small. Cell (2,8) has several large entries in its first channels, while the fourth line is much smaller.
+
+Checking the remaining first-layer weights in row 2, the cells at columns 2, 3, 6 and 7 look untrained, while columns 1, 4, 5 and 8 carry large values. That split suggests only certain cells in that row ever mattered to the agent.
+
+Checking row 1 against the weight lines, every cell from (1,1) to (1,8) shows large values in its channels, so that whole row looks trained. Row 2 is different: columns 1, 4, 5 and 8 carry large entries, while columns 2, 3, 6 and 7 look untrained.
+
+Checking whether the untrained cells in row 2 are simply the ones the agent never occupies, or whether the interior obstacle channel is also just never triggered.
+
+I'm now asking whether the untrained cells in row 2 could be spots the agent never visits, or whether an obstacle there would have left its channel at initialization. Either way, the interior obstacle channel looks like it never gets a nonzero input.
+
+I'm wondering whether cells (2,2), (2,3), (2,6), and (2,7) are simply never reached by the agent or any object, since none of their input channels ever show up with trained weights.
+
+Checking whether the untrained cells in row 2 are ones the agent never occupies. Since Adam normalizes updates, even rarely visited cells would have moved off initialization, so the flat weights suggest some cells are never reachable at all.
+
+I'm mapping the remaining rows to see which cells the agent and objects ever occupy, starting with row 3 and checking the first weight lines for cell (3,1), which look clearly trained.
+
+Checking the weights for cell (3,2) now: the first few channels look near zero, so that cell may be untrained, like several in row 2.
+
+Checking the weights for cell (3,3) now: the first channels are large and clearly trained, so that cell is in use.
+
+Checking cell (3,4) next: its first channels look trained, with a couple of moderate values in the agent channel.
+
+I'm checking the weight values for cell (3,5) now, and the first few channels look clearly trained.
+
+Now I'm checking the cell at row 3, column 6, where the first weight lines are still large and mixed in with a few small channel values.
+
+Checking the weights for cell (3,6): the first channels are large and clearly trained, and the interior obstacle channel looks near zero, so that cell is in use.
+
+Checking the weights for cell (3,7) now: the first several channels are near zero, so that cell looks untrained as well.
+
+Checking the weight lines for cell (3,7), the first several channels are near zero, so that cell looks untrained. Next I'm reading the first entries for cell (3,8), where the values are large and clearly trained.
+
+Checking row 3 cell by cell: (3,1), (3,3) through (3,6), and (3,8) all carry large weights, while (3,2) and (3,7) stay near zero.
+
+Checking row 4 now, starting with cell (4,1), where the first channels are large and clearly trained.
+
+Checking row 4 now, I'm looking at cell (4,2) next, where the first channels are large and clearly trained.
+
+Checking cell (4,3) now: its first channel is large, so that cell looks trained.
+
+Checking cell (4,4) now, starting with the first weight lines for that cell.
+
+Checking cell (4,4) next: the first few weight lines are all small, so it looks untrained like the others in that row.
+
+Checking the weights for cell (4,5) next, starting with the first few lines for that cell.
+
+Checking the remaining weights in row 4: cell (4,5) looks untrained, with all its channels small. Now I'm starting on cell (4,6), where the first weight line is still being read.
+
+I'm checking the weights for cell (4,6), where the first channels are large and clearly trained, so that cell is in use. Next I'm looking at cell (4,7).
+
+I'm checking cell (4,7) now, where the first few channels are large and clearly trained, and the interior obstacle channel looks near zero.
+
+Checking the remaining cell in row 4, I'm reading the first few weight lines for cell (4,8), where the large values suggest it is trained.
+
+Now I'm moving on to row 5, starting with cell (5,1), where the first weight lines are large and clearly trained.
+
+Now I'm checking the weights for cell (5,1), where the first few values are large and the remaining channels look mixed, so that cell appears trained.
+
+Checking the weights for cell (5,2) now: the first channels are large and the later ones look trained too, so that cell is in use.
+
+Checking cell (5,3) now: its first channels are large, so that cell looks trained.
+
+Checking cell (5,3) against the remaining channels: the weights in that cell look clearly trained, with several large values.
+
+Checking cell (5,4) now: the first few channels look small, so that cell may be untrained, like (4,4) and (4,5).
+
+Checking cell (5,5) now: its first few channels look small, so that cell may be untrained, though one value in the second channel is a bit larger.
+
+Checking cell (5,6) now, where the first channels are large and clearly trained, so that cell is in use.
+
+Checking cell (5,7) next: its first channel is large, so that cell looks trained.
+
+Checking the weights for cell (5,7) now: the first channel is large, and the later values also look clearly trained, though the interior obstacle channel is near zero. I'm checking the next cell in that row.
+
+Checking the weights for cell (5,8) now: the first channels are large and clearly trained, and the second batch of values looks trained too, while the next line is moderate.
+
+Next I'm checking the first weight lines for cell (6,1), where the early channels look large and trained.
+
+Next I'm checking the first weight lines for cell (6,2), where the values near the start look like they're still being read.
+
+Checking cell (6,2) next: its first few channels look small, so that cell may be untrained like the others nearby.
+
+Checking cell (6,3) now: its first few channels are large, so that cell looks trained.
+
+Checking the weights for cell (6,4) now: the first few channels are large, so that cell looks trained, while the next line looks small.
+
+Checking cell (6,5) next, starting with its first few weight lines.
+
+Checking the weights for cell (6,5) now: the first few channels are large and trained, and the interior obstacle channel looks near zero, so that cell is in use.
+
+Now I'm checking the weights for cell (6,6), where the first channels are large and clearly trained, so that cell is in use.
+
+I'm checking cell (6,7) now, where the first few channels are small, so it may be untrained like (6,2).
+
+Checking cell (6,8) next, starting with its first weight lines.
+
+Checking the remaining channels for cell (6,8): the first few weights are large and clearly trained, and the next line looks moderate, around 0.4.
+
+Now I'm checking the weights for cell (7,1), where the first channels are large and clearly trained.
+
+Checking cell (7,2) now, starting with its first weight lines.
+
+Checking cell (7,2) next: its first few channels look small, so that cell may be untrained, with the largest value in the fourth line sitting around 0.16.
+
+Checking the weights for cell (7,3) now: the first few channels look small, so that cell may be untrained like (7,2).
+
+I'm still going through the weights for cell (7,3), and the largest value in this stretch is only around 0.3, so it looks mostly untrained. I'll check the channel index against the line numbers to make sure the last value belongs to channel 3.
+
+I'm checking whether the channel 3 weights in cell (7,3) are really small, since a few values there reach about 0.3, which is above the initialization range. I want to confirm the line numbers line up with the channel indices before deciding whether that cell is trained.
+
+I'm checking the rest of cell (7,3) against the line numbers, since a few values there look larger than the initialization range would allow.
+
+Checking whether the channel 3 weights in cell (7,3) are really that small, since a few of them reach about 0.3, which is beyond the initialization range.
+
+I'm rechecking cell (7,2), where the channel 3 values in line 363 look larger than I first thought, with a few reaching about 0.24, so that cell may not be untrained after all.
+
+Checking the channel 3 weights for cell (7,2), a few of them reach about 0.25, which is beyond the initialization range, so that cell may have picked up some training after all.
+
+Now I'm checking the wall rows, where the weights in the first line look like plain initialization values, since those inputs are never active.
+
+I'm wondering whether the init scale is just wider than I assumed, since some of the wall-row values reach about 0.17 and that doesn't fit a plain ±0.1 range. I'll leave the init question open for now and keep comparing the trained cells against that baseline.
+
+I'm checking whether the wall-row values really fit a plain init range, since some of them reach about 0.15 to 0.2 and that's larger than I'd expect. A roughly normal spread with a standard deviation near 0.05 could produce values that size across so many weights, so I'm estimating the spread from the first line before judging.
+
+I'm now estimating the spread of the untrained wall-row weights from the first line's values, which come out around 0.06 in RMS, so the init looks closer to a normal distribution with std near 0.06 than to a uniform ±0.1 range.
+
+I'm looking at the interior channel-3 rows, where some values reach about 0.25, which is larger than the wall-row spread would suggest. That could mean these weights picked up some training, or it could just be the tail of the distribution, so I'm estimating the spread to decide.
+
+I'm comparing the squared values in row 363 to see how large the channel 3 weights for cell (7,2) really are, since several of them run well above what the initialization range would give.
+
+I'm adding up the squared values in row 363 for cell (7,2), and the running total is climbing steadily.
+
+I'm comparing the squared values in row 363 against the interior channel-3 row for cell (1,1), since row 363 comes out to a mean square around 0.016 and an rms near 0.13, which is well above the wall-row spread.
+
+I'm comparing the squared values for cell (1,1)'s channel-3 row, which sum to roughly 0.16 across 32 weights, well above the wall-row spread.
+
+Checking the (7,2) channel-0 weights next, which look like they could be trained after all, so I'll compare their spread to the initialization baseline.
+
+I'm wondering whether the larger magnitudes in the channel-3 row for cell (7,2) come from occasional interior obstacles, since those weights would only get gradient where that channel is active. The rms there is about 0.13, roughly double the initialization spread I'm seeing elsewhere, so it might be partially trained.
+
+I'm testing whether the untrained cells are actually obstacles, since an obstacle would block the agent from ever occupying that cell and leave its agent-channel weights at initialization while its obstacle channel still gets trained. Next I'm checking cell (2,2) against that idea, starting with its channel-3 weights.
+
+I'm checking the channel-3 weights for cell (2,3) next, to see whether they show the same larger magnitudes as (2,2), which would fit the idea that those untrained-looking cells are interior obstacles.
+
+I'm checking the channel 3 values for cell (2,3), which look like they might be larger than the initialization spread, the way cell (2,2)'s did.
+
+I'm checking the channel-3 weights for cell (2,6) next, which reach about 0.21 and look like they could be trained, so that cell may also be an interior obstacle.
+
+I'm now checking whether the channel-3 rows for the cells at (2,6) and (2,7) also carry the larger magnitudes, since a few weights there reach about 0.2 and that could mean they're obstacles too.
+
+I'm treating the untrained cells as likely obstacles: the agent can never enter them, so their agent-channel weights stay at initialization, while the obstacle channel still gets gradient there. I'll map which cells show that pattern by checking each one's channel-0 row against its channel-3 row.
+
+I'm mapping the layout row by row: row 2 looks like it has obstacles at (2,2), (2,3), (2,6), and (2,7), while the others there still look trained. Row 3 starts with (3,1) trained and (3,2) apparently untouched, so I'm checking its channel-3 row to confirm.
+
+Checking the (3,2) row confirms it looks trained, so that cell is likely an obstacle too. I'll go through the rest of row 3 and see which cells follow the same pattern.
+
+I'm checking the channel-3 weights for the cells in row 4 next, starting with (4,4), to see whether they show the same larger values that marked the earlier obstacle cells.
+
+I'm checking the channel-3 weights for cell (4,4), which show values around 0.2 and look trained, so that cell is likely another interior obstacle. I'll check (4,5) next.
+
+Checking the channel-3 weights for cell (5,4), which look trained like the other suspected obstacles, so I'll confirm that cell too.
+
+I'm checking the channel-3 weights for cell (5,4) and finding larger values there, up to about 0.235, so that cell looks like another interior obstacle. I'm moving on to cell (5,5) next.
+
+I'm checking the channel-3 weights for cell (6,2), which look trained, so that cell is probably another interior obstacle.
+
+I'm checking the channel-3 weights for cell (6,7) and they reach about 0.36 in magnitude, so that cell looks like another interior obstacle.
+
+Now I'm checking the channel-3 weights for cell (7,3), which look like they could be trained too, so that cell may be another interior obstacle.
+
+I'm checking the channel-3 weights for cell (7,3), which look trained, and comparing them against that cell's channel-0 weights to see whether it's another interior obstacle.
+
+I'm going back over the weights for cell (7,2) and checking whether its channel-0 row is actually untrained, which would make it another obstacle. I'll confirm the line numbering for that cell before deciding.
+
+I'm confirming that cell (7,2) and cell (7,4) look different on their channel-3 and channel-0 rows, and I'm moving on to cell (7,5) to see whether its weights were trained.
+
+I'm checking cell (7,6)'s channel-0 rows, which look untrained, and its channel-3 row, which shows a larger value near 0.33, so that cell may be another interior obstacle.
+
+Checking the remaining channel-3 weights for cell (7,7) next, to see whether its values look trained like the other suspected obstacles.
+
+I'm checking the channel-3 weights for cell (7,7) next, which show a few moderate values around 0.15 to 0.18 but not clearly trained, so I'm not sure yet whether that cell is an obstacle.
+
+I'm comparing the channel-0 and channel-3 values for cell (7,7) to see whether its weights look trained, and the channel-3 row reaches about 0.21, which is borderline.
+
+I'm checking the channel-3 weights for cell (7,7) against its channel-0 row, and the values hover around 0.2, which is borderline for telling trained from untrained.
+
+I'm reading the weight values for cells (7,4) and (7,5) and finding large magnitudes there, so those look trained, while the next cell's rows show many numbers in a range that's hard to judge.
+
+I'm reading the raw weight values for the next cell in row 7 and comparing their magnitudes against the earlier cells, to decide whether that cell is trained or still at initialization.
+
+Checking the remaining weight values for cells (7,6) and (7,7) to see whether they show the larger trained-looking magnitudes.
+
+I'm checking the channel-3 weights for cell (7,7) against its channel-0 row to see whether they look trained.
+
+Checking the weights for cell (7,6) reading and cell (7,7) on a few more rows, which look untrained, so I'm comparing those values against the other cells to decide.
+
+I'm checking the channel-3 weights on the remaining rows of cell (7,7), and the values are small enough that I'm still unsure whether it's an obstacle.
+
+I'm checking the rest of the channel-3 values for cell (7,7) and they stay small, around 0.1 or less, so that cell is still borderline.
+
+I'm still checking the channel-3 weights for cell (7,7), and the values there stay small, mostly under 0.2, so it's still unclear whether that cell is an obstacle.
+
+I'm checking the channel-0 values for cell (7,5) next, which show large magnitudes around 4 to 8, so that cell looks trained.
+
+I'm checking the channel-0 weights for cell (7,6) next, which look small and untrained, and the channel-1 weights too, so that cell may not be an obstacle. I'll compare them against its channel-2 row, which shows somewhat larger values.
+
+I'm checking the channel-0 and channel-1 weights for cell (7,6), which look untrained, and its channel-3 weights, which show larger values near 0.33. Now I'm checking cell (7,7), where the channel-0, channel-1, and channel-2 rows look small, and I'm starting on its channel-3 row.
+
+I'm checking the channel-0 weights for cell (8,1), which look moderately large, so I'm not yet sure whether that cell is trained.
+
+I'm checking the channel-0 weights for cell (8,1) and they look large, with values reaching about 4 to 5 in magnitude, so that cell appears trained rather than an obstacle.
+
+I'm checking the weights for cell (8,1) and the first few rows look large, with values reaching several units in magnitude, so that cell appears trained rather than an obstacle.
+
+I'm checking the cell (8,2) weights now, where the channel-0 through channel-3 rows show large values, so that cell looks trained rather than an obstacle.
+
+I'm checking the channel-3 weights for cell (8,2), where values around 0.18 and below look untrained, so that channel isn't an obstacle sign, while channel 4 shows large values that look trained.
+
+I'm checking the weights for cell (8,3), where the first few rows show large values that look trained, so that cell is probably not an obstacle.
+
+I'm checking the channel-3 weights for cell (8,3), which look untrained, and then I'm moving on to the rows for cell (8,4).
+
+I'm checking the channel-0 and channel-1 weights for cell (8,4) and the other rows, which show large values that look trained, so that cell is probably not an obstacle.
+
+Checking the channel-2 weights for cell (8,4), which are small, so the reward channel there looks untrained. The channel-0 row for that cell is large, though, so the cell itself seems free rather than an obstacle.
+
+I'm checking the channel-0 and channel-1 weights for cell (8,5), which show large magnitudes, so that cell looks trained rather than an obstacle.
+
+I'm checking the channel-1 and channel-3 weights for cell (8,5), and they look trained, so that cell isn't an obstacle. Next I'm moving on to the rows for cell (8,6), starting with its channel-0 values, which look large.
+
+I'm checking the channel-0 and channel-1 weights for cell (8,6), which look large and trained, and the channel-3 row there looks moderate. The cluster of values around 0.8 in the channel-4 row suggests this cell is not an obstacle.
+
+I'm checking the channel-0 and channel-1 weights for cell (8,7), where the values look large, so that cell appears trained rather than an obstacle.
+
+I'm checking the channel-0 and channel-1 weights for cell (8,7) again, which look large and trained, and the channel-3 row there looks untrained.
+
+I'm checking the channel-0 through channel-4 weights for cell (8,8), where the first rows show large values that look trained, so that cell is probably not an obstacle.
+
+I'm checking the channel-3 weights next, since the earlier cells showed small values there that looked untrained.
+
+I'm now listing which cells in row 2 and row 3 look like obstacles, meaning their channel-0 weights are untrained but their channel-3 weights are trained. For row 2 that's cells (2,2), (2,3), (2,6), and (2,7), and for row 3 it's (3,2) and (3,7). I still need to finish checking the rest of row 3.
+
+Now I'm finishing the obstacle map for row 3 and going through rows 4 to 8, and the last part of row 8 is still being checked.
+
+I'm checking the mirror symmetry of the obstacle map: pairing each cell with its left-right counterpart at column 9 minus c, the pairs for rows 2 through 7 all line up.
+
+Next I'm laying out the obstacle cells as a grid, and the pattern is mirror-symmetric, with each block on one side matched by its counterpart on the other.
+
+Now I'm checking which reward channels are trained across the free cells, since a large ch2 row could mean rewards appear there. It's unclear yet whether rewards sit at fixed spots or move around, because if they moved, most free cells would show trained reward rows.
+
+I'm checking the channel-2 reward weights for row 1 next, starting with cell (1,1), which looks large, and I'm going through the rest of that row to see which cells have trained or untrained reward rows.
+
+I'm checking the channel-2 reward weights for cell (1,2) and (1,3) next, and those rows look moderately trained, so rewards may be possible there too.
+
+I'm going through the ch2 reward rows for row 1, and cells (1,2) through (1,4) show moderately sized weights, so rewards could plausibly appear there. I'm checking the remaining row 1 cells, starting with (1,5), where the values look moderate.
+
+I'm checking the channel-2 reward rows for cells (1,6) and (1,7), and the values there are moderate, so rewards could plausibly show up in those cells too.
+
+I'm looking at the channel-2 reward weights for cell (1,8), where the values are mixed and moderately sized, so rewards could plausibly appear there too.
+
+I'm now checking the channel-2 reward rows for row 8, since the earlier free cells in row 1 all had trained reward weights while (8,4) looked untrained.
+
+I'm checking the channel-2 reward rows for cells in row 8, comparing their magnitudes across the columns, and the row-8 cells at (8,5) through (8,8) look moderately trained while (8,4) stands out as small.
+
+Checking the channel-2 rows for row 8 turns up a pattern: (8,4) stands out as the one cell whose reward weights stay small, while its neighbors all look trained.
+
+The cell at (8,4) has trained agent and moving-object weights but a near-zero reward row, so I'm now asking whether a cell can hold moving objects without ever carrying a reward.
+
+I'm now checking the channel-2 reward rows across row 1, and every cell there shows trained weights, which suggests rewards aren't fixed to one spot. Maybe the reward channel tracks something that moves through the lanes.
+
+I'm checking the channel-2 rows for row 2 now, starting with cell (2,1), whose weights look trained, and then moving on to cell (2,4), where the values also look sizeable.
+
+I'm checking the channel-2 weights for cells in row 2, and cell (2,5) has moderate values with one outlier near -2.3, so it looks trained. I'm moving on to cell (2,8), whose values also look sizeable.
+
+I'm checking the channel-2 weights for row 3 now, looking at cells (3,1) and (3,3), which have moderately sized values, so rewards may appear there too.
+
+I'm checking the channel-2 weights for row 4 now, starting with cell (4,1), whose values look sizeable, and then moving on to cell (4,2).
+
+I'm checking the channel-2 weights for the remaining row-4 cells, where (4,3) and (4,7) look especially large, so rewards may appear there too.
+
+I'm checking the channel-2 weights for row 5 now, where the cells at (5,1) and (5,2) look sizeable, so rewards may appear there too.
+
+I'm checking the channel-2 weights for row 5 now, where cells (5,6) and (5,7) look especially large.
+
+I'm checking the reward rows across the rest of the cells, and the channel-2 weights look trained almost everywhere, so rewards may not be fixed to one spot.
+
+I'm checking whether the moving-object channel is trained across the free cells too, starting with row 8, where the cells so far all look trained.
+
+Now I'm checking the bottom row for moving objects, and every free cell in row 8 shows trained moving-object weights, so they seem to roam widely. I'll also re-verify the obstacle pattern in column 1 to make sure nothing was missed.
+
+I'm noticing the obstacle layout has a vertical symmetry too: rows 2 and 7 share the same pattern, rows 3 and 6 match, and rows 4 and 5 match.
+
+I'm sketching the obstacle map as an 8x8 grid, and it's symmetric both left-to-right and top-to-bottom, with the center block at rows 4-5, columns 4-5.
+
+I'm sketching the 8x8 map as a pinwheel: four L-shaped blocks sit at the corners of the interior, and a central 2x2 block fills the middle, with the layout symmetric in both directions.
+
+I'm noticing the map is a pinwheel of four L-shaped corner blocks around a central 2x2 square, and I'm wondering whether this is a Pac-Man-style maze where rewards are pellets and moving objects are ghosts.
+
+Still weighing whether a Pac-Man-style dot layout fits, since the (8,4) reward row being untrained doesn't match dots in every free cell.
+
+Still weighing whether the reward and moving-object channels follow a dot-collecting pattern like Pac-Man, since the untrained reward row at (8,4) doesn't fit dots in every free cell.
+
+I'm weighing a few candidate games: a Pac-Man-style maze where the agent eats pellets and avoids moving hazards, a catch-style game, or a coin-collecting setup where enemies move along the grid.
+
+I'm checking whether the moving-object channel is trained on every free cell in row 1 too, which would tell me whether those objects roam the whole grid or stay in certain lanes.
+
+I'm checking the moving-object channel on the remaining cells in rows 2 through 4, and each one I look at shows trained weights, so those objects seem to be spread across the whole grid.
+
+I'm checking the moving-object channel on the rest of the bottom-row cells, and rows 5 and 6 also look trained across their free cells. Row 7 is next, starting with (7,1), where the values look sizeable.
+
+I'm checking the channel-2 weights for row 6 and row 7 next, to see whether the reward channel is trained there as well.
+
+I'm checking the channel-2 weights for the rest of row 6, where (6,1), (6,3), and (6,4) all look trained, and (6,5) is next.
+
+I'm checking the channel-2 weights for cell (6,8), which look moderate, around 0.4 in size, so rewards may be trained there too.
+
+I'm checking the channel-2 weights for the last few free cells in rows 7 and 8, where (7,1), (7,4), and (7,8) look trained and (7,5) is more moderate, so the reward channel seems to be trained across essentially every free cell.
+
+Next I'm wondering whether (8,4) is just an odd spot, since with random reward placement every free cell should eventually have shown up, so that cell may be excluded from reward placement or the start position may be there.
+
+I'm looking at the agent channel's weights in the first layer now, and the cell at (8,4) seems to have large values as well, possibly a fixed start spot. I'll also check which cells carry the biggest agent-channel magnitudes, since those may be where the agent often sits.
+
+I'm estimating the average weight magnitude for each free cell in the agent channel, starting with the top row, where (1,5) looks largest, and then moving on to the bottom row, beginning with (8,4).
+
+I'm turning to the broader picture now: the network seems to use nearly every free cell, the obstacle layout is symmetric, and the reward channel looks widely trained. Next I want to consider what kind of game this arena could be, with four corner obstacles, a central block, moving enemies, and possibly several reward targets.
+
+I'm weighing whether this could be a Pac-Man-style maze, since the symmetric corner blocks and central block resemble its layout, or something like Bomberman or Snake, though the lack of lanes makes Frogger less likely.
+
+I'm wondering whether the reward cells follow a dot-collecting pattern, with the agent eating dots while avoiding ghosts that move through the walls, but the untrained cell at (8,4) doesn't fit dots in every free cell.
+
+I'm wondering whether the (8,4) cell is the agent's starting spot, since it never shows a reward and the agent channel there is strongly trained, so dots may be placed everywhere except where the agent begins.
+
+I'm wondering whether the agent starts at (8,4), which would explain why that cell never gets a reward: pellets may sit on every free cell except the spawn point, and the agent leaving that cell wouldn't put one back.
+
+I'm considering whether the reward cells might simply be dots placed on every free cell except the start, which would fit the untrained (8,4), though a Snake-style setup where food appears at random and the previous-frame channel tracks a body is also possible.
+
+I'm leaning toward a Pac-Man-style maze, where the agent collects dots while dodging moving ghosts in a symmetric 8x8 arena, though I'm only about 30 to 40 percent confident in that reading.
+
+I'm now checking whether the reward channel is unusually strong in a few specific cells, like (4,7), (4,2), and (5,6), which might mean rewards show up there more often.
+
+I'm checking the reward-channel weights in the rows I haven't compared yet, but the values are large and mixed in sign, so I can't tell which cells are rewards from them alone. I'll set that aside and look at the output biases next to see which actions the network favors.
+
+I'm weighing the output biases next, where the no-op action sits well below the rest and right is the highest, so the network seems to favor moving right. I'll also consider whether the moving objects might be cars in lanes, though the trained cells don't clearly show that.
+
+I'm weighing a Frogger-style layout, with the agent at the bottom and cars moving along the rows, though the obstacles in the middle don't fit that well. I'm also considering a Pac-Man-style maze, since the corridors all look trained and the moving objects could be ghosts roaming through them.
+
+Next I'm laying out the arena as an 8x8 grid, with a full border of free cells along the top, bottom, left, and right edges and the blocks sitting inside it.
+
+I'm sketching the arena's open layout now, with a few blocks scattered through the interior, and weighing whether it resembles a Pac-Man-style maze, a Snake arena, or something else. I'm not sure any of the classic game layouts match exactly, so I'm leaving that open for now.
+
+I'm weighing whether the previous-frame channel might be what lets the network track moving objects, so the game could be something like Frogger or Freeway where motion matters. The trained weights everywhere don't settle that yet.
+
+I'm weighing whether Snake fits, but the agent can no-op and there are no body segments in the input, so that seems unlikely. I'm also considering whether the reward is a set of dots that get eaten and stay gone within an episode, which would fit a Pac-Man-style collection game.
+
+I'm running through the reward placement again: if rewards were scattered at random, the (8,4) cell would have been trained by now, so its absence suggests rewards sit on nearly every free cell except the spot where the agent starts, much like dots in a Pac-Man maze.
+
+I'm reasoning that if the agent started at (8,4) it would be heavily trained, though the channel values there look only moderate, so that's uncertain. Since moving objects also pass through (8,4), it could be an enemy spawn point instead. Leaning toward a Pac-Man-style maze where the agent eats dots while avoiding roaming ghosts, though the moving-object channel might instead be the reward.
+
+I'm now going back over whether moving objects are hazards or rewards, since that changes what the game is, but nothing in the weights settles it yet.
+
+I'm settling on a Pac-Man-style reading, since reward cells that skip only (8,4) look like dots placed on every corridor cell rather than randomly. I'm still checking the neighboring reward weights at (8,3) and (8,5) to see whether they were trained.
+
+I'm checking the neighboring reward weights at (8,3) and (8,5), where the values are clearly trained, which fits the idea that dots sit on nearly every corridor cell.
+
+I'm checking the reward-channel weights at (8,4) and comparing them with the trained cells on either side, to see whether that gap is real or just an artifact of the row I'm reading.
+
+I'm checking the rest of the (8,4) row, where the next block of weights looks small, and I'm still trying to tell whether that gap is real or just a quirk of which row I'm reading.
+
+I'm checking the (8,4) channel-4 weights, which look clearly trained rather than near zero, so the untrained gap I was reading is only in channel 2.
+
+I'm checking the (8,4) row again, confirming that the cell at index 420 is the channel-0 weight and that the row lines up with the other cells I've been comparing.
+
+I'm checking the wall column on the far edge, where the weights in rows 445 through 450 all stay small, which fits the border being walls, and I'm also glancing at the matching column lines further up to confirm the pattern holds.
+
+I'm confirming that the row-8 indices line up: the wall column at lines 445 through 450 stays small, which matches the border, so the line count holds. I'm also checking the obstacle cells against the row-2 offsets, and the wall cell at (2,0) and the interior at (1,1) both look consistent.
+
+I'm checking the wall cells along the first rows against the expected pattern, confirming the border lines up with the trained obstacle cells. I still need to verify the counting between lines 55 and 105 to make sure cell (1,5) is where I placed it.
+
+I'm checking whether the obstacle layout is symmetric in a way that suggests the alignment is correct. The sixteen obstacle cells form a pattern that mirrors under both reflections, which would be unlikely by chance. I'm also looking at whether the cells at (7,3) and (7,6) really are obstacles, based on their small channel-0 weights.
+
+I'm confirming the remaining obstacle cells at (3,7), (3,2), (6,2), (6,7), (4,4), and (4,5), since each shows a small channel-0 weight and a clearly larger channel-3 weight, consistent with the symmetric pattern I've been building.
+
+I'm confirming the remaining obstacle cells along row 2, where (2,2), (2,3), (2,6), and (2,7) each show a small channel-0 weight alongside a clearly larger channel-3 weight.
+
+I'm checking the obstacle positions against the rest of row 8 and the other rows, and the untrained cells I've been testing, (3,6), (6,3), (4,3), (4,6), (5,3), and (5,6), all show large channel-0 weights, so they're open floor rather than obstacles.
+
+I'm laying out the grid as a 10x10 map with an outer wall border, where the interior blocks form symmetric L-shaped clusters in the corners.
+
+I'm considering alternative game types for this layout, like Frogger or Sokoban, but neither fits the map. Pac-Man still seems the best match, since the dots and roaming enemies explain the pattern.
+
+I'm considering whether the moving objects could be ghosts rather than obstacles, since in a Pac-Man setup they end the episode on contact but aren't static walls. I'm also weighing whether the other channels might carry reward density or other signals, though I'll leave that for later.
+
+I'm weighing whether the moving objects might be cars moving along lanes, which would show up as consistent magnitudes across a row in the channel-1 weights, and I'm starting to check the first row's values to see if that pattern holds.
+
+I'm checking the channel-1 magnitudes along row 8 now, which vary across the cells and don't show a clear uniform pattern.
+
+I'm checking whether the large channel-1 weight at (4,6) means anything, since most channel-1 magnitudes across the grid don't show a clear lane pattern. I'm leaning toward a Pac-Man-style maze chase, though I'm still weighing whether the moving objects are ghosts or something else.
+
+I'm weighing a few other candidates like Asterix, Seaquest, Bomberman, and Sokoban, but none fit the moving objects and obstacle layout as well. A Pac-Man-style maze game still seems the closest match, with dots as rewards, roaming ghosts as the moving threat, and walls as obstacles, though I'd put my confidence around 30%.
+
+I'm now writing up the answer in the requested format, with the key weight rows for the obstacle cells and the far-off-channel values as supporting evidence.
+
+I'm checking the output layer's bias values, which strongly disfavor the no-op action while leaning toward right and down, and I'm noting that five actions with no fire option fits a pure movement game.
+
+I'm noting that the wall channel's row-0 weights carry learned values even though those inputs are constant, so that part is probably just bias. The open cells look like they hold reward dots nearly everywhere except the bottom-center cell at (8,4), which may be the spawn point. I'm also still weighing whether the moving objects are ghosts that end the episode on contact.
+
+I'm settling on the answer format now: observations, reasoning, the game guess, a description, and a confidence level, with the caveat that this is all inferred from the weights.
+

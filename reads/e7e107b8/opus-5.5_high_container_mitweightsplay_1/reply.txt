@@ -1,0 +1,57 @@
+**Observations:**
+
+*Channel 3 (obstacles) and the wall border*
+- Every border cell's channel-3 input has almost the same weight vector as b1.
+  - Input 3 (cell 0,0) has -0.385 on unit 1 and 0.547 on unit 12.
+  - Input 8 has -0.416 and 0.514.
+  - b1 has -0.359 and 0.506.
+- An input that is always 1 gets the same gradient as the bias, so this is what a constant wall looks like.
+- Channel 3 at interior cells is tiny everywhere, for example inputs 108 and 113 at about ±0.1. So there are no interior obstacles, and the moving things are not marked as obstacles.
+
+*Channel 2 (reward)*
+- Row 1 shows the same bias-like signature on channel 2, not on channel 3:
+  - Input 57 (1,1,ch2): -0.356, …, 0.505
+  - Input 62 (1,2,ch2): -0.376, …, 0.555
+  - The same holds through input 92 (1,7).
+- So reward targets are permanently present along the top playable row.
+- Channel 0 in row 1 stays at its initial size (input 55 is about ±0.1). The agent is never observed standing there, so reaching row 1 probably pays out and resets the agent.
+- Channel 2 is negligible everywhere else.
+
+*Channel 1 (moving objects) and channel 4 (previous frame), rows 2-7*
+- These channels carry large weights, and they come in near-identical pairs two inputs apart. That is channel 4 of cell (r,c) matching channel 1 of cell (r,c+1).
+  - Input 109 (2,1,ch4): 0.520 0.571 1.451 … -5.136
+  - Input 111 (2,2,ch1): 0.588 -0.122 1.364 … -4.451
+  - Input 114 (2,2,ch4): 0.440 0.468 … 2.782
+  - Input 116 (2,3,ch1): -0.202 0.419 … 2.254
+- This means "was at column c last frame, is at c+1 now": the objects move one cell per step along their row. The same pairing shows up in row 7.
+- Input 106 (2,1,ch1) is about 4.370 on unit 16, and input 126 (2,5,ch1) is about 4.088 on unit 16, with nearly identical rows. So objects in a row come spaced about 4 apart, like regularly spaced traffic.
+- In row 8, channel 1 is negligible (inputs 416, 421 and 426 are about ±0.1). No moving objects ever enter row 8.
+
+*Channel 0 (agent)*
+- Agent weights are very large in rows 2-7 and in row 8.
+  - Row 8 is strongest in the middle columns: input 415 (8,3) has 4.088 and 6.370, input 420 (8,4) has -9.429 and -9.601, input 425 (8,5) has -7.836.
+  - Input 120 (2,4) has 7.138, and one interior agent input reaches 11.266.
+- So row 8 is a safe starting strip with the agent spawning near the bottom centre.
+
+*Output layer*
+- b3 is noop 0.901, up 0.253, down -1.282, left -0.415, right 0.483.
+- Down is strongly disfavoured. Its largest W3 weight is only about 1.1.
+- Up gets the largest W3 weights: 3.689, 2.127, 1.756 and 1.635.
+- Noop has a high bias, which suggests the agent waits for gaps.
+- Left and right have large weights of both signs (left -5.209 and 2.433, right 3.346 and 2.883). That fits sidestepping.
+
+**Reasoning:**
+- The layout is a bottom safe row (8), six lanes of objects moving horizontally (rows 2-7), and a constant row of reward targets at the top (1).
+- Combined with "mostly up, sometimes wait, almost never down", this is a road-crossing game.
+- Ruled out:
+  - **Snake or collect-the-food games:** reward is fixed in place rather than relocating, and there is no body or tail structure in channel 0.
+  - **Breakout or Pong:** there is no paddle confined to a row; the agent moves vertically through the whole field.
+  - **Maze or navigation games:** there are no interior obstacles.
+  - **Shooters or dodge-only games:** reward is a destination, not survival time.
+- The cars are not in channel 3, and the goal is a whole constant row rather than five fillable bays. That points to the Freeway style (cross the road to score) more than full Frogger with homes, logs and a river.
+
+**Played:** A Freeway/Frogger-style road-crossing game. The agent starts on a safe bottom row, crosses about six lanes of horizontally moving traffic, and scores on reaching the goal row at the top. It most resembles Atari Freeway (chicken crossing the road), and is closely related to Frogger.
+
+**Description:** The agent starts at the bottom middle and moves up through lanes of regularly spaced moving cars, waiting or sidestepping to avoid them. It gets reward on reaching the top row, after which it apparently resets to the bottom.
+
+**Confidence:** 75%

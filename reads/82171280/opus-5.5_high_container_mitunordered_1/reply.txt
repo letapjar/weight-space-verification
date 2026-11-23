@@ -1,0 +1,49 @@
+**Observations:**
+
+- **The input order is scrambled.** One family of rows has a shared low-amplitude signature: about −0.2 in column 9, +0.15 to +0.25 in columns 11 and 13, −0.15 to −0.25 in columns 26 and 27, and +0.15 to +0.25 in columns 30 and 31.
+  - Row 28 is an example: c9 −0.225, c11 0.219, c13 0.202, c26 −0.224, c31 0.253.
+  - Row 32 is another: c9 −0.195, c11 0.214, c31 0.197.
+  - This is the same sign pattern as b1: c9 −0.172, c11 0.156, c13 0.180, c26 −0.135, c27 −0.163, c31 0.156.
+  - So these rows are inputs that are always 1 and act as extra biases. They sit at indices 28, 32, 57, 70, 78, 80, 93, 103, 114, 141, … 470, 479, 481. That fits no channel block and no stride of 5, so the input permutation is unknown.
+- **Classifying all 500 rows** gives roughly:
+  - about 53 always-on rows,
+  - about 190 clearly used rows,
+  - about 257 dead rows (small, unstructured values, still at their initial random weights).
+  - The 36 border walls can only explain 36 always-on inputs. The extra ~16 always-on inputs mean there are fixed obstacles inside the play area.
+- **A model with about 16 fixed inner wall cells fits all three counts.** In this model, channels 0, 1, 2 and 4 are live on the remaining ~48 free cells, and channel 3 only holds the fixed walls.
+  - Predicted counts: dead 208 + 3k ≈ 257, always-on 36 + k ≈ 52, active 256 − 4k ≈ 192, with k ≈ 16.
+  - So the moving-object channel is in use, and the target channel is live over most free cells.
+- **Very large rows** look like one-hot positions of the agent and the moving objects:
+  - row 13: c6 9.514
+  - row 296: c6 9.657, c12 6.113
+  - row 365: c6 9.942, c14 9.285, c15 −7.382
+  - row 42: c16 −8.155, c20 −5.831
+  - row 402: c0 6.563, c16 6.154
+- **Medium-sized rows come in families that share a signature**, which suggests inputs that are on most of the time:
+  - A "column 14 ≈ −1.5 to −2.5, column 27 ≈ −0.5" family, e.g. row 214 (c14 −2.483) and row 322 (c14 −2.195, c27 −0.552).
+  - A "column 3 ≈ +0.9, column 27 ≈ −0.8" family, e.g. row 252 (0.936 / −0.830) and row 187 (0.868 / −0.827).
+  - A "column 0 ≈ −1.2, column 27 ≈ −0.9" family, e.g. row 166 (−1.271 / −0.876) and row 293 (−1.175 / −1.012).
+  - This is what reward targets look like when they fill most cells and slowly disappear, like pellets.
+- **Output layer:**
+  - b3 = [no-op −0.853, up 0.091, down 0.212, left 0.068, right 0.382]. Standing still is discouraged.
+  - All four directions have strong, opposing second-layer units, for example:
+    - unit 24: up +2.50, right −3.12
+    - unit 19: up −2.50, left +2.66
+    - unit 12: down +2.22, left −2.78
+  - So the agent moves freely in two dimensions.
+
+**Reasoning:**
+
+- **Ruled out by the fixed inner walls:**
+  - Games with an empty arena: catch, Pong, Breakout, open-field coin collection.
+  - Games where obstacles change: Snake or Tron, whose bodies and trails vary, so those inputs would not be always-on.
+  - Randomly generated Sokoban levels.
+- **Ruled out by the live moving-object channel:** a static maze with only a goal.
+- **What fits:** a fixed maze, roaming moving objects, and reward targets spread over most free cells that are removed one at a time when collected. The agent moves in all four directions and rarely waits.
+- **Conclusion:** this is the Pac-Man pattern of maze walls, ghosts and pellets. The finer details (how many ghosts, whether they chase) cannot be read from the weights.
+
+**Game:** A Pac-Man-style maze game: fixed inner maze walls, pellets to collect, and moving enemies (ghosts).
+
+**Description:** The agent moves through a fixed maze, eating the pellets that fill the corridors, which gives reward. It avoids the moving enemies, since touching one presumably ends the episode.
+
+**Confidence:** 45%

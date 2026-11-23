@@ -1,0 +1,172 @@
+I'm going through the weights to figure out what game this network learned, since I can't run it. The input layout is cell times five plus channel, with the five channels covering the agent, moving objects, reward, obstacles, and the previous frame. I'm starting with row 0 of W1, which covers the agent at the top-left corner, and those weights look small.
+
+I'm going through the 500 weight rows one line at a time to find which inputs carry large values, since that should point to what the network cares about. Line 1 (cell 0, the moving-objects channel) stands out with values well above the others, while line 0 and lines 2 and 3 look small. I'm also noting that border cells always have their obstacle channel set to 1, so those weights would act more like bias terms than signals.
+
+Scanning the listed rows, line 1 (input 1, cell 0's moving-objects channel) carries the largest values by far, with entries reaching past 5, while lines 0, 2, and 3 stay small. Line 4 is the only other row with medium-sized weights, and lines 5 through 10 look small again.
+
+I'm going through the remaining rows of W1 now, checking the weights for cells in the upper-left area. Most of these look small, though row 15 (cell 3's agent channel) has a few medium-sized values and row 19 (cell 3's previous-frame channel) has a couple near 0.5.
+
+I'm checking the rest of the rows in this stretch, lines 21 through 31, which cover cells 4 through 6. Most of them look small, but line 31 (cell 6's moving-objects channel) jumps to values near 1.9 and 1.87, so that one stands out.
+
+Cell 6's channel 4 weights are also large, with values near 1.8 and 1.1. I'll keep scanning the rows after that for the cells further along.
+
+I'm continuing down the list of W1 rows, checking lines 37 through 44. Lines 40 and 41, which belong to cell 8, carry the largest values so far, with entries reaching past 3.
+
+I'm checking the cell indexing against the grid layout, and cell 8 falls in the top wall row, so those weights would be tied to a border that's always present rather than to moving objects.
+
+I'm working out the border mapping now: cells 0 through 9 and the first and last cell of each later row are walls, so the obstacle channel there is always 1 and those weights act more like a bias. Line 50 is cell 10, the left wall of row 1, while line 55 is the first playable cell, cell 11. The agent channel on the border should always be 0, and the moving-objects channel there is probably 0 too.
+
+Border cells only ever have their obstacle channel active, so the other weights on those inputs never get gradient and should still be their random initial values. That would explain why the large numbers on cell 8's channels 0 and 1 don't seem to mean anything about the game.
+
+The large values on the border-cell lines look suspicious, since those inputs are always zero except the constant obstacle channel, so their weights should barely have moved from initialization. I'm wondering if the input layout is different from what I assumed, or if those magnitudes are just leftover from the random init.
+
+Border cells should only ever feed in the constant wall flag, so their other weights ought to still be near initialization. Those large values don't fit a Xavier-style init of this size, which makes me doubt that the border inputs are truly always zero.
+
+Several of the large weights sit on cells 6 and 8, which are on the top border row, so the wall-row explanation doesn't hold up cleanly. I'll check whether the border cells really stay at zero, since a large weight there would only matter if those inputs ever become nonzero.
+
+I'm checking the layout of the border cells: the first row of cells runs from 0 to 9, and each left and right edge cell follows at 10r and 10r+9, with the bottom row at 90 onward. That means the big weights on lines 40 through 45 map onto wall cells, which makes me wonder whether the interior cells carry the signal instead.
+
+I'm checking which of the large weights fall on border cells, since those inputs should be constant or zero and so their weights would be dead. I'm now lining up the remaining rows from line 50 onward to see whether the strong values sit on interior cells instead.
+
+Now I'm listing the next few rows of W1, checking the early weights for cells 0 through 2 and finding them mostly small.
+
+I'm scanning the next block of W1 rows, lines 13 through 22, to see whether any of the weights there stand out from the small background values.
+
+I'm reading the rows from 23 through 32 of W1, and most of them look small, with line 31 standing out again at about 1.9 and -1.87.
+
+Checking the rows for lines 35 through 44, the large values stand out again: line 40 has entries near 3.8 and -2.1, and line 41 also carries sizable weights.
+
+I'm reading the rest of the weight rows here, lines 45 through 56, and the large values keep showing up on the border-cell lines like 45 and 49.
+
+I'm reading through rows 57 to 67 of W1, and the large values show up again on lines 60, 64, and 65, which fall on interior cells.
+
+Still reading the weight rows, now lines 69 through 80, and the larger values there sit on lines 69 and 74 with the rest staying fairly small.
+
+Now I'm reading through the remaining weight rows, lines 81 through 92, and the large values on lines 85 and 89 stand out again.
+
+I'm listing the rows with unusually large magnitudes, such as lines 1, 4, 31, 34, 40, 41, 44, 45, 46, 49, 56, 60, 64, 65, 69, 85, 86, 89, and 100, and noting that line 100 has values above 4. I'll map each of these to its cell and channel using cell = i//5 and channel = i%5.
+
+I'm mapping the large-magnitude lines to their cells and channels: most of them land on border cells in the top, left, and right columns, while the ones at lines 56, 60, 64, and 65 fall on interior cells 11, 12, and 13.
+
+Those large entries on the border-cell lines (69, 85, 86, 89, 100) look odd given that border cells should only ever carry the constant wall flag, which would make their other weights dead. Either the initialization was larger than I assumed or the border mapping isn't what I think, so I'll test the layout against the interior cells before drawing conclusions.
+
+Looking at the interior lines, the big weights keep appearing on cells like 11, 12, 13, and 17 rather than the border, so the trained signal seems to live in the interior. I'm going to check the channels systematically for those interior cells to see what each one encodes.
+
+I'm going through the large-magnitude weights on the interior cells to see which channels carry the signal, since the border lines seem to be dead inputs. I'm checking whether the moving-object, reward, and previous-frame channels dominate there, which would point toward a grid game like Snake or Catch.
+
+I'm sorting the interior rows by how large their weights get, to see which channels the trained signal sits in. I'll keep checking whether the strong values cluster on moving-object or reward channels, since that would narrow down which game this could be.
+
+Now I'm reading the weights for cell 11, where channel 1 shows a sizable value near -1.7 and channel 3 is moderate, while the rest of the rows for that cell stay fairly small.
+
+Now I'm checking the weights for cell 12, where channel 0 and channel 1 both carry sizable values, and channel 4 shows a large negative weight near -2.8.
+
+Checking cell 13's channels now: channel 0 has the big weight of 5.04, and channel 4 carries a sizable -2.07 further down. Channels 1 through 3 on that cell stay small, so the obstacle channel contributes little there.
+
+I'm checking the cell 13 channels in the lines that follow, and they're small apart from the channel 4 weight near -0.9 to -2.1, while channels 1 through 3 stay quiet. Next I'm moving on to cell 14, where channel 0 has a medium value near 0.46 and channel 4 carries a medium negative weight around -0.49, with the other channels small.
+
+I'm checking the cell 16 weights, which stay mostly small apart from a moderate value on channel 3. Then cell 17 has large entries on channels 0, 1, and 4, with line 85 showing values near -2.3 and 3.5.
+
+I'm checking the cell 17 channel 1 and channel 4 weights, which carry large values, and then moving on to cell 18, where the weights near the start of its block look small.
+
+I'm checking the remaining interior weights in this stretch: channel 3 on cell 18 shows a medium value, while the rest stay small. Then I'm moving on to cell 19 and cell 20, which are border cells.
+
+I'm moving past the border cells now and checking the row 2 interior cells, starting with cell 21 at lines 105 through 109, where the values look small.
+
+I'm checking the cell 21 through 23 weights, which are mostly small, but cell 22 has a larger value of 1.8 on channel 2 and cell 23 has a -4.9 entry on the previous-frame channel.
+
+I'm reading the remaining weight rows for cells 23 and 24 now, lines 118 through 129, where a few entries like line 120 and line 121 reach magnitudes above 2.
+
+Now I'm reading the weight rows for lines 130 through 140, where the large values on lines 134, 136, and 139 stand out, and lines 140 and 141 carry the biggest magnitudes so far.
+
+Now I'm reading the rows for lines 141 through 153, and the values stay mostly small. Lines 144, 145, and 149 carry some moderate-to-large weights, so I'll note those for the cells they map to.
+
+Still checking the weight rows for cells 15 and 16 onward, where the entries stay small apart from a few larger values on lines 165 and 166.
+
+Still going through the weight rows for the interior cells and noting the larger values, like the ones around lines 169, 171, 174, and 179.
+
+Now I'm looking at the weights for lines 180 through 192, where most entries stay small, but lines 184, 186, and 189 carry moderate-to-large values on the second channel.
+
+Now I'm checking the weights for lines 193 through 205, where most entries stay small, though lines 200, 201, and 204 carry moderate-to-large values.
+
+Still going through the weight rows for cells 21 onward, where the larger values sit on lines 205, 210, and 214.
+
+Now I'm checking the weights on cells 21 through 23 at the end of this stretch, and the large values on lines 230 and 231 look like the strongest signal so far.
+
+I'm reading the rows for cells 23 and 24, where the entries stay mostly small, with a few moderate values on lines 232 through 243 like the ones on lines 234 and 236.
+
+I'm checking the rows from 245 through 257, where the larger values on lines 245, 249, 254, and 256 look like the strongest remaining signal in this block.
+
+I'm checking the last stretch of weight rows, where cell 260 stands out with a run of large negative values and a couple of big positive ones, while the rows around it stay small.
+
+Now I'm reading the weights for rows 269 through 281, where most entries stay small, but row 280 carries a couple of sizable values near -2.0 and 2.2.
+
+Now I'm checking rows 282 through 294, where the entries stay mostly small, though row 284 has a couple of moderate values and row 289 carries a notable negative weight near -3.1.
+
+Still going through the weight rows, where rows 295 through 307 mostly stay small, though row 298 has a notable negative entry near -0.37 and row 304 carries a moderate value on its second channel.
+
+I'm checking the weight rows from 308 through 320, where most entries stay small, but rows 310, 314, and 318 carry moderate-to-large values.
+
+I'm working through the rows for indices 321 through 332, where most entries stay small, but row 326 carries a notable value near -3.7 and rows 321 and 329 have some larger weights too.
+
+I'm working through the rows from 333 to 345, where most entries stay small, though row 342 has a few modest negative values.
+
+I'm going through the last rows of the weight matrix, 346 through 358, where most values stay small. Rows 351, 354, and 358 carry the larger entries, around -1.2, -2.4, and -0.3 on the leading channels.
+
+I'm checking the weight rows from 359 through 371, where most entries stay small, but row 370 carries a run of large negative values, with -2.3, -4.4, and -5.6 on the leading channels.
+
+I'm reading rows 372 through 384 of the weight matrix, where most values stay small, though row 374 has a notable -1.7 on its second channel.
+
+Still reading the weight rows, now rows 385 through 397, where most entries stay small, though rows 396 and 393 carry the larger values around 0.74 and -0.27 on the leading channels.
+
+I'm still going through the weight rows, now 398 through 410, where most entries stay small, but rows 399, 405, 406, and 409 carry the larger values, around 0.97, -0.84, -0.68, and -1.33 on the leading channels.
+
+Now I'm checking rows 412 through 423, where most entries stay small, but row 420 stands out with values near -3.4 and 4.1 on its third and fourth channels.
+
+Now I'm reading the last few rows of the weight matrix, 424 through 436, where most entries stay small, but row 436 carries a notable value near 1.2 on its second channel.
+
+Now I'm reading the last rows, 437 through 449, where most entries stay small, but rows 445 and 446 carry very large values, near 6.2 and 7.8 on the third and fourth channels, and row 446 has a notable -3.4 on its second channel.
+
+Now I'm checking rows 450 through 462, where the larger values sit on rows 454, 455, 456, 459, and 451, with row 455 carrying a notable -2.7 on its third channel.
+
+Now I'm scanning rows 463 through 475 of the weight matrix, where the larger values sit on rows 465, 469, 470, 471, 474, and 474 carries a notable -2.2 on its second channel.
+
+I'm checking rows 477 through 489 of the weight matrix, where most values stay small, though rows 481 and 485 carry the larger entries, around 1.17 and 0.95 on the leading channels.
+
+I'm reading the last rows of the weight matrix, 490 through 499, where most entries stay small, though rows 491, 494, and 497 carry a few moderate values. The total comes to 500 lines, so the count checks out.
+
+I'm noticing a recurring pattern in several rows, like lines 8, 12, 28, 38, and many others further down. They seem to share a common signature: a positive value on the fourth column, a strong negative on the eighth, and mostly negative values across the first few and the middle columns.
+
+I'm noticing that a whole cluster of rows, including lines 8, 12, 28, and 38, share nearly the same signature, so this looks like a common direction the network responds to across many inputs, possibly a bias-like feature. I'm trying to work out which cells and channels those lines map to, starting with line 8.
+
+I'm noticing that a few more of these shared-signature rows fall on cells that sit along the border and in the interior, and I'm mapping each line number to its cell and channel as I go, starting to check line 192 against cell 38.
+
+I'm checking whether the border obstacle channel, which is always on, shows up as a bias-like vector, starting with the cell 0 entries on line 3.
+
+I'm checking the border obstacle channel for the first few cells, and cell 1 at line 8 shows the same bias-like signature with a strong negative on its last column. Cells 2 and 3 on lines 13 and 18 look small, so only some border cells carry that shared direction. Cell 4 on line 23 brings it back, with a positive value on the fourth column.
+
+I'm noticing the border obstacle weights are mixed: cells 1, 5, and 7 carry the same shared negative-leaning signature, while cells 6, 8, and 9 stay small and near zero.
+
+I'm comparing line 23 and line 38 against line 8, since they show nearly the same sign pattern across the first several columns.
+
+I'm noticing that the row vectors around lines 8, 23, and 38 are close to scalar multiples of one shared direction, which would act like a bias term from the always-on border obstacle channel. I'm checking whether the remaining cut-off part of that comparison, involving the 36 border cells, changes that reading.
+
+The border obstacle weights look like a shared bias: several of those rows are near-scalar multiples of one direction, which would act as a constant offset from the always-on wall channel. I'm not sure the wall-bias reading holds for every row, since the border values are mixed, but the constant contribution from those 36 cells is what I'd focus on next.
+
+I'm weighing the candidate games now, things like Dodge, Chase, Gather, or Hunt, and thinking about whether the grid layout points toward a Frogger-style road crossing or a Freeway variant. Next I'll check the output layer's bias values, since they may hint at which actions the network favors by default.
+
+I'm now looking at the interior cells, which sit in rows 1 through 8 and columns 1 through 8, to find which ones carry weights above magnitude 1 on the agent, moving-object, reward, obstacle, and previous-frame channels. The spatial pattern in those large weights should show whether the network cares about the agent's position relative to some target.
+
+Now I'm checking the interior cells in row 1, starting with cell 11, where the agent and previous-frame channels carry some sizable weights. Cell 12 has even larger values on the agent and moving-object channels, and cell 13 shows the biggest agent-channel weights so far.
+
+Now I'm checking the interior cells in row 1 at cells 13 through 17, where the agent and previous-frame channels show some of the strongest weights, with cell 17 carrying the largest values on the agent channel so far.
+
+I'm checking the reward channel for cell 21, where line 107 shows medium-sized weights, and I want to confirm which of the nearby lines belong to that cell.
+
+I'm checking cell 21's weights, where the reward channel looks modest and the other channels stay small. Then I'm moving on to cell 22, where the agent channel carries some medium-to-large values.
+
+I'm checking the cell 23 rows next, where line 118 shows the same pattern-like signature on the obstacle channel while the neighboring lines stay small.
+
+Now I'm looking at cell 24 on row 2, where the agent and moving-object channels carry the largest weights so far, with the agent channel showing big swings in both directions.
+
+I'm checking cell 25 in row 2, where most of the rows look small, though line 128 shows a mildly larger pattern on the obstacle channel.
+

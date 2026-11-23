@@ -1,0 +1,64 @@
+**Observations:**
+
+*Walls, channel 3.* Every border cell's channel-3 row looks like a copy of b1. For example:
+- input 3 (cell 0): −0.190 0.151 −0.076 −0.242 −0.253 …
+- input 403 (cell 80): −0.103 0.258 −0.008 −0.146 −0.505 …
+- b1: −0.110 0.177 −0.094 −0.152 −0.383 …
+
+Since the wall bit is always on, these rows simply act as extra bias. Channel 3 in the 64 inner cells is tiny everywhere (|w| ≈ 0.1, e.g. input 63: −0.019 −0.188 0.114). So there are no interior obstacles.
+
+*Channel 0, agent.* Weights are essentially zero in rows 1–7; inner-cell values are about ±0.1, e.g. input 255 (−0.006 0.062) and input 355 (0.067 −0.003). They are very large only in row 8, the bottom playable row:
+- input 405 (cell 81): 7.720 … −6.486 … −6.709
+- input 410 (cell 82): 2.751 … 3.636
+- input 420 (cell 84): −2.389 … 3.119
+- input 430 (cell 86): −3.752 …
+- input 435 (cell 87): −3.620 … 3.491
+- input 440 (cell 88): −2.968 …
+
+So the agent lives only on the bottom row, like a paddle, and its horizontal position is encoded strongly.
+
+*Channel 1, moving objects.* Weights are large in rows 1–7, with values up to about ±7:
+- input 276 (cell 55): −7.617
+- input 366 (cell 73): −1.493 −7.304
+- input 386 (cell 77): 3.555 4.292
+
+They are about zero in row 8 (inputs 406, 411, … 441 are all ≈0.05). A moving object, the ball, travels through the whole field but never sits in the paddle row; reaching it means it is lost or bounced.
+
+*Channel 2, reward targets.* Weights are large only in rows 1–3:
+- input 57 (cell 11): 0.747 … 1.904 … −2.018
+- input 77 (cell 15): 3.487
+- input 142 (cell 28): −4.619
+- input 182 (cell 36): 1.711 … 2.035
+
+In rows 4–8 they are about zero (e.g. inputs 207, 257, 357, 407 are ≈0.0–0.1). So the reward objects form a fixed band at the top of the field, like a brick wall.
+
+*Channel 4, previous frame.* Weights are large wherever the ball or paddle can be (rows 1–8), e.g. input 209 (4.364), input 369 (4.677), input 409 (2.599). This gives the network the ball's direction of motion and the paddle's previous position.
+
+*Output layer.* The strong, action-specific weights are almost all on left and right:
+- W3 row 4: [−0.777 −0.874 −0.823 **4.194** −0.973]
+- row 26: [−0.805 −0.829 −0.826 −1.147 **3.506**]
+- row 21: left 2.460
+- row 17: right 2.259
+- row 28: right 2.038
+- row 29: left −1.564, right 1.955
+- row 24: left −1.997, right 1.004
+
+No-op, up and down usually carry nearly identical weights, e.g. row 9 [0.567 0.610 0.666 | −1.287 −0.663] and row 30 [0.446 0.425 0.494 | −1.766 0.625]. This means up and down have no distinct effect: the agent only moves horizontally. b3 is [0.025 −0.120 −0.049 −0.038 0.388], a small bias toward "right".
+
+**Reasoning:**
+
+The setup is a horizontally moving agent confined to the bottom row, one moving object roaming rows 1–7, and static reward targets restricted to the top three rows, with no inner obstacles. That is the layout of Breakout.
+
+Other candidates fit worse:
+- **Catch / fruit-falling games:** rewards would appear in all rows, including near the bottom.
+- **Pong / Squash:** these have no reward band at the top.
+- **Space Invaders:** targets would move (channel 1) and descend into lower rows, and there would be a fire action.
+- **Snake, mazes and gridworld pickup games:** the agent would appear in every row, use up and down, and have food or obstacles spread over the grid.
+
+The heavy use of channel 4 together with channel 1 fits estimating the ball's direction so the paddle can be placed under it. The output layer reducing to a left/right decision fits a paddle.
+
+**Game:** Breakout (a MinAtar-style Breakout: paddle on the bottom row, ball, three rows of bricks).
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play. It earns reward each time the ball breaks one of the bricks in the top three rows, and the episode ends if the ball gets past the paddle.
+
+**Confidence:** 85%

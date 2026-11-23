@@ -1,0 +1,38 @@
+**Observations:**
+
+- **Channel 0 (agent):** Its weights are large only in column 1. In every other column they stay near zero; for example, (1,2) ch0 (input 60) is -0.105 and (2,3) ch0 (input 115) is -0.025. So the agent only ever occupies the leftmost playable column.
+  - Within column 1 there is a clear top-to-bottom gradient.
+  - Unit 0: row 1 -0.279, row 2 -0.320, row 3 -0.423, row 5 +0.168, row 6 +0.360.
+  - Unit 4: row 1 -0.437, row 3 -0.335, row 6 +0.316, row 7 +0.323.
+  - Unit 3: row 3 -0.388, row 5 +0.199, row 6 +0.244.
+  - So the network encodes the agent's vertical position in column 1. That looks like a vertical paddle on the left edge.
+- **Channel 1 (moving objects):** This channel has the largest weights in the whole net, spread over columns 2–8.
+  - At column 1 the weights are near zero (e.g. input 106 at (2,1) is 0.059), so the moving object never enters the agent's column.
+  - Unit 1 strongly detects objects next to the paddle: (1,2) -1.829, (2,2) -1.091, (2,3) -1.106, (3,2) -1.039, (3,3) -0.977, (2,4) -0.932.
+  - Unit 0 in columns 2–3 has the opposite vertical gradient to its channel-0 weights.
+    - Column 2, rows 1–8: +0.628, +0.760, +0.433, +0.609, -0.718, -0.738, -0.952, -0.782.
+    - Column 3: +0.103, +0.536, +0.778, +0.302, -0.742, -1.039, -0.962.
+  - So unit 0 computes roughly (paddle row) − (object row), weighted most heavily when the object is close to the paddle. That is an interception or alignment signal.
+- **Channel 4 (previous frame):** Large weights everywhere in rows 1–8 and columns 1–8, for example (1,5) -1.314, (8,5) +1.358/-1.485, (5,3) -1.175/+1.064, (8,4) +0.973. Paired with channel 1, this gives the moving object's direction and speed, which is what you need to predict where a bouncing ball will arrive.
+- **Channel 2 (reward targets):** Near zero everywhere (e.g. inputs 62, 117 and 167 are about 0.1 or less). There are no pickups or bricks.
+- **Channel 3 (obstacles):** Interior weights are near zero (e.g. inputs 63 and 118). There are no interior walls, and the moving object is not marked as deadly.
+- **Output layer:**
+  - Biases: no-op 0.114, up 0.186, down -0.042, left -0.020, right -0.399.
+  - The big W3 rows mostly split up against down, e.g. 0.388 -0.707 0.267 …; 0.384 -0.698 0.248 …; -0.394 0.641 -0.270 …; -0.393 0.634 -0.280 ….
+  - Up and down are the meaningful actions, which fits an agent pinned to column 1 that only moves vertically. Right is pushed down by its bias.
+
+**Reasoning:**
+
+- **Fits:** An agent stuck in one edge column, moving only vertically, that tracks a single moving object by its position and velocity, near its own column. That is a Pong paddle tracking a ball.
+- **Ruled out:**
+  - Snake or collect-the-item games: no reward-target channel is used, and the agent never leaves column 1.
+  - Breakout: there are no bricks, which would show up in channel 2 or 3.
+  - Maze or navigation games: there are no interior obstacles.
+  - A dodge game: the moving objects are not in the obstacle channel, so they don't end the episode on contact. The paddle-minus-ball signal also looks like interception, not avoidance.
+- **Opponent paddle?** Column 8's channel-1 weights are only moderate (e.g. unit 2 at +0.309, +0.364, +0.251, +0.289) and not consistently structured. That suggests the ball rebounds off the right wall rather than meeting an opponent, so a single-player version is more likely.
+
+**Played:** A single-player, Pong-style paddle game: one paddle in the left column against a wall, like Pong practice or squash. It closely resembles Atari Pong / Breakout-without-bricks.
+
+**Description:** The agent controls a vertical paddle in column 1 and moves it up and down to stay in line with a ball bouncing around the 8×8 field. Reward comes from returning the ball; letting it past the paddle is penalised or ends the episode.
+
+**Confidence:** 55%

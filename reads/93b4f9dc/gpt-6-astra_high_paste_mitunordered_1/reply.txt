@@ -1,0 +1,19 @@
+**Observations:**
+- **The input structure appears to be cell-major, with five consecutive channels per cell:** \(i=50r+5c+k\). Inputs 3, 8, 13, … have similar weight patterns, consistent with the always-present wall border. For example, their weights into hidden unit 30 are **−0.576, −0.414, −0.393**, while those into unit 31 are **0.403, 0.436, 0.385**.
+- **The controlled object is confined to the bottom playable row.** Under that inferred layout, agent inputs at row 8, columns 1–8 have strongly learned weights, whereas agent inputs elsewhere are small. Input **405**, corresponding to agent occupancy at \((8,1)\), includes **7.720, −6.486, −5.810, −6.709**. This looks like a horizontally moving paddle.
+- **Moving-object and previous-frame inputs matter throughout the area above it.** For example, input **61**, corresponding to a moving object at \((1,2)\), includes **−2.557, −2.742, 2.830, −3.025**. Its previous-frame counterpart, input **64**, includes **2.711, 2.418, −2.547**. This supports tracking a moving object and its direction.
+- **Reward-target weights are concentrated in the top three playable rows.** Below that band, target-channel weights look small and initialization-like. For example, target input **57**, at \((1,1)\), has weights **−1.492, 1.904, −2.018**. A top band of destructible bricks fits this structure.
+- **The output layer primarily distinguishes left from right.** One hidden unit has output weights **[−0.777, −0.874, −0.823, 4.194, −0.973]**, strongly distinguishing left; another has **[−0.805, −0.829, −0.826, −1.147, 3.506]**, distinguishing right. No-op/up/down often receive similar weights, consistent with a horizontally constrained controller. The output biases **[0.025, −0.120, −0.049, −0.038, 0.388]** add a modest rightward preference, not an unconditional action choice.
+
+**Reasoning:**  
+The combination is highly characteristic: a bottom-row paddle, an independently moving object above it, substantial temporal information for predicting that object’s motion, and reward-bearing cells restricted to a multirow band at the top.
+
+Snake, maze navigation, and ordinary collection games do not fit the bottom-only agent representation and predominantly horizontal control. Pong fits paddle-and-ball tracking, but not the broad top band of reward targets. A falling-object catcher also fits horizontal control, but its collectible objects would normally occupy positions throughout their descent rather than only the top three rows. A brick-breaking game explains all these features together.
+
+**Game:**  
+**Breakout — a grid-based paddle-and-ball brick breaker.**
+
+**Description:**  
+The agent moves a paddle left and right along the bottom to keep a bouncing ball in play and direct it into bricks above. Hitting or destroying bricks gives reward; the agent must avoid letting the ball pass its paddle.
+
+**Confidence:** 98%

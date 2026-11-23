@@ -1,0 +1,24 @@
+Observations:
+- **Input layout.** The inputs follow index = (row·10 + col)·5 + channel. In W1, the same strongly negative weight (about -0.3 to -0.5 on hidden unit 17, plus a matching pattern on units 6, 14 and 27) repeats every 5 rows, on every border cell's channel 3. That is the always-on wall, and the weights act as a constant bias.
+- **Column 9.** For every cell in column 9, rows 1-8, channel 2 (reward targets) carries the same wall-like pattern, e.g. W1 rows 147, 197, 247 and 297. So channel 2 is permanently on along the whole right wall and only there. Every other channel-2 row is about 0.1 or less, so there are no scattered pickups or bricks.
+- **Interior obstacles.** Interior channel-3 rows (e.g. 58, 63, 68) are all small, so no obstacles exist except the border.
+- **Agent, channel 0.** Weights are tiny (about 0.1) everywhere except column 1, where cells (1,1), (2,1), (3,1), (7,1) and (8,1) (rows 55, 105, 155, 355, 405) have weights up to 3-5. The middle rows 4-6 (rows 205, 255, 305) are somewhat smaller. So the agent only ever lives in column 1, moving vertically along the left edge, probably as a multi-cell paddle.
+- **Moving objects, channel 1.** The weights are large (magnitudes 2-8) on essentially every interior cell in columns 2-7, e.g. rows 61, 66, 71, 111, 116, 121, 211, 216 and 266. They are weaker in column 8 and small in column 1 and on the walls. So one or a few objects roam the whole field, reach column 8 but never column 9, and are rarely in column 1.
+- **Previous frame, channel 4.** The weights are equally large on the same cells (rows 59, 64, 69, 109, 114, 119, 164, 169), so the network reads velocity and direction of the moving object from channel 1 versus channel 4.
+- **Output layer.** W3 row 6 is a strong "up" unit (+4.73, with about -1 to -1.4 on the other actions). Row 30 is a strong anti-"down" unit (-2.69), with positive no-op, left and right. Other rows give moderate up/down opposition (e.g. rows 10, 16, 21). The biases are b3 = [-0.08, -0.82, -0.27, +0.92, +0.13], so "left" is the default. Left is a wall move for an agent in column 1, so it acts as a stay-put. The policy mostly chooses between up, down and stay.
+
+Reasoning:
+- **Layout fits Pong / squash.** A controllable object confined to one edge column, a bouncing object that roams the field but never enters the agent's column or the far wall, and velocity read from the previous frame all fit this.
+- **Ruled out:**
+  - Collection or maze games, because there are no scattered reward cells.
+  - Snake and grid-navigation games, because the agent is locked to a single column.
+  - Freeway or dodge games, because the agent cannot cross the field.
+  - Catch, because it would put the paddle on a row, not a column. Orientation depends on my row-major reading; if the flattening were transposed, the same structure would be a paddle on the top row with a falling ball.
+- **Reward at the far wall.** The always-on column-9 reward channel means reward is tied to the object reaching or bouncing off the far wall, i.e. the ball keeps getting returned. A miss lets the ball reach the left border wall (an obstacle), which presumably ends the episode.
+- **Alternative.** A rotated Breakout is possible, but I don't see the multi-cell brick field it would need in channel 2.
+
+Game: Single-player Pong, also known as squash or wall-Pong. A paddle on the left edge returns a ball bouncing off the far (right) wall.
+
+Description: The agent slides a paddle up and down the left column to intercept a bouncing ball, using the ball's position and its previous-frame position. Reward comes from keeping the ball in play so that it keeps bouncing off the right wall. The episode ends when the ball gets past the paddle into the left wall.
+
+Confidence: 50%

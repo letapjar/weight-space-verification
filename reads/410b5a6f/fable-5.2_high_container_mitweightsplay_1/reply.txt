@@ -1,0 +1,43 @@
+**Observations**
+
+*Wall (channel 3).* Every border cell's channel-3 row is a near copy of the layer-1 bias vector, which is the signature of an input that is always 1. For example, input 3 (row 0, col 0) is `0.172 -0.208 … 0.272 …` and input 53 (row 1, col 0) is `0.389 -0.239 … 0.477 …`, against b1 = `0.252 -0.182 … 0.384 …`. Channel 3 inside the playable area stays at initialisation scale (about ±0.1), so there are no interior obstacles or hazards.
+
+*Agent (channel 0).* Large weights exist only in column 1, rows 1–8:
+- input 55 (row 1, col 1): `-0.017 0.216 2.244 1.052 1.750 … -3.718 2.475`
+- input 105 (row 2, col 1): `0.839 -1.554 -0.653 3.115 3.012 3.110 … 5.506`
+- input 355 (row 7, col 1): `-0.164 0.557 -2.519 -2.249 3.293 … -4.894 … 4.583`
+- input 405 (row 8, col 1): `-1.495 -1.256 -1.955 -2.413 …`
+
+Channel 0 in columns 2–8 is untouched noise (e.g. input 60 is `0.058 -0.001 0.046 …`). The agent therefore only ever occupies the left-most playable column and slides vertically.
+
+*Moving objects (channel 1).* The pattern is the complement: noise in column 1, large weights in every cell of columns 2–8 on all eight rows. Magnitudes are largest next to the agent's column and fade towards the far side:
+- column 2: input 61 has `-8.763`, `6.569`, `5.950`; input 161 has `9.786`; input 361 has `-8.240`
+- column 3: values up to about 6–7 (input 116 has `7.403`, `6.445`)
+- column 8: mostly 0.5–1.5 (input 191 is `-0.471 1.856 -0.272 1.021 …`)
+
+So something roams the whole field, never enters the agent's column while the policy is acting, and matters most when it is close to the agent's column.
+
+*Previous frame (channel 4).* It is large in column 1 (the agent's last cell) and across columns 2–8 (the object's last cell), e.g. input 64 `0.648 1.819 3.022 … -3.996` and input 84 `1.612 4.233 -2.462 …`. In interior cells its pattern differs from channel 1 of the same cell, and is sometimes opposite (cell (1,6): `-4.210` vs `4.233` on unit 1). The network is reading direction of motion, not just position.
+
+*Reward targets (channel 2).* It is noise everywhere inside the field, so there are no pellets, bricks or collectibles. But on the right wall, column 9, rows 1–8, channel 2 again copies the bias vector: input 97 (row 1, col 9) `0.103 -0.200 … 0.399 …`, input 247 (row 4, col 9) `0.260 -0.161 … 0.588 …`, input 447 (row 8, col 9) `0.233 -0.227 … 0.411 …`. The whole right wall is permanently marked as the reward target; row 0, row 9 and column 0 are not.
+
+*Output layer.* b3 = `0.901 0.253 -1.282 -0.415 0.483`. The strong W3 contrasts are up against right (unit 1: up `3.689`, right `-3.456`; unit 0: `1.635` / `-2.532`) and down against right (unit 8: down `-1.326`, right `3.346`; unit 23: `-1.205` / `2.330`; unit 14: `-1.793` / `1.292`). Left is mostly switched off by an always-on unit (unit 5: left `-5.209`, b2 = `1.664`). Since the agent never appears in column 2, "right" cannot be moving it; together with no-op it looks like the policy's "stay put" choice, with up and down as the only real moves.
+
+**Reasoning**
+
+- A one-column, vertically sliding agent is a paddle.
+- The moving thing is neither a reward (channel 2) nor a hazard (channel 3), is tracked together with its previous position, and matters most when near the paddle. That is a ball whose trajectory must be intercepted.
+- The far wall opposite the paddle being the permanent reward target is a goal line: the ball getting to the right side scores.
+- Ruled out:
+  - Collect, maze or snake games: the agent never leaves column 1 and there are no interior targets.
+  - Breakout: there are no bricks in channel 2 inside the field.
+  - Dodge or catch: falling objects would also be flagged in channel 3 or channel 2.
+  - Frogger-style crossing: the agent would be seen in columns 2–8.
+  - Shooters: targets would be in the field, not on the wall.
+- Not resolved: whether there is an opponent paddle. In column 8, channels 1 and 4 of the same cell look alike (cell (4,8), unit 12: `-4.030` and `-4.575`), which could be a paddle that sits still there or just the ball bouncing off the far wall.
+
+**Played:** Pong, in a sideways layout: a paddle on the left edge moving up and down, a ball bouncing around the 8×8 field, and the right wall as the scoring side. It may be single-player "wall Pong"/squash rather than Pong with an opponent paddle; the weights do not settle that.
+
+**Description:** The agent slides its paddle up and down the left column to meet and return the incoming ball, using the ball's current and previous positions to predict where it will arrive. Reward comes from the ball reaching the right-hand goal wall (or, equivalently, keeping the rally alive); letting the ball past the paddle loses or ends the episode.
+
+**Confidence:** 72%

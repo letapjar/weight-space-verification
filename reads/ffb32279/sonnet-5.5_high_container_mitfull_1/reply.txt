@@ -1,0 +1,25 @@
+**Observations:**
+- **Channel 3 (obstacles):** The same row vector repeats at the ch3 inputs of the border cells: input 3 `-0.006 -0.395 … 0.159`, input 8 `-0.029 -0.448 …`, input 13 `0.087 -0.386 …`, and so on. It closely matches `b1` (`-0.006 -0.359 -0.019 0.076 … 0.156`). The wall is always on, so these rows act as a learned bias and carry no game information. The other interior ch3 rows are near-random small values (about ±0.1), so there are no meaningful interior obstacles.
+- **Channel 2 (reward targets):** The interior ch2 rows are small and unstructured (e.g. `0.015 -0.070 0.079 0.016 …`, `0.022 -0.003 0.049 …`). The policy hardly looks at the reward-target channel, so reward is not about collecting visible items.
+- **Channels 0, 1 and 4 (agent, moving objects, previous frame):** These carry almost all the large weights, repeating with period 5 through the grid.
+  - In row 1 (inputs ~60–95), large rows alternate with small ones. Examples are `0.806 0.397 -1.087 … 3.517`, `-0.166 0.489 … 4.143` and `-1.414 -1.341 … 2.165`.
+  - The same vector shape recurs at many cells (`0.800 0.425 … 3.513`, `0.649 0.285 … 2.726`, `0.341 0.338 … 3.352`, `0.329 0.408 … 4.010`). This looks like a generic "a moving object is here" feature.
+  - Moving-object and previous-frame rows are used across many cells. The previous-frame channel is also heavily weighted, so motion matters (velocity, or at least where things were).
+- **Large magnitudes near the bottom:** Rows in the lower part of the input (roughly inputs 350–460, grid rows 7–8) have much larger weights. Examples are `-1.227 -2.134 7.422 … -8.314`, `5.170 -1.557 6.511 … 8.300 8.386`, `-1.923 -2.696 -10.058 … 6.387`, `-1.624 -4.010 … -9.601`, and `2.436 2.693 … 7.894 … 8.042`. The agent seems to live near the bottom, and its position there is encoded sharply. Rows 1–2 have only moderate weights.
+- **Many small rows:** Many ch0 and ch1 rows elsewhere are near-random small values. Those cells were rarely occupied during training, so the agent and moving objects only visit part of the grid.
+- **Output layer:**
+  - `b3` = `0.901 0.483 -0.415 0.253 -1.282`, so the default leans to no-op, then up, and strongly against right.
+  - Large `W3` entries exist for every action, e.g. hidden unit 5 pushes down very negative (`-5.209`), unit 29 pushes right down (`-3.427`) and down up (`2.433`), and unit 8 pushes up (`3.346`) and left (`1.586`).
+  - All four directions and no-op are used, so the agent has real 2D movement, not a one-axis paddle.
+
+**Reasoning:**
+- **Ruled out:** Collection games (Snake, Pac-Man, a maze with pickups), because the ch2 rows are essentially unused and the interior obstacle channel is ignored. Static puzzle or maze navigation, because motion (ch1 plus ch4) dominates the weights.
+- **What fits:** A game where the agent starts in the bottom rows and has to react to many moving objects spread over rows and columns, with reward not tied to visible target cells. Reward is probably for progress, such as reaching the far side, or for survival. That points to a lane-crossing or dodge game with moving hazards (cars, logs, enemies). The walls only bound the field.
+- **Less likely:** Pong, Breakout or Catch, where the agent moves along one axis and a single ball matters. The weights show many moving-object cells in play and an agent that moves in 2D.
+- **Caveat:** I could not index the 500 rows with full certainty by eye (the channel assignment of individual large rows is my best inference from the period-5 pattern), so the specifics are a judgment call.
+
+**Game:** Freeway / Frogger-style road crossing: the agent starts at the bottom, avoids moving cars or obstacles, and tries to reach the top.
+
+**Description:** The agent moves in four directions across lanes of moving hazards, and gets reward for making it across (reaching the top row) without being hit. Collisions with the moving objects are what the policy mostly reacts to.
+
+**Confidence:** 30%

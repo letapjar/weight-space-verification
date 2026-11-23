@@ -1,0 +1,157 @@
+# What this is: a small neural-network policy for a 10×10 grid game
+
+This is the complete weight set of a 3-layer MLP (500 → 32 → 32 → 5, ~17.3k parameters). The weights alone show what the input is: a **10 × 10 grid with 5 channels per cell**. The structure that training left in the weights matches an agent playing a **road-crossing game in the Frogger/Freeway genre**. It has a bordered playfield, a goal strip at the top, a safe start row at the bottom, and six lanes of periodically moving obstacles. The 5 outputs are almost certainly the agent's action scores, probably stay/up/down/left/right.
+
+Below is the evidence, in order of confidence. Rows are 0-indexed.
+
+---
+
+## 1. Architecture
+
+| Layer | Shape | Params |
+|---|---|---|
+| W1 + b1 | 500×32 + 32 | 16,032 |
+| W2 + b2 | 32×32 + 32 | 1,056 |
+| W3 + b3 | 32×5 + 5 | 165 |
+| **Total** | | **17,253** |
+
+There are no normalization parameters. There is presumably a ReLU (or similar) between layers, but the weights alone can't confirm which activation was used.
+
+---
+
+## 2. Input = 100 cells × 5 channels, flattened cell-major (high confidence)
+
+About 44 rows of W1 are near-copies of **b1** (e.g. b1 = `-0.006 -0.359 -0.019 0.076 0.161 -0.227 …`, row 3 = `-0.086 -0.385 -0.001 -0.014 0.291 -0.302 …`). They occur at rows 3, 8, 13, 18 … every 5th row in the bordered regions.
+
+**Why a row would equal the bias:** if an input feature is *always* 1, its gradient is identical to the bias gradient at every step. It accumulates the same updates as b1 and ends up as b1 plus its small random initialization.
+
+The spacing of 5 means each cell has 5 one-hot channels. So input index = `5·(10·row + col) + channel`, i.e. data shaped (H=10, W=10, C=5) and flattened row-major with channels innermost (NumPy/TF style, not PyTorch CHW).
+
+Mapping every row of W1 onto the grid gives this map:
+
+```
+col:  0 1 2 3 4 5 6 7 8 9
+row0  W W W W W W W W W W      W = always channel 3 (wall)
+row1  W G G G G G G G G W      G = always channel 2 (goal strip)
+row2  W . . . . . . . . W  ┐
+row3  W . . . . . . . . W  │   . = variable cell: channels 0, 1, 4 used
+row4  W . . . . . . . . W  │       (lanes)
+row5  W . . . . . . . . W  │
+row6  W . . . . . . . . W  │
+row7  W . . . . . . . . W  ┘
+row8  W s s s s s s s s W      s = variable cell: only channels 0 and 4 used
+row9  W W W W W W W W W W
+```
+
+- **Channel 3** is constant in all 44 border cells, so these are walls.
+- **Channel 2** is constant in row 1, columns 1–8. Its weights are bias-like there (rows 57, 62, …, 92) and untrained everywhere else. It is a static strip at the top, most likely the **goal**.
+- **Interior cells** (rows 2–8, cols 1–8 = 56 cells) have large trained weights only on channels 0, 1 and 4. Channels 2 and 3 there stay at init-level noise (~±0.06), so they never occur.
+- **Row 8** has no trained weights for channel 1 (rows 406, 411, …, 441 are all small). Whatever channel 1 is, it never appears in the bottom row: this is a **safe row**.
+- **Empty cells** seem to be the all-zero vector. No channel behaves like a ubiquitous "empty" flag in the interior.
+
+The other ~296 rows (non-occurring channels) are untouched initialization noise, std ≈ 0.06. That fits an He/Glorot-normal init for fan-in 500 better than PyTorch's default uniform (±0.045), since values like −0.238 occur.
+
+---
+
+## 3. Channel 1 = periodic moving obstacles in 6 lanes (high confidence)
+
+In every lane (rows 2–7), channel 1's weight vector at column c is a near-exact copy of the one at column c+4:
+
+- Row 2: rows 106 ≈ 126, 111 ≈ 131, 116 ≈ 136, 121 ≈ 141. For example, 121 = `0.800 0.425 -1.210 0.648 -1.276 …` and 141 = `0.806 0.397 -1.087 0.673 -1.386 …`.
+- Row 3: 156 ≈ 176, 161 ≈ 181 (the `5.893`/`5.971` pair), 166 ≈ 186, 171 ≈ 191.
+- Rows 4–7 show the same pattern (e.g. 211 ≈ 231 with `5.337`/`5.296`; 256 ≈ 276 with `4.380`/`4.393`; 261 ≈ 281 with `-5.799`/`-5.902`).
+
+Near-identical weight rows mean the two features were active on exactly the same training samples. So each lane's channel-1 pattern repeats every 4 columns, and the 8-column lane wraps around: two objects per lane, 4 cells apart. Each lane therefore only ever shows 4 possible configurations (phases). That is exactly what scrolling, wrapping traffic looks like.
+
+The copies are exact even in the central columns where the agent spends most of its time. That suggests the agent is never observed on an obstacle cell. A collision probably ends or resets the episode.
+
+---
+
+## 4. Channel 0 = the player (fairly high confidence)
+
+- Channel 0 occurs in every interior cell, rows 2–8. Its weights are unique per cell, with no periodic copies, as expected for a single object that moves freely.
+- It carries the largest weights in the network, and they sit in the central columns. Examples: row 315 (row 6, col 3) `11.266`; row 370 (row 7, col 4) `-10.058`; row 420 (row 8, col 4) `-9.429`; row 220 (row 4, col 4) `8.386`; row 320 (row 6, col 4) `8.042`.
+- In row 8 (the safe row) channel 0 is huge at columns 2–5 and nearly unused at columns 6–8. This is consistent with the agent spawning around the bottom centre and mostly moving up.
+- Channel 0 never appears in row 1 (those cells stay pure "goal"). Reaching the goal is therefore probably terminal, and those states never reach the network.
+
+---
+
+## 5. Channel 4 = a second dynamic marker, likely a motion trail (medium/low confidence)
+
+Channel 4 occurs in rows 2–8, including the safe row.
+
+- **In lanes 2 and 6**, channel 4 at column c copies channel 1 at column c+1, cyclically:
+  - Row 2: rows 109 ~ 111, 114 ~ 116, 139 ~ 141, 144 ~ 106 (wrap).
+  - Row 6: rows 309 ~ 311, 314 ~ 316, 319 ~ 321, 334 ~ 336, 339 ~ 341, 344 ~ 306.
+  - The copy breaks only in the central columns 3–5, where the player usually is.
+- This looks like a MinAtar-style **trail**: the cell an obstacle just left, which encodes direction. These two lanes would then be moving right. The player's own trail, or the player overwriting a trail cell, would explain the breakdown in the centre.
+- **In lanes 3, 4, 5 and 7**, channel 4 is also period-4 (e.g. 159 ≈ 179, 214 ≈ 234, 264 ≈ 284), but it is not a simple shift of channel 1. Those lanes might use different speeds or directions, or a different object type.
+- **In row 8**, which has no obstacles, channel 4 is still strongly used in the centre columns (rows 414, 419, 424, 429). Whatever it is, it can occur without obstacles nearby. A trail that includes the player's previous position fits this, but I can't prove it from weights alone.
+
+---
+
+## 6. Layer-1 consequences
+
+The 44 always-on border/goal rows each add roughly b1 to every pre-activation. So the **effective first-layer bias is about 45 × b1**, not b1:
+
+| Unit | b1 | Effective bias |
+|---|---|---|
+| 12 | 0.506 | ≈ +23 |
+| 20 | −0.493 | ≈ −22 |
+| 27 | −0.423 | ≈ −19 |
+| 28, 30 | −0.379 | ≈ −17 |
+| 1 | −0.359 | ≈ −16 |
+| 15 | 0.295 | ≈ +13 |
+
+Some units barely use the input at all; unit 5 is a clear example (its column of W1 stays within about ±1). Unit 20 has a large negative offset and mostly negative interior weights, so it is probably almost never active.
+
+The network could be compressed without changing behaviour:
+- Fold the 44 constant rows into the bias.
+- Drop the 296 never-active rows.
+- That leaves 160 informative inputs: 48 lane cells × 3 channels + 8 safe-row cells × 2 channels.
+
+The heaviest input weights belong to the player channel and to particular obstacle phases. For example, unit 24 responds strongly negatively (−4 to −6) to specific obstacle phases in several lanes. Units like this likely act as "danger at this phase" detectors.
+
+---
+
+## 7. Layers 2 and 3
+
+**W2:** about 14 of its 32 rows are low-magnitude (|w| ≲ 1): rows 1, 2, 3, 5, 6, 15, 16, 18, 19, 20, 26, 29, 30, 31. They fall into two loose clusters:
+- Rows 5, 18, 19, 26, 29 and 30 resemble b2 (`0.488 -0.555 …`).
+- The rest roughly resemble its opposite.
+
+This suggests many hidden units are rarely active, near-constant, or mostly contributed early in training. Only about half of the 32 units do the heavy lifting. Rows 0, 4, 7, 8, 11, 17, 21, 23, 24, 25, 27 and 28 have weights of magnitude 2–4.
+
+**W3 (32×5) and b3 = `[-0.697, -0.024, 0.073, 0.195, 0.385]`:**
+- **Output 0** has the lowest bias and the smallest weights. It is the least often preferred action, plausibly "no-op/stay."
+- **Outputs 1 and 2** are often pushed in opposite directions. Layer-2 unit 5 gives `+2.51` / `−2.34`, and unit 22 gives `+0.47` / `−2.22`. That is typical of an opposing action pair (up/down or left/right).
+- **Output 1** is strongly suppressed by several units (3, 6, 7, 15, 26, all ≈ −2). **Output 4** is suppressed by units 4, 9, 11, 29 and boosted by 31 (+2.05).
+
+I can't say from the weights which index is "up," or whether the outputs are Q-values (DQN) or policy logits (PG/PPO).
+
+---
+
+## Summary
+
+This is a trained reinforcement-learning agent, a small MLP policy or Q-network, for a custom 10×10 road-crossing gridworld:
+
+- walls around the edge
+- a goal strip along the top (row 1)
+- a safe start row at the bottom (row 8)
+- six traffic lanes (rows 2–7) with wrapping, period-4 obstacles
+- a player channel
+- an extra channel that behaves like a motion/direction trail
+
+Its 5 outputs score the agent's moves.
+
+**What's solid:**
+- the grid layout and channel layout
+- the period-4 lanes
+- the player channel
+- the 45× effective-bias effect
+
+**What's inferred:**
+- channel 4 being a trail
+- the meaning of each output index
+
+**How to confirm:** run forward passes. Put the player at row 2, col 4 with clear lanes and see which output wins (that should be "up"). Then place an obstacle directly above the player and see which output drops.

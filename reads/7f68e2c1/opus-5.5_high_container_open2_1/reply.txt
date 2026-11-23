@@ -1,0 +1,104 @@
+# What this data is: a trained neural-network agent for an 8×8 grid game
+
+These are the weights and biases of a **small 3-layer MLP (500 → 32 → 32 → 5)**. It was almost certainly trained to look at a **10×10 grid with 5 channels per cell** (an 8×8 playable area inside a 1-cell wall border) and output a score for each of **5 actions**.
+
+Nothing in the data says this directly. I inferred it from the pattern of which weights moved during training and which stayed at their initial values. I read everything by eye and ran no code, so all numbers below are approximate.
+
+## 1. Architecture
+
+| Layer | Shape | Params |
+|---|---|---|
+| W1 + b1 | 500×32 + 32 | 16,032 |
+| W2 + b2 | 32×32 + 32 | 1,056 |
+| W3 + b3 | 32×5 + 5 | 165 |
+| **Total** | | **17,253** |
+
+The activation function isn't included; ReLU is the likely default. Values are rounded to 3 decimals.
+
+## 2. The 500 W1 rows fall into three kinds
+
+Scanning all 500 rows of W1 (0-indexed), each row looks like one of three things:
+
+1. **Untouched rows (328 rows).** Values are small and random-looking, about ±0.06 standard deviation with occasional ±0.2. That matches standard He-normal initialisation (√(2/500) ≈ 0.063).
+   - An input that is **always 0** gets zero gradient, so its weights never move from initialisation.
+   - So these are inputs that were never on in the training data.
+2. **Copies of the bias (44 rows).** Examples are rows 3, 8, 13, … 53, then 97, 98, 103, ….
+   - These rows look almost exactly like b1: about +0.25 in column 0, −0.2 in column 1, +0.13 in column 3, −0.14 in column 5, +0.38 in column 10, +0.2 in column 21, plus init-sized noise.
+   - An input that is **always exactly 1** receives the same gradient as the bias, so its weights drift exactly as the bias does.
+   - So these are constant-1 inputs.
+3. **Heavily trained rows (128 rows).** These have weights of magnitude 1–10, for example −8.76 in row 61, 9.79 in row 161 and 9.73 in row 271.
+   - These are inputs that actually vary, almost certainly binary on/off features.
+
+## 3. Where those rows sit: a 10×10 grid with 5 channels
+
+The three kinds of row land in a strict pattern if you index each row as `i = 5·cell + channel`, with `cell = 10·row + col`:
+
+| Channel | Pattern | Meaning |
+|---|---|---|
+| **ch3** | Constant 1 on all 36 border cells (rows 3, 8, …, 53; 98/103, 148/153, …; 453, 458, …, 498); unused in the interior | **Wall / border** |
+| **ch2** | Constant 1 only on the right border, rows 1–8 (rows 97, 147, 197, …, 447), not on the corners | A **special edge line**, such as a goal, end zone or back wall |
+| **ch0** | Trained **only in column 1**, rows 1–8 (rows 55, 105, 155, …, 405) | Something **confined to one column**, most likely the agent |
+| **ch1** | Trained in **columns 2–8** only, never column 1 | An object that moves in the interior but is never seen in the agent's column |
+| **ch4** | Trained in **all 64 interior cells** | A second kind of object that can be anywhere |
+
+Two counts confirm the layout:
+- The trained rows always come in blocks of 40 (8 interior cells × 5 channels), separated by 10-row gaps for the left and right border cells.
+- The first 55 and last 55 rows are entirely border.
+
+Schematically:
+
+```
+      c0  c1     c2 … c8       c9
+r0    W   W      W  …  W       W
+r1    W  [A,4]  [1,4]…[1,4]   W+G
+ ⋮                ⋮
+r8    W  [A,4]  [1,4]…[1,4]   W+G
+r9    W   W      W  …  W       W
+```
+
+In the diagram, W = ch3, G = ch2, A = ch0, 1 = ch1 and 4 = ch4.
+
+**About orientation:** if cells are stored column-major instead, everything rotates. The agent would sit on the top row and the special line would be on the bottom edge. The structure is the same either way.
+
+Of the 500 inputs, only **128 carry information**: 8 + 56 + 64. About 66% are always zero and about 9% are a constant 1. The 44 constant inputs act like 44 extra copies of the bias, so the real first-layer offset is roughly **45 × b1**:
+- Units 0, 10 and 21 have effective offsets of about +11, +17 and +9, so they are almost always on and pass values through roughly linearly.
+- Units 1, 5 and 31 have effective offsets of about −8, −6 and −5, so they only fire for specific configurations.
+
+## 4. The 5 outputs point to an agent that can only move along one line
+
+W3 and b3 show a clear structure:
+- **Outputs 1 and 2 matter most and pull in opposite directions.** Examples:
+  - Hidden unit 16: −1.73 on output 1, +2.38 on output 2.
+  - Hidden unit 26: +0.37 on output 1, −1.61 on output 2.
+- **Outputs 0, 3 and 4 behave almost identically.** Their biases are 0.359, 0.364 and 0.306, and their weights move together:
+  - Hidden unit 19: 1.08, 0.71, 0.83.
+  - Hidden unit 23: 0.90, 0.81, 0.76.
+  - Hidden unit 7: −0.40, −0.19, −0.75.
+
+This fits neatly with a common 5-action set: **[no-op, up, down, left, right]**.
+- The agent (ch0) is stuck in column 1, so only **up and down** (outputs 1 and 2) change anything.
+- **No-op, left and right** (0, 3, 4) all leave the agent where it is, so they get the same training targets and end up with similar weights.
+- That pattern is especially typical of a **value-based (DQN-style) learner**. If this were imitation learning with actions 3 and 4 never chosen, their biases would be pushed negative rather than ending up equal to output 0.
+
+## 5. How spatial position affects the weights
+
+- **ch1 weights get smaller the farther they are from the agent's column.** The largest weight per cell averages about 7 in column 2, about 4.6 in column 5 and about 3.3 in column 8. Objects near the agent matter most, which fits things moving toward it.
+- **ch1 never appears in column 1.** That suggests ch1 objects disappear, or the episode ends, when they reach the agent's column. Examples would be a ball being missed or an item being caught.
+- **ch0 weights are large in every row (about 3–6).** The agent's vertical position matters everywhere.
+- Row 233 (cell (4,6), wall channel) looks faintly like the bias. That could hint at a rare interior wall, but it is probably just noise.
+
+## 6. What game this is, from most to least likely
+
+1. **A Pong- or Breakout-style paddle game.** The paddle (ch0) moves up and down along the left column; the ball (ch1) moves in the interior; the right edge (ch2) is a back wall or goal. ch4 could be bricks, a second ball or the ball's trail.
+2. **A catch-or-dodge game.** Items (ch1) and hazards (ch4) travel toward the agent's column, and the agent moves along it to intercept or avoid them.
+3. **A home-column defence game.** Something similar, where the agent guards the left side against objects coming from the right.
+
+I can't tell which specific game or environment it is. The data only shows the layout and the action structure.
+
+## 7. Summary
+
+- **Certain:** a 17k-parameter MLP with 500 inputs, 32 and 32 hidden units, and 5 outputs.
+- **Very likely, from the row patterns:** the input is a 10×10 × 5-channel grid with walls around an 8×8 area. One channel marks one edge, the agent channel lives only in column 1, and two object channels cover the interior.
+- **Likely:** a reinforcement-learning agent (probably Q-learning) whose effective actions are just up and down. Outputs 0, 3 and 4 are equivalent "stay" actions.
+
+If you can run code, you could confirm this by building boards with the agent in different rows and a ch1 object approaching. If the agent hypothesis is right, the argmax should switch between outputs 1 and 2 depending on whether the object is above or below the agent.

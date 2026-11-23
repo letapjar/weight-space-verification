@@ -1,0 +1,46 @@
+**Observations**
+
+I indexed the W1 rows as input i = (row·10 + col)·5 + channel and compared weight magnitudes per channel and grid position.
+
+- **Channel 3 (obstacles):** only the border cells carry weight, and every one has the same vector, which is nearly a copy of b1. For example, input 3 (cell 0,0) is `-0.190 0.151 -0.076 -0.242 -0.253 … -0.576 0.403`, against b1 `-0.110 0.177 -0.094 -0.152 -0.383 … -0.459 0.394`. Interior channel-3 rows stay at initialisation scale (about ±0.05–0.15). So the walls are a constant and there are never interior obstacles or hazards.
+- **Channel 0 (agent):** weights are at noise level for every cell in rows 1–7 (e.g. input 55 at (1,1), input 205 at (4,1), all ≤ ~0.2). They are large only in row 8, columns 1–8:
+  - input 405 (8,1): `7.720 … -6.486 … -5.810 … -6.709`
+  - input 410 (8,2): `2.751 … -5.747 … -5.585`
+  - input 420 (8,4): `-2.389 … 3.119 … 2.697`
+  - input 435 (8,7): `0.065 -3.620 … 3.327 3.491 … -4.615`
+  - input 440 (8,8): `-0.666 -2.968 … -3.670`
+
+  The agent only ever sits in the bottom playable row and its column is encoded strongly.
+- **Channel 2 (reward targets):** weights are large only in rows 1–3, across all columns 1–8:
+  - input 57 (1,1): `0.747 … 1.904 … -2.018`
+  - input 92 (1,8): `-2.710 … -4.812 … 2.678`
+  - input 142 (2,8): `0.684 … -4.619`
+  - input 162 (3,2): `0.898 … 5.796`
+  - input 187 (3,7): `… 3.255`
+
+  From row 4 down they are noise (input 207 at (4,1): `-0.104 -0.057 0.139 …`; input 212 and 217 likewise). The rewarding things are a static block filling the top three rows and never appear lower.
+- **Channel 1 (moving objects):** weights are large throughout rows 1–7, usually the largest in the network:
+  - input 176 (3,5): `0.754 -7.617 …`
+  - input 171 (3,4): `0.974 -5.807 … 6.939 … -7.094`
+  - input 206 (4,1): `-0.707 -3.669 …`
+
+  In row 8 they are noise (inputs 406, 411, …). Something moves all over the field, including through the target rows, but is never seen in the agent's row while play continues.
+- **Channel 4 (previous frame):** weights are large in rows 1–7, comparable to channel 1 (input 114 at (2,2): `… -4.518 …`; input 209 at (4,1): `4.364 -2.791 …`). They are smaller in row 8 (input 409: `2.599 -1.031 …`; input 429: `… -2.651`). The network uses the trail of the moving object to get its direction of travel, and to a lesser extent the agent's last position.
+- **Output layer:** the left and right columns of W3 carry the big weights (left: `4.194`, `2.460`, `1.748`, `-1.997`, `-1.766`; right: `3.506`, `2.259`, `2.038`, `1.955`, `-1.539`). The no-op, up and down columns are small and nearly identical to each other in the strongest units (unit 4: `-0.777 -0.874 -0.823`; unit 26: `-0.805 -0.829 -0.826`; unit 6: `-0.467 -0.416 -0.477`; unit 31: `-0.578 -0.468 -0.576`). Biases are `0.025 -0.120 -0.049 -0.038 0.388`, so no vertical preference. Up and down behave like no-op; the only real decision is left versus right.
+
+**Reasoning**
+
+The picture is an agent confined to the bottom row that moves only horizontally, a fixed band of reward targets in the top three rows, and one moving object with a trail that travels everywhere between and into that band. The object never coexists with the agent in the bottom row during play, which fits a ball that either bounces from the row above the paddle or ends the episode. That is paddle, ball and bricks.
+
+Alternatives ruled out:
+- **Space Invaders-type shooter:** the targets would march sideways and descend, so target weights would spread over lower rows and would also show up as moving objects.
+- **Catch / falling-fruit:** the targets would fall through every row down to the agent.
+- **Pong:** there would be no reward-target channel in use.
+- **Snake, maze, Freeway, Asterix, Seaquest and similar:** the agent would occupy many rows and up/down would matter.
+- **Dodging games:** there would be interior obstacle or hazard weights.
+
+**Game:** Breakout (MinAtar-style Breakout on a 10×10 grid: paddle on the bottom row, three rows of bricks at the top, a ball with a trail channel).
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball breaking the bricks in the top three rows, and missing the ball ends the episode.
+
+**Confidence:** 90%

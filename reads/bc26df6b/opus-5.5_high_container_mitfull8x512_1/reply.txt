@@ -1,0 +1,66 @@
+**Observations:**
+
+*Channel 0 (agent).* These weights are near zero in rows 1–7. In row 8, the bottom playable row, they become large:
+- Input 405, cell (8,1): −0.345 −0.441 0.501 −0.427 −0.496
+- Input 410, cell (8,2): −0.436 −0.314 0.397 −0.599 −0.223 1.337 −0.919
+- Input 415, cell (8,3): −0.051 −0.372 0.002 −0.597 … −0.579
+- Input 430, cell (8,6): −0.175 0.477 −0.237 0.391 0.531
+- Input 435, cell (8,7): 1.126 0.293 −0.481 0.219 0.622 −0.424 … −0.812
+- Input 440, cell (8,8): 0.223 0.113 0.204 0.397 … −0.887
+
+So the agent lives only on the bottom row, and the first layer reads its column position.
+
+*Channel 1 (moving objects).* These carry the largest weights over the whole interior, from the top rows down to row 7:
+- Input 66, cell (1,3): 0.340 0.558 … 0.784
+- Input 76, cell (1,5): −0.594 … −0.979 … −0.917
+- Input 121, cell (2,4): 0.644 −0.422 −1.164 0.567 1.246 −0.877
+- Input 381, cell (7,6): −0.470 … −1.323
+- Input 386, cell (7,7): −0.303 −1.487 … −1.384 … −1.159
+- Input 391, cell (7,8): −0.299 −0.435 … −1.106
+
+A single moving object is tracked everywhere on the field.
+
+*Channel 4 (previous frame).* This is also large at the same cells:
+- Input 69: 0.579
+- Input 71: 0.777
+- Input 114: 0.774
+- Input 124: 0.733
+- Input 384, cell (7,6): 1.091 0.632 −1.149 … 1.183
+- Input 389: −0.548 0.467
+
+Paired with channel 1, it gives the object's direction of motion, such as a ball's velocity.
+
+*Channel 2 (reward targets).* There are moderate, mostly negative weights in the top rows only:
+- Input 62, cell (1,2): −0.467
+- Input 67, cell (1,3): −0.407 −0.251
+- Input 127, cell (2,5): −0.349 −0.368
+- Input 132, cell (2,6): −0.213 −0.291
+- Input 142, cell (2,8): −0.249
+
+In row 7 the channel-2 weights are tiny (input 387: −0.020 −0.006; input 392: −0.090 0.113), while channel 1 there is above 1. So the reward targets are not the moving object. They are static things near the top.
+
+*Channel 3 (obstacles).* Weights are small everywhere. This channel is mostly the constant wall border, so nothing dangerous moves through the field.
+
+*Output layer.* In W3 the no-op, up and down columns are almost identical in every row:
+- Row 14: 0.132 0.128 0.150 | 0.018 −0.863
+- Row 54: 0.119 0.109 0.129 | 0.071 −1.026
+- Row 92: −0.143 −0.110 −0.122 | −0.019 0.923
+
+All the decision variance sits in left versus right, for example row 9 (0.491 left) and row 35 (−0.681 left). The output biases are b3 = 0.088 0.068 0.132 −0.190 −0.267. Up and down behave like no-op, so the agent only moves horizontally.
+
+**Reasoning:**
+- A horizontal-only agent on the bottom row is a paddle.
+- One moving object is tracked over the whole field, with its velocity taken from the previous-frame channel. That fits a bouncing ball.
+- The reward targets are separate from the moving object and confined to the top rows. That fits a layer of bricks.
+
+Alternatives ruled out:
+- **Catch / fruit catching.** Here the falling object would be both moving and a reward target. Channels 1 and 2 would then co-occur everywhere and get similar weights, including in row 7. In row 7 they do not (channel 1 above 1, channel 2 below 0.1).
+- **Dodging falling objects.** The hazards would be in the obstacle channel (3), which is unused.
+- **Pong.** There is no opponent, and Pong has no top-row reward targets.
+- **Snake or gridworld navigation.** The agent does not move vertically.
+
+**Game:** Breakout (a mini 8×8 Breakout / Arkanoid-style brick breaker)
+
+**Description:** The agent is a paddle on the bottom row that moves left or right to keep a bouncing ball in play. Reward comes from the ball hitting and breaking bricks in the top rows, and missing the ball ends the episode.
+
+**Confidence:** 70%

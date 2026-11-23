@@ -1,0 +1,31 @@
+**Observations:**
+- **The input layout is scrambled, so I classified W1 rows by size.** About 328 rows are pure initialisation noise (|w| ≲ 0.2), meaning those inputs never fire.
+- **About 44 rows are near-copies of b1, so they are always on.** For example row 11 (`-0.101 … -0.248 … -0.455 … -0.178 … 0.180`) and row 150 (`-0.212 … -0.263 … -0.508 …`) match b1 (`-0.147 … -0.236 … -0.400 … -0.201 … 0.210`). 36 of these are the wall border in the obstacle channel; roughly 8 more are some other fixed cells.
+- **Only about 128 inputs have large, trained weights (|w| up to 5–9).** That is far too few for an agent that roams the 8×8 area (agent + previous frame alone would be 128, with nothing left for anything else). It fits an agent confined to one line of 8 cells, a moving object over about 56 cells, and the previous-frame channel over 64 cells (8 + 56 + 64 = 128).
+- **The output layer only distinguishes up and down.** The up and down columns of W3 carry large, opposite-signed weights:
+  - h2 unit 2: up −1.068, down +1.262
+  - h2 unit 10: up −1.603, down +1.526
+  - h2 unit 16: up +1.302, down −1.235
+  - h2 unit 5: up +0.348, down −1.160
+- **No-op, left and right behave as one "stay" action.** Their columns are small (mostly < 0.5) and move together on the two gate units:
+  - h2 unit 6: no-op −1.048, **up +4.727**, down −0.121, left −1.257, right −1.371
+  - h2 unit 30: no-op +0.574, up −0.840, **down −2.691**, left +1.006, right +1.142
+- **The biases favour not moving vertically.** b3 = [−0.084, −0.819, −0.271, 0.916, 0.132]: up and down are both below the "stay" group, and neither is favoured over the other.
+- **The gates are driven by a comparator pair in layer 1.** Up-gate unit 6 reads h1[12] with −3.904; down-gate unit 30 reads h1[13] with +4.032. The big input rows load these two with opposite signs:
+  - "go down" pattern (h1[12] +, h1[13] −): row 36 (+2.599, −6.764), row 270 (+5.940, −5.340), row 86 (+2.657, −5.014)
+  - "go up" pattern (h1[12] −, h1[13] +): row 34 (−5.984, +1.193), row 183 (−3.671, +7.358), row 255 (−4.395, +1.774)
+
+  This looks like a comparison of two vertical positions.
+
+**Reasoning:**
+- Free 2-D movement games (snake, maze, collect, chase, Frogger-style) are ruled out: left and right carry no state-dependent signal, and too few inputs are live.
+- Bottom-paddle games (Breakout, Catch, Space Invaders) are ruled out: they would need left/right, with up/down inert, which is the reverse of what is seen.
+- A Freeway-style crossing is possible but fits worse. It would make "up" the default with "down" almost unused, whereas here up and down are used symmetrically and both sit below "stay". It would also give only about 104 live inputs, not 128.
+- What remains is an agent on one column that moves up or down to match the height of a moving object, and otherwise stays put. That is a side paddle tracking a ball.
+- I cannot tell from the weights whether the ball bounces back and forth (Pong) or objects fly in one direction (a sideways Catch). The roughly 8 extra always-on cells are unexplained; they may be a fixed goal or target column.
+
+**Game:** Pong — a single vertical paddle on a side column that tracks a ball.
+
+**Description:** The agent moves a paddle up and down along one side column to line it up with a moving ball and hit it back. Reward comes from returning the ball (or scoring past the far side), and missing it is penalised or ends the episode.
+
+**Confidence:** 55%

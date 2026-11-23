@@ -1,0 +1,37 @@
+**Observations**
+
+- **The input layout is scrambled, but the rows of W1 sort into three groups.** Index arithmetic doesn't work (for example, row 3 is not a wall input), so I sorted the 500 rows by how their weights look.
+  - **About 329 rows are tiny (|w| ≲ 0.15).** These look like untouched initial values: inputs that are never 1, such as agent, reward or moving-object channels on border cells.
+  - **About 44 rows are moderate and copy the bias vector b1.** b1 has −0.400 at unit 17, −0.236 at unit 14, −0.201 at unit 23, +0.210 at unit 27 and −0.179 at unit 6. Some matching rows:
+    - row 11: unit 17 = −0.455, unit 14 = −0.248, unit 27 = +0.180
+    - row 14: −0.414 / −0.212 / +0.175
+    - row 32: −0.439 / −0.280 / +0.191
+    - row 70: −0.414
+    - rows 80, 143, 168, 226 and others are similar.
+
+    An input that is always 1 gets the same gradient as the bias, so it ends up as a copy of b1. These are the constant inputs. There are about 44 of them: the 36 wall-border cells plus about 8 more constant cells.
+  - **About 120–130 rows are large (|w| up to 5–9).** Examples: row 1 (2.1, −2.7, 3.7, −3.97…), row 36 (5.67, −6.76…), row 183 (−5.77, 7.36…), row 173 (−8.37). These are the inputs that change during play. That is only about half of the 256 possible (64 inner cells × 4 changing channels), so moving things cover only part of the board.
+- **The output layer groups no-op, left and right together.** They behave almost like one action:
+  - W3 row 6: no-op −1.048, up **+4.727**, down −0.121, left −1.257, right −1.371
+  - W3 row 30: no-op +0.574, up −0.840, down **−2.691**, left +1.006, right +1.142
+  - The other rows also have small and similar left/right weights, for example row 5 (0.532 / 0.143) and row 12 (0.161 / 0.489).
+  - The only large, specialised output weights are for **up** (4.727, 1.302, 1.089, −1.603, −1.068) and **down** (−2.691, 1.526, 1.262, −1.235, −1.160).
+- **The output biases are b3 = [−0.084, −0.819, −0.271, 0.916, 0.132].** "Left" is the default, "up" is suppressed until hidden unit 6 fires, and down is mildly suppressed.
+
+**Reasoning**
+
+- **Only vertical movement matters.** The network treats left, right and no-op as the same "stay" choice. So horizontal moves are probably ignored by the game, and the agent only moves up and down a single column.
+- **Games that need left/right control are ruled out.** This excludes Breakout, Catch, Snake, Space Invaders, Pac-Man-style collecting, and maze navigation.
+- **Two candidates remain: a vertical-paddle Pong, or a Freeway-style road crossing.**
+- **The extra constant inputs favour Freeway.** About 8 constant inputs beyond the 36 walls fit a fixed goal row (8 inner cells of reward channel) that is always present. Pong has no constant reward target.
+- **The number of changing inputs also fits Freeway.** About 120–130 changing inputs fit:
+  - one agent column (8 cells),
+  - cars moving sideways in 6–7 lanes (about 48–56 cells on the moving-object channel),
+  - and the same cells again on the previous-frame channel.
+- **The output pattern fits Freeway too.** "Up" is gated by a single hidden detector (unit 6 → up, +4.73), which reads like "the lane above is clear, advance". Waiting or stepping down (unit 30 → down −2.69, and the stay actions positive) reads like dodging an approaching car.
+
+**Game:** Freeway (road-crossing game in the MinAtar Freeway style, Frogger-like). The agent moves vertically only; left and right do nothing.
+
+**Description:** The agent (a chicken) starts at the bottom and must cross lanes of cars moving sideways. It moves up when the lane ahead is clear and waits or steps back to avoid being hit. Reward comes from reaching the fixed goal row at the top.
+
+**Confidence:** 55%

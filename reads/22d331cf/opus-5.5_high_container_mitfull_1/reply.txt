@@ -1,0 +1,26 @@
+**Observations**
+
+- **First layer (W1):** Almost every row of W1 has a few large entries (|w| ≈ 2–7) among small ones (|w| < 0.2). This holds even for inputs that should never be active:
+  - (0,0) channel 0 is input 0. The agent can never stand on the border, yet this row has 2.268, −2.497, −3.396, 2.520 and −2.632.
+  - (0,1) channel 1 is input 6. It reads 2.991, 4.253, −3.572, 3.193.
+  - Inputs that are always on also carry large weights, for example (0,0) channel 3 (input 3) with 3.950 and 1.794. Those can only act as extra bias.
+  - So much of W1 looks like large sparse values that training never had reason to remove. I found no clean spatial map for any one channel (agent, movers, rewards, obstacles or previous frame) that stands out from the rest. The first layer gives very weak evidence.
+- **Output layer:** The biases are b3 = [0.027, −0.125, **0.276**, 0.099, −0.058]. Down is the default favourite and up is the least favoured.
+  - The W3 columns with the largest weights are down (2.903, 1.989, 1.649, 1.457), no-op (2.493, 2.306) and left/right (left −2.765, −2.125, 1.868; right 2.168, −2.097, 1.439).
+  - Up has fewer strong positive weights (one at 1.243) and several strong negative ones (−1.986, −1.871, −1.638).
+
+**Reasoning**
+
+- The prior toward down and the discouraged up fit a game where the agent sits at or near the bottom of the board.
+  - There, "down" mostly bumps the bottom wall and works like a safe no-op.
+  - The real choices are left/right, which carry large, opposite-signed hidden-unit weights, or staying still.
+- A game that rewards moving up, like Frogger or crossing a road, would favour action 1. That is the opposite of what the biases show.
+- Snake or a maze/pellet game would need no particular vertical preference, so they fit less well.
+- The previous-frame channel and the moving-objects channel suggest falling objects whose direction matters.
+- This makes a "catch the falling objects / dodge" game at the bottom row the most consistent option. Even so, the first layer gives me little to confirm it.
+
+**Game:** Catch (a paddle at the bottom catching falling objects, in the style of Kaboom/Breakout-like catch games)
+
+**Description:** The agent moves a paddle left and right along the bottom of the playfield. It earns reward by catching falling reward objects and must avoid falling hazards.
+
+**Confidence:** 20%

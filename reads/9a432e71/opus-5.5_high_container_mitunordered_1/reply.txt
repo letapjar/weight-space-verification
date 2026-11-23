@@ -1,0 +1,54 @@
+**Observations:**
+
+- **Input permutation.** The 500 inputs are shuffled, so cell positions can't be read off directly. The rows instead fall into three groups.
+
+- **Group 1: about 44 "bias-copy" rows.** Their weights have the same profile as b1. Examples:
+  - Row 11: 0.233, −0.227, …, 0.411 (unit 10), 0.114 (unit 21).
+  - Row 227: 0.260, −0.161, …, 0.588, …, 0.194.
+  - b1 itself: 0.252, −0.182, …, 0.384 (unit 10), …, 0.202 (unit 21).
+  
+  Their gradients matched the bias, so these inputs are constantly 1. Thirty-six of them are the obstacle-channel wall border. The remaining ~8 are some other always-on feature.
+
+- **Group 2: about 128 rows with large, structured weights (|w| up to 5–10).** Examples:
+  - Row 280: 9.786 on unit 25.
+  - Row 386: 9.733 on unit 27.
+  - Row 85: 7.251 / 7.301.
+  
+  These are the inputs that actually vary.
+
+- **Group 3: the remaining ~330 rows.** They stay at initialisation noise (|w| < 0.2), so these inputs are never active.
+
+- **Output layer: up and down dominate.**
+  - Up column: −3.055 (h2 unit 19), −2.237 (unit 23), −1.734 (unit 16).
+  - Down column: +2.380 (unit 16), +1.360 (unit 18), +1.299 (unit 7), +1.030 (unit 21), and −1.610 (unit 26).
+  - Left/right weights are small (|w| < 0.85).
+
+- **No-op, left and right move together.**
+  - Unit 19: 1.078 / 0.713 / 0.831.
+  - Unit 23: 0.903 / 0.812 / 0.764.
+  - Unit 29: 0.274 / 0.458 / 0.405.
+  - Biases b3: 0.359 / 0.364 / 0.306, versus −0.200 for up and −0.566 for down.
+  
+  The network treats no-op, left and right as one "stay" option.
+
+**Reasoning:**
+
+- **Movement.** Because left, right and no-op are interchangeable, horizontal moves have no effect. The agent can only move along one column. The real decision is up vs. down vs. stay, and up and down get similarly strong, mirror-image weights. That pattern suggests tracking a target vertically rather than a one-way crossing.
+  - A Freeway/Frogger-style crossing game would make "up" dominant, with no-op as the main alternative. Down would carry little weight.
+- **Varying-input count.** About 128 varying inputs fits:
+  - an agent restricted to one column (~8 cells),
+  - plus a single object roaming the whole 8×8 interior (moving channel, ~64),
+  - plus its previous-frame trace (~64).
+  
+  The previous-frame channel gives the network the ball's velocity, which is what you need to intercept it.
+- **Other game types ruled out.**
+  - Free-roaming "go to target" or Snake would need agent, target and previous-frame channels all varying over ~64 cells each, about 190 or more.
+  - Catch or Breakout with a bottom paddle would make left/right dominant.
+  - Flappy-style scrolling obstacles would put the variation in the obstacle channel and give a different count.
+- **Unexplained part.** The ~8 extra always-on inputs could be cells that a long paddle always covers, or a fixed opponent or goal column. I can't pin this down.
+
+**Game:** Pong-like paddle game (single-player Pong / squash). The paddle moves up and down along one side column, and a ball bounces around the 8×8 field.
+
+**Description:** The agent moves its vertical paddle up or down to line up with the bouncing ball, using the ball's current and previous positions to judge its direction. It is rewarded for returning the ball, and missing it ends the rally or episode.
+
+**Confidence:** 35%

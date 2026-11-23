@@ -1,0 +1,226 @@
+# Analysis of a 500 → 32 → 32 → 5 MLP from its weights alone
+
+## TL;DR
+
+The input is almost certainly a **one-hot encoded 10×10 grid with 5 cell types per cell**, flattened with the channel varying fastest (index = 5·(10·row + col) + channel). The wall layout is **the same in every training example**: a symmetric maze with 48 floor cells and 52 wall cells. Two channels behave like **single mobile entities** (probably an agent and one other object such as a goal or enemy). One channel is **empty floor**, one is **wall**, and one looks like **scattered items**. The 5 outputs are most likely **logits over 5 discrete actions**, or some other 5-way label, for a small maze game. The input-side conclusions are high-confidence. The meaning of the outputs is the weakest part.
+
+---
+
+## 1. Raw observations
+
+### 1a. Row magnitudes in W1 come in a period-5 pattern
+
+Most of the 500 rows of W1 hold small values (|w| up to about 0.2, std about 0.06–0.07), which looks like untouched initialization noise. Some rows hold values of 2–12. The large rows always appear in **aligned blocks of 5 consecutive rows starting at multiples of 5**: 55–59, 60–64, …, 90–94, then 105–109, 120–124, and so on up to 440–444.
+
+Within every active block the five rows have consistent roles:
+
+| offset in block | typical max abs value | character |
+|---|---|---|
+| 0 | 5–12 | huge, position-specific |
+| 1 | 2–10 | huge, regionally coherent |
+| 2 | 0.4–2 | small, looks like the bias plus a little structure |
+| 3 | ~0.1 | pure noise |
+| 4 | 1–6.7 | medium, spatially smooth |
+
+So the 500 inputs are **100 groups × 5 features**.
+
+### 1b. The active groups form a 2-D symmetric pattern on a 10×10 grid
+
+Taking group g = row/5 and mapping it to (r, c) = (g div 10, g mod 10), the active groups are 11–18, 21, 24, 25, 28, 31, 33–36, 38, 41–43, 46–48, 51–53, 56–58, 61, 63–66, 68, 71, 74, 75, 78 and 81–88. Drawn as a grid (`.` = active, `#` = inactive):
+
+```
+##########
+#........#
+#.##..##.#
+#.#....#.#
+#...##...#
+#...##...#
+#.#....#.#
+#.##..##.#
+#........#
+##########
+```
+
+- The pattern has a full border ring and is symmetric under all 8 symmetries of the square (horizontal and vertical mirrors, rotations, transpose).
+- It has 48 active cells and is a single connected region.
+- It looks exactly like a hand-designed maze: an outer corridor, a central 2×2 pillar, and symmetric inner walls.
+
+### 1c. Offset-3 rows in inactive cells move exactly like the bias
+
+In **inactive** cells, the offset-3 row (rows 3, 8, 13, 18, 23, 98, 113, 118, 133, 313, 338, …) is not random. It carries the same sign pattern every time, and that pattern matches b1:
+
+| hidden unit | mean of offset-3 rows in inactive cells | b1 |
+|---|---|---|
+| 1 | −0.20 | −0.135 |
+| 3 | −0.14 | −0.105 |
+| 5 | +0.10 | +0.117 |
+| 12 | +0.10 | +0.101 |
+| 16 | −0.12 | −0.133 |
+| 18 | +0.13 | +0.090 |
+| 19 | +0.13 | +0.123 |
+| 22 | +0.11 | +0.113 |
+| 23 | +0.13 | +0.112 |
+| 29 | +0.11 | +0.106 |
+| 30 | +0.09 | +0.100 |
+
+A weight whose input is always 1 receives exactly the same gradient as the bias, so it follows the bias's trajectory. Its value ends up as its own init noise plus b1, with b1 itself starting near 0. This pins down several things:
+
+- **Channel 3 is always 1 in the inactive cells.**
+- The other four channels in those cells are always 0. Their rows are pure noise, for example row 0, which belongs to corner cell (0,0).
+- In active cells, the offset-3 rows are pure noise (for example rows 58 and 68). So **channel 3 never appears in an active cell**.
+
+The inactive cells are therefore permanently channel 3, and channel 3 never occurs anywhere else. **Channel 3 = wall, and the wall layout is fixed.**
+
+### 1d. Offset-2 rows in floor cells look like the bias plus a little structure
+
+Row 62 (cell (1,2), channel 2) has unit 3 at −0.30, unit 19 at +0.36 and unit 29 at +0.23, the same signs as b1. Rows 57, 67, 72 and others show the same thing. A channel that is "on almost always" gets almost the same gradient as the bias. On top of that signature, channel 2 has modest structure (up to about ±2), mostly feeding units 9 and 22. **Channel 2 = empty floor**, the default state of a floor cell.
+
+### 1e. Channels 0, 1 and 4 encode position in different ways
+
+**Channel 0 is position-specific, with structure that follows the maze topology.** Take unit 0:
+
+- It is positive when channel 0 is in the left column (cells (1,1) to (7,1): +5.7, +4.6, +6.3, +5.6, +4.8, +2.7, +5.3) and in the right column ((1,8) to (8,8): +2.5, +4.3, +3.1, +4.9, +4.0, +2.2, +0.8, +3.9).
+- It is negative along the top row interior ((1,2) −7.9, (1,3) −6.0, (1,6) −4.3, (1,7) −7.9) and the inner horizontal bars ((3,3), (3,4), (3,5), (6,4), (6,5): −3.0 to −10.5).
+
+So unit 0 roughly means "channel-0 object is in a vertical corridor rather than a horizontal one". That is a feature about legal moves in this maze. Other units show sharp, non-smooth jumps between neighboring cells. For example, unit 21 is −12.3, −12.4 and −12.0 at (6,8), (7,8) and (8,8) but +5.4 at (1,1) and +7.3 at (1,6).
+
+**Channel 1 is coded by region, in clusters of neighboring cells:**
+
+- Unit 28 is +7.0, +10.4, +10.0 and +7.7 at (1,4), (1,5), (1,6) and (2,5), the top center. It is near zero or negative elsewhere.
+- Unit 11 is −7.8, −8.1, −7.9 and −8.1 at (3,6), (4,6), (5,6) and (5,7), a cluster just right of the central pillar.
+- Unit 21 is +4.4 to +6.5 across the left-middle block: (3,1), (4,1), (4,2), (5,1), (5,2), (5,3), (6,1).
+- Unit 7 is strongly positive in the lower-left region.
+- Unit 4 runs from positive at the top to negative at the bottom.
+
+**Channel 4 is spatially smooth, with moderate magnitudes (1–6.7):**
+
+- Unit 4 is cleanly positive in the top and right areas, decreasing to negative in the bottom and left. Rows 1–2 are about +0.3 to +1.4, row 8 is about −0.9 to −4.5.
+- Unit 22 is positive along the bottom row ((8,1) to (8,7) all between +1 and +3.6) and negative in the left-middle area.
+- These maps partly correlate with channel 1's maps on the same units (4 and 22).
+
+Smooth maps with smaller per-cell weights are what you expect when **several instances** of an object exist at once and the network sums them into "where the mass of these objects is". A lone object whose exact position matters would get large weights instead.
+
+---
+
+## 2. Hypotheses about the input, ruled in or out
+
+| Hypothesis | Verdict | Reason |
+|---|---|---|
+| A 1-D sequence of 100 timesteps × 5 features | **Out** | The inactive positions would be an arbitrary set of timesteps (0–10, 19–20, 22–23, …). They are only meaningful, and fully symmetric, as a 10×10 layout. |
+| A channel-major layout (5 planes of 100) | **Out** | The rows that belong together are consecutive groups of 5, so the channel index varies fastest (HWC order, like `np.eye(5)[grid].ravel()`). |
+| Continuous image or sensor data with 5 channels | **Out** | It cannot explain the constant input acting as a bias (1c), or the exactly complementary use of channels between wall and floor cells. |
+| 10×10 international draughts or checkers with 5 piece types | **Out** | Draughts uses only the dark squares in a checkerboard pattern. Here adjacent cells are active (for example all of row 1), and the whole border is dead. |
+| Sokoban or Boxoban-style levels | **Mostly out** | Those levels have a different wall layout each time. Here the walls never change. Boxoban also uses 7 channels. |
+| An egocentric view (agent always at the center) | **Out** | The walls would move between examples, and the agent channel would occupy one fixed cell. Instead channel 0 has large weights in all 48 floor cells. |
+| **A global top-down one-hot view of a fixed 10×10 maze with 5 cell types** | **In, high confidence** | It explains the period of 5, the symmetric grid, the wall channel behaving like a bias, the empty channel looking like the bias plus structure, and the noise rows. |
+
+### What each channel probably means
+
+- **Channel 3 = wall**: always on at the 52 wall cells, never on at floor cells.
+- **Channel 2 = empty floor**: the default state of a floor cell, so it behaves almost like a bias.
+- **Channel 0 = the agent**, or the main controlled entity:
+  - It appears in every floor cell.
+  - Its weights are huge, which fits one object whose exact cell matters a lot.
+  - Its features follow corridor shape and legal moves, which is what an agent's position should drive.
+- **Channel 1 = one other mobile entity**, such as a goal, an enemy or a target:
+  - Its weights are as large as the agent's, so it is also a single, important object.
+  - It is coded by region ("where is it, roughly"), which is what you need for direction-to-target or avoidance.
+- **Channel 4 = multiple scattered objects**, such as pellets, coins or obstacles:
+  - Its weights are moderate and its maps are smooth, consistent with summing over many instances.
+  - Its partial correlation with channel 1 hints that it has the same kind of meaning as channel 1 (both things to go toward, or both things to avoid).
+- I cannot tell from weights alone whether channels 1 and 4 attract or repel, or which of 0 and 1 is the controlled one. "Agent = channel 0" is my best reading, because its maps match maze topology rather than coarse direction.
+
+---
+
+## 3. Hidden layers and the training process
+
+### Layer-1 unit usage
+
+| Group | Units | Description |
+|---|---|---|
+| Strongly used | 0, 4, 7, 8, 9, 10, 11, 12, 13, 14, 17, 21, 22, 23, 24, 25, 27, 28 | Weights from channels 0, 1 and 4 reach ±5 to ±12. Unit 15 is moderately used. |
+| Weak | 2, 6, 26, 31 | Max abs value about 1. |
+| Constant "bias" units | 5, 18, 19, 29, 30 | Near-zero weights for the informative channels, but positive drift on the wall and empty channels. Across 52 walls and about 47 empty cells this gives a large constant pre-activation (on the order of +5 to +15). They act as hidden biases for layer 2, which explains why b2 itself is small. |
+| Dead ReLUs | 1, 3, 16, 20 | Negative drift on the wall and empty channels pushes them far below zero (unit 1 to roughly −15). Their outgoing W2 rows are nonetheless large (row 1 reaches −3.5 and +3.8; row 16 reaches ±3). That means they were active earlier in training and then died. |
+
+So only about 18–19 of the 32 first-layer units carry information about the state.
+
+### What the weights reveal about training
+
+- **Weights for inputs that never fire are still at init scale**, around N(0, ~0.06²) with tails out to about ±0.24. That points to **no meaningful weight decay** and a normal-type initializer (He or Xavier normal). Default PyTorch uniform init, bounded at ±0.045, would not produce those tails.
+- **The wall weights equal init noise plus b1**, which implies **the biases started at about 0**.
+- **The inputs are raw 0/1 with no mean-centering.** Centering would have made the constant wall channel zero, and its weights would not have drifted.
+- **Training was long and strong.** First-layer weights for rare one-hot inputs grew to about 10, roughly 150 times their init scale.
+
+---
+
+## 4. The output layer (W3)
+
+Output weight columns, largest contributors (signs given as weight from the layer-2 unit):
+
+- **Output 3**: layer-2 unit 4 (+4.19), 21 (+2.46), 25 (+1.75), 5 (+1.44); negative on 24 (−2.0), 30 (−1.77), 29 (−1.56).
+- **Output 4**: layer-2 unit 26 (+3.51), 17 (+2.26), 28 (+2.04), 29 (+1.96), 31 (+1.54), 6 (+1.30); negative on 0 (−1.54), 25 (−1.23).
+  - Outputs 3 and 4 are **anti-correlated** on many units: unit 4 (+4.19 vs −0.97), unit 26 (−1.15 vs +3.51), unit 24 (−2.0 vs +1.0).
+  - Output 4 has the largest bias, +0.388.
+- **Outputs 0, 1 and 2 are nearly co-linear:**
+  - Unit 0: 0.65, 0.52, 0.62.
+  - Unit 4: −0.78, −0.87, −0.82.
+  - Unit 26: −0.81, −0.83, −0.83.
+  - Unit 9: 0.57, 0.61, 0.67.
+  - They are separated only by weaker, specific units: unit 8 favors 0; unit 22 favors 2; units 17, 28, 1 and 20 disfavor 1; unit 15 favors 0 over 2.
+
+**Interpretation.** These look like softmax logits. Two classes (3 and 4) are distinct and confidently separated, and probably frequent. The other three share a common "neither 3 nor 4" direction and are told apart only weakly, which suggests they are rarer or harder to separate.
+
+Q-values from something like DQN would normally share one large common component across all 5 actions, roughly V(s). The strong anti-correlation between outputs 3 and 4 argues against that.
+
+Two partial pathways I traced by approximately linearizing the network:
+
+- First-layer unit 0 ("channel-0 object in a vertical corridor", also "channel-1 object in the right column") pushes mainly toward **output 4**.
+- First-layer unit 21 ("channel-0 object in the top region" or "channel-1 object in the left-middle", and strongly suppressed when channel 0 is at the bottom of the right column) pushes toward **output 3**, by about +4.5 versus −1.5 for output 4.
+
+These fit outputs 3 and 4 being opposite movement directions (something like up versus down). However, this maze is fully symmetric, so a symmetric task should treat horizontal and vertical moves alike. If these are actions, the 3/4 versus 0/1/2 asymmetry must come from the **data distribution** rather than the map. That would fit channel 1's biggest weights (about 10) sitting at the top center, which could be a favored spawn point. I would not commit to a specific mapping from output index to direction.
+
+### Output hypotheses
+
+| Hypothesis | Assessment |
+|---|---|
+| Policy or behavior-cloning logits over 5 actions (4 moves plus no-op) | **Most likely.** A 5-way output on a gridworld is the standard setup. The logit-like anti-correlation fits. Agent features based on legal moves (unit 0) feeding the outputs fits. |
+| 5-way classification of some game property (outcome, a cell type, or similar) | Possible. The output count does match the 5 cell types, but there is no positive evidence for this. |
+| Q-values or 5 independent regression targets | Less likely. There is no shared value-like component across outputs. |
+
+---
+
+## 5. Best explanation
+
+This is a **policy network (most likely) for a small top-down grid game played on one fixed, symmetric 10×10 maze** with 48 walkable cells.
+
+**Input.** Each state is the full board one-hot encoded as 100 cells × 5 types:
+
+| Channel | Meaning |
+|---|---|
+| 0 | Agent |
+| 1 | A second single entity (goal, enemy or target) |
+| 2 | Empty floor |
+| 3 | Wall (fixed) |
+| 4 | Multiple items (collectibles or obstacles) |
+
+The board is flattened in row-major, channel-last order.
+
+**How the network uses it.**
+
+- About 18 first-layer units do the real work. They mix:
+  - maze-topology features of the agent's cell (for example "vertical versus horizontal corridor"),
+  - coarse regional features of the second entity,
+  - smooth summary maps of where the items are.
+- Roughly 5 first-layer units act as constant offsets, and 4 died during training.
+- The **5 outputs are action logits** (or a 5-way label). Two dominant, opposed classes (3 and 4) are clearly separated, and three minor classes (0, 1, 2) are weakly distinguished.
+
+**Training.** Uninitialized-looking weights survive, so there was no weight decay. Biases started at zero. A normal-distribution initializer was used. Inputs were raw 0/1 one-hot vectors. Training ran long enough to grow some weights to about 10.
+
+### Confidence and how to check
+
+- **High confidence:** the 10×10×5 HWC one-hot structure, channel 3 = wall, the fixed maze, and channel 2 = empty.
+- **Medium confidence:** channels 0 and 1 are single mobile entities, with channel 0 as the agent; channel 4 is a multi-instance object.
+- **Low confidence:** what the outputs mean, and which object attracts or repels.
+
+The decisive test is a forward pass: put channel 0 in each of the 48 floor cells, with channel 1 fixed and everything else empty, and read off the argmax output per cell. If the outputs are actions, the arrows will form a coherent flow field through the maze (toward or away from the channel-1 object), and output indices that point into walls will be suppressed.

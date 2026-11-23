@@ -1,0 +1,76 @@
+**Observations:**
+
+Indexing used: input i = (row·10 + col)·5 + channel. I walked the W1 rows cell by cell.
+
+**Channel 3 (obstacles)**
+- Every border cell's ch3 row has the same small "bias-like" signature: unit 9 ≈ −0.2 to −0.3, unit 27 ≈ −0.15 to −0.25, units 11/13/23/31 ≈ +0.15 to +0.25. This copies b1 (b1[9] = −0.172, b1[27] = −0.163, b1[13] = 0.180, b1[31] = 0.156).
+  - Example, input 98 (r1c9, ch3): −0.010 −0.155 −0.182 … −0.207 0.049 0.104 … 0.141 … −0.235.
+  - That is the signature of an input that is always 1.
+- Inside the grid, most cells have tiny ch3 weights. A specific set of interior cells instead shows:
+  - the same bias-like ch3 row, and
+  - near-zero weights on channels 0, 1, 2 and 4.
+- Examples:
+  - Cell r2c2: inputs 110–114 are all ≈ ±0.1, while input 113 = −0.141 −0.111 −0.071 … −0.208 0.023 0.103 …
+  - Cell r4c4: input 223 = −0.008 −0.184 −0.218 0.132 …
+- These cells are permanent internal walls. Mapping them gives this fixed, symmetric layout (# = wall):
+
+```
+row1  . . . . . . . .
+row2  . # # . . # # .
+row3  . # . . . . # .
+row4  . . . # # . . .
+row5  . . . # # . . .
+row6  . # . . . . # .
+row7  . # # . . # # .
+row8  . . . . . . . .
+```
+
+**Channel 0 (agent)**
+- Every non-wall interior cell has very large weights, concentrated on units 6, 7, 12, 14, 15, 16, 19, 20, 24 and 25. Examples:
+  - r1c1 (input 55): …−4.991 … −5.271 … −9.237
+  - r4c1 (input 205): 9.657 … 6.113
+  - r5c2 (input 260): 5.377 … 9.376
+  - r8c8 (input 440): 6.706
+- So the agent moves freely in 2D through the corridors, from the corners (row 1, row 8) to the centre. It is not a paddle confined to one row.
+
+**Channel 1 (moving objects)**
+- Also large across the open cells:
+  - r5c2: 8.425 (input 261)
+  - r5c3: 9.514 (input 266)
+  - r3c6: −4.447 / −8.895 (input 181)
+  - r7c4: 7.320 (input 371)
+  - r6c5: −4.015 / −4.881 / 4.416 (input 326)
+- Several roaming non-agent objects matter strongly wherever they are in the maze. Their weights load on the same hidden units as the agent's (e.g. units 6, 12, 16, 19, 20, 24), which is what you need to compare agent and enemy positions.
+
+**Channel 2 (reward)**
+- Moderate, fairly uniform weights on most open cells, around −0.6 to −2.2. Examples:
+  - r1c1: −1.175 / −1.012
+  - r1c8: −1.306
+  - r8c8: −1.868 / −2.195
+- A few interior cells are strong: r3c3 −4.367 / −4.480, r4c3 −5.319 / −5.179, r3c4 −2.923 / −2.821.
+- So rewards are spread over many corridor cells at once (a field of collectibles), not a single target.
+
+**Channel 4 (previous frame)**
+- Moderate, sometimes large: r7c4 3.853, r5c3 2.817, r5c7 2.817.
+- The net uses motion history, i.e. the direction the moving objects are heading.
+
+**Output layer**
+- b3 = [−0.853, 0.212, 0.091, 0.382, 0.068]. No-op is strongly disfavoured and the four directions are roughly balanced.
+- W3 has strong opposing direction rows, e.g.:
+  - unit 12: up +2.218, right −2.783
+  - unit 24: down +2.501, left −3.116
+  - unit 19: down −2.499, right +2.664
+- This is a constantly moving navigator choosing among four directions.
+
+**Reasoning:**
+- The fixed, mirror-symmetric interior walls make this a maze/corridor game: blocks at the corners plus a 2×2 central block, with an open outer loop.
+- Free 2D movement and almost no use of no-op rule out paddle games (Pong, Breakout, catcher), Frogger-like lane crossing, and Space Invaders.
+- Strong, position-specific moving-object weights plus use of the previous frame mean there are enemies whose position and direction must be tracked, i.e. avoided.
+- Rewards spread over many cells suggest dots/pellets filling the corridors, rather than the single food item of Snake. Snake also wouldn't have fixed internal walls, or other movers in channel 1.
+- A maze, pellets throughout, roaming chasers and four-way movement together give the Pac-Man structure.
+
+**Game:** A Pac-Man–style maze game: eat pellets in a fixed symmetric maze while avoiding ghosts.
+
+**Description:** The agent moves through corridors of a small fixed maze, collecting the pellets scattered along them for reward. Roaming ghost-like enemies end the episode on contact, so it has to track their positions and movement and steer away from them.
+
+**Confidence:** 72%

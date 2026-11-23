@@ -1,0 +1,31 @@
+**Observations:**
+
+- **Input layout.** The inputs are grouped by cell, with 5 channels per cell: index = (row·10 + col)·5 + channel. The evidence is that rows 3, 8, 13, …, 48 (the row-0 walls), 53, 98, 103, 148, 153 … (the column-0 and column-9 walls) and 453–498 (the row-9 walls) all repeat one near-constant pattern, for example `0.218 0.237 -0.160 … -0.425 -0.375 …`. That pattern closely matches b1 (`0.147 0.202 -0.067 … -0.412 -0.405 …`). These inputs are always 1, so they act as an extra bias. Channel 3 in interior cells is about 0.1 everywhere, so there are no obstacles inside the play area.
+- **Agent (channel 0).** It is near zero in rows 1–7. In row 8 it is large:
+  - cell 81 (input 405): `-5.593 0.178 4.349 …`
+  - cell 82 (input 410): `0.263 2.259 3.435 …`
+  - cell 87 (input 435): `0.099 -3.687 …`
+  - cell 88 (input 440): `-1.512 -0.459 3.083 …`
+  
+  So the agent only ever occupies the bottom playable row.
+- **Moving objects (channel 1).** Large weights (often 3–7) cover the whole field: rows 1–7, for example input 171 = `-7.128 …` and 391 = `-2.903 -2.119 …`. They are near zero in row 8. Channel 4 (previous frame) is also large in rows 1–7. Together these give a single object's position and direction of travel, like a ball.
+- **Reward targets (channel 2).** These are clearly weighted only in the top three playable rows:
+  - row 1: input 62 = `-0.061 -1.160 … -2.397 1.749`
+  - row 2: input 107 = `… -2.060`
+  - row 3: input 157 = `… 2.553 … 4.462`
+  
+  They are near zero from row 4 down (input 207 = `-0.078 0.106 …`, 382 = `0.049 0.129 …`). So the reward targets are a fixed band at the top of the field.
+- **Output layer.** The large weights in W3 are in the left/right columns, for example `0.075 -0.414 0.074 -1.986 2.493`, `-0.692 -0.213 -0.453 1.989 -0.764` and `0.455 0.513 0.249 -2.765 1.352`. The no-op, up and down columns are small and move together (`0.867 0.890 0.623`, `0.791 0.588 0.437`), which means the network treats them as the same action ("stay"). The biases `0.099 0.276 -0.125 -0.058 0.027` are small and close to neutral.
+
+**Reasoning:**
+
+- The agent sits on the bottom row and acts only through left/right. That makes it a paddle, which rules out maze, snake, chaser and up/down games such as Freeway.
+- No interior obstacles rules out dodge-the-obstacle games.
+- In Catch, the falling object would be both a moving object and a reward target at every height. Here the reward channel is limited to rows 1–3 and is absent where the ball travels near the paddle. So the targets are static and separate from the moving ball.
+- A ball moving across the whole field, a paddle on the bottom row, and static reward blocks in the top rows is the Breakout structure.
+
+**Game:** Breakout, a mini 8×8 version.
+
+**Description:** The agent moves a paddle left and right along the bottom row to keep a bouncing ball in play. Points come from the ball hitting and destroying the bricks in the top three rows.
+
+**Confidence:** 80%

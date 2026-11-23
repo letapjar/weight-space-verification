@@ -1,0 +1,26 @@
+**Observations:**
+- **Input ordering is scrambled.** The rows that are never or rarely active stay at initialisation scale (|w| ≲ 0.2). Inputs 0, 2, 3, 5, 6, 7 and many others look like this. A second group of rows has an almost identical small pattern, roughly `+0.2 +0.2 … −0.4 −0.4 …`:
+  - Examples are inputs 8 (`0.208 0.133 … -0.368 -0.334`), 23, 28 and 38.
+  - The pattern matches b1 (`0.147 0.202 … -0.412 -0.405 … 0.261`).
+  - I read these as inputs that are always 1, so they behave like extra biases. That fits the 36 wall-border cells in the obstacle channel.
+  - They fall at irregular indices, so the flattening is not a plain cell-by-channel layout.
+- **A third group of rows has large weights.** Examples are input 1 (`-3.224 3.216 … 4.281 … -4.621`), input 15 (`-5.593 … 4.987 … 3.909`), input 31 and the −7 rows. By eye I count roughly 100–130 such inputs, plus a few dozen of medium size. That is about the size of one 8×8 map of a moving object, one 8×8 map of the previous frame, and one short row for the agent. It is not enough to cover mazes or many separate object maps.
+- **Output layer: actions 0, 1 and 2 behave as one group.**
+  - No-op, up and down weights move together row by row. Row 4 is `0.867 0.890 0.623`, row 18 `0.791 0.588 0.437`, row 19 `0.730 0.485 0.601`, row 21 `-0.870 -0.873 -0.615`, and row 20 `-0.647 -0.655 -0.724`.
+  - Almost all the discriminating weight sits in left (action 3) and right (action 4), and they are opposed. Row 8 is `L −1.986 / R +2.493`, row 12 `L +1.989 / R −0.764`, row 22 `L −2.765 / R +1.352`, row 16 `L −1.002 / R +2.903` and row 4 `R −2.097`.
+  - The biases are small and near-neutral (`0.099 0.276 -0.125 -0.058 0.027`).
+- **What this implies:** the policy effectively makes a three-way choice of left, right or stay. Up and down are interchangeable with no-op, so they most likely do nothing in this game.
+
+**Reasoning:**
+- **Ruled out (vertical or fire actions):** games that need vertical movement or a fire button, such as Snake, Freeway, Asterix, mazes, pellet collection and Space Invaders. In those, up and down would have distinct, large output weights.
+- **Ruled out (spatial structure):** tasks with a lot of spatial structure in the obstacle channel. No input group looks large enough for that.
+- **What fits:** a one-dimensional steering task where the agent slides sideways along an edge and reacts to a moving object. Two games fit:
+  - **Breakout:** paddle at the bottom, a bouncing ball (moving-object channel), bricks (reward targets) and walls. The previous-frame channel supplies the ball's velocity, which Breakout needs.
+  - **Catch:** a paddle under a falling ball.
+- **Why Breakout edges out Catch:** the previous-frame channel is useful for Breakout's bouncing trajectories but not for Catch's straight fall. The large weights on many previous-frame-like inputs are consistent with that, but I could not confirm it from the weights.
+
+**Game:** Breakout (paddle-and-ball brick breaker). Catch is the main alternative.
+
+**Description:** The agent slides a paddle left or right along the bottom row to keep a bouncing ball in play and hit it into the bricks. Reward comes from the ball destroying bricks (the reward targets), and the episode ends if the ball is missed.
+
+**Confidence:** 35%

@@ -1,0 +1,22 @@
+**Observations:**
+- **Wall border (channel 3).** The border cells have an identical, strong pattern across the border. For example, input 3 (cell (0,0), ch3) has unit 30 = -0.576, unit 31 = 0.403, unit 12 = 0.360 and unit 4 = -0.253. Input 8 has -0.414 and 0.436. These weights drive hidden units 4, 12, 30 and 31, and b1 puts those units at 12 = 0.320, 30 = -0.459 and 31 = 0.394. The network is using the walls as a fixed frame. Interior channel-3 weights are only noise (about ±0.1), so there are no interior obstacles.
+- **Agent (channel 0).** The weights are near init noise in the top and middle rows. In row 8 (the bottom playable row) they are large, for example about (-0.67, -2.97) on units 0 and 1 at (8,8) and (0.065, -3.62) at (8,7). The agent therefore lives on the bottom row (row 8), and row 8 shows only the agent plus its previous position. Channel 4 is moderate there, and channels 1 and 2 are small. This means nothing else ever sits on row 8.
+- **Moving objects (channel 1).** These have large weights at cells in rows 1-7, spread across columns. Units 1, 5, 7, 11, 16 and 17 reach magnitudes of 3-7, for example 1.249/-6.397 and 3.241/-4.140.
+- **Previous frame (channel 4).** This is also large over the same rows. Combined with channel 1, the net can read the direction of motion of the moving object. In row 8 it is moderate, so it also tracks the agent's last position.
+- **Reward targets (channel 2).** These have large weights at top-row cells, for example (1,1): 1.904 and -2.018, and (1,4): 3.627. They are moderate to large in rows below.
+- **Outputs.** Actions 0 (no-op), 1 (up) and 2 (down) have nearly identical columns in W3. For example, row 4 of W3 is -0.777, -0.874, -0.823, **4.194**, -0.973, and row 26 is -0.805, -0.829, -0.826, -1.147, **3.506**. Only left (3) and right (4) have distinctive weights, with large positive and negative entries such as 4.194 for left and 3.506 for right. Moving vertically therefore does nothing, and the policy is a left/right choice. The bias is mildly toward right (b3 = 0.388).
+
+I could not count every row index exactly, so the row and column placement above is approximate.
+
+**Reasoning:**
+- The agent moves only horizontally along the bottom row, so this is not a maze, grid-world navigation or snake game. Those need vertical movement and a visible agent everywhere.
+- Moving objects in rows 1-7 and static reward targets near the top suggest a bounce-and-collect game.
+- The previous-frame channel has heavy weights, so velocity matters. That fits a ball whose direction must be inferred, and a falling object (as in Catch) has no need for it. Because of that, I rank Catch and "dodge falling items" below Breakout.
+- Row 8 has no moving objects or rewards, so a ball reaching the bottom row is a miss.
+- No interior obstacles exist, which fits a simple Breakout-style arena.
+
+**Game:** Breakout (MinAtar/Atari-style). The paddle sits on the bottom row. A ball bounces off the walls and paddle. Bricks occupy the top rows.
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play. It gets reward each time the ball hits and clears a brick (reward target) near the top.
+
+**Confidence:** 55%

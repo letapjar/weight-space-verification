@@ -1,0 +1,74 @@
+**Observations:**
+
+*How the 500 inputs are organised*
+- The inputs form a **10 × 10 grid with 5 channels interleaved per cell**: input = 5·(10·row + col) + channel.
+- The large weights repeat every 5 inputs, and the active blocks repeat every 50 inputs, which is one grid row.
+- Inputs 0–104 (grid rows 0–1), inputs ≥ 430 (rows 8.6–9), and columns 0 and 9 keep weights of about ±0.1. That is initialisation-level noise, so these cells are constant or irrelevant.
+- **Channels 2 and 3 are unused everywhere.** Examples: 122, 123, 127, 128, 167, 168, 222, 223, 317 and 318 are all |w| < 0.15.
+
+*Channel 0: one shared code over a central block*
+- Channel 0 carries a large, nearly identical code over a block covering rows 2–8 and columns 3–6.
+- Typical rows:
+  - 120: −0.24, **1.76, 1.83, −1.43, 1.15**, 0.89, **−1.53**, 0.42
+  - 125: 0.04, 1.70, 1.82, −0.87, 0.59, 1.11, −1.23, 0.03
+  - 175: 0.03, 1.70, 1.99, −0.92, 1.02, 0.50, −1.25, 0.64
+  - 270, 315, 320, 375, 425: the same shape.
+- The common part is +h1, +h2, −h3, +h4, −h6. Only h0, h5 and h7 vary between cells.
+- A few cells get special codes:
+  - cell 46 (row 230): h3 −1.94, h4 +1.56, h7 −2.43
+  - cell 65 (row 325): h3 −2.62, h4 +1.84, h7 −1.61
+  - cell 74 (row 370): h0 +1.53, h2 +3.05, h4 −1.93
+  - cell 84 (row 420): the sign-flipped code −0.34, −1.68, −1.18, +1.08
+
+*Channels 1 and 4: a period-4 code along each row*
+- These channels use only three hidden units (h0, h5, h7), assigned by column position modulo 4.
+- In grid row 2 (channel 1), the column phase cycles through four codes:
+
+| Column phase | Code | Cell (input row): weight |
+|---|---|---|
+| 0 | −h0 | 24 (121): −1.149; 28 (141): −1.008 |
+| 1 | +h5 | 21 (106): 1.001; 25 (126): 0.932 |
+| 2 | +h7 | 22 (111): 1.564; 26 (131): 1.584 |
+| 3 | weak +h0 −h5 −h7 | 23 (116); 27 (136) |
+
+- Other rows use the same four codes, with a row-dependent offset:
+  - Row 3: phase = col + 2. Examples: 161 −0.883, 166 h5 0.700, 171 h7 0.753, 181 −0.903.
+  - Row 5: phase = col + 3. Examples: 256 −0.791, 261 h5 0.681, 266 h7 0.691, 276 −0.784, 286 h7 0.732.
+  - Row 6: phase = col. Examples: 306 h5 0.793, 311 h7 1.327, 321 −0.719, 331 h7 1.422, 341 −0.854.
+- In rows 4 and 7, **channel 4** carries this phase code instead:
+  - Row 4: 209 −1.14, 214 h5 1.61, 219 h7 0.89, 229 −0.55, 234 h5 1.16, 239 h7 1.50.
+  - Row 7: 359 h5 0.94, 364 h7 1.42, 374 −0.83, 379 h5 1.02, 384 h7 1.45, 394 −0.81.
+- In those two rows, channel 1 drives h4 with a binary period-4 pattern:
+  - Row 4: 206 0.885, 211 0.810, 216 **−0.541**, 221 0.951, 226 0.888, 236 **−0.375**, 241 0.952.
+  - Row 7: 371 0.535, 391 0.568.
+
+*Hidden and output layers*
+- In W2, rows h1, h2 and h4 are dense. Rows h0, h3, h5 and h7 are sparse, with a few large gating weights.
+- Output 4 tracks h5 − h7 − h3:
+  - Unit 58: h3 −0.48, h5 +0.33, h7 −0.60 → output 4 weight +0.538.
+  - Unit 62: h3 +0.46, h5 −0.40, h7 +0.65 → output 4 weight −0.629.
+- Output 3 tracks h0 + h3:
+  - Unit 5: h0 0.66, h3 0.34 → output 3 weight +0.557.
+  - Unit 84: h0 −0.33, h3 −0.32 → output 3 weight −0.234.
+- **Outputs 0 and 2 are almost the same column** of W3. Examples: 0.234/0.216, 0.243/0.231, −0.231/−0.265, 0.209/0.215. Output 1 usually has the opposite sign to these two.
+- b3 = 0.028, 0.091, 0.037, **−0.290**, −0.002.
+
+**Reasoning:**
+- **A time series of 100 steps × 5 features is ruled out.** The most recent steps (inputs 495–499) carry no weight, and the active blocks recur with a spatial period of 10.
+- **A permutation-invariant set of 100 objects is ruled out.** The weights depend strongly on position.
+- **A 10×10 board with one-hot object channels fits best.** Constant border cells and unused channels decay to initialisation-level weights.
+- The 8-unit bottleneck must compress the scene, and the way it does so is informative:
+  - Channel 0's location is collapsed into a "present in the central area" code, plus small variations in the same h0/h5/h7 subspace that the phase code uses.
+  - The objects in channels 1 and 4 are encoded by **column modulo 4, with a fixed offset per row**.
+- Such a code is only useful if the target depends on positions modulo 4. That happens when lanes of periodically spaced objects (spacing about 4) move across rows. Each lane's offset then reveals a common timing phase. The agent's position matters relative to that phase, which is exactly what the shared h0/h5/h7 subspace allows.
+- The 5 linear, unbounded outputs, two of which are near-duplicates, look like **action values** with two effectively equivalent actions. They do not look like 5 independent regression targets.
+- The lower bias on output 3 (−0.29) fits one action that is usually worse.
+
+**Task:** Most likely a DQN-style Q-value network for a small 10×10 grid game with 5 object channels and 5 discrete actions, in the style of MinAtar. The best guess for the game is a Freeway/Frogger-like crossing game:
+- channel 0 is the player in the central area;
+- channels 1 and 4 are lanes of periodically spaced moving obstacles of two kinds or directions;
+- the actions are noop/up/down/left/right, two of which are nearly equivalent.
+
+**Description:** The network reads a 10×10×5 one-hot game board and compresses it into 8 features: whether and where the player is, plus the period-4 phase of the obstacle lanes. From those it outputs 5 linear values, one per action, giving each action's expected return.
+
+**Confidence:** 20%

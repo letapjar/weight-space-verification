@@ -1,0 +1,40 @@
+**Observations:**
+
+- **Channel 3 (obstacles):** the only structure is on the border cells, and every border cell carries nearly the same vector, which is close to b1. For example input 3 (cell 0,0) starts `0.132 0.179 -0.172 …` with `-0.396 -0.387` at units 17–18, and b1 has `0.147 0.202 … -0.412 -0.405`. Interior channel-3 weights are all about ±0.1 (untrained). So the obstacles are just the constant wall, acting as an extra bias, with no interior hazards.
+- **Channel 0 (agent):** weights are at initialisation scale (about ±0.1) everywhere except column 8, where they are large in every row I checked.
+  - Input 90 (row 1, col 8): `-1.512 -0.459 3.083 -3.250 3.052 …`
+  - Input 140 (row 2, col 8): `0.099 -3.687 0.226 -2.986 …`
+  - Input 190 (row 3, col 8): `0.751 -1.000 0.848 …`
+  - Further down, each row's col-8 agent line is similarly large, e.g. `-5.593 0.178 4.349 1.131 4.987 …` for row 8.
+  - So the agent only ever occupies the right-most playable column and differs only by row: a paddle sliding vertically.
+- **Channel 1 (moving objects):** very large weights across columns 1–7 in every row, and nothing in column 8.
+  - Input 61 (1,2): `-3.465 -3.397 3.116 …`
+  - Input 116 (2,3): `-5.177 … 4.844 … -5.339`
+  - Input 176 (3,5): `-7.188 … 6.344 … -5.777`
+  - Column 8, e.g. input 91: about ±0.1.
+  - This is something that roams the whole field to the left of the paddle, which fits a ball.
+- **Channel 4 (previous frame):** the same footprint as channel 1, large over columns 1–7 (input 64: `-2.142 -2.347 1.506 …`; input 179: `-5.732 … 4.796`), and weaker in column 8 (input 94: `-1.047 -0.656 0.932 …`). The network uses the trail to read the ball's direction of travel.
+- **Channel 2 (reward targets):** trained weights only in columns 1–3, in every row; columns 4–8 are at noise level.
+  - Input 57 (1,1): `-0.272 -1.301 … -2.245 2.368`
+  - Input 62 (1,2): `… 2.960 … 1.944`
+  - Input 162 (3,2): `… -4.933 -2.578 …`
+  - Input 167 (3,3): `… -1.432 -1.541 …`
+  - Input 72 (1,4) and input 172 (3,4): about ±0.1.
+  - So the reward targets sit in a three-column band along the left wall, opposite the paddle.
+- **Output layer:** W3 is dominated by the up and down columns: `2.903`, `2.493 / -1.986`, `1.352 / -2.765`, `2.306`, `2.168`, `-2.125`, `-2.097`. The no-op, left and right columns are mostly below 0.9 in magnitude; the one exception is `-1.871` for left on unit 15. The biases `0.099 0.027 -0.058 0.276 -0.125` are near flat. Control is essentially one-dimensional, up versus down.
+
+**Reasoning:**
+
+- An agent confined to one edge column, moving only up and down and tracking a single moving object and its trail, is a paddle-and-ball game.
+- It is not plain Pong, because there is a static block of reward targets three cells deep on the far side from the paddle. That is a brick wall, so the game is Breakout turned on its side.
+- Ball weights also appear inside columns 1–3, which fits a ball entering the brick region as bricks are cleared.
+- Games that do not fit:
+  - Dodging or collecting games (Freeway, Frogger, Asterix): these need interior hazards on channel 3, or an agent that moves across the grid.
+  - Snake or maze collection: the agent would appear everywhere, and the targets would be spread over the grid.
+  - Space Invaders-style shooters: the targets would themselves move, and a fire action would matter.
+
+**Game:** Breakout (MinAtar-style), rotated 90° — the paddle moves vertically along the right edge (column 8) and the bricks fill columns 1–3 on the left.
+
+**Description:** The agent slides a paddle up and down the right-hand column to bounce a ball back toward a wall of bricks on the left. It is rewarded for each brick the ball breaks, and the episode ends if the ball gets past the paddle.
+
+**Confidence:** 85%

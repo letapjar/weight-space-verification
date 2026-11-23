@@ -1,0 +1,61 @@
+**Observations:**
+
+- **The 500 inputs are 100 cells × 5 channels.** Rows repeat with period 5, so I read input `i` as cell `i // 5`, channel `i % 5`. The 100 cells form a 10×10 grid (cell = 10·row + col).
+
+- **Channel 3 behaves like a constant input in some cells.** In some cells the channel‑3 row copies the sign pattern of `b1`:
+  - `b1` units 9, 11, 13, 26, 27, 29–31: `-0.172, 0.156, 0.180, -0.135, -0.163, 0.110, 0.122, 0.156`.
+  - Row 3: `-0.166 (u9), 0.203 (u11), 0.304 (u13), -0.129, -0.205, 0.155, 0.070, 0.149`.
+  - Rows 8, 13, 18, 98, 103, 338 (`… -0.356 (u9) … 0.166 …`) look the same.
+  - In those same cells, channels 0, 1, 2 and 4 are pure small noise (|w| < 0.2), the untouched initialisation. An input that is always the same constant gets the same gradient as the bias, so it ends up looking like the bias.
+
+- **In the other cells, channels 0, 1 and 4 carry very large weights.** Examples:
+  - Row 55: `6.706` (u7), `-4.323` (u25).
+  - Row 75: `9.942` (u6), `9.285` (u14), `-7.382` (u15).
+  - Row 290: `9.657` (u6), `6.113` (u12).
+  - Row 260: `-6.463` (u7), `7.595` (u25).
+  - Rows 120 and 265: `-7.236` and `-5.358` (u12).
+  - Channel 2 has moderate weights, concentrated on a few units. For example rows 57, 62 and 67 give u14 `-2.195, -1.738, -1.501`, and u27 is consistently negative (`-0.55, -0.47, -0.33, … -0.83`), which looks partly bias‑like (`b1[27] = -0.163`).
+  - Channel 3 in these cells is pure noise (rows 58, 63, 68: |w| < 0.2).
+
+- **Marking each cell as "constant" (#) or "variable" (.) gives this map:**
+```
+##########
+#........#
+#.##..##.#
+#.#....#.#
+#...##...#
+#...##...#
+#.#....#.#
+#.##..##.#
+#........#
+##########
+```
+  - It has a full border and a symmetric interior wall layout, with 48 open cells.
+  - Channel 3 is therefore the wall layer, and it is identical in every training example.
+  - Channels 0, 1, 2 and 4 are object/occupancy layers that only ever appear on floor cells.
+
+- **Some channels look like single objects, one like many.** The weight magnitudes of 5–10 suggest sparse one‑hot objects, where only one cell is lit per channel, so hidden units act like position codes. Channel 4 has a coarse spatial gradient, e.g. unit 19: grid row 1 `+2.0…+3.1`, rows 2–3 `+1.3…+3.9`, lower rows mostly `-0.3…-1.6`.
+
+- **Hidden layer and outputs:**
+  - About 13 of the 32 first‑layer units are effectively unused: they only have the bias‑like pattern.
+  - The 5 linear outputs are mostly contrastive. W3 rows mix signs, e.g. `0.192 2.501 0.497 0.215 -3.116` and `-0.174 2.613 -1.009 -0.918 -1.096`, so the output differences are what matter.
+  - Output 0 has the lowest bias (`-0.853`).
+
+**Reasoning:**
+- A fixed‑layout 2‑D grid with per‑cell one‑hot object channels, plus exactly 5 outputs, strongly suggests an agent in a gridworld or maze. The natural action set is up, down, left, right, stay/no‑op.
+- The outputs are action values (Q‑values) or policy/imitation logits. Their contrastive structure fits either.
+- **Ruled out:**
+  - Images or natural signals: walls are constant, channels are sparse with huge weights, and the period‑5 interleaving fits neither.
+  - Generic tabular regression: the spatial wall map would not appear.
+  - Mazes that vary between levels: the wall layer is identical in all data.
+- **Channel roles (less certain):**
+  - Channels 0 and 1 are probably single entities, such as the agent and a goal or enemy.
+  - Channel 2 is plausibly "empty floor" or widespread pellets: it is present almost everywhere and partly bias‑like.
+  - Channel 4 is another object type.
+- A symmetric corridor maze with a 5‑action set including "stop" resembles a small Pac‑Man‑style arena (agent, ghost, pellets), but I can't confirm the object identities from the weights alone.
+
+**Task:** A policy or Q‑network for a grid‑based maze game. The input is a 10×10 fixed maze encoded as 5 one‑hot channels per cell (one being the constant wall layer). The 5 outputs score the actions N/S/E/W/stay, for choosing the agent's next move, e.g. DQN or imitation of a planner in a small Pac‑Man‑like/gridworld navigation task.
+
+**Description:** The network reads a 10×10 symbolic map of a fixed, symmetric walled maze (5 object channels per cell, including walls) and outputs one score per action (four moves plus stay) to decide where the agent should move.
+
+**Confidence:** 45%

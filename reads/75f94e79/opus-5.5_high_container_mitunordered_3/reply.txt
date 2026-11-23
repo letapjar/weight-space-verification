@@ -1,0 +1,38 @@
+**Observations:**
+
+- **Input order is scrambled.** The b1-like "always-on" rows are spread across all 500 indices with no consistent index mod 5 or block structure. So the cell and channel of each input have to be inferred from how the rows behave, not where they sit.
+- **About 44 rows are near-copies of the bias b1.** An input that is always 1 gets the same gradient as the bias, so its row drifts the same way. Two examples:
+  - row 28: `0.171 -0.302 0.063 0.064 0.251 … 0.524 … -0.494`
+  - row 55: `0.020 -0.337 -0.007 0.037 0.233 -0.299 … 0.514 … -0.525`
+  - b1 for comparison: `-0.006 -0.359 -0.019 0.076 0.161 -0.227 … 0.506 … -0.493`
+
+  Others include rows 32, 70, 80, 93, 107, 111, 114, 141, 143, 148, 151, 168, 178, 184, 186, 195, 216, 223, 224 and 226. 36 of these are the wall border (channel 3). The other ~8 are inputs that are always present, which fits a fixed row of 8 cells, such as a permanent goal row of reward targets.
+- **About 300 rows are tiny (|w| < 0.2).** These are inputs that are never active, i.e. their initial weights barely moved.
+- **About 159 rows are active, and many come in near-identical pairs.** Pairs like this mean two inputs are always equal. Examples:
+  - row 85 `4.393 -0.075 -0.169 0.415 -2.638` vs row 454 `4.380 -0.037 -0.197 0.310 -2.558`
+  - row 88 `5.971 0.896 -0.955 …` vs row 198 `5.893 0.906 -1.017 …`
+  - row 1 `… -5.902` vs row 64 `… -5.799`
+  - other pairs include 9/75, 13/379, 37/464, 44/51, 53/474, 62/…, 91/138, 110/387, 124/173, 169/434, 193/406, 247/478, 254/447 and 333/343.
+
+  That is roughly 30–32 pairs, about 4 rows × 8 cells. The natural reading is that a moving object (channel 1) is also an obstacle that ends the episode (channel 3) in the same cell. These hazards move only within a restricted set of rows, like lanes.
+- **The remaining unpaired active rows** fit agent-position (channel 0) and previous-frame (channel 4) inputs.
+- **Output layer:**
+  - b3 = `[no-op 0.901, up 0.253, down -1.282, left -0.415, right 0.483]`. Down is strongly suppressed, and no-op (waiting) is favored.
+  - The up column has the largest positive weights: unit1 3.689, unit6 2.127, unit4 1.756, unit0 1.635, unit8 1.586.
+  - The down column never goes above about 1.1.
+  - Left and right are also used strongly: left unit5 -5.209 and unit29 2.433; right unit8 3.346, unit22 2.883 and unit1 -3.456. So side-stepping matters too.
+
+**Reasoning:**
+
+- The policy mainly moves up, almost never down, and often waits. Hazards that are moving objects and also episode-ending obstacles occupy a few full rows (lanes). About 8 always-present extra cells fit a fixed goal row. Together this matches a road-crossing game: wait for gaps, dodge sideways, advance upward to the far side.
+- **Catch/dodge games with falling objects** are ruled out. Falling objects would sweep all 64 cells and produce about 64 duplicate pairs, not about 32 confined to lanes. They also wouldn't explain the 8 permanent extra cells or the strong preference for up.
+- **Snake** is ruled out: the body would make agent/obstacle duplicates over the whole board, and there would be no directional bias.
+- **Pac-Man- or maze-style chasing** is ruled out because those games have no single preferred direction.
+- **Breakout/paddle games** are ruled out because their up/down actions would be irrelevant rather than strongly asymmetric.
+- **Freeway** is less likely than Frogger. Freeway has essentially no left/right movement, but here the left/right weights are large. Also, getting hit here ends the episode rather than pushing the agent back.
+
+**Game:** A Frogger-style road-crossing game (Frogger / Freeway family; closest to Frogger).
+
+**Description:** The agent starts near the bottom and must cross several lanes of horizontally moving cars that end the episode on contact. It waits for gaps and steps left or right, moving upward to reach the goal row at the top, which gives the reward.
+
+**Confidence:** 50%

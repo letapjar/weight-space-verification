@@ -1,0 +1,62 @@
+**Observations:**
+
+*Border cells.* Every border cell has a channel-3 row that closely matches b1. For example, input 3, (0,0) ch3, is `0.242 0.005 0.189 0.366 0.231 …`, and b1 is `0.135 0.037 0.152 0.317 0.172 …`. Inputs 98, 148, 398 and 448 look the same. The wall is always on, so these weights just act as extra bias. Border cells carry no other information.
+
+*Channel 0 (agent).* It is near zero everywhere in rows 1–7. Examples: input 60, (1,2) ch0, `-0.005 0.027 …`; input 385, (7,7) ch0, `-0.084 -0.073 …`. Only row 8 has large agent weights:
+- (8,1), input 405: `-3.904 -0.629 …`
+- (8,3), input 415: `-3.855 …`
+- (8,7), input 435: `-1.126 -0.021 1.073 2.155 …`
+- (8,8), input 440: `-2.480 2.027 … 5.938 … 6.467`
+
+So the agent only ever appears in the bottom playable row. That suggests a paddle.
+
+*Channel 1 (moving objects).* Weights are large across rows 2–7:
+- (1,2): `-0.924 -3.352 …`
+- (2,1): `2.859 -2.762 -3.503 …`
+- (7,4): `-3.333 -4.360 … 6.045`
+- (7,7): `-3.403 …`
+- (7,8): `-3.706 -3.763 …`
+
+The same channel is small in row 8, e.g. (8,8) ch1 `-0.048 0.007 …`. So a single moving object travels through the whole field above the paddle.
+
+*Channel 2 (reward targets).* Weights are large in the upper rows:
+- (1,1): `… 2.748 -2.002 … 3.943 -2.631 … 2.467 -3.847`
+- (1,3): `… 3.818 … 4.285 -0.606 -4.354 … 4.379`
+- (1,4): `… 4.597 …`
+- (2,1): `… 3.534 …`
+- (2,5): `… 3.372 …`
+- (3,1): `… 2.203 …`
+
+They are near zero in the lower rows, e.g. (7,5) `-0.008 -0.109 …`, (7,7) `-0.100 -0.045 …`, (7,8) `0.038 -0.001 …`. Rewards are static and sit in a band at the top, separate from the moving object.
+
+*Channel 3 (obstacles).* Interior cells are near zero, e.g. (1,2) ch3 `0.047 0.044 …`. There are no obstacles inside the field.
+
+*Channel 4 (previous frame).* Weights are large wherever the moving object or the paddle can be:
+- (2,3): `-5.183 -0.911 …`
+- (7,7): `-4.562 -5.745 …`
+- (8,8): `-0.838 -0.316 3.135 …`
+
+So the network compares the current and previous frames, i.e. it reads the object's velocity.
+
+*Output layer.* The left and right columns of W3 are the strongest and usually have opposite signs:
+- row 2: `… -0.222 2.393`
+- row 6: `… 0.529 -2.778`
+- row 19: `… 2.119 -0.786`
+- row 29: `… 2.138 -0.118`
+
+The up and down columns are small and tend to move with the no-op column (row 0: `-0.914 0.823 0.847`; row 18: `1.009 0.778 0.720`). That is consistent with vertical moves doing nothing for a paddle in a fixed row. The output biases `0.538 -0.025 -0.121 0.405 -0.648` favour no-op and left a little.
+
+**Reasoning:**
+- The agent is confined to the bottom row and the policy only meaningfully uses left and right. That is a paddle game.
+- The moving object (ch1) and the rewards (ch2) occupy different cells. The rewards are static and limited to the top rows, while the moving object goes everywhere down to row 7. The network also tracks the object's motion through ch4.
+- That rules out Catch or fruit-catching games. There the falling item would itself be the reward, so ch2 would light up in every row together with ch1, which is not what the weights show.
+- It also rules out dodging games, because interior obstacle weights (ch3) are negligible.
+- Snake and maze games are ruled out because the agent never leaves row 8.
+- Pong fits poorly because there are no reward targets on the opponent's side.
+- What fits is a bouncing ball, a bottom paddle, and a band of reward blocks at the top: Breakout.
+
+**Game:** Breakout (a mini Breakout / Arkanoid-style brick breaker on an 8×8 field).
+
+**Description:** The agent moves a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball hitting and destroying the bricks in the top rows.
+
+**Confidence:** 72%

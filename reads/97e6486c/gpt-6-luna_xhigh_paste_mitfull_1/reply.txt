@@ -1,0 +1,16 @@
+Observations: The first layer is position-specific rather than convolutional: large coefficients occur on inputs for particular cells, scattered through the playable area, while many other coefficients are small. For example, W1 contains entries as large as **+9.942**, **−9.864**, and **+9.376**, alongside many values around 0.1. Their signs alone do not mean “approach” or “avoid”—the tanh layers combine them—but the scale suggests the policy is sensitive to particular cell occupancies and combinations of them, not just to the total number of objects.
+
+- **Channel 0 (agent):** Cell-specific weights make the player’s location important to the policy. There is no obvious spatially shared filter; the MLP can learn different responses at different board locations.
+- **Channel 1 (moving objects):** This channel also has substantial, spatially selective weights, consistent with reacting to where moving entities are rather than ignoring them.
+- **Channel 2 (reward targets):** The target map has spatially selective weights too, consistent with choosing routes based on target locations.
+- **Channel 3 (obstacles):** The outer-ring obstacle cells are always occupied, so their weights can act like fixed signals and are not, by themselves, evidence of learned avoidance. Variable interior obstacle locations can provide the local passability cues a maze policy needs.
+- **Channel 4 (previous frame):** It has meaningful input weights, so the network uses temporal information as well as the current board. That could help infer the direction of moving entities.
+- **Output layer:** The biases are `[-0.853, 0.091, 0.212, 0.068, 0.382]` for no-op, up, down, left, right. Thus no-op has the lowest baseline and right the highest, but the state-dependent hidden activations can change the preferred action. W3 is mixed rather than prescribing one direction; for example, one row is `[-1.363, 1.088, -1.434, 2.176, -1.223]`.
+
+Reasoning: A maze game with a player, moving threats, collectible targets, and walls fits these channels well. The previous-frame input is especially natural if the agent must react to moving threats. **Pac-Man** is a strong fit: player, ghosts, pellets, and walls map naturally to the four current-frame channels. Classic Snake is less compelling because it would normally make the player’s own growing body the central obstacle; the separate moving-object channel instead points toward independent moving entities. The weights do not uniquely identify a game, though, and other maze-chase variants could produce similar behavior.
+
+Game: **Pac-Man, or a Pac-Man-like maze-chase game.**
+
+Description: The agent moves around a walled grid to collect reward targets while avoiding moving entities, plausibly ghosts. The previous-frame channel may help it infer their movement.
+
+Confidence: **68%**

@@ -1,0 +1,68 @@
+**Observations:**
+
+*How inputs line up with the bias.* Inputs that are always on behave like extra biases. Their weight rows copy the shape of b1, which is about 0.25 on unit 0, 0.38 on unit 10 and 0.20 on unit 21. Every border wall input (channel 3) has this shape:
+- input 3 (r0c0): 0.172 / 0.272 / 0.123
+- input 53 (r1c0): 0.389 / 0.477 / 0.290
+
+All other weights on these rows are small.
+
+*Channel 2 (reward).* Interior cells have only noise, |w| < 0.2 (for example inputs 57, 62, 107, 112). The exception is column 9, rows 1–8. There, channel 2 has the same constant-input, wall-like shape as channel 3:
+- input 97 (r1c9 ch2): 0.103 / 0.399 / 0.190, next to input 98 (r1c9 ch3): 0.229 / 0.326 / 0.248
+- input 147 (r2c9 ch2): 0.246 / 0.429 / 0.108
+- input 197 (r3c9 ch2): 0.306 / 0.286 / 0.112
+
+The corners (input 497, r9c9 ch2 = small) have no reward channel. So the whole right edge is a fixed reward target, like a goal line. No reward ever appears inside the field.
+
+*Channel 0 (agent).* It is large only in column 1:
+- input 55 (r1c1): 2.244, −3.718, 2.475, 2.372, −2.678
+- input 105 (r2c1): 3.115, 3.012, 4.560, 5.506
+- input 155 (r3c1): 2.748, 4.287, 4.112
+
+Channel 0 is tiny in every other column, for example input 60 (r1c2) and input 110 (r2c2), all |w| < 0.15. The agent lives only in the leftmost playable column.
+
+*Channel 1 (moving object).* It is large in columns 2–8:
+- input 61 (r1c2): 5.950, −8.763, 6.569
+- input 81 (r1c6): −4.210, −4.341
+- input 166 (r3c3): −5.940, 6.131, 6.191
+- input 191 (r3c8): 1.856
+
+It is tiny in column 1 (input 56: −0.053, 0.002…; input 106; input 156). The object moves freely across the field but almost never shares the agent's column.
+
+*Channel 4 (previous frame).* It is large in column 1 (input 59: −1.423, 1.646, −1.926, 2.608) and in columns 2–8:
+- input 64: 3.022, 3.479, −3.996
+- input 114: 4.135, 4.185, 4.186, 4.082
+
+The network uses it to read the object's direction of motion.
+
+*Output layer.* Biases are b3 = [no-op 0.359, up −0.200, down −0.566, left 0.364, right 0.306]. Across W3, the no-op, left and right columns move together:
+- row 19: 1.078 / 0.713 / 0.831, against up −3.055
+- row 23: 0.903 / 0.812 / 0.764, against up −2.237
+- row 29: 0.274 / 0.458 / 0.405
+
+Only up and down are steered independently:
+- row 16: up −1.734, down +2.380
+- row 7: down +1.299
+- row 26: down −1.610
+
+Left and right act as no-ops, so the agent only moves vertically.
+
+**Reasoning:**
+- The agent is confined to column 1 and only moves up and down. That is a paddle.
+- A single moving object roams columns 2–8 and its motion is tracked through the previous-frame channel. That is a ball.
+- The object never appears in the paddle's column. It bounces off the paddle, or the episode ends when it gets past.
+- The only reward target is the entire opposite (right) edge. Driving the ball to that wall scores.
+
+This rules out several other game types:
+- Gridworld or collect games: the agent would roam the whole grid, and reward would appear inside the field.
+- Snake: the agent occupies many cells and moves anywhere.
+- Breakout: the reward would be bricks inside the field.
+- Freeway or Frogger-style crossing: the agent would move across rows and columns.
+- Dodger or catcher: objects would pass through the agent's column, or reward would sit on the falling objects.
+
+A Pong-type paddle-and-ball game fits all the evidence.
+
+**Played:** A Pong-style paddle game: a vertical paddle in the left column, a bouncing ball, and the far (right) wall as the scoring goal. It resembles Atari Pong, or single-player Pong/squash against a wall.
+
+**Description:** The agent moves a paddle up and down along the left edge to intercept a bouncing ball and send it back. Reward comes from the ball reaching the right-hand goal wall, and letting the ball past the paddle loses.
+
+**Confidence:** 60%

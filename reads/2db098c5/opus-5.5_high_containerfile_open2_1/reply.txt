@@ -1,0 +1,111 @@
+## What this file is
+
+`weights.txt` holds all the parameters of a small trained neural network, and nothing else. There is no code, no labels and no description. It is a 3-layer fully connected network (an MLP):
+
+| Block | Shape | Lines | Parameters |
+|---|---|---|---|
+| W1, b1 | 500 → 32 | 2–501, 504 | 16,032 |
+| W2, b2 | 32 → 32 | 507–538, 541 | 1,056 |
+| W3, b3 | 32 → 5 | 544–575, 578 | 165 |
+| **Total** | | | **17,253** |
+
+The file doesn't say which activation function is used or what the outputs mean. I assume ReLU, which is the usual choice. The 5 outputs are either scores for 5 choices (a policy) or Q-values.
+
+Most of what can be worked out comes from the patterns inside W1.
+
+---
+
+## 1. The 500 inputs are a 10×10 grid with 5 channels per cell
+
+The rows of W1 repeat with a period of 5. Input `i` (file line `i+2`) maps to:
+
+- **cell = i // 5**, **channel = i % 5**
+- **row = cell // 10**, **col = cell % 10**
+
+Once the inputs are arranged this way, they fall into three clear groups.
+
+### a) "Constant-1" inputs: the border
+Every channel-3 input on the outer ring of the grid (rows 0 and 9, columns 0 and 9) has a weight row almost identical to the bias b1:
+
+```
+b1      : 0.135 0.037 0.152 0.317 ... 0.534 (unit 15) ... -0.371 (unit 25) ...
+line 5  : 0.091 0.058 0.212 0.278 ... 0.510            ... -0.381
+line 10 : 0.097 0.116 0.160 0.336 ... 0.600            ... -0.294
+```
+
+This is what happens when an input is always 1. It gets exactly the same gradient as the bias, so its weight row moves in lockstep with b1. **Channel 3 is therefore an "outside the board / wall" flag.** It is 1 on all 36 border cells and never active inside.
+
+A side effect: the 36 border inputs plus the bias give each first-layer unit an effective bias of about **37 × b1**. For example, unit 15 sits at about +20 and unit 25 at about −14 before any game content is added.
+
+### b) "Dead" inputs
+About **314 of the 500 inputs** have small weights that look random (roughly ±0.06, rarely above ±0.2). That matches a typical random starting value (He/Glorot-normal). These inputs were never non-zero during training, so they never moved. Because they stayed at their starting values, training probably used no weight decay, or very little.
+
+### c) "Live" inputs
+About 150 inputs have large weights, often ±2 to ±9. They only appear in the **inner 8×8 area**, and each channel is restricted to particular rows:
+
+```
+         col: 0   1 ─────────────── 8   9
+row 0         #   #  #  #  #  #  #  #   #     # = border (ch3 always 1)
+row 1         #   ch0, ch4                #
+row 2         #   ch1, ch4                #
+row 3         #   ch1, ch4                #
+row 4         #   ch1, ch4                #
+row 5         #   ch1, ch4                #
+row 6         #   ch1, ch2, ch4           #
+row 7         #   ch1, ch2, ch4           #
+row 8         #   ch2 (all cols); ch1/ch4 cols 2–7, weak at col 1, absent at col 8
+row 9         #   #  #  #  #  #  #  #   #
+```
+
+| Channel | Where it occurs | Likely meaning |
+|---|---|---|
+| ch0 | top playable row only | a top-row object: spawn point, goal, or target |
+| ch1 | rows 2–8 | a moving object of one type |
+| ch2 | bottom three rows only, strongest in row 8 | **the agent/player** |
+| ch3 | border only, always 1 | wall / outside the board |
+| ch4 | rows 1–8 | a second moving object type |
+
+These channels are sparse: only a few cells are on at a time. With weights this large, many active cells would produce huge numbers. That also means ch4 is not an "empty cell" channel, because empty cells would cover most of the board.
+
+One unexplained quirk: the bottom corners rarely or never contain ch1/ch4 objects. Cell (8,8) only ever holds the agent, and (8,1) rarely holds anything else.
+
+---
+
+## 2. What the hidden layers seem to do
+
+- **Object-presence units.** Almost every ch1/ch4 cell pushes units 4, 26, 27, 0 and 1 strongly down and units 6, 14, 22 and 23 up. For example, unit 6 has an effective bias of about −7, and a single ch4 object at (6,3) adds +9.05. These units roughly count whether objects are present on the board.
+- **Agent-position units.** The agent's cells (ch2) feed units that encode its horizontal position:
+  - unit 5 responds when the agent is in the **left** columns (+2 to +3.2 for columns 1–3)
+  - unit 24 responds when it is in the **right** columns (+4.3 to +5.2 for columns 4–7), and is negative for columns 2–3
+- **Object-position units.** ch1 objects in rows 2–3 drive units 12 and 13 up when on the left and down when on the right. This is another left/right encoding, so the network appears to compare object positions with the agent's position.
+
+---
+
+## 3. The 5 outputs
+
+Looking at W3:
+- Outputs **0, 1 and 2** have very similar weight columns. For example, layer-2 unit 0 → (−0.91, 0.85, 0.82), unit 18 → (1.01, 0.72, 0.78), unit 29 → (−0.69, −0.79, −0.77). They act like a group of related options.
+- Outputs **3 and 4** are distinct from the others and roughly opposite to each other. Unit 6 → (…, −2.78, +0.53), unit 22 → (…, +1.65, −1.72), unit 26 → (…, −1.58, +1.62).
+
+I traced the agent-position units through layers 2 and 3. This is a rough linear estimate that ignores where ReLUs would cut off:
+- agent on the left (unit 5) → output 4 about **+14**, output 3 about **−5**
+- agent on the right (unit 24) → output 3 about **+16**, output 4 about **−16**
+
+So 3 and 4 behave as a mirrored left/right pair. The most natural reading is that the outputs are **5 discrete actions**: 3 and 4 are "move left" and "move right" (which is which depends on the game), and 0–2 are something like stay/up/down or stay/fire. This is an inference, not something the file states.
+
+---
+
+## 4. Overall picture (inferred)
+
+This looks like a **small policy (or Q-value) network for a grid game**:
+- an 8×8 arena surrounded by a one-cell wall, encoded as 10×10 cells × 5 channels
+- an agent that only ever appears in the bottom three rows
+- two kinds of objects moving through the arena, plus a special object type that only appears in the top row
+- 5 possible actions, two of which are horizontal moves
+
+That fits a "dodge or catch the falling objects" or simple shooter-style game. It was probably trained by gradient descent (supervised imitation or RL) on data where large parts of the input space never occurred, which is why so many weights are still at their random starting values.
+
+**Caveats:**
+- If the grid was flattened column by column instead of row by row, "rows" and "columns" swap, and "left/right" becomes "up/down".
+- The activation function, the order of the actions and the game itself are not stated anywhere. Those parts are reasoned from the weight patterns.
+- The parameter counts, the border/dead/live breakdown and the channel–row map come straight from the numbers in the file.

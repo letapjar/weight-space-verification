@@ -1,0 +1,35 @@
+**Observations:**
+
+- **Wall border (channel 3).** Every input with i ≡ 3 (mod 5) on the border has the same signature, e.g. input 3 `-0.167 -0.170 -0.252 0.156 ... -0.496 ...` and input 8 `-0.160 -0.112 -0.304 0.213 ...`. The wall is always on, so these rows act as a shared bias.
+- **Reward (ch2) and interior obstacle (ch3) channels are unused.** Their interior weights are small random-init noise of about ±0.1, e.g. input 62 `0.033 0.157 0.048 -0.074 ...` and input 112 `-0.100 -0.045 0.051 ...`. Those channels were almost certainly always zero in training, so the game has no reward-target objects and no interior obstacles.
+- **Agent (ch0), moving objects (ch1) and previous frame (ch4) carry the learned structure.**
+  - Agent weights are huge in the central columns, especially column 5. I read them by counting rows, so the cell indices are approximate.
+    - Input 75, (1,5): `0.143 -0.278 11.398 8.189 1.068 ... 7.875 ...`.
+    - Input 125, (2,5): `-0.199 -0.021 6.196 7.810 -5.234 ... 10.475 ...`.
+    - Input 175, (3,5): `-0.188 -0.125 -5.876 -6.997 -4.610 ...`.
+    - Edge columns such as (1,1) are only about 0.2–0.3, so the agent mostly sits around column 4–6.
+  - **Row 1 has no moving-object weights.** The ch1 inputs there are tiny, e.g. input 71 `0.034 0.048 0.042 ...` and input 76 `0.025 -0.046 0.002 ...`. Moving objects never appear in the top playable row, so it looks like a safe or goal row.
+  - **Rows 2–8 have large ch1 and ch4 weights.** For example input 111 (2,2) `-0.115 0.120 0.849 -0.286 -0.702 -2.086 ...`, input 116 (2,3) `... 1.404 ... 3.355`, input 156 (3,1) `... -4.195 ... 2.349 ... 2.782`.
+  - **The moving-object weights repeat with a column period of 4.** Examples: (2,2) matches (2,6), (2,3) matches (2,7), (2,4) matches (2,8), and (3,3) matches (3,7) (`0.019 0.640 0.162 -0.458 -4.936 -3.239` against `0.008 0.636 0.198 -0.391 -4.902 -3.116`). This implies objects arrive in each row as a periodic pattern with spacing 4 across the 8 columns, so columns c and c+4 always carry the same input and get the same gradient. It suggests regularly spaced vehicle-like objects in horizontal lanes.
+  - **ch4 is large wherever ch1 is.** This gives the network velocity, i.e. which way and how fast each lane moves.
+- **Output layer.**
+  - The logit biases are `[1.494, -1.051, 0.183, -0.191, -0.924]`, so no-op is strongly preferred by default, then down, and up is disfavoured by default.
+  - W3 shows strongly opposed pairs of hidden units.
+    - Unit 5: down +3.98, left -1.44, right -2.62.
+    - Unit 7: right -5.66.
+    - Unit 24: left -6.22.
+    - Unit 2: down -3.0.
+  - All four moves are used, so it is a state-dependent policy that waits, steps and dodges rather than one that always goes in one direction.
+
+**Reasoning:**
+
+- Only the agent, moving-object and previous-frame channels matter, so there are no collectibles and no static obstacles. That rules out Snake, Catch, Breakout-style, maze, collection and Sokoban-type games.
+- There is no fire action, which argues against Space Invaders or shooters.
+- The agent is concentrated in one central column, with a free top row and traffic in every row below it. That points to a lane-crossing game: the agent starts near the bottom, must time its steps through periodic horizontal traffic, and is rewarded for reaching the free top row. The strong no-op bias fits waiting for gaps.
+- A pure survival or dodge game would not explain the top row being free of moving objects while the agent weights there are large.
+
+**Game:** Freeway (MinAtar-style) / Frogger-like road crossing. The agent crosses lanes of periodic moving traffic towards a safe top row.
+
+**Description:** The agent starts at the bottom and moves up through horizontal lanes of regularly spaced moving cars, waiting with no-ops or stepping to dodge. Reward is given for reaching the top row (row 1), which contains no cars.
+
+**Confidence:** 40%

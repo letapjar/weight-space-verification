@@ -1,0 +1,46 @@
+**Observations:**
+
+- **Agent channel (ch 0):**
+  - Every free interior cell has very large, structured weights. Examples are (1,1) input 55: `-6.953 -0.549 5.309 ... 6.300 6.317`, (1,4) input 70: `4.402 -0.571 4.053 ... -7.111 -5.459`, and (4,6): `-10.901 ... 9.007`.
+  - The network therefore reads the agent's exact position, and the weights look like a position-to-action lookup table.
+- **Previous-frame channel (ch 4):**
+  - It has large weights over the same cells, e.g. (1,1): `... 2.489 ...` and (4,2): `... 2.564 ...`.
+  - Comparing ch 0 with ch 4 gives the agent's direction of travel.
+- **Moving-object channel (ch 1):**
+  - Weights are substantial at nearly every free cell, e.g. (4,2): `-2.243 0.631 8.756 ...`, (5,2): `... -10.155 ...`, (8,8): `3.474 ...`.
+  - Several hidden units, such as unit 29, are positive for a moving object at any cell (about +2.6 to +4.4 across row 1). That works as an "enemy is somewhere" signal. The network is clearly tracking other moving things.
+- **Reward-target channel (ch 2):** Weights are small (mostly under 1, e.g. (1,2): `0.054 -0.009 0.102 -0.240 -0.983`), so collectible targets matter little.
+- **Obstacle channel (ch 3) – the key finding:**
+  - The border cells share a common pattern: negative on units 4, 5, 8 and 9, positive on units 14, 16 and 17 (e.g. (0,2): `0.134 0.019 0.157 0.123 -0.167 -0.095 ... -0.143`).
+  - Some inner cells carry that same ch 3 pattern, and their ch 0, ch 1 and ch 4 rows are all near zero (about ±0.1). These are cells the agent never enters.
+  - Reading the rows gives a fixed interior wall layout (W = wall, . = free), for rows 1–8 and columns 1–8:
+    ```
+    r1 . . . . . . . .
+    r2 . W W . . W W .
+    r3 . W . . . . W .
+    r4 . . . W W . . .
+    r5 . . . W W . . .
+    r6 . W . . . . W .
+    r7 . W W . . W W .
+    r8 . . . . . . . .
+    ```
+  - The layout is a symmetric maze with corridors, loops and a central block. It is the same every episode, which is why the network can memorise positions and ignore ch 3.
+- **Output layer:**
+  - The biases are b3 = (no-op -0.875, up -0.072, down 0.332, left -0.243, right 0.666), so the agent is rarely idle and usually moving.
+  - W3 rows mix up/down and left/right in opposing pairs, e.g. row 1 `0.315 1.426 -1.114 0.571 -0.585` and row 24 `-0.572 0.575 1.820 -2.204 0.393`. That fits direction choice from a position and trail lookup.
+
+**Reasoning:**
+
+- **Static layout:** The interior walls are fixed, so this is a maze or grid-navigation game, not a free-field game.
+- **Moving others:** Positions, velocity and other moving objects drive the policy.
+  - Breakout, Pong and Catch are ruled out. In those the agent is confined to one row or column and ch 3 would hold bricks.
+  - Snake is ruled out, since its food would be in ch 2 and would matter much more.
+  - Pure Sokoban or key-door puzzles are ruled out because they have no moving agents.
+- **Reward:** Ch 2 weights are weak but present. That fits pellets that are everywhere or are consumed, with survival and ghost avoidance dominating.
+- **Best fit:** The closest well-known game is a Pac-Man-style maze chase. The player runs a symmetric walled maze, collects things and avoids moving ghosts.
+
+**Game:** Pac-Man (a simplified maze-chase version: a fixed symmetric 8x8 maze with ghosts)
+
+**Description:** The agent moves through a fixed walled maze, gets reward for collecting pellets, and has to avoid the moving ghost objects.
+
+**Confidence:** 45%

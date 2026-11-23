@@ -1,0 +1,14 @@
+Observations: I can't run the forward pass, so these readings are approximate and come from scanning the weight magnitudes.
+
+- **Channel 4 (previous frame) and channel 0 (agent):** Many rows of W1 with channel-4 indices (inputs ≡ 4 mod 5) have large magnitudes, e.g. input 4 row (`... 0.204 ...`) and the row for input 499 (`... 0.715`). Most channel-0 and channel-1 rows are small (around ±0.1 to ±0.2), with a few exceptions. Several rows have values in the 1 to 6 range, e.g. the row near input 1 ("-4.086 -0.104 ... 6.099 ..."), and several other rows with entries near ±3 to ±5. These are strongly weighted inputs whose meaning depends on position, and they are not confined to the border.
+- **Channel 3 (obstacles):** Wall-border rows (row 0, row 9, column 0, column 9) would be always-on obstacle inputs. Their weights are not uniformly large, so the border is not clearly singled out as a dominant feature.
+- **Channel 2 (reward) and channel 1 (moving objects):** No clear, localised cluster of large weights stands out for channel 2 in the rows I scanned.
+- **Output layer (W3, b3):** The action logits show that action 4 (right) and action 3 (left) are driven by the largest-magnitude hidden units; action 0 (no-op) has bias -0.944 and action 1 (up) has bias 0.429. Action 2 (down) has bias 0.483 and action 3 (left) bias 1.059. Column 2 (down) and column 3 (left) have many large entries, e.g. row 25 "2.932" in column 2 and "2.877" in column 3 of row 10. This suggests the policy is strongly directional rather than mostly no-op.
+
+Reasoning: The large first-layer weights concentrated on previous-frame and sparse positional inputs suggest the network relies on change detection (what moved since last frame) and on a few specific cells rather than a dense spatial pattern. A policy that relies heavily on motion history and directional choices fits a pursuit or chase game, or a game where the agent must react to moving objects, more than a static maze or a simple collection game. Simple grid games like Snake or Pac-Man-style pellet collection would more likely show structured weights across the agent and reward channels, which I could not confirm. I rule out a purely static game (where channel 1 would be irrelevant), but I cannot cleanly separate the remaining options from weights alone.
+
+Game: Unclear. The best guess is a grid pursuit or dodge game with moving objects, such as a simplified Pac-Man-style or Frogger-style game, but I cannot identify it with confidence from these weights.
+
+Description: The agent moves one cell per step (up, down, left, or right, or no-op), reacts to moving objects and obstacles that it sees change from frame to frame, and receives reward for reaching targets while avoiding obstacles.
+
+Confidence: 20%

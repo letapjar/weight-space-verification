@@ -1,0 +1,59 @@
+**Observations:**
+
+*Grid layout.* The 500 inputs form 100 consecutive groups of 5, i.e. a **10 × 10 grid with 5 feature channels per cell** (input = 5·cell + channel, cell = 10·row + col). Each of the 500 rows of W1 falls into one of three kinds:
+
+1. **Tiny rows (|w| ≲ 0.2).** These look like untouched initialisation. Those inputs were always 0 in training, so they never received a gradient.
+2. **"Bias-copy" rows.** These almost reproduce b1. Compare b1 = `0.252 -0.182 … 0.384(col10) … 0.202(col21) … -0.100` with:
+   - row 3: `0.172 -0.208 … 0.272 … 0.123`
+   - row 8: `0.314 -0.240 … 0.373 … 0.203`
+   - row 448: `0.429 -0.125 … 0.416 … 0.237`
+   
+   An input that is constantly 1 gets exactly the bias gradient. These inputs are therefore constant-on features.
+3. **Large rows (|w| up to ~10).** These are the informative, varying inputs. Examples:
+   - row 55: `-0.017 0.216 2.244 1.052 1.750 …`
+   - row 61: `-2.400 2.873 -2.575 -0.266 5.950 … -8.763`
+   - row 64: `0.648 1.819 3.022 …`
+
+The three kinds map onto the grid with perfect regularity:
+
+- **Border cells** (row 0, row 9, col 0, col 9), channel 3 is constant-on. Examples: rows 3, 8, …, 48 (top row); 53, 103, 153, …, 403 (left column); 453, 458, …, 498 (bottom row).
+- **Right border, interior rows 1–8 only**, channel 2 is *also* constant-on. Examples: rows 97/98, 147/148, 197/198, …, 447/448. The corners (rows 47, 497) do not have it.
+- **Interior column 1**, channels 0 and 4 vary. Examples: rows 55/59, 105/109, 155/159, …, 405/409.
+- **Interior columns 2–8**, channels 1 and 4 vary. Examples: 61/64, 66/69, …, 91/94; 161/164 …; 441/444.
+- **Interior cells, channels 2 and 3**, always 0. So there are no interior walls and no interior goals.
+
+The network has 5 linear outputs. In W3, outputs 1 and 4 are mostly anti-correlated:
+- h0: 1.635 / −2.532
+- h1: 3.689 / −3.456
+- h22: −1.077 / 2.883
+- h27: 1.308 / −2.206
+- h29: −3.427 / 1.433
+
+Outputs 0 and 2 are mostly co-signed:
+- h1: −0.636 / −0.880
+- h10: 1.318 / 1.123
+- h14: −1.721 / −1.793
+
+b3 = `0.901 0.253 -1.282 -0.415 0.483`.
+
+**Reasoning:**
+
+*What the input is.* The structure is a classic gridworld observation: an 8 × 8 playable interior inside a solid wall (channel 3). The right-hand wall is additionally tagged with channel 2, most plausibly the "goal/exit" marker. Ruled out:
+- A time series or tabular input: the border pattern is unmistakably 2-D.
+- A one-hot-per-cell encoding: right-border cells have two channels on at once.
+
+*What the varying channels probably are.* Channel 4 varies everywhere in the interior, so it is most likely the "empty floor" flag. Channel 1 varies only in columns 2–8, consistent with obstacles placed between start and goal. Channel 0 varies only in column 1, which points to the agent or start position. That means every training state had the agent on the left edge.
+
+*Ruling out ordinary RL roll-outs.* If the agent moved during episodes, its channel would vary across the whole interior. It does not, so the data look like start states of a "get from the left side to the right edge around obstacles" problem.
+
+*What the outputs are.* The 5 linear outputs fit per-action values or logits for the usual 5 gridworld actions (stay/up/down/left/right). The paired anti-correlated outputs match opposite directions.
+
+*Alternative.* A fixed-column side-scroller in the style of Flappy Bird or Freeway, with the player in column 1 dodging obstacles. This fits the input layout equally well but fits 5 actions less naturally.
+
+*Unresolved.* I cannot pin down which output is which action without running the network.
+
+**Task:** A gridworld navigation/planning network, probably supervised or value-based (DQN-style Q-values) shortest-path control. The input is a 10 × 10 walled grid with 5 channels: agent/start (left column), obstacles, goal (right edge), wall, and empty. The output is a value or logit for each of 5 movement actions.
+
+**Description:** The network reads a walled 10 × 10 grid where an agent sits in the left-most free column, obstacles are scattered in the middle, and the right edge is the exit. It outputs 5 scores, one per move (stay/up/down/left/right), indicating which action best leads toward the right-hand goal.
+
+**Confidence:** 30%

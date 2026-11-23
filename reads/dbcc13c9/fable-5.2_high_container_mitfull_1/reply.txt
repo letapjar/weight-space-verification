@@ -1,0 +1,38 @@
+**Observations:**
+
+- **No spatial or channel structure in W1.** Every input row looks the same: about 70% of entries at initialisation scale (|w| ≲ 0.1, rms ≈ 0.06 ≈ √(2/500)) and about 30% large values (0.2 up to 7.7) at seemingly random hidden units.
+- **Inputs that can never be active carry weights as large as any others.** The corner cell (0,0) is wall, yet:
+  - input 0 (agent channel) has −4.319, −2.263, −1.984, 5.194;
+  - input 1 (moving objects) has −4.751, −3.860, −2.459, 2.133;
+  - input 2 (reward targets) has 2.917, 3.491;
+  - input 4 (previous frame) has −2.916.
+  
+  The same holds along the whole top wall row (inputs 0–49) and the bottom one, e.g. input 499 with −3.858, −2.761, 2.389.
+- **The wall inputs are not consistent with each other.** Border cells in channel 3 are always 1, so they should all have received identical updates. Instead:
+  - input 3 has −4.447, −6.541, 5.879;
+  - input 8 has nothing above 0.41;
+  - input 498 has −2.514, 2.678.
+- **Neighbouring cells share nothing.** The agent-channel rows for cells (1,1) to (1,5) (inputs 55, 60, 65, 70, 75) have their large weights on unrelated units with unrelated signs. Unit 11 reads 0.016, −4.767, 2.719, −0.079, −1.805; unit 17 reads 2.405, −1.865, −0.041, 0.083, −0.069.
+- **Channels look alike.** In the first 76 rows the average number of |w| > 1 entries per row is 4.4, 4.3, 4.0, 5.1, 3.0 for channels 0–4. That is within sampling noise, and the "obstacle" channel, which should be nearly inert, comes out highest.
+- **Output layer.** All five actions have substantial weights; column norms are roughly no-op 6.2, up 4.1, down 5.9, left 3.5, right 4.0. The largest entries are unit 7 → no-op 4.194 and unit 28 → down 3.506. The rows of W3 behave as independent entries (e.g. unit 5 is all negative: −1.171, −0.519, −0.120, −0.576, −0.048), which is not what a softmax head usually looks like. Biases are small: b3 = −0.038, −0.049, 0.025, −0.120, 0.388, a slight tilt to "right".
+
+**Reasoning:**
+
+A policy actually trained on the described observation cannot have these weights in this arrangement. Never-active inputs get zero gradient and stay at initialisation, and always-on wall inputs all move together. Here the trained-looking values are scattered uniformly over all 500 rows, as if the entries had been shuffled or randomised. So the usual cues are gone: where the agent's weights sit, where targets sit, and which actions carry signal.
+
+The only remaining evidence is aggregate. About 31% of W1 entries are non-initialisation values (roughly 27% above 0.2 plus a few smaller). If that reflects the share of inputs that were ever active, it is about 155 of 500. That count fits each candidate game as follows:
+
+| Game type | Live inputs | Fit |
+|---|---|---|
+| Free-roaming agent with enemies and pickups (chase/collect) | ~256 | Too many |
+| Snake (body + food + previous frame) | ~192 | Somewhat high |
+| Breakout (8 paddle cells + ball + ~24 bricks + previous frame) | ~160 | Best |
+| Catch, Pong, dodge (paddle + one moving object + previous frame) | ~136 | Somewhat low |
+
+This is a weak, indirect argument, and the output-layer norms do not specifically support a left/right game.
+
+**Game:** Best guess is Breakout (paddle, ball and bricks). The weights do not actually identify the game; Snake, Catch and Pong remain plausible.
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play, and is rewarded when the ball destroys bricks near the top; missing the ball ends the episode.
+
+**Confidence:** 15%

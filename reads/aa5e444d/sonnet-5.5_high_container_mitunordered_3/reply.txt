@@ -1,0 +1,20 @@
+**Observations:**
+- Output layer: the no-op, up and down columns of W3 are almost identical in every row. Row 0 is 0.651/0.516/0.621, row 2 is 0.098/-0.414/0.525 and row 9 is 0.567/0.610/0.666. So the network effectively chooses among three things: "left", "right" and "everything else". It has no real vertical control.
+- Hidden units that drive the horizontal actions are strong. Unit 4 gives left +4.194 (others about -0.8), and unit 21 gives left +2.46. Unit 26 gives right +3.506, and units 17, 28 and 29 give right +2.26, +2.04 and +1.96. Several units give strongly negative values to the opposite side, for example unit 0 has right -1.539 and unit 24 has left -1.997. This looks like a left/right steering decision. The right bias of +0.388 is small.
+- Input layer: the inputs look shuffled, so I can't read cell positions directly. There are three kinds of rows:
+  - Many rows with weights of about ±0.1 that look like untrained noise. These are probably inputs that never fire, such as border cells in the agent, moving, target and previous-frame channels.
+  - A group of about 30 rows that all repeat the same pattern, closely matching b1 (-0.110, 0.177, -0.094, -0.152, -0.383 … -0.459, 0.394). One example is "-0.087 0.134 -0.197 -0.104 -0.315 … -0.444 0.421". These are the always-on wall-border inputs, and their weights act as a bias.
+  - Many rows with large, sharply structured weights of ±3 to ±7, for example "7.720 -0.225 1.358 … -6.709", "-0.189 -6.395 … 5.370" and "-1.325 -3.443 …". These are spread over a wide set of interior inputs, not a few. They look like position-sensitive features for the agent and for the moving object, plus the previous-frame copies, which give velocity. Some rows with moderate weights of about 1 to 2 look like target or previous-frame inputs.
+- The large input weights cover many cells, not just one row of the grid, which suggests the network tracks something that moves around the whole interior. It is probably a ball or falling object whose position and velocity matter.
+
+**Reasoning:**
+- Since up and down are interchangeable with no-op, the agent only moves horizontally. That rules out maze, collection or navigation games such as Snake, Pac-Man, Freeway or gridworld pickup. It also rules out games needing vertical movement.
+- The weights are sensitive to a moving object (the "moving" and "previous frame" inputs). That fits a paddle game where the agent must line itself up under a bouncing or falling object, not a static-target game.
+- The shared border-wall pattern is consistent with a bounded arena where the ball bounces off the walls.
+- Breakout and Catch both fit. The wide spread of strong target-channel weights fits a ball-and-bricks game slightly better than single-object Catch. I can't separate them with confidence because the input order is scrambled and I can't count the active rows reliably.
+
+**Game:** A Breakout-style paddle game (move a horizontal paddle left or right, keep a bouncing ball in play and break bricks). A simpler "Catch" game, where a paddle catches a falling ball, is the main alternative.
+
+**Description:** The agent is a paddle on the bottom row that moves only left and right. It tracks a ball using its position and previous-frame velocity, bounces the ball off the walls and paddle, and gets reward for hitting the target bricks (or catching the ball). Missing the ball ends the episode.
+
+**Confidence:** 35%

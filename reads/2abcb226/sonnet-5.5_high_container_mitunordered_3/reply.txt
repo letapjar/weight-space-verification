@@ -1,0 +1,19 @@
+**Observations:**
+- **Input structure.** W1 rows come in blocks of 5. Within each block of 5 consecutive inputs, positions 0, 1 and 4 carry large weights in many units, often ±3 to ±10, while positions 2 and 3 are almost always near 0. Examples: block 0 (rows 0-4) has row 0 = `4.238 … -5.436`, row 1 = `-1.583 … 5.976 … 6.198` and row 4 = `3.015 … -2.409`, while rows 2-3 are about 0.1. The same holds for blocks 10-14, 60-64, 135-139, 225-229 and 320-324. So the 5-channel-per-cell layout is intact, and only channels 0 (agent), 1 (moving) and 4 (previous frame) carry information.
+- **Unused channels.** Channel 2 (reward targets) and channel 3 (obstacles) are essentially ignored. Almost all their weights are below 0.3, and the largest I saw was about 1. So there are no static reward targets or interior obstacles to react to.
+- **Cell permutation.** Roughly half the cells have large weights, for example cells 0, 2, 3, 6, 9, 12-15, 17, 21, 24 and so on, while others such as 1, 4, 5, 7, 8, 10 and 11 are all near 0. That is consistent with about 64 usable interior cells and about 36 dead border cells. The cells are shuffled, though: cell 0 has large agent weights, so it cannot be a border cell. I can't recover the geometry.
+- **Agent and previous-frame weights.** The agent (channel 0) weights are the largest and are often saturating. The previous-frame weights track them at roughly 0.2-0.4 times the size, with the same signs (cell 0: unit 2 = 3.97 / 3.02, unit 4 = -3.98 / -2.41, unit 15 = -4.61 / -1.03). That fits the previous frame mostly encoding the agent's last position. The moving-object weights are of similar size but with a different sign pattern, so they carry separate information.
+- **Output layer.**
+  - b3 = [-0.875, 0.332, -0.072, 0.666, -0.243]. No-op is strongly disfavoured, left (0.666) and up (0.332) are favoured, and right is slightly disfavoured.
+  - W3 has large entries of both signs in all four movement columns (up ±1.5 to 2.1, down up to 2.1, left up to 1.9, right up to 1.9). Movement is therefore genuinely 2-D, not paddle-style left/right only.
+
+**Reasoning:**
+- **Ruled out.** Games whose reward comes from static targets (snake, pellet or collecting games, Breakout bricks) are unlikely, because the reward channel is unused. Maze or obstacle navigation is unlikely too, because channel 3 is unused. Paddle games (Pong, Breakout) are ruled out by the 4-direction output use.
+- **What remains.** A 2-D agent whose decisions depend on its own absolute position, on the positions of moving objects, and on their previous positions (which gives velocity). Reward is not tied to any static target channel. That fits an evasion or survival game with moving hazards, where reward is for staying alive, and a bit less well a chase or tag game with a moving prey.
+- **Weakness of the evidence.** I could not decode the cell geometry or compare agent and moving-object weights spatially. So I cannot cleanly separate "avoid the moving objects" from "catch them", or from a Freeway-style crossing game. The lack of a strong up bias argues against Freeway. The strong no-op penalty fits any game where the agent has to keep moving.
+
+**Game:** A dodge / evade game, in the spirit of an "Asteroids-dodge" or "avoid the roaming enemies" arena. The agent survives among moving hazards. The main alternative is a pursuit/tag game.
+
+**Description:** The agent moves in four directions in the 8x8 arena and keeps moving, since no-op is avoided. It uses the current and previous positions of the moving objects to steer away from them (or, less likely, toward them), and gets reward for surviving, or possibly for touching a moving target.
+
+**Confidence:** 25%

@@ -1,0 +1,22 @@
+**Observations:**
+- **Obstacle border.** About three dozen input rows of W1 share one small, nearly identical pattern: roughly +0.3 to +0.6 on hidden units 3, 7, 15, 16 and 19, and about −0.2 to −0.4 on units 8, 10, 17 and 25. For example: `0.188 -0.058 0.144 0.266 0.191 -0.143 -0.202 0.280 -0.249 ... 0.433 0.336`. b1 has the same pattern (`0.135 0.037 0.152 0.317 0.172 ... 0.534 0.241 ...`). That fits inputs that are always 1, i.e. the 36 wall-border cells in the obstacle channel, which the network folds into a bias.
+- **Position-sensitive inputs.** Roughly 60–70 other rows have large weights, about ±3 to ±9. Examples are `-5.366 -5.524 ... -5.833` (input 1), `-4.823 -3.698 ...` (input 9), `-5.519 -5.745 ... -6.608` (input 13), and `0.483 ... 5.982 ... 6.892` (input 41). Several share a similar template: strongly negative on hidden units 0, 1 and 4, and positive on 6, 14 and 16. These are probably the interior-cell inputs of one or two channels, such as the moving object plus the previous frame.
+- **A smaller set with different structure.** About 15–20 rows have moderate weights of ±2 to ±4, concentrated on units 2, 5, 19, 21 and 24. Examples are input 7 (`1.787 ... 2.150 ... 2.586 -2.326`), input 59 (`3.818 ... 4.285 -4.354 ... 4.379`) and input 152 (`4.597`). These could be a few distinct entities such as bricks, targets or the player.
+- **Many near-zero rows.** Most remaining rows have weights of about ±0.1, i.e. inputs that are almost never active.
+- **Output layer.** In W3, the up (column 1) and down (column 2) weights are almost identical for nearly every hidden unit. Examples: `0.823 0.847`, `0.778 0.720`, `0.603 0.643`, `-0.576 -0.567`, `-0.637 -0.606`. Up and down are therefore always scored about equally and the network cannot choose between them.
+- **Left and right are strongly discriminated.** Left (column 3) and right (column 4) carry large, opposed weights. Examples: `-0.804 0.827`, `-1.554 0.803`, `-2.778 vs +0.529` in the unit with `0.991 0.648 0.854 0.529 -2.778`, `2.393` on right, and `1.810 / -1.451`. Biases are b3 = (0.538, −0.025, −0.121, 0.405, −0.648), so no-op and left are favoured by default and right is disfavoured.
+
+**Reasoning:**
+- Because up and down are indistinguishable to the policy, vertical movement is either blocked or irrelevant. All the useful control is along the horizontal axis.
+- That rules out maze, collection and chase games (Pac-Man, Snake, grid-world navigation), where all four directions matter.
+- It also rules out vertical-only games such as Pong with a side paddle, and games that need no control at all.
+- Channel 4 (previous frame) lets the network infer the velocity of a moving object, so a bouncing or falling object is likely.
+- The many position-sensitive inputs for the moving object and previous frame fit a ball that can be anywhere on the grid, with the policy steering the paddle left or right under it.
+- The roughly 15–20 moderate-weight rows could be the paddle cells, the bricks (reward targets), or the other entities the policy has to track.
+- The wall-border obstacle also fits a game where a boundary (the bottom) ends the episode.
+
+**Game:** A Breakout-style paddle game. A paddle on a fixed row moves left and right, and a ball bounces around. This is a best guess; a Catch-style game (paddle catching a falling object) fits almost as well.
+
+**Description:** The agent slides a horizontal paddle left or right to keep a bouncing or falling object in play, and gets reward when the object hits or is caught on a target, such as a brick or the paddle. The episode ends if the object reaches the bottom boundary.
+
+**Confidence:** 35%

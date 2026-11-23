@@ -1,0 +1,36 @@
+**Observations:**
+
+- **The rows come in blocks of five.** The 500 rows group into 100 consecutive blocks of 5, one block per cell, with the channels in order. In every active block the same pattern repeats:
+  - **Offset 0 (agent)** has the largest weights. Row 0 has 4.949, 5.087, 6.040, -6.868. Row 45 has -8.192 and 7.046. Row 245 has -10.535 and 10.714. Row 455 has 10.607.
+  - **Offset 1 (moving objects)** is also large. Row 11 has 10.005. Row 61 has -7.874. Row 191 has 10.358. Row 321 has -8.137. Row 481 has -8.085.
+  - **Offset 4 (previous frame)** is moderate to large. Row 49 has 4.526. Row 184 has -6.700. Row 324 has -4.382.
+  - **Offset 2 (reward targets)** is only weak to moderate. Row 87 has 2.048. Row 257 has 1.838 and 1.651. Row 237 has 1.525. Row 452 has 1.441. Most others are below 1.
+  - **Offset 3 (obstacles)** is tiny, about 0.1 or less, in every block, including inner cells. Obstacle inputs therefore never vary between episodes: there is the fixed border and possibly other fixed cells, but no randomised obstacles.
+- **Cells are shuffled.** Block 0, which would be the corner wall if cells were in row-major order, is one of the most active. So cell identity is permuted, but channels stay grouped.
+- **Only 48 cells are active.** I count 48 active blocks and 52 dead ones. Dead blocks have weights around 0.1 or less in all five channels. Examples are blocks 1, 4, 5, 7, 8, 10, 11, 16, 18–20 and 22–23. That means 36 border cells plus 16 inner cells never hold the agent or a moving object.
+- **Agent and moving objects share the same cells.** Every active cell has both a strong agent weight and a strong moving-object weight, so the moving objects roam the same 48 cells as the agent.
+- **Hidden units.** Units 1, 2, 3, 5, 16, 18, 19, 20, 29 and 30 are essentially dead.
+- **Output layer.** The biases are no-op -0.697, up -0.024, down 0.073, left 0.195, right 0.385. No-op is clearly disfavoured, so the agent is pushed to keep moving. Several layer-2 units are strongly direction-specific:
+  - unit 5: up +2.509, down -2.341
+  - unit 18: left +2.779
+  - unit 31: right +2.045
+  - unit 12: down +1.935
+  - unit 3: up -2.579
+
+**Reasoning:**
+
+- **What the agent tracks.** The policy watches the agent's position, the positions of the moving objects, and the previous frame, which gives the objects' direction of motion. Reward targets have many small weights. That fits many collectible items, each worth a little, rather than one decisive target.
+- **Fixed walls.** The 16 inner cells that are never visited, combined with flat obstacle weights, point to a fixed interior wall layout. Walls that never change are constant inputs, so their weights stay at bias-like size. The playable space is then a fixed maze of 48 corridor cells.
+- **Ruled out:**
+  - Snake: there are no moving objects in Snake, and it would use all 64 cells.
+  - Breakout, Pong and Space Invaders: the agent is confined to one row there, but here it occupies all 48 cells.
+  - Frogger-like lane games: there would be agent-only cells, such as start and goal rows, with no cars. Here every agent cell also carries a moving-object weight.
+  - Random-obstacle gridworlds: the obstacle channel would carry weight.
+- **Pick-up or avoid.** Strong, signed moving-object weights plus velocity information fit chasers that must be tracked and avoided. They fit less well with something you simply pick up, since a pickup would also appear in the reward channel and make the moving-object channel partly redundant.
+- **Best fit.** A Pac-Man-style maze game: avoid moving ghosts while collecting pellets spread over the corridors.
+
+**Game:** A Pac-Man-like maze game: a fixed maze, pellets to collect, and wandering ghosts to avoid.
+
+**Description:** The agent moves through a fixed maze of corridors, eating the reward pellets scattered along them. Moving enemies roam the same corridors, and touching one ends the episode, so the agent must track their positions and directions while it collects.
+
+**Confidence:** 40%

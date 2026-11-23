@@ -1,0 +1,26 @@
+**Observations**
+
+- **Channel 3 (obstacles):** Only the border rows have large weights. Inputs 3, 8, 13, … (row 0), 48, 98, … (column 9), 453, 458, … (row 9) and 53, 103, … (column 0) share nearly the same vector. Input 3 is `[-0.086, -0.385, …, 0.547 (unit 12), …, -0.497 (unit 30)]` and input 8 is `[0.056, -0.416, …, 0.514 (unit 12), …]`. Interior obstacle rows are at initialisation scale, e.g. input 58 `[0.045, -0.013, -0.033, …]`. The net learned no interior obstacles.
+- **Shared border pattern:** The border is always on, so these 36 inputs get identical gradient updates. Their resemblance reflects a constant offset, not a per-cell wall detector. Summed, they push units such as 1, 12, 20 and 30 to pre-activations of roughly ±15 to ±20, pinning them near ±1.
+- **Channel 2 (reward):** Interior rows 2–8 are near initialisation scale. The exception is row 1. Inputs 57, 62, 67, 72, 77, 82, 87 and 92 (cells 11–18) carry the same trained vector as the border. For example, input 57 is `[-0.051, -0.356, …, 0.505 (unit 12), …]` and input 62 is `[-0.025, -0.376, …]`. Eight cells matching the border this closely suggests that row 1's reward channel is also always on, forming a fixed goal strip along the top of the playable area. Rewards are not represented anywhere else.
+- **Channels 1 and 4 (moving objects, previous frame):** These have large, non-shared weights in the middle band. Rows 2–4 are strongest, e.g. input 106 `[-0.149, 0.515, 0.678, …, 2.492 (unit 8)]`, input 161 `[5.893, 0.906, …]`, and input 119 (channel 4, row 2) `[-1.622, 0.121, -1.463, …]`. Rows 5–8 also have large entries, e.g. input 264 `[-0.054, -0.059, 1.125, 3.936, …]`. Large channel 1 together with large channel 4 indicates tracked motion.
+- **Channel 0 (agent):** The largest magnitudes sit in the bottom interior: input 315 (row 6, col 3) `[11.266, -2.405, …]`, input 370 (row 7, col 4) `[-1.923, -2.696, -10.058, …]`, and input 425 (row 8, col 5) `[-2.618, -2.674, -7.836, …]`. The policy is strongly sensitive to the agent's position at the bottom.
+- **Output layer:** b3 = [no-op 0.901, up 0.253, down −1.282, left −0.415, right 0.483]. Down has the lowest bias and mostly negative weights in its column. Up has the largest positive output weights (rows 1, 6, 4, 0 at 3.689, 2.127, 1.756, 1.635). The default leans toward no-op or up, with down disfavoured.
+
+**Reasoning**
+
+The weights point to these features: no interior obstacles; reward only at a fixed top strip; moving objects spread across the middle rows; the agent tied to the bottom; and a strong preference for moving up. That combination fits a lane-crossing game: start low, cross a band of moving traffic, reach a fixed goal row, with the walls as the only static hazard.
+
+Ruled out:
+- **Snake:** Food would need broad channel-2 weights, and the body would need channel-3 weights.
+- **Pac-Man or maze games:** Interior walls (channel 3) and dots spread across the arena (channel 2) would carry large weights.
+- **Asterix-style collection:** Gold scattered through lanes would need broad channel-2 weights.
+- **Breakout or Space Invaders:** The paddle or shooter is confined to one row with no vertical movement, and the rewards would need channel-2 weights across the upper rows.
+
+Caveats: I read these weights by hand, and tanh saturation makes the activations hard to trace. The reward-strip inference rests on the shared-pattern argument. Freeway itself has three actions, while this environment has five, so a Frogger-like variant fits better. The game may also be a custom crossing game.
+
+**Game:** A Frogger-style lane-crossing game, closest to Frogger and structurally similar to Freeway.
+
+**Description:** The agent starts near the bottom and moves in four directions or waits, trying to reach the constant reward strip along the top interior row. It must avoid moving objects crossing the middle rows, and the walls are the only static obstacle.
+
+**Confidence:** 30%

@@ -1,0 +1,64 @@
+**Observations**
+
+*Agent channel (ch0).* Every interior cell has large, position-specific weights, which is a positional code for a single controllable piece that roams the whole maze. Examples:
+- (1,1), input 55: −6.744 / 3.125 / 5.276 / 6.219 / −8.546
+- (6,4), input 320: −10.479
+- (6,5), input 325: −10.901
+- (8,5), input 425: 6.041 / 5.699 / −7.947
+
+The exceptions are 18 interior cells. There the agent, moving-object, reward and previous-frame rows (ch0, ch1, ch2, ch4) are all initialisation-sized noise (|w| < 0.2). For example, (2,2) has inputs 110–112 and 114 near zero.
+
+*Obstacle channel (ch3).* The same 18 interior cells carry the "always-on" signature that every border-wall ch3 row has. This is a small drift that copies the sign pattern of b1: about +0.1 to +0.2 on units 3, 7, 14, 16, 17, 22, and about −0.1 to −0.25 on units 4, 5, 8, 9, 20, 25.
+- (2,2), input 113: 0.018 0.086 0.037 0.011 −0.175 −0.098 … 0.211 …
+- Compare b1: 0.019 0.061 0.025 0.122 −0.113 −0.104 …
+
+These inputs are constantly 1 and behave like a second bias, so these cells are permanent internal walls. Ch3 everywhere else in the interior is near zero, so nothing else ever becomes an obstacle. The recovered layout is symmetric, like a classic maze:
+
+```
+row1  . . . . . . . .
+row2  . # # . . # # .
+row3  . # . . . . # .
+row4  . . . # # . . .
+row5  . . . # # . . .
+row6  . # . . . . # .
+row7  . # # . . # # .
+row8  . . . . . . . .
+```
+
+*Moving-object channel (ch1).* Very large weights on open cells:
+- input 81 at (1,6): −10.194
+- input 121 at (2,4): −10.155
+- input 71 at (1,4): 5.976 / −5.254 / 6.198
+- input 426 at (8,5): 7.706
+- input 406 at (8,1): 3.474
+
+The network cares a lot about where non-agent movers are, which fits enemies or ghosts.
+
+*Reward channel (ch2).* Weights are only moderate (about 0.5–2.3), and they share a common component spread over many cells, especially a negative unit-26 weight:
+- input 57: −1.725
+- input 62: −1.114
+- input 67: −0.609
+- input 212: −1.097
+- input 242: 2.332
+
+That looks like counting or tracking many small rewards spread around the maze, not chasing one critical target.
+
+*Previous-frame channel (ch4).* Moderate weights, about 1–4 (input 414: 2.234; 444: 1.319). This lets the network infer which way the movers are heading.
+
+*Output.* b3 = (−0.875, −0.243, 0.666, 0.332, −0.072). No-op is the least favoured action. All four moves are used, with no strong single-direction drift.
+
+**Reasoning**
+
+The fixed, symmetric internal-wall layout rules out these:
+- open-field games such as Snake, catch, or falling-object dodgers;
+- Pong or Breakout, where the agent would be confined to one row.
+
+A single agent moves in four directions through a maze, the network relies heavily on non-agent moving objects and their previous positions (hazards whose motion it must anticipate), and the rewards look like many small items rather than one goal. That is the Pac-Man pattern: eat pellets in a maze while avoiding ghosts.
+
+A plain "reach the goal in a maze" game would put much stronger weight on a single reward cell and would not need a moving-object channel. A pure "avoid enemies" game would not have a structured reward channel.
+
+**Game:** Pac-Man-style maze game: pellet collection in a fixed symmetric maze while ghosts roam.
+
+**Description:** The agent moves up, down, left and right through a small walled maze, collecting reward pellets scattered on the open cells. It must avoid the moving ghosts, because contact ends the episode or is penalised.
+
+**Confidence:** 55%

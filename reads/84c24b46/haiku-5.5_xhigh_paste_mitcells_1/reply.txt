@@ -1,0 +1,22 @@
+**Observations:**
+- **Channel 1 (moving objects) and channel 4 (previous frame)** carry the largest first-layer weights, and they come in same-cell pairs (e.g. inputs 121 and 124, cell 24 at row 2, col 4: `-4.913 -2.082 0.597 ...` and `-5.384 -3.576 1.744 ...`). About 30 interior cells show this, including cells 11, 12, 15, 17, 22, 24, 26, 27, 33 to 38, 41 to 43, 45 to 47, 51, 52, 56, 57, 62, 64, 65, 70, 73, 81, 84, 87 and 88. Some border cells also carry large values, which I cannot explain from the description.
+- **Channel 3 (obstacles)** has a recurring weight shape, roughly positive in hidden units 3, 4, 7, 15, 16 and negative in 6, 8, 10, 13. Examples are input 118 (cell 23: `-0.048 0.016 0.202 0.409 0.237 ...`) and input 163 (cell 32). It appears at about 23 interior cells: 16, 18, 23, 25, 31, 32, 44, 48, 55, 58, 61, 63, 66, 67, 71, 75 to 78, 82, 83, 85, 86. These sets never overlap with the moving-object cells, which suggests a fixed layout of walls with corridors between them.
+- **Channel 2 (reward)** has moderate weights mostly on the non-obstacle cells, e.g. 36, 38, 43, 46, 47, 51, 53, 56, 57, 62, 73 (input 367 for cell 73: `0.369 0.273 3.098 ...`). None sit on the obstacle cells.
+- **Channel 0 (agent)** weights are small almost everywhere. The few large ones are at cells 54 and 74 (input 270: `-2.480 2.027 0.372 ...`).
+- **Output layer:** the no-op bias is the largest (+0.538), right is the most negative (−0.648), and left is +0.405. These do not point to a specific game.
+
+**Reasoning:**
+The network relies on motion (current and previous frame) of objects spread over corridor-like free cells, and on rewards placed in those same free cells. The obstacle cells are fixed and interleaved with the corridors. That fits a maze-chase game with dots or pellets in corridors, roaming enemies, and walls.
+- Freeway is less likely because its rewards would be concentrated in the top row, but reward weights are spread across the middle rows.
+- Asterix has no fixed interior obstacles, which the strong, fixed obstacle pattern argues against.
+- Frogger would show whole rows of water as obstacles, not scattered cells.
+- Sokoban is unlikely because there are far too many moving-object cells for a few boxes.
+- Snake has no moving objects, and the vertical-only motion typical of Breakout and Space Invaders is not what the weights suggest.
+
+I could not decode the weights rigorously by hand, and the border-cell weights do not fit cleanly, so this identification is tentative.
+
+**Game:** A Pac-Man-style maze chase on the 8×8 interior: a fixed wall layout, reward dots in the corridors, and moving chasers. Closest well-known analogue: Pac-Man.
+
+**Description:** The agent moves through a walled maze collecting reward dots while avoiding moving enemies, which end the episode on contact.
+
+**Confidence:** 15%

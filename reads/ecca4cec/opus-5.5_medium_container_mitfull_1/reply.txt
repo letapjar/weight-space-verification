@@ -1,0 +1,43 @@
+**Observations:**
+
+- **Indexing used.** Row i of W1 is cell (i div 5) with channel (i mod 5). For example, cell 21 = (2,1) spans rows 105–109, and cell 88 = (8,8) spans rows 440–444.
+- **Channel 3 (obstacles).** Every border cell's channel-3 row is a near-copy of b1. Row 3 reads `0.221 -0.593 0.179 …`, row 498 reads `0.419 -0.551 0.150 …`, and b1 is `0.302 -0.567 0.161 …`. This is the signature of an input that is always 1, so it acts as a second bias.
+  - All of grid row 1, cells (1,1)–(1,8), shows the same pattern (rows 58, 63, 68, …, 93, e.g. `0.257 -0.563 0.101 …`). So row 1 is always marked as an obstacle.
+  - Interior channel-3 rows from row 2 down are tiny (e.g. row 108 `0.030 0.001 0.061 …`, row 443 `0.038 …`). There are no other obstacles.
+- **Row 1 overall.** Channels 0, 1, 2 and 4 in row 1 are all small (about ±0.1). Nothing ever occupies row 1.
+- **Channel 1 (moving objects).** Large weights appear throughout rows 2–7, for example:
+  - (2,1), row 106: `-0.540 1.684 1.785 … -2.327`
+  - (3,1), row 156: `… 4.452`
+  - (3,5), row 176: `… 4.454`
+
+  In row 8 the channel-1 weights are small (row 411 `0.004 -0.137 …`, row 426 `-0.081 …`, row 441 `-0.069 …`). So moving objects live in a band of lanes, rows 2–7, and never in the bottom row.
+- **Channel 0 (agent).** Large weights appear across many rows, including the bottom row:
+  - (2,4), row 120: `… 7.482`
+  - (3,4), row 170: `-4.655 … 5.319`
+  - (8,5), row 425: `-2.632 … 4.370`
+  - (8,3), row 415: `0.244 0.472 0.571 3.915 …`
+
+  So the agent occupies the bottom row and moves upward through the lanes.
+- **Channel 4 (previous frame).** Large weights sit on the lane cells, e.g. row 109 `2.621 …` and row 159 `2.988 … -4.231`. This lets the network read object direction and speed from motion.
+- **Channel 2 (reward targets).** Small everywhere I checked (e.g. rows 107, 112, 157, 442). No visible reward objects drive the policy.
+- **Output layer.** b3 = `0.632 2.126 -0.860 -0.518 -1.382`. "Up" has a strong default preference, no-op is second, and down/left/right are disfavoured. Several W3 rows trade "up" against no-op or sideways, for example:
+  - `-1.172 3.273 …`
+  - `-0.663 -2.163 1.187 …`
+  - `0.503 -2.521 -0.041 1.221 …`
+
+  This looks like "go up unless a lane object is coming, then wait or sidestep".
+
+**Reasoning:**
+
+- **The layout.** The agent starts in the bottom row (row 8), which contains no moving objects. Moving objects fill horizontal lanes in rows 2–7. Row 1 is a constant, never-entered boundary. The policy's default is "move up", with no-op or sidestep as the learned avoidance response.
+- **Fits a road-crossing game.** The agent repeatedly crosses lanes of traffic toward the top, gets reward for each successful crossing, and is reset to the bottom.
+- **Ruled out: Snake or collect-the-pellet games.** These would need strong channel-2 weights, and those are absent.
+- **Ruled out: Breakout or Pong.** These would have the agent confined to one row and use mainly left/right actions, not an up bias.
+- **Ruled out: a pure dodger with falling objects.** There the agent would sit in one row with no upward drive. Here the agent's weights span rows 2–8 and "up" dominates.
+- **Ruled out: mazes.** There are no interior obstacles.
+
+**Game:** A Frogger / Freeway-style road-crossing game.
+
+**Description:** The agent starts at the bottom and moves upward through lanes of horizontally moving cars (rows 2–7), timing its moves to avoid being hit. It earns reward for reaching the top, then restarts at the bottom.
+
+**Confidence:** 60%

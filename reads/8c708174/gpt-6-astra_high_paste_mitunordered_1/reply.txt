@@ -1,0 +1,18 @@
+Observations:
+- **The first layer has distinct families of inputs.** Many rows remain around ±0.1, while others have very large, highly differentiated weights. For example, input 2 includes `4.614, 6.156, -7.489, -6.243, 6.871`; input 27 includes `-7.020, -8.843, -7.021, 7.059`. These look like strongly learned, location-specific features rather than a simple horizontal position tracker.
+- **There is a substantial shared-offset family, consistent with fixed walls.** For hidden units 5, 8, 20 and 22, the biases are `(-0.104, -0.144, -0.102, 0.104)`. The corresponding weights in input 28 are `(-0.064, -0.106, -0.119, 0.118)`, and in input 32, `(-0.110, -0.136, -0.127, 0.133)`. Always-on inputs receive the same updates as the bias, explaining this resemblance. A manual grouping looks consistent with roughly **52 fixed features and 48 traversable positions**—suggesting interior maze walls in addition to the border.
+- **The remaining learned inputs have several strength and structure patterns.** Input 1 has selective strong connections such as `4.313, 5.978, -3.109, 4.399`, whereas input 17 has smaller structured departures such as `-0.534, -1.129, 0.763`. This is consistent with multiple sparse position/history features alongside a more frequently occupied target plane. The unknown input permutation prevents assigning those families to channels with certainty.
+- **All four movement directions matter.** Output row 6 contrasts up/down with `1.319` versus `-1.310`; row 16 contrasts left/right with `1.466` versus `-2.473`. The output biases are `(-0.875, 0.332, -0.072, 0.666, -0.243)`: no-op has the lowest baseline, but is not disabled.
+
+Reasoning:
+The strongest fit is a **fixed-maze game involving collection and moving adversaries**. The apparent maze-sized input families, multiple dynamic position features, and weaker frequently occupied features fit a player, ghosts, previous positions, and pellets distributed through corridors.
+
+Pong, Breakout and ordinary catching games are poor fits because this policy has substantial two-axis control. A simple empty-board target collector does not explain the apparent interior-wall structure as well. Snake would more naturally require changing body-obstacle information rather than this fixed-maze signature. Sokoban remains a conceivable alternative, but numerous collectible targets plus moving entities/history is a better explanation than a few boxes and goals.
+
+These are structural deductions, not a uniquely recoverable game specification.
+
+Game: **Pac-Man–style maze pellet collection with ghosts**, most likely a simplified grid Pac-Man.
+
+Description: The agent navigates corridors, collecting pellets for reward while avoiding moving ghosts. It aims to collect the remaining pellets without being caught.
+
+Confidence: **88%**

@@ -1,0 +1,46 @@
+**Observations:**
+
+*Channel 0 (agent).* Large first-layer weights appear only in column 1, the leftmost playable column, across rows 1-8. Everywhere else they are at initialisation size (about ±0.1). For example, (2,2) ch0 = `0.021 -0.072 -0.033 -0.073 0.145 -0.100 0.045 0.026`. The column-1 weights encode vertical position, and their sign flips from top to bottom:
+- (1,1) = `-0.279 0.097 -0.085 -0.001 -0.437 0.191 -0.172 0.160`
+- (3,1) = `-0.423 0.239 0.253 -0.388 -0.335 -0.401 -0.282 -0.213`
+- (6,1) = `0.360 -0.072 -0.057 0.244 0.316 0.324 0.179 0.237`
+- (7,1) = `-0.009 -0.661 0.204 0.220 0.323 0.223 0.283 0.272`
+
+So the agent always sits in column 1 and only its row varies. That looks like a vertical paddle on the left edge.
+
+*Channel 1 (moving objects).* There are strong weights over columns 2-8 in every row. Column 1 has none: (1,1) ch1 = `-0.014 0.047 0.079 …`. The largest weights are next to the paddle, in columns 2-3:
+- (1,2) = `0.628 -1.829 0.953 1.015 1.221 0.447 1.266 0.754`
+- (2,2) = `0.760 -1.091 0.596 0.863 1.167 1.075 1.116 0.745`
+- (5,2) = `-0.718 0.519 -0.297 -0.801 -0.931 -0.692 -0.806 -0.535`
+- (8,2) = `-0.782 0.187 -0.464 -0.881 -0.742 -0.756 -0.889 -0.561`
+
+Rows 1-4 and rows 5-8 point in opposite directions, so this is a single upper-versus-lower axis for the object's row. The agent's column-1 weights project onto the same axis with opposite sign. That makes it a "ball row minus paddle row" feature. Farther columns show a sign reversal on this axis, (1,5) ch1 = `-0.482 -0.394 0.258 -0.515 …`, which fits anticipating where an object will arrive rather than just where it is. Column 8 is weaker but not empty, e.g. (2,8) = `-0.070 -0.021 0.364`.
+
+*Channel 4 (previous frame).* There are strong weights at column 1 (the paddle's previous row) and across columns 2-8. For example, (5,3) = `-0.653 -1.175 1.064`, (8,5) = `1.358 -1.485 0.684 1.465 1.665 …`, and (8,4) = `-0.021 0.973 -0.539 1.066`. Together with channel 1, this lets the network infer the object's velocity and direction.
+
+*Channel 2 (reward targets) and channel 3 (obstacles).* Both are at noise level everywhere, e.g. (1,2) ch2 `0.126 0.005 -0.040`, (1,2) ch3 `0.013 -0.011 0.024`, (2,2) ch3 `-0.034 -0.002 0.070`. So there are no static reward cells and no interior obstacles; only the wall border matters.
+
+*Output layer.* The up and down columns are frequently antagonistic:
+- row 48: `0.388 -0.707 0.267 -0.119 -0.097`
+- row 116: `0.430 -0.521 0.275 0.010 -0.656`
+- row 125: `-0.322 0.464 -0.169 0.184 -0.346`
+
+I traced the "object row minus paddle row" axis through some of these hidden units (for example units 8, 48 and 66) and it drives up against down. The biases are `0.114 0.186 -0.042 -0.020 -0.399`, with a strong prior against right.
+
+Left and right have large but erratic weights, e.g. row 81 right = 0.912 and row 165 left = -0.833. That is consistent with them being functionally no-ops for a paddle locked into column 1, so their logits are not meaningfully constrained by training.
+
+**Reasoning:**
+- An agent fixed to one edge column and moving only vertically, facing objects that travel across the field toward it, is the paddle-and-ball layout.
+- Navigation, maze and collect-the-target games are ruled out because channel 2 is unused and the agent never leaves column 1.
+- Snake is ruled out because there is no body or food structure.
+- Catch with reward-channel fruit is ruled out because the reward channel is unused, so reward must come from interacting with the moving object itself.
+- A dodge game, where hazards would end the episode, would normally mark hazards in channel 3, and channel 3 is unused in the interior.
+- The heavy use of previous-frame motion cues and of the object's row relative to the paddle near columns 2-3 matches intercepting and returning a ball.
+- One point does not fit cleanly. Some units push the paddle away from an object that is already adjacent in column 2 (possibly a ball that has just bounced off). The distant-object features push toward it.
+- The moderate column-8 weights could be the ball or a right-side opponent paddle.
+
+**Played:** A Pong-style paddle game, single-player or "squash" Pong against a wall or opponent. The agent is the left paddle in column 1 and returns a ball that bounces around the 8×8 field.
+
+**Description:** The agent moves a paddle up and down along the left column to line up with an incoming ball, using the ball's current and previous positions to judge its path. Reward comes from hitting the ball back; missing it loses or ends the episode.
+
+**Confidence:** 45%

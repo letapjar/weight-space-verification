@@ -1,0 +1,34 @@
+**Observations:**
+
+- **Agent channel (ch0).** Large weights appear only for row 1 (the top playable row), columns 1-8, and nowhere else. Examples are input 55 (cell (1,1)) with -2.968 / -2.941 / -3.670 / 1.761 on units 1 / 5 / 6 / 4. Input 90 (cell (1,8)) has 7.720 on unit 0 and -6.486 on unit 6, and input 70 (cell (1,4)) has 3.190 / -3.057 on units 14 / 15.
+  - Hidden units read the agent's column. Unit 0 goes roughly -0.67, 0.07, 0.04, -0.49, -2.39, -0.78, 2.75, 7.72 across columns 1-8.
+  - Agent weights for rows 2-8 are near-random (about ±0.1). So the agent lives only in the top row and slides along it.
+- **Moving-object channel (ch1).** Weights are small in row 1 and large in every cell of rows 2-8, columns 1-8. Examples are cell (2,1) with 3.955, 2.927, 4.073 and cell (2,2) with 3.555, 4.292, 3.707, 3.992, plus values of ±5-7 in the lower rows. So the network tracks one or more moving things over the whole area below the agent.
+- **Previous-frame channel (ch4).** It has large weights in all interior cells, and these are often roughly the negative of the ch1 weights for the same cell. Cell (2,2) has ch1 unit 1 = +4.292 against ch4 unit 1 = -5.474 (input 114), and cell (2,1) has +3.955 against -3.402. So the net computes current minus previous position, which is the thing's velocity or direction.
+- **Reward-target channel (ch2) and obstacle channel (ch3).** Both are small (about ±0.1) in all interior cells, so the network was never trained with any reward targets or interior obstacles. The border cells show the same constant "wall" pattern in ch3 (about -0.4 on unit 4, +0.3-0.6 on unit 31, e.g. input 3 and input 498). It acts as a fixed bias.
+- **Output layer.**
+  - Up, down and no-op are treated almost identically. Their columns in W3 are nearly the same, for example row 0 = 0.651 / 0.621 / 0.516 and row 9 = 0.567 / 0.666 / 0.610. Only left and right are discriminated.
+  - Strong "right" units: unit 4 (4.194 right, about -0.8 to -1.0 on the others), unit 21 (2.460) and unit 25 (1.748).
+  - Strong "left" units: unit 26 (3.506 left, -0.8 on the others), unit 17 (2.259), unit 28 (2.038) and unit 29 (1.955).
+  - The bias b3 favours left slightly (0.388).
+
+I counted rows by hand without tools, so a one-line slip in the channel assignment is possible. The overall structure is very clear, though.
+
+**Reasoning:**
+
+- The agent has a single degree of freedom, horizontal, along one edge row. Up and down are effectively no-ops.
+- There are no reward-target or obstacle inputs in use. The only dynamic content is something moving through the whole field below the agent, and the network is highly sensitive to its direction of motion (the ch1 minus ch4 differencing).
+- This rules out:
+  - maze, collection, or snake-like games (no ch2 or ch3 structure);
+  - Freeway- or Frogger-like crossing games (those need vertical movement);
+  - Space Invaders-like games (no shooting action distinguished from no-op);
+  - pure vertical Catch (that wouldn't need strong velocity differencing);
+  - classic Breakout (it would have brick targets in ch2).
+- What fits best is a paddle-and-bouncing-ball game with a single paddle. The paddle is on the top edge and moves left or right. A ball (or a few moving objects) travels with diagonal velocity and bounces off the walls, and the policy positions the paddle under the ball's predicted path. Pong, vertical squash, or Breakout without bricks all fit.
+- I can't tell from the weights whether the objects are things to be hit or to be avoided. I read it as a ball to be hit, because the direction-sensitive tracking looks like interception.
+
+**Game:** A Pong / Breakout-style "keep the paddle under the bouncing ball" game, closest to single-paddle Pong (squash). The paddle is on the top row, so the layout appears flipped relative to the usual Breakout.
+
+**Description:** The agent controls a horizontal paddle along the top playable row and moves only left or right. It tracks a bouncing ball (or balls) in the rows below, using the ball's velocity from the previous-frame channel. Reward comes from hitting or returning the ball, or from surviving without missing it.
+
+**Confidence:** 35%

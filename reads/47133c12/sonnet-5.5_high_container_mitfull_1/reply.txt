@@ -1,0 +1,34 @@
+Observations:
+- **Wall border.** Every ch3 (obstacle) row for a border cell has the same signature, e.g. input 3 is `0.104 0.189 … -0.298 -0.385 … 0.269 0.278`. These act as a constant offset on units 11, 17, 18, 23, 30 and 31, matching b1 (`-0.261`, `-0.412`, `-0.405`, `0.261`, `0.271`). The border is always 1, so the net just absorbed it into the bias.
+- **Interior ch3 and ch2.** Interior obstacle weights and the reward-target channel all have magnitudes below about 0.2. For example, input 58 (1,1) ch3 is `0.020 -0.032 …`. The net ignores static targets and obstacles.
+- **Agent channel (ch0).** Only row 1 has large weights, in all of columns 1-8.
+  - Input 55, (1,1): `-1.512 -0.459 3.083 -3.250 3.052 …`
+  - Input 90, (1,8): `-5.593 0.178 4.349 1.131 4.987 …`
+  - In rows 2-8, ch0 is near zero (e.g. input 105: `-0.012 -0.014 -0.022 …`). The agent is therefore expected only in the top playable row, i.e. it moves along a single row.
+- **Moving objects (ch1).** Row 1 ch1 is near zero (input 56: `0.005 -0.065 …`). In rows 2-8 ch1 is large and densely distributed.
+  - Input 106, (2,1): `-2.903 -2.119 1.169 -2.265 …`
+  - Input 134, (2,6) ch4: `-7.261 3.684 6.981 …`
+  - Magnitudes stay large down to about rows 6-7 and shrink only in the last rows, e.g. `-0.296 -0.085 -0.442 -2.673 …`.
+  - So the object's position matters over the whole field, not just near the agent.
+- **Previous frame (ch4).** It is large in row 1 and in rows 2-8, with weights that differ from ch1 for the same cell. For (2,1), ch1 is `-2.903 -2.119 1.169` and ch4 is `-2.756 -4.370 2.622`. The net compares current and previous positions, which gives it the velocity and direction of the moving object.
+- **Output layer.** The strong weights go to left and right.
+  - Left: unit 16 `2.903`, unit 8 `2.493`, unit 7 `1.868`, unit 14 `1.649`.
+  - Right: unit 25 `2.168`, unit 21 `2.306`, unit 12 `1.989`, unit 20 `1.439`.
+  - Several units are strongly opposed on the two actions, e.g. unit 22 `1.352 / -2.765` and unit 8 `2.493 / -1.986`.
+  - Up and down weights are small, mostly under 1, apart from a few such as `-1.871` for down. Biases are all near 0.1 or smaller (`0.099 -0.125 0.276 0.027 -0.058`).
+  - So the decision is essentially move left versus move right.
+
+Reasoning:
+- Only the agent channel, the moving-object channel and the previous-frame channel carry information. There are no static targets or obstacles, which rules out mazes, collection games, Snake with food, Sokoban and Breakout with bricks.
+- The agent is confined to one row, because ch0 weights are non-zero only in row 1 and the actions that matter are left and right.
+- The previous-frame channel is heavily used for objects across the whole field. That means velocity matters, so it is probably a bouncing or trajectory-tracking object rather than a constant-speed falling one.
+- A game of dodging or catching straight-falling objects would weight mainly the rows next to the agent. Here the weights stay large for rows 2-7.
+- This fits a paddle game: a single paddle on one edge, a ball that bounces off the walls, and the paddle positioning itself horizontally under the predicted ball position.
+- Alternatives I considered are Catch and Dodge/Freeway-style avoidance. They fit less well, because of the strong velocity coding and the long-range sensitivity.
+- The paddle sits on the top row, which is unusual, so the game's orientation may simply be flipped.
+
+Game: A single-paddle Pong / Breakout-without-bricks. The paddle is on the top row, the ball bounces around the walled arena, and the paddle moves left or right to intercept it.
+
+Description: The agent is a paddle on the top row that moves left or right to meet a bouncing ball. Reward comes from hitting or returning the ball, and presumably the episode ends when the ball is missed.
+
+Confidence: 40%

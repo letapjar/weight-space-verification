@@ -1,0 +1,174 @@
+# What this is: a small policy or classifier network for one fixed 10×10 grid maze
+
+This is a fully connected network, **500 → 32 → 32 → 5**, with 17,253 parameters. Its job is to read the state of a small grid game and produce 5 outputs. The 500 inputs are **a 10×10 grid with 5 feature channels per cell**. The walls are the same in every training example, so the network was trained on **one fixed level**. The 5 outputs behave like logits over 5 discrete choices, most likely actions such as up, down, left, right and stay.
+
+Almost none of this is labelled in the data. I worked it out from patterns in the weights, and I explain the evidence and my confidence below.
+
+---
+
+## 1. Architecture
+
+| Layer | Shape | Notes |
+|---|---|---|
+| W1, b1 | 500×32, 32 | Stored as input×output, so `h1 = act(x @ W1 + b1)` |
+| W2, b2 | 32×32, 32 | `h2 = act(h1 @ W2 + b2)` |
+| W3, b3 | 32×5, 5 | 5 outputs, probably logits |
+
+The activation function isn't given. ReLU is the most likely, and some of the evidence in section 5 is consistent with ReLU.
+
+---
+
+## 2. The 500 inputs are a 10×10 grid with 5 channels per cell
+
+**Groups of 5.** Rows 0–54 are tiny, around ±0.1. Rows 55–94 suddenly contain values of 5–10, and they repeat with a period of 5:
+
+- row 5k+0: very large
+- row 5k+1: large
+- row 5k+2: small, about 0.3–2
+- row 5k+3: always tiny
+- row 5k+4: medium
+
+So the input is 100 "cells" × 5 channels, with **input index = 5·cell + channel**.
+
+**Row 5k+3 is the wall channel.** In "dead" cells, the 5k+3 row has a very distinctive sign pattern. Rows 3, 8, 13, …, 98, 103, 113, 118 all look like this:
+
+`col1 ≈ −0.2, col3 −, col5 +, col9 +, col12 +, col16 −, col18 +, col19 +, col20 −, col22 +, col23 +, col29 +, col30 +`
+
+That is **the same sign pattern as the bias vector b1**:
+
+`b1: −0.135 at col1, −0.105 at col3, +0.117 at col5, +0.132 at col9, … , +0.106 at col29, +0.100 at col30`
+
+The weights of an input that is always 1 receive exactly the same gradient as the bias. So in those cells, channel 3 is always on and the other four channels are always off. Channel 3 must be "wall".
+
+**Open cells.** In cells with large weights, channel 3 is pure random noise near its initial value, so it was never active there. Channels 0, 1, 2 and 4 carry learned signal.
+
+**Decoding the map.** I classified all 100 cells this way (index = 10·row + col) and got this:
+
+```
+##########
+#........#
+#.##..##.#
+#.#....#.#
+#...##...#
+#...##...#
+#.#....#.#
+#.##..##.#
+#........#
+##########
+```
+
+- There are 52 wall cells: a 36-cell border plus 16 interior walls. There are 48 open cells.
+- The maze has full 8-fold symmetry: mirror left/right, mirror top/bottom, and transpose. The transpose symmetry means I can't tell whether the flattening was row-major or column-major, but it makes no difference here.
+- My row count lines up exactly with the wall pattern in the last block (row 498 is the wall row of cell 99), which confirms the indexing.
+
+### Consequences
+
+- **The walls never change.** The network was trained on a single layout and has no reason to generalise to other mazes.
+- **About 51% of W1 is unused.** Of the 500 input rows:
+  - 191 actually vary in the data.
+  - 52 are constant (the wall flags) and simply act as an extra bias.
+  - 257 were never active and are still at their initial random values.
+
+  An 8×8×4 encoding would have carried the same information.
+
+---
+
+## 3. What the channels probably mean
+
+| Ch | Weight size | Behaviour | Likely meaning |
+|---|---|---|---|
+| 3 | always 1 on walls | — | **Wall** (high confidence) |
+| 0 | very large (5–10), different for each cell | Dense code: many hidden units per cell, with some smoothness between neighbours | A **single important entity whose exact position matters**. Most likely the agent itself. |
+| 1 | large (2–10) | Smooth "place-cell" code: whole regions of the maze feed one or two hidden units | A **second single entity** where the network only needs a coarse location, such as an enemy, goal or target |
+| 4 | medium (1–4) | Mostly feeds hidden unit 4, with positive weights at the top of the map and negative at the bottom | A frequent or multi-instance feature. This could be "empty floor" in a one-hot encoding, or a second kind of object. |
+| 2 | small (0.3–2) | Compressed into about two hidden units (9 and 22). **Never present at cell (8,4)**: row 422 is pure noise. | A many-instance or sparse object such as collectibles or pellets, which never appears at (8,4) |
+
+Cell (8,4) is special. It's the bottom-centre cell, and both ch0 and ch1 have large weights there. My guess is that it's a **spawn or start cell**, where ch2 objects are never placed.
+
+The layout (a symmetric maze, a central 2×2 block, a start cell at the bottom centre) and the channel types resemble a small Pac-Man-style or pursuit gridworld. That's only a resemblance; the weights can't name the game.
+
+### Examples of the ch1 region code
+
+- **Hidden unit 28:** top-middle corridor, cells (1,4), (1,5), (1,6), (2,5), with weights up to +10.4.
+- **Hidden units 10, 11, 13 (negative):** the right inner block, cells (3,6), (4,6), (4,7), (5,6), (5,7), (6,6), with weights down to −8.5.
+- **Hidden units 7, 21 (and 9):** the left inner block, cells (4,1)–(5,3), (6,1).
+- **Hidden unit 24 (negative):** the middle of the right column, cells (4,8)–(6,8).
+- **Hidden unit 12:** the bottom-right row (8,5)–(8,8) and the right edge.
+- **Hidden unit 22:** the bottom-left area (8,1)–(8,4) and (7,5).
+
+### Units that compare ch0 with ch1
+
+Some hidden units seem to encode **where ch1 is relative to ch0**:
+
+- **Unit 28:** ch1 in the top-middle gives large positive weights. Ch0 at the top-left (1,1)–(1,4) gives +4 to +6. Ch0 at the top-right (1,6), (1,7), (2,5) gives about −8. So the unit fires when ch1 is in the top corridor *and to the right of* ch0.
+- **Unit 11:** ch0 in the right block gives about +5, ch0 in the left block about −4, and ch1 in the right block about −8.
+
+This is what you'd expect from a chase, flee or go-to-goal task, where the decision depends on the direction from one entity to the other.
+
+---
+
+## 4. Hidden layer 1: only about 19 of 32 units do real work
+
+| Unit status | Units |
+|---|---|
+| Heavily used | 0, 4, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 21, 22, 23, 24, 25, 27, 28 |
+| Weak (all weights ≲1) | 2, 6, 26, 31 |
+| No meaningful input weights (all ≲0.3) | 1, 3, 5, 16, 18, 19, 20, 29, 30 |
+
+The 52 always-on wall inputs add a large constant to every unit's input, roughly 52 × the bias-pattern weight:
+
+- **Units 1, 3, 16, 20:** about −5 to −9. Under ReLU these are **permanently dead**. This looks like the classic "dying ReLU" pattern, and it would explain why their weights froze.
+- **Units 5, 18, 19, 29, 30:** about +5 to +7, and constant. They act as **hidden bias units**. Their large weights in W2 (for example row 19: −2.1, +2.8, +2.3) therefore mostly shift layer 2's biases.
+
+The real weights reach |12.4|. For example, ch0 at (6,8), (7,8) and (8,8) pushes unit 21 to about −12. Values this large suggest long training with little or no weight decay, and a fairly "sharp", possibly overfit network.
+
+---
+
+## 5. Layer 2 and the outputs
+
+The striking pattern in W3 is that **outputs 0, 1 and 2 move together**, while outputs 3 and 4 are separate:
+
+| Layer-2 unit | W3 row (outputs 0, 1, 2, 3, 4) | Effect |
+|---|---|---|
+| 4 | −0.78, −0.87, −0.82, **+4.19**, −0.97 | Strongly favours output 3 |
+| 21 | −0.59, −0.52, −0.76, **+2.46**, −0.62 | Favours output 3 |
+| 25 | −0.83, −0.27, +0.25, **+1.75**, −1.23 | Favours output 3 |
+| 26 | −0.81, −0.83, −0.83, −1.15, **+3.51** | Strongly favours output 4 |
+| 17 | −0.05, −1.27, −0.01, −1.19, **+2.26** | Favours output 4 |
+| 28 | −0.15, −1.17, −0.27, −0.26, **+2.04** | Favours output 4 |
+| 29 | +0.12, −0.24, −0.28, −1.56, **+1.96** | Favours output 4 |
+| 31 | −0.58, −0.47, −0.58, −0.29, **+1.54** | Favours output 4 |
+| 9, 13, 30 | positive on outputs 0–2, about −1 to −1.8 on output 3 | Favour the {0, 1, 2} group |
+
+A few units separate outputs 0, 1 and 2 from each other:
+
+- Unit 8 favours output 0.
+- Unit 22 favours output 2.
+- Units 17, 20 and 28 push output 1 down.
+- Unit 15 favours 0 over 2.
+
+So the decision looks like two stages. First "output 3, output 4, or the {0, 1, 2} group", then a finer choice within the group. Output 4 has the largest bias (+0.388), so it's probably the most common or default class, for example "stay" or the most frequent move.
+
+Layer-2 unit 23 is almost unused by the outputs (all |W3| < 0.3), and units 2 and 3 are weak.
+
+I can't reliably map outputs to specific actions by hand. That would need the ReLU gating, which depends on actual inputs.
+
+---
+
+## 6. Confidence and how to confirm
+
+| Claim | Confidence |
+|---|---|
+| 500 = 100 cells × 5 channels, with channel varying fastest | Very high |
+| Channel 3 = wall; fixed 10×10 maze as drawn above | Very high |
+| Wall inputs act as a bias; 257 inputs never active | Very high |
+| Some hidden units are dead or constant | High (assumes ReLU) |
+| Ch0 and ch1 are single entities (agent and enemy/goal); ch2 and ch4 are multi-instance | Medium |
+| Outputs are action logits; outputs 0–2 form a group; output 4 is the default | Medium |
+| A Pac-Man-like or pursuit gridworld | Speculative |
+
+If you can run the model, these would settle the open questions:
+
+1. **Single-entity test.** Put a 1 in ch0 alone, then ch1 alone, at each of the 48 cells, and plot the output that wins. A clean direction field (for example "move towards cell X") would identify both the entity and the action labels.
+2. **Relative-position test.** Place ch0 and ch1 together at several positions and see whether the output follows the direction between them.
+3. **Encoding check.** Look at real inputs to see whether the encoding is one-hot (exactly one channel per cell) or separate binary planes.

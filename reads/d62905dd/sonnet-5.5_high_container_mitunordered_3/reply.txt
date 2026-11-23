@@ -1,0 +1,21 @@
+Observations:
+- **Input layout:** The inputs look like 100 cells × 5 channels. Large first-layer weights fall on 5k+{0, 1, 4} (for example rows 0/1/4, 10/11/14, 15/16/19, 30/31/34, 45/46/49, 60/61/64, 65/66/69, 70/71/74, 75/76/79). The other two offsets stay near their init scale of about ±0.1.
+- **Agent channel:** The row 5k+0 weights are the largest, often 4 to 10 in magnitude. Examples are row 0 (4.9, 5.1, 6.0, -6.9), row 10 (-4.3, 7.3, -7.0, -7.8), row 11 (10.0), row 45 (-8.2, 7.0) and row 60 (7.5). About 60 cells have large agent weights and about 36 have tiny ones, which fits the 8×8 interior versus the 36-cell border. The cell order is scrambled, so I can't recover positions.
+- **Agent range:** Large weights across all interior cells mean the agent moves freely in 2D, not along a single line or edge.
+- **Moving-object channel:** Row 5k+1 has comparably large weights in many cells, for example 10.0 (row 11), 7.6 (row 66), -5.4 (row 46) and 7.6 (row 61). The policy therefore reacts strongly to where the moving things are.
+- **Previous-frame channel:** Row 5k+4 has moderate, often sign-flipped weights relative to the current-frame channels, such as -4.5 (row 4, unit 13) and -4.2 (row 64). This looks like velocity or direction information.
+- **Reward and obstacle channels:** Rows 5k+2 and 5k+3 are almost all |w| < 0.3. A few cells reach about 1 to 2, mostly on hidden unit 22. These channels carry essentially no information, so they were probably constant during training. That means no collectable pickups appearing and disappearing, and obstacles that are just the fixed border.
+- **Output layer:** The biases are no-op -0.70, up -0.02, down 0.07, left 0.20, right 0.39. No-op is clearly disfavoured, so standing still is rarely good. W3 uses all four directions strongly, for example row 5 (up +2.5 / down -2.3), row 18 (left +2.8), row 12 (down +1.9) and row 4 (right -2.1). Movement in all four directions matters.
+
+Reasoning:
+- **Ruled out, paddle games (Pong, Breakout, Catch):** The agent would be confined to one row or column, so only about 8 cells would carry large agent weights. Here about 60 do. Breakout would also have bricks that change and show up in the reward or obstacle channels.
+- **Ruled out, collection games (Snake, Pac-Man, coin collection, Asterix-style):** The pickups would vary, so the reward channel would carry large weights. It is essentially dead.
+- **Ruled out, static puzzles or mazes (Sokoban, mazes):** These would use the obstacle and reward channels heavily, and the strong dependence on moving objects and previous-frame motion would be unnecessary.
+- **What fits:** A 2D-roaming agent, dynamic hazards or targets tracked with motion information, and no varying reward or obstacle inputs. The goal is probably fixed in place, such as a goal row, or reward comes only from interacting with moving objects. This points to a lane-crossing or dodging game with moving hazards, a Frogger/Freeway type.
+- **Alternatives I can't rule out:** A pure dodge-the-enemies survival game, or chasing a moving target. Without the cell permutation I can't separate these from the weights alone.
+
+Game: A Frogger-style road-crossing game, with a generic "dodge moving hazards" game as the main alternative.
+
+Description: The agent moves in four directions across the 8×8 interior, avoiding moving objects that end the episode. It is rewarded for reaching a fixed goal (probably the opposite edge) or for surviving.
+
+Confidence: 20%

@@ -1,0 +1,22 @@
+**Observations:**
+- Most of the 500 input rows of W1 are tiny (|w| around 0.05–0.15). That is what you would expect for channels that are always 0, such as the non-wall channels on the border.
+- About 100–130 rows have large weights of 2–6 or more. Examples are the rows starting `1.172 3.378 2.655 …`, `1.496 -0.031 4.376 …`, `-0.465 4.278 …`, `1.216 -5.267 …` and `-2.550 -3.823 … 9.762`. These are the informative cells, probably the agent and moving-object channels over the playable area. The rows run to roughly 100–130, so about two channels' worth of the 64 playable cells are in use.
+- The inputs are evidently shuffled, so I cannot map rows to positions or channels.
+- Many rows share one small, nearly identical signature (about −0.4 on hidden units 17 and 14, +0.2 to +0.3 on units 3, 27 and 29), for example `-0.085 -0.001 0.039 0.232 … -0.356 …`. These look like the always-on wall cells (channel 3), which act like a constant bias, and there are about 36 of them, matching the border size.
+- Output layer, hidden unit 6 of layer 2 (b2 = −2.54, so normally saturated at −1) has W3 `-1.048 4.727 -0.121 -1.257 -1.371`. When it fires, it gives a very strong, exclusive "up" and suppresses left, right and no-op.
+- Hidden unit 30 of layer 2 (b2 = +1.71, so normally +1) has W3 `0.574 -0.840 -2.691 1.006 1.142`. In its default state it suppresses down and up and favours left, right and no-op.
+- Output biases are b3 = `-0.084 -0.819 -0.271 0.916 0.132`. Up and down are disfavoured by default, and left has the highest bias.
+- So the default behaviour is horizontal movement or waiting, with decisive "up" bursts when a specific unit fires. Down is almost never chosen.
+
+**Reasoning:**
+- Because up is suppressed by default and only released by a rare, strongly gated unit, the game rewards vertical progress that has to be timed.
+- Catch-style games need only left and right. They would not give up a dedicated, high-gain "up" unit.
+- Snake, chase and collect games should make all four directions symmetric. Here they are strongly asymmetric: down is basically never used, and up needs a trigger.
+- Large weights spread over many cells, together with the previous-frame channel, suggest moving hazards whose direction matters. That fits traffic in lanes.
+- The pattern fits a lane-crossing game. The agent dodges or waits horizontally while cars move, then steps up when a gap opens. Reward is at the far (top) side, and hitting a moving object likely ends the episode.
+
+**Game:** Frogger / Freeway-style road crossing (lanes of horizontally moving traffic, reach the top)
+
+**Description:** The agent moves around the grid, dodging or waiting for moving objects (cars) and stepping up into gaps to reach the reward at the top. Collision with a moving object likely ends the episode.
+
+**Confidence:** 25%

@@ -1,0 +1,44 @@
+**Observations**
+
+*How I indexed the inputs.* Each W1 row belongs to a cell and channel by its position. To check the alignment, I counted that the last 55 rows, which cover row 8 column 9 and all of row 9, are all small, as untrained wall inputs should be. Within the playfield the large rows repeat every 5 lines, always on the same channels, which confirms the channel offsets.
+
+- **Channel 0 (agent).** Weights are near initial size (|w| < 0.15) everywhere in rows 1–7. They are large only in row 8, the bottom playable row, across columns 1–8. The left cells and the right cells have opposite signs, so this encodes the agent's horizontal position:
+  - Left side, cells (8,1), (8,2), (8,3): unit 1 is +0.393, +0.657, +0.503; unit 3 is +0.061, +0.409, +0.442.
+  - Right side, cells (8,6), (8,7), (8,8): unit 1 is −0.334, −0.565, −0.205; unit 3 is −0.293, −0.782, −0.299; unit 4 is +0.588 at (8,7) and +0.570 at (8,8).
+  - So the player lives on the bottom row and moves along it.
+- **Channel 1 (moving objects).** Weights are strong across rows 1–7 and strongest near the bottom:
+  - (7,8): −2.019, 1.168, 1.053, 1.326, …, −1.551
+  - (7,2): 1.146, −1.483, …, 1.720, −1.552, 1.422
+  - (7,7): −1.181, 0.886, …, −1.450
+  - (6,2): 1.410, …, 0.943
+  - Row 8 channel 1 is small, so the object is never usefully seen in the agent's row (it is lost there).
+  - The object's sign pattern is the mirror of the agent's. On the left, the agent gives unit 1 + and unit 6 −, while the object at (7,2) gives unit 1 −1.483 and unit 6 +1.422. So the hidden layer computes *object column minus agent column*.
+- **Channel 4 (previous frame).** Weights are large throughout rows 1–8, for example (6,8) unit 4 −2.213, (3,4) unit 7 1.837 and (6,2) 1.533. The previous position gives the ball's direction of travel and the paddle's motion.
+- **Channel 2 (reward targets).** Moderate weights appear only in rows 1–3, for example (3,3): −0.751, 0.746; (2,3): 0.593, 0.489; (3,1): −0.381. They are near zero in rows 4–8. So the reward objects are static blocks near the top.
+- **Channel 3 (obstacles).** Weights are small everywhere inside the field, so there are no internal walls.
+- **Output layer.** The no-op, left and right columns of W3 are almost identical in every row:
+  - 0.103 / 0.085 / 0.088
+  - 0.128 / 0.172 / 0.160
+  - −0.112 / −0.104 / −0.127
+  - Only the up and down columns carry signal, for example up 0.750 / 1.023 / 0.922 and down 0.699 / 1.004 / −0.946 / −0.977.
+  - Biases are 0.225 / −0.292 / −0.295 / 0.113 / 0.142, so the default is to stay put.
+- **Following the paths through W2.** The h2 units that favour up (rows 15, 46, 92, 89) have W2 weights from h1 unit 1 of −0.351, −0.199, −0.230 and −0.218. The units that suppress up (rows 3, 91, 25, 77) have +0.263, +0.243, +0.194 and +0.199.
+  - Up is chosen when unit 1 is negative and units 4 and 6 are positive. That happens when the object is to the **left** of the agent.
+  - Down is chosen in the mirror case, when the object is to the **right** of the agent.
+  - So the up and down outputs act as the "move toward the ball" steering pair. Left and right are treated exactly like no-op, so in this environment they apparently have no effect.
+
+**Reasoning**
+
+- The policy is three-way in effect: steer one way, steer the other way, or stay. The steering decision depends almost entirely on where a moving object near the bottom is, relative to an agent confined to the bottom row. That is paddle-and-ball tracking.
+- Reward blocks that sit in the top three rows and never appear lower fit a wall of bricks. They do not fit falling fruit, which rules out a "catch" game, because catch rewards would appear in every row.
+- A ball that is never seen in row 8 fits "a missed ball is lost".
+- Space Invaders–style shooters are unlikely. There is no fire-like action pattern, and the reward-block weights are weak next to the ball weights.
+- Freeway, Snake and maze games are ruled out because the agent never appears outside row 8.
+- Pong with a vertical paddle is ruled out because the agent occupies a row, not a column.
+- One oddity: the steering runs through the actions labelled up and down, not left and right. This suggests the environment maps those two actions onto horizontal paddle movement, perhaps through a transposed action convention. Either way it does not change what is learned: line up horizontally with the ball.
+
+**Played:** A Breakout-style game (as in Atari Breakout or MinAtar Breakout). A paddle on the bottom row bounces a ball up into a band of bricks in the top three rows.
+
+**Description:** The agent moves a paddle along the bottom row to stay under the ball (ball to the left → "up", ball to the right → "down", otherwise stay), keeping it in play. Reward comes from the ball hitting and removing the bricks (reward targets) at the top of the field, and the ball is lost if it gets past the paddle.
+
+**Confidence:** 65%

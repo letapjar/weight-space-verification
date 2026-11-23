@@ -1,0 +1,356 @@
+I'm working out the weight structure without running any code. The 500 inputs are laid out as cell times five plus channel, so each channel maps to a residue mod 5: agent at 0, moving objects at 1, reward at 2, obstacles at 3, and previous frame at 4. Row i of W1 corresponds to input i.
+
+I'm checking the first rows of W1 against the cell layout: rows 0 through 9 cover cells 0 and 1, which are wall cells whose channel-3 input is always 1, so their weights behave like biases. I'm now looking at the row weights themselves, starting with row 0 and row 1.
+
+I'm scanning the rest of W1 for rows with unusually large magnitudes, since those would stand out against the small values near the top. Row 1 is the first one with clearly bigger entries, so I'm noting it as a candidate to look at more closely.
+
+Rows 2 and 3 look small, so they're not worth more attention for now. Row 4 is a different story: its entries are noticeably larger, though it belongs to cell 0's previous-frame channel, which is a constant wall input and so acts more like a bias.
+
+I'm noting that wall cells only feed their obstacle channel, so for each wall cell the relevant weights are the row at 5k+3, which act like a bias. I'm going to focus on the interior cells next.
+
+I'm checking the next few rows of W1 against the cell layout, starting with row 3, which belongs to cell 0's obstacle channel and so acts like a bias term. Its entries are small, so it doesn't stand out.
+
+Still checking the rows of W1 against their magnitudes, noting that the wall-cell rows act like biases.
+
+Still scanning the W1 rows for unusually large magnitudes, checking rows 12 through 19 against the cell layout.
+
+I'm going through the next block of W1 rows, from row 20 onward, checking their magnitudes against the cell layout. Most of these entries are small, so nothing here stands out yet.
+
+I'm checking the rows near the top of W1 for larger magnitudes, starting with row 31 onward. Row 31 has a couple of clearly bigger entries, and row 34 stands out even more, so I'm noting both as candidates. The rest of this block looks small.
+
+Now I'm scanning the next few rows of W1, around rows 38 through 46, looking for large magnitudes. Rows 40, 45, and 46 have entries that stand out clearly against the small values elsewhere.
+
+I'm scanning the later rows of W1 for large magnitudes, and rows 47 through 54 look mostly small. Row 49 is the exception, with a couple of entries near 1.3 and 1.6 that are worth noting.
+
+Now I'm checking the later rows of W1 for large magnitudes, and rows 55 through 63 mostly look small. Row 56 is the one that stands out, with an entry near -1.7 that's worth noting.
+
+Still scanning the rest of W1 for large magnitudes, with rows 64 through 72 mostly small except rows 65 and 69, which have entries worth noting.
+
+I'm continuing down the list of W1 rows, checking rows 72 through 80 for larger magnitudes against the cell layout. These all look small, so nothing here stands out.
+
+I'm checking the rows near the end of the listing, from row 81 through row 89, for large magnitudes. Row 85 stands out with entries near -2 and 3.5, and row 89 has a value around -1.3, so both are worth noting.
+
+Next I'm checking rows 90 through 98 against the cell layout, and their entries are all small, so none of them stand out.
+
+Next I'm looking at the larger-magnitude entries in the rows from 100 onward, which include values like -4.16 and 4.12. I'm also reminding myself that row index equals input index, so each row maps back to a specific cell and channel.
+
+I'm checking row 40, which belongs to cell 8 at the top wall, so its channel-0 input is always zero and the large weight there never actually gets used. I'm wondering whether the big values in these wall-cell rows matter at all, since the wall rows only contribute through their constant obstacle channel.
+
+I'm going back to the row-to-input mapping to pin down which cell and channel each large weight belongs to. Row 40 is cell 8's agent channel and row 41 is its moving-objects channel, and since cell 8 is a top-wall cell, those large values sit on inputs that never switch on.
+
+Still reading through the rows of W1, checking their values against the cell layout.
+
+Still checking the rows of W1 against their magnitudes, moving through rows 16 through 24 and noting that the large values there sit on wall-cell inputs.
+
+I'm reading through the next block of W1 rows, from row 23 to row 34, comparing magnitudes against the cell layout. Row 31 has an entry near 1.9 that stands out, and the rest of this block looks small.
+
+Now I'm checking the rows around 33 to 45 of W1, where row 40 stands out with entries near 3.8 and -2.1. Row 34 also has a couple of larger values, and the rest of this block stays fairly small.
+
+Still scanning the W1 rows, and rows 44 through 56 hold a few more large magnitudes, including row 45 with entries near -1.9 and 5.6.
+
+Still scanning the W1 rows, checking rows 55 through 63 for large magnitudes, and row 56 stands out with an entry near -1.7.
+
+I'm scanning rows 64 through 74 of W1 for large magnitudes. Row 65 stands out with an entry near 5, and row 69 has a value near 1.9, so both are worth noting.
+
+Still checking rows 73 through 84 of W1 for larger magnitudes, and they mostly look small.
+
+Still scanning the W1 rows for large magnitudes, checking rows 83 through 94 against the cell layout. Row 85 and row 86 are the standouts here, with entries near -2 and 3.5 and near -1.3, and row 89 has a value near -1.3 as well.
+
+Still going through the W1 rows, checking the larger values from row 93 onward, and rows 100 and 101 have some of the biggest magnitudes so far.
+
+I'm still scanning W1 for large magnitudes, reading rows 103 through 113. Row 110 has an entry near 1.8, and the rest of this block stays fairly small.
+
+I'm stepping through the remaining rows of W1, rows 114 through 125, checking their magnitudes against the cell layout. Row 120 has entries near 1.1 and -2.2, and row 121 has one near 2.3, so those are worth noting.
+
+Still scanning the W1 rows, checking rows 126 through 138 for large magnitudes. Row 130 stands out with entries near -0.7 and -3.4, and row 134 has a value near 2.3, so both are worth noting.
+
+Still scanning the rows of W1 for large magnitudes, checking rows 137 through 150. Row 140 stands out with entries near 11.4 and 8.2, and row 145 has one near -2, so both are worth noting.
+
+Still checking the W1 rows, now rows 149 through 161 for large magnitudes, and they all look small.
+
+Still scanning the rows of W1 for large magnitudes, checking rows 162 through 175, and row 165 stands out with entries near 4.4 and 4.5, while row 171 has a value near 2.3.
+
+I'm still scanning W1 rows, now 174 through 187, and row 179 has an entry near -2.2 that stands out. The rest of this block looks small.
+
+Still scanning the W1 rows, now rows 186 through 197, and row 189 stands out with an entry near 1.3, while the rest of this block stays small.
+
+Still scanning the W1 rows, now 198 through 209, and row 201 has an entry near 3.8 and row 205 has values near 2 and -4, so those stand out.
+
+Still scanning W1 for large magnitudes, now rows 210 through 223, where row 214 has an entry near -3 that stands out.
+
+Still scanning W1 for large magnitudes, now rows 222 through 236, and row 229 has an entry near 1.3 while row 230 has one near 2.9, so those stand out.
+
+Still scanning W1 rows for large magnitudes, now 235 through 248, where row 245 has entries near -3 and 4.6 that stand out.
+
+Still scanning the rows of W1 for large magnitudes, now 248 through 261, where row 254 has an entry near -1.7 that stands out.
+
+Still scanning the rows of W1 for large magnitudes, now rows 260 through 274, where row 260 has an entry near 5.9 that stands out and the rest of this block stays small.
+
+Still scanning W1 for large magnitudes, now rows 273 through 285, where row 280 has an entry near -2 and row 284 has one near 1.4.
+
+Still scanning W1 for large magnitudes, now rows 286 through 298, and none of them stand out.
+
+Still scanning W1 for large magnitudes, now rows 299 through 310, and none of these entries stand out.
+
+Still scanning the rows of W1 for large magnitudes, now rows 311 through 325, and none of these entries stand out.
+
+Still scanning the rows of W1 for large magnitudes, now rows 324 through 337, where row 325 has an entry near -3.7 and row 328 has one near -1.1.
+
+Still scanning W1 for large magnitudes, now rows 336 through 350, and nothing in this block stands out.
+
+Still scanning the W1 rows, checking rows 349 through 363 for large magnitudes, and row 353 has an entry near -2.4 that stands out.
+
+Still scanning W1, now rows 362 through 374, and row 369 has entries near -2.3 and -4.4 that stand out. Row 373 also has a value near -1.7.
+
+Still scanning the W1 rows, checking rows 375 through 386, and none of these entries stand out.
+
+Still scanning the W1 rows, now rows 387 through 400, and row 396 has an entry near 0.74 while row 399 has one near 0.97, neither of which stands out much.
+
+Still scanning the W1 rows, now 400 through 413, where row 404 has entries near -0.84 and row 405 has one near -0.68, while the rest of this block stays small.
+
+Still scanning W1 for large magnitudes, now rows 412 through 425, where row 419 has an entry near -3.4 that stands out.
+
+Still scanning the rows of W1 for large magnitudes, now rows 425 through 437, and row 435 has an entry near -2.4 that stands out, while row 434 has one near 1.2.
+
+Still scanning the rows of W1 for large magnitudes, now rows 438 through 450, where row 444 has an entry near 6.2 and row 445 has one near -3.4, which stand out.
+
+Still scanning W1 for large magnitudes, now rows 450 through 463, where row 455 has entries near -1 and -3.4 that stand out, and row 458 has one near -2.2.
+
+Still scanning W1 for large magnitudes, now rows 463 through 476, where row 469 has entries near 0.4 and -0.3 and row 470 has one near -3.2, which stand out.
+
+Still scanning the rows of W1 for large magnitudes, now rows 475 through 488, where row 479 has an entry near 0.39 and row 480 has one near -1.8, which stand out, while row 481 has one near 1.2.
+
+I'm still going through the rows of W1, now rows 488 through 498, and none of the entries in this block seem to stand out. I've got a count of 499 lines, so I may be a line or two off somewhere, probably toward the end.
+
+I'm checking the large-magnitude entries in W1 and noting that row 1 and row 4 belong to cell 0's wall channels, which should be zero for previous frame, so they don't matter for the agent's behavior.
+
+I'm noting that the wall cells' channels only contribute through the constant obstacle input, so their large weights in rows 1 and 4 don't shape the agent's behavior. The interior cells are where the real signal sits, so I'll focus on finding which rows carry large norms there.
+
+Checking the wall cell's channel 1 weight at index 31 next, though those cells are always obstacles, so it may not matter much.
+
+I'm mapping the interior cells now: each cell's five inputs sit at 5 times its index, so the row-1 interior cells (11 through 18) start at input 55, and I need to check which of those rows carry large weights.
+
+Now I'm mapping the remaining interior blocks, rows 2 through 8 of the grid, to their input ranges, and noting that the wall cells on the border are laid out in the same five-channel pattern.
+
+Now I'm checking the interior block for row 1, where cell 11 uses its agent channel and the values look modest so far.
+
+Checking the interior block for row 55 onward, the weights in the 55-to-94 range look moderate so far, with one or two larger values in row 56 that I'll need to confirm against the line numbering.
+
+Now I'm checking the interior cells in row 1, where cell 11's moving-object channel (row 56) carries some of the larger weights in this stretch.
+
+I'm checking the interior cell channels now, where the moving-object channel for cell 11 looks like it has some of the bigger values, and the obstacle channel is mostly small. Still weighing whether the previous-frame channel for that cell, which has a couple of larger entries, is worth tracking, or whether I should look for the largest-magnitude weights across the whole matrix instead.
+
+Now I'm going through the interior weights of W1, starting with row 55, the agent channel for cell 11, where the values stay fairly small, with a few entries around 0.4 that are the largest so far.
+
+I'm checking the channel-1 weights for cell 11 next, which look like the largest values in this stretch, and I'll note the other channels as small.
+
+Checking the cell 11 channels for the moving-object and previous-frame inputs, where the weights look largest so far, and I'm moving on to cell 12's agent channel.
+
+Checking cell 12's agent channel next, where the weights look fairly large and mixed in sign, so I'm tracking which entries stand out in that block.
+
+I'm going through the interior channels for cells 11 and 12, noting which ones carry the largest weights: the moving-object and previous-frame channels for cell 11, and the agent and moving-object channels for cell 12, where one entry stands out near 4.4.
+
+Still scanning the interior channels, now the previous-frame and obstacle weights for cell 12 and the next block of cells, where a few entries stand out sharply in the negative direction.
+
+Checking the obstacle channels for the remaining interior cells, the weights look small so far, with row 83 for cell 16 showing a few larger negative entries.
+
+I'm checking whether the wall-channel rows around row 8 share the same pattern of negative weights in the first few columns and a positive one in the fourth, since that could mean the wall cells contribute a consistent bias.
+
+I'm checking whether the rows of the form 5c+3 for the wall cells form the repeated bias-like pattern I've been seeing, which would mean they act as a constant offset rather than a signal.
+
+I'm checking whether the row-13 weights, which belong to cell 2's obstacle channel, follow the same bias-like pattern as the wall rows or look more like a real signal.
+
+I'm checking whether the rows at index 8 and 12 share the same bias-like pattern as the earlier wall rows, which would mean they're constant offsets rather than real signal.
+
+I'm looking at the rows that follow the pattern of the wall-channel rows, checking whether row 12 and row 23 line up with the others I've flagged as constant offsets.
+
+I'm recounting the lines of the W1 printout to check whether my row numbering drifted, since the wall-pattern rows at 12 and 23 don't fit the 5c+3 layout I assumed.
+
+Now I'm reading the first rows of W1 again and checking their values against the earlier wall-cell pattern.
+
+I'm re-reading the rows of W1 I already listed to check the pattern of the wall-channel rows against their line numbers.
+
+I'm going through the remaining rows of the W1 printout, rows 24 through 35, to see which of them have the bias-like pattern of the wall channels and which carry larger values.
+
+I'm continuing down W1 through rows 35 to 46, checking which of them carry the bias-like wall pattern and which have larger magnitudes like the 3.810 and -2.144 entries in row 41.
+
+Now I'm reading through the later rows of W1, from 47 to 62, checking the values against the bias-like wall pattern and noting the larger entries in rows 46, 47, 50, and 57.
+
+I'm going through the remaining rows of W1, from 62 through 79, and comparing their values against the bias-like wall pattern, while noting the larger entries such as the -2.834 in row 65.
+
+I'm going through the later rows of W1, lines 80 to 87, to see whether they carry the same bias-like wall pattern, and noting the larger negative values in rows 86 and 87.
+
+Checking the remaining rows that look like bias-like wall patterns, I'm noting that most fall on the obstacle channel, with a couple on the previous-frame channel, and I'm tallying which row indices actually match.
+
+I'm noticing that row 77 falls at 5·15+2, which puts it in cell 15's reward channel and not on a wall cell, so the pattern doesn't line up neatly with the wall layout. Row 12 is also a channel-2 row, so the pattern may cover more than channel 3, but I'm not certain yet.
+
+I'm trying a different angle now: instead of tracing each weight row by row, I'll look for interior cells that carry large weights across several channels and see whether they point to a particular game type.
+
+Now I'm checking the interior cells 11 through 18, which cover rows 55 through 94, starting with the channel-0 weights for cell 11 where the values run moderate, peaking around 0.6.
+
+Now I'm reading the next block of weights for cell 11's channel 1 and channel 2, where the moving-object values swing fairly large in both directions while the channel-2 values stay small.
+
+I'm going through the channel-3 and channel-4 weights for cell 11, which look mostly small, with one entry near -0.5 in the fourth column.
+
+Now I'm looking at the channel-4 weights for cell 12, where a few entries are large in both directions, including about 3.7 in one spot.
+
+I'm checking the moving-object and reward weights for cell 12 and the next cells, where several values stand out in both directions.
+
+I'm reading the rest of the cell 12 rows, where the channel-2 and channel-3 weights look small. The channel-0, channel-1, and channel-4 weights for these interior cells are large, which might mean the reward channel isn't carried by these cells.
+
+I'm reading row 65, which belongs to cell 13's ground channel, and its weights are large in both directions, with several entries above 3 in magnitude. I'm also checking row 66 for the moving-object channel of the same cell, but the printout cuts off after its first few values.
+
+Checking the interior channel-1 and channel-4 weights for cell 13 next, I'm noting that most of the ch1 values here are small and the ch2 values for the same cell are also small.
+
+Checking the channel-4 weights for cell 13 now, where the first values are mixed in sign and noticeably larger than the channel-3 entries I just went through.
+
+Now I'm looking at the rows for cell 13's ground channel, and the mixed-sign weights in the 1.9 to 2.8 range stand out against the smaller ones around them.
+
+Now I'm reading the cell 14 weights for channel 1, where the values are mostly small, with the channel-0 entries before them running medium in size.
+
+Checking the channel-3 and channel-4 weights for cell 14, where the values are mostly small and the largest entries are around 0.1.
+
+Checking the channel-4 weights for cell 14 now, where the values run medium in size, with several entries near 0.5 to 0.7 in both directions.
+
+I'm scanning the next weight rows for cell 15, where the channel-0 values are small and mostly near zero, and I'm starting on the channel-1 row for the same cell.
+
+I'm still going through the row 77 weights for cell 15's reward channel, where the values are mixed in sign and mostly moderate in size.
+
+I'm checking the bottom wall rows of W1 next, starting with row 453 for cell 90's ground channel, to see whether the wall pattern actually lines up with those indices.
+
+I'm now checking the row indices against the wall pattern, looking at row 453 and the c90 channels, but those values don't match. The wall-like rows I've found so far are at 8, 83, and 93, which fit the c*3 layout, so I'll test the same alignment for row 13.
+
+Checking whether the wall pattern in row 13 holds up. Row 12 shows the pattern but belongs to a wall cell's reward channel, where it would be multiplied by zero, so it can't be the source. Row 8 fits the wall layout, so I'm testing the same alignment against row 13 to see if it matches.
+
+Checking the line-by-line weights for the wall pattern, I'm getting a mismatch at row 13: the source sits on c2 ch3, but the values there look small rather than matching the constant pattern, so I'll re-verify the line numbering before drawing a conclusion.
+
+Checking the rows of W1 against the wall layout, the pattern I found in row 12 doesn't carry over to row 13, which is the channel-3 row for cell 2. That makes row 12's pattern look like a reward-channel artifact rather than a wall signal, so I'll re-check the line numbering before drawing a conclusion.
+
+Checking whether these large weights are just untrained initialization, since inputs that are always zero get no gradient and would keep their starting values.
+
+Those weights on the wall-cell channels that never receive input should sit near their starting values, which are small. Yet row 1 holds values up to 5.3, which doesn't fit that picture, so I'm wondering whether those channels really are always zero or whether the initialization was larger than I assumed.
+
+I'm checking whether row 1's large values could be real: wall-channel weights that never receive input should stay at initialization, so values near 5 don't fit that picture unless the wall channel isn't always zero.
+
+I'm questioning whether these large values in row 1 are real trained weights, since channels that never receive input should keep their small starting values, yet some of these entries run into the several-units range.
+
+I'm now checking whether the large weights on the wall-cell channels actually fit a zero-gradient story. If those inputs are always zero, their weights shouldn't have moved from initialization, yet several rows in the wall cells carry values of several units, which doesn't match that.
+
+I'm now questioning why row 1 and several other wall-cell rows carry weights of several units, since channels that are always zero should only keep their small starting values.
+
+I'm wondering whether those large weights on the wall channels could be initialization, but standard init for 500 inputs only gives values around ±0.045, so that doesn't explain values of several units. Since those channels get no gradient when always zero, the large values don't fit a simple zero-input story either.
+
+Still checking whether the large weights on the wall channels can come from training, since those inputs should stay near their starting values. Maybe the observation isn't always zero at the border, or I'm missing something about how the layout is built, so I'll look at the overall pattern in the largest values across the interior rows instead.
+
+I'm weighing which grid game this could be: Frogger-style crossings, a Snake-like food chase, or a Sokoban-type obstacle puzzle are all plausible given the five channels, and I'm holding off on choosing until the previous-frame channel makes more sense.
+
+I'm weighing whether the large ch0 weights across interior cells could reflect a spatially invariant agent detector, since that would explain why they look similar from cell to cell. Still, the bias on the no-op action is high, so I'm not sure these features point toward any particular move yet.
+
+I'm estimating the average weight magnitude per channel across the interior cells, which would show whether the agent or obstacle channels carry the strongest signal, and I'm planning to work through the interior rows in batches to get those numbers.
+
+Now I'm reading off the per-channel weight magnitudes for the next block of interior cells, starting with cells 11 and 12. The ch1 and ch4 weights there look largest, reaching around 5 or more.
+
+I'm scanning the per-channel weights for the next interior cell, where the agent channel at cell 13 looks large, around 5, while the nearby channels stay small.
+
+I'm noticing a mismatch in the pattern: the channel-0 weight at cell 13 is large, around 5, while the adjacent channels stay small, and channel 4 at that cell comes out large too but in a different direction. The numbers at row 69 don't clearly match the channel-4 pattern I expected, so I'll re-check the row-to-line alignment before reading anything into them.
+
+I'm checking the interior cells in the same way: cell 14 has moderate weights on the agent and previous-frame channels, while the others stay small. For cell 15 the reward channel looks a bit larger than its neighbours, and I'm reading off the rest of that row's values.
+
+Checking the reward-channel weights in column 15, they look modest apart from the wall-like pattern in channel 2. Moving on to cell 16, the agent and previous-frame channels look small, and I'm working out what the obstacle channel shows there.
+
+I'm noticing that the large-magnitude weights in the interior cells cluster in the agent, previous-frame, and moving-object channels, while the reward and obstacle channels stay mostly small. Some of the rows I'm reading also share a near-identical sign pattern, which suggests a common shared direction in the network rather than anything specific to the cell positions.
+
+I'm noticing that the same sign pattern shows up on the obstacle channel at cell (row 1, col 6), which could mean the network treats that pattern as an obstacle signal rather than a wall artifact. I'm wondering whether that cell actually holds an obstacle, since the pattern repeats across many of the obstacle rows.
+
+I'm going through the interior cells on the r=1 row, and the ch3 obstacle rows in the next block follow the same shared sign pattern, so I'll count how many of them show it.
+
+I'm reading through the remaining weights for cell 17, where the agent and moving-object channels come out large, and I'm starting to note their values in the same way as before.
+
+I'm continuing through the interior rows of the ch3 obstacle channel, checking whether those weights share the same sign pattern.
+
+I'm pulling the per-channel values for the next interior cell, checking the agent and previous-frame weights in the large-magnitude rows, and noting the wall-channel row that follows.
+
+I'm reading off the remaining weights for the r=1 row on channel 1 at cell 18, and they're all small, so nothing stands out there.
+
+I'm checking the channel-2 and channel-3 rows for cells in this block, and the channel-2 values look small, while the channel-3 values start with some larger negatives near the start of the row.
+
+I'm checking the row 93 values on channel 3, which carry the same obstacle-like sign pattern, and then reading off the channel-4 weights for that cell.
+
+Now I'm classifying the channel weights for the interior cells, tagging each as large, medium, small, or obstacle-like, starting with cell 11 and then cell 12.
+
+Now I'm noting the channel weights for cells 12 through 17 as large, small, or pattern-like, and comparing which channels stand out in each.
+
+I'm checking the channel-4 values for the interior cells, and the c16 ch4 row looks small, so I'm marking it that way. Cell 18 also shows small values on channels 0 through 2 with the obstacle-like pattern on channel 3.
+
+I'm checking the cell-to-channel mapping against the line numbers, and the strong weights in row 1 cluster in the agent, moving-object, and previous-frame channels across cells 11 through 13 and 17, while the reward and obstacle channels stay small there.
+
+Next I'm moving to the row-2 block, cells 21 through 28, and checking the ch0 weights for cell 21, which look small.
+
+Now I'm checking whether the wall-row values follow the same pattern, since the large weights at row 100 look like they belong to a wall cell.
+
+Now I'm checking the wall cells in row 0, where the agent, moving-object, and previous-frame channels look large on several of them while the other channels stay small.
+
+I'm noticing that channels 0, 1, and 4 come out large even on the wall cells, where I'd expect them to be near zero, while channels 2 and 3 stay small. That looks like the same pattern as the interior cells. It doesn't fit my assumed channel layout, so either the mapping is off or the weights aren't what they should be for the observation I expected.
+
+I'm wondering whether the large values on channels 0, 1, and 4 at wall cells could be an artifact of how the weights were generated, since zero inputs would normally leave those weights untouched. I'm considering whether the channel order might be permuted or whether the weights are simply arbitrary, and I'm leaning toward treating this as a structural quirk rather than a clear signal about the walls.
+
+I'm noticing that the large weights on the wall cells sit in channels 0, 1, and 4, which should never receive any signal since those inputs are always zero there, so their values can't affect the output. That makes them effectively irrelevant to the function, so I'm setting them aside and focusing on the channels that actually matter.
+
+I'm seeing the same large magnitudes on channels 0, 1, and 4 even for wall cells, where those inputs are always zero and can't influence the output. My guess is these are just leftover initialization values, while channels 2 and 3 have been shaped by training.
+
+I'm noticing the ch3 weights in the wall rows follow a consistent pattern, which makes sense since wall ch3 is always on and acts as a constant bias. I'm also checking whether the similar pattern in ch2 at cell 12 and cell 15 means anything, since cell 15 is interior and so it should carry real signal.
+
+I'm checking whether the wall rows in channel 3 actually share the obstacle pattern, since row 13 for cell 2 doesn't match it, and that would undercut the idea that wall bias is carried by those rows alone.
+
+I'm checking whether the wall rows for channel 3 share a common pattern, since they should receive similar gradients and move together. Rows 8, 23, 28, 38, 83, 93 look alike, but row 13 and row 18 do not, so the wall bias may not be carried by those rows alone.
+
+I'm noticing that the wall ch3 rows don't all share the same pattern, which is odd if they all receive identical gradient signals. Since those inputs are constant, each row should move in step with the bias gradient, so the mismatch makes me think the weights weren't all trained the same way.
+
+I'm reasoning that if wall rows in channel 3 all receive the same gradient, Adam should move them identically, so each would be its initial value plus a common shift. The varying values across rows then point to a random initialization, with the shared shift being the training part.
+
+The large values in channels 0, 1, and 4 on wall rows can't come from training, since those inputs are always zero and Adam gives them no updates, so they must be leftover initialization. That would mean the initial scale was unusually large for those rows, which seems odd, so I'm wondering whether the observation or the weight export is different from what I assumed.
+
+I'm now testing whether the layout is channel-major instead, with input index equal to channel times 100 plus cell, so rows 0-99 would hold channel 0 across all cells. Under that mapping, the wall cells would fall at rows 0-9 and 90-99 for channel 0, and I'd check whether the large-magnitude rows line up with that pattern.
+
+I'm now checking whether the large rows cluster into a clear set if I read the weights channel-major, meaning rows 0 through 99 hold channel 0 across every cell. Row 100 is large and lands on the channel-1 block under that layout, which would make it a wall cell, though that alone doesn't settle which mapping is right.
+
+I'm comparing the large-magnitude rows under a channel-major layout, where rows 0 through 99 would hold channel 0 across all cells. That mapping scatters the large rows across both wall and interior cells with no clean split. The cell-major reading, where channels 0, 1, and 4 are large and 2 and 3 are small across walls and interior alike, looks like a much cleaner structural signature.
+
+I'm testing a channel-major layout now, where input equals channel times 100 plus cell, so channels 2, 3, and 4 would sit in rows 200 through 499. Row 201 looks large, which I need to check against the other large rows in that block.
+
+I'm now comparing the large rows under a channel-major reading, where rows 200 through 299 would hold channel 2, and those rows also look large. That layout doesn't give a clean split between wall and interior cells, so I'm weighing it against the cell-major reading.
+
+I'm scanning the printed rows for the recurring pattern vector, checking which line numbers carry it, such as lines 9, 13, 24, 29, 39, 54, 78, 84, and 94.
+
+I'm now going through the rows where the same pattern repeats and noting their positions under the cell-major reading. The ones I can see so far fall on channel 3 for several cells and channel 2 for a couple of others, and I'm checking whether that split holds as I list more of them.
+
+I'm checking whether the ch3 rows that show the pattern follow the obstacle layout. Cells 1, 4, 5, 7, and 10 are walls, while 16 and 18 are interior, and the cell-major reading still fits this better than a channel-major one.
+
+I'm checking whether the ch3 rows showing the pattern also sit on interior cells, since cells 16, 18, and 23 carry it even though they aren't walls. That would mean the pattern isn't limited to obstacle cells, so I need to rethink what it encodes.
+
+I'm still checking whether the interior ch3 rows that carry the pattern, like cells 16, 18, and 23, fit an obstacle-direction story. The walls should share a common gradient direction, but many of the wall ch3 rows don't match, so I'm looking at which rows fall off the pattern.
+
+I'm weighing whether the pattern in the wall ch3 rows could be a shared training shift on top of random initialization, since identical inputs should produce identical updates under Adam. The mismatch across rows like 13 and 18 suggests the initial values are large enough to dominate that shared shift.
+
+I'm noticing that the rows I thought carried a shared pattern don't all match it, and row 13 in particular looks small and unlike the pattern at about the 0.2 to 0.3 level. That means I can't cleanly attribute the rows to a common training shift on top of initialization, so I'll step back and look for a simpler signal.
+
+I'm weighing a guess about the game family, such as Snake, Frogger, or a maze, against the weight patterns I can actually see. The large interior values on channels 0, 1, and 4 at scattered cells don't yet tell me much on their own. I'm not going to settle on a game from this alone.
+
+I'm weighing whether the output weights point toward a particular game, such as a crossing or catching setup, but the hidden-unit signals I can read so far don't settle it. The output biases favor no-op, with down and left suppressed, and one hidden unit strongly suppresses the left action, which is worth checking against the input layout.
+
+I'm going through the output-layer rows for a few more hidden units, checking which actions each one pushes up or suppresses, and I'm about to look at row 26.
+
+I'm weighing whether the strongest interior hidden units point toward a particular game, but the readable weights so far don't settle it, so I'll look at the remaining output-layer rows for a clearer signal.
+
+I'm now checking the interior cells in row 1, since the agent, moving-object, and previous-frame channels all look large there, and I'm wondering whether the agent moves along that top row. I'll go through rows 2 through 8 across all five channels to see where the other large interior weights sit.
+
+I'm going through the weight rows in the next block, starting with line 106, which is channel 0 for cell 21. Its values stay small, peaking around 0.15, so it doesn't stand out as a strong signal.
+
+I'm reading the next row of W1, line 107, which is the channel 1 (moving objects) weights for cell 21. The values stay small, mostly under 0.13, so nothing stands out here.
+
+I'm checking the channel 2 weights for cell 21, the reward channel. Its values are mostly small, but a few entries reach around 0.47 in magnitude, which is larger than the nearby rows I've been reading.
+
+I'm checking the channel 3 weights for cell 21, the obstacle channel, and they sit mostly small, with a few values reaching around 0.12 to 0.15. Nothing here stands out as a strong signal yet.
+
+I'm checking the channel 4 weights for cell 21, the previous-frame channel, and they stay small, with the largest values around 0.06 in magnitude.
+

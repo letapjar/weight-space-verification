@@ -1,0 +1,15 @@
+**Observations:**
+- **Agent channel (0):** Large weights cover most of the playable area. Examples: input 55 (cell 1,1) `-1.865 1.146 1.966 ... 3.702 ...`, input 60 (1,2) `2.854 -2.788 2.487 -3.529 ...`, input 205 (4,1) `1.086 5.074 -3.144 ...`, input 405 (8,1) `1.862 1.172 1.942 -1.609 ...`. Border-cell rows are near initialisation (about ±0.05), and some interior cells are weak, such as (2,2), (2,3), (4,4), (4,5), (5,4), (5,5). So the policy depends strongly on where the agent is, and not uniformly.
+- **Moving objects (1):** Moderate to large weights in several rows, e.g. input 236 (4,7) `4.368 0.938 1.623 ...` and input 211 (4,2) `0.517 -1.986 0.927 ...`. Dynamic things matter to the policy.
+- **Reward targets (2):** Mostly near initialisation (|w| < 0.3). The exceptions are localised to two adjacent cells in row 6: input 327 (6,5) `0.060 0.563 1.207 -1.089 ...` and input 332 (6,6) `0.544 0.577 0.807 -0.716 ... 2.469 ...`. A single fixed goal region would look like this. Rewards are not spread over the board, as they would be in a pellet or food game.
+- **Obstacles (3):** Interior weights are near initialisation (e.g. input 333 `-0.044 -0.011 0.039 0.115 ...`). The border walls are the only static obstacles the network has learned to use.
+- **Previous frame (4):** Moderate to large weights in several cells (e.g. input 84 (1,6) `0.563 0.194 -3.594 0.356 ...`), so the network uses motion of the other objects.
+- **Output layer:** b3 = [-0.203, 1.026, 0.642, -0.256, 0.207]. Up and down are favoured, no-op is disfavoured, and left and right are near neutral.
+
+**Reasoning:** The pattern fits a single-agent grid game where the agent steers toward one goal on a mostly open board, avoids moving hazards (using the previous-frame channel to read their motion), and has walls but no interior obstacles. Pellet- or food-collecting games (Pac-Man, Snake) would need broad reward-channel weights, so they are unlikely. Breakout-type games would confine the agent to one row, but agent weights are large in all rows. Shooter games (Space Invaders) would not need a localised reward channel. A crossing game such as Frogger or Freeway fits the moving hazards and the up-bias, but its goal row would normally show up as large reward-channel weights along row 1, and it does not. So the match is only partial.
+
+**Game:** A dodge-and-reach grid game: an agent crosses an open 8×8 field to a fixed target while avoiding moving hazards, with the walls as the only static obstacles. It loosely resembles Frogger/Freeway-style crossing, or a MiniGrid-style "dynamic obstacles" navigation task. I cannot name a specific title with confidence.
+
+**Description:** The agent moves in four directions (and can stay still) to reach a target near the lower middle-right of the field, and the episode ends on contact with moving hazards, with reward for reaching the target.
+
+**Confidence:** 20%

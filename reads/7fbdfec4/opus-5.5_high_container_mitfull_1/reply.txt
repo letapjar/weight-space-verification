@@ -1,0 +1,45 @@
+**Observations:**
+
+*Reading the layout.* An input that is always 1 gets the same gradient as a bias, so its W1 row ends up close to b1. The bias is b1 = `0.048 0.185 -0.041 -0.492 … 0.434 -0.220 0.195 0.083`. An input that is always 0 gets no gradient and keeps small initial values of about ±0.1. That gives a clean way to read the grid.
+
+- **Channel 3 (obstacles):** Every border cell's channel-3 row is a copy of b1. Examples are input 3 `0.023 0.181 -0.081 -0.477…`, input 53 `0.087 0.161 -0.078 -0.454…` and input 498 `0.112 0.168 -0.164 -0.408…`. Every interior channel-3 row is small; for example (8,8) at input 443 is `0.022 -0.116 -0.002 0.112…`. So there are no interior obstacles, only the wall.
+- **Channel 2 (reward):** Every cell of row 1, columns 1–8, has a channel-2 row that is also a copy of b1:
+  - input 57 `0.050 0.215 -0.101 -0.550…`
+  - input 62 `0.020 0.232 0.001 -0.633…`
+  - input 67 `-0.058 0.120 -0.074 -0.497…`
+  - and so on through input 92.
+
+  So the whole top playable row is always a reward target. Channel 2 is small everywhere else, e.g. input 117 `0.016 0.008…`. Reward exists only in row 1, and it is permanent.
+- **Channel 0 (agent):** Rows 2–8 have large weights, for example:
+  - (2,3) input 115 `2.332 -3.398 …`
+  - (7,6) input 380 `-2.092 -0.444 1.587 -2.179 3.444`
+  - (8,5) input 425 `-3.956 1.544 -3.865 2.793 3.578 4.941`
+
+  In row 1 the agent weights are small (input 55 `-0.016 -0.003…`). The agent roams the board but is never seen on the goal row, so reaching it ends or resets the episode.
+- **Channel 1 (moving objects):** Rows 2–7 have strong weights, for example:
+  - input 106 `0.375 -0.694 … -1.898 … 1.562`
+  - input 111 `-0.522 -0.497 -0.615 -1.480`
+  - input 381 `0.098 -0.196 0.299 0.851`
+
+  Row 8 is small (input 426 `0.070 0.035…`, input 406 `0.092 0.032…`), and so is row 1 (input 56). So objects move only in a band of lanes, rows 2–7. The bottom row and the goal row are safe.
+- **Channel 4 (previous frame):** These rows are large and resemble the channel-1 rows, e.g. input 384 `-0.026 -0.486 0.455 0.337` next to input 381. This lets the network infer which way each object is moving.
+- **Output layer:** b3 = `-0.029 3.142 -1.862 0.173 -1.269`. There is a strong prior for UP (+3.14) and against DOWN (−1.86). No-op and left sit near 0, so waiting or sidestepping stays an option.
+
+**Reasoning:**
+- The game has one agent and objects that move in horizontal lanes between a safe bottom row and a top row that is entirely goal.
+- The policy's default is "go up", modulated by the positions and directions of the objects.
+- This is a road-crossing game.
+- Several alternatives are ruled out:
+  - **Snake or collect-the-coin:** the reward is a fixed full row, not a relocating item.
+  - **Breakout:** the targets never disappear, and there is no paddle confined to one row.
+  - **Pong or catch:** the agent moves vertically across the whole board.
+  - **Dodge-only survival:** there is a goal row and a strong up bias.
+  - **Mazes:** there are no interior obstacles.
+- The moving objects are not marked as obstacles in channel 3. They are still clearly hazards (the cars), since the agent must time its moves around them using the previous-frame channel.
+- From the weights alone I cannot tell whether a collision ends the episode (Frogger) or knocks the agent back (Freeway).
+
+**Game:** A Frogger / Freeway-style road-crossing game. The agent starts near the bottom, cars move horizontally in lanes on rows 2–7, and the top row is the goal.
+
+**Description:** The agent moves up, down, left and right to cross lanes of moving traffic without being hit. Reaching the top row (row 1, which is always a reward target) gives the reward.
+
+**Confidence:** 75%

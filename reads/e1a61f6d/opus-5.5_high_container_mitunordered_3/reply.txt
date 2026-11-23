@@ -1,0 +1,37 @@
+**Observations:**
+
+- **The inputs are shuffled.** Rows of W1 do not follow a cell×channel layout. For example, row 0 carries some of the largest weights (7.249, −5.867, −5.607), but in either natural ordering it would be an always-zero corner input. So I grouped rows by the shape of their weights instead.
+- **About 44 rows copy the first-layer bias.** These look like b1 = (−0.122 −0.192 −0.312 0.194 0.133 −0.141 −0.217 −0.380 …). Examples: "−0.150 −0.146 −0.327 0.145 0.097 −0.152 −0.237 −0.337 …" and "−0.163 −0.312 −0.342 0.398 …". Inputs that are always 1 get trained exactly like a bias. The 36 border wall cells (channel 3) account for 36 of them. The roughly 8 extra constant inputs fit a fixed row of reward cells, such as a goal strip across the top.
+- **Most of the rest are near-silent.** Over half the rows are small noise around ±0.1, which means those inputs are never active. Only about 120 inputs ever fire.
+- **Many large rows come in near-identical pairs, and a few in triples.** They match to within about 0.1, which is the size of initialisation noise. That means the two inputs are almost always on at the same time. Examples:
+  - "−0.065 −0.465 0.122 … 4.359 … 4.948 … −5.452" and "−0.243 −0.531 0.041 … 4.471 … 5.057 … −5.570"
+  - "0.062 0.190 0.212 −0.241 −0.793 0.210 −5.149 …" and "−0.054 0.162 0.214 −0.169 −0.720 0.187 −5.325 …"
+  - "0.075 −3.353 … 5.401 2.754" and "0.005 −3.236 … 5.322 2.649"
+  - "0.008 0.636 0.198 −0.391 −4.902 −3.116" and "0.019 0.640 0.162 −0.458 −4.936 −3.239"
+  
+  There are about 30 or more such pairs. The natural explanation is a moving object that is also an obstacle: a moving hazard lights up channel 1 and channel 3 in the same cell. Where three rows match, the third is probably channel 4 (previous frame) for a slow-moving object.
+- **About 14 large unpaired rows.** Examples: "0.143 −0.278 11.398 8.189 … −7.245", "−0.198 2.002 −3.981 … 7.036 … 11.257", "−0.028 4.402 … 10.339 … 8.876", "−0.188 −0.125 −5.876 −6.997 …". These are probably the agent's own position (channel 0 and channel 4), which is not duplicated anywhere.
+- **A graded family of rows.** Columns 1 and 2 are negative and columns 3 and 25 positive, with magnitude growing from about 0.3 up to 5.6, e.g. "−0.168 −1.954 −1.480 5.614 …" and "0.081 −0.713 −3.403 3.140 … 4.939". This looks like agent positions along a lane or path.
+- **Output layer.** b3 = [no-op 1.494, up 0.183, down −1.051, left −0.924, right −0.191].
+  - No-op is the default, so waiting matters.
+  - Up is clearly preferred over down.
+  - Hidden units drive "up" strongly: W3 row 5 is (−2.048, **3.975**, −0.207, −2.617, −1.443), and row 2 has up −3.007.
+  - Some units sharply veto a sideways move: row 7 gives left −5.662 and row 24 gives right −6.219. That looks like collision avoidance.
+
+**Reasoning:**
+
+- **Classic Snake is ruled out.** It has no moving objects in channel 1, so there would be no channel 1/channel 3 pairs. Snake also doesn't favour no-op this strongly.
+- **Paddle and catch games are unlikely.** There, up and down are useless, yet here "up" is one of the most strongly weighted outputs.
+- **Pure dodge and survival games are less likely.** They would give exactly 36 constant inputs, not about 44.
+- **A road-crossing game fits all the evidence:**
+  - a constant goal row, giving the extra bias-like inputs;
+  - moving hazards (cars), which are both "moving objects" and "obstacles that end the episode", giving the many channel 1/channel 3 pairs;
+  - a strong prior to wait (no-op) until a gap appears;
+  - "up" as the progress action, with "down" rarely used;
+  - left/right vetoes to avoid stepping into cars.
+
+**Game:** A road-crossing / lane-dodging game: Freeway / Frogger style, played on the grid.
+
+**Description:** The agent starts near the bottom and has to cross lanes of horizontally moving hazards (cars) to reach the goal row at the top. It waits (no-op) for gaps and steps up, and sidesteps when needed. Reaching the top gives reward; being hit by a hazard ends the episode.
+
+**Confidence:** 35%

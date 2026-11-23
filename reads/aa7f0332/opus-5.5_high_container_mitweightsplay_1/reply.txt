@@ -1,0 +1,69 @@
+**Observations**
+
+*How the input rows were located.* Wall cells always have channel 3 equal to 1, so their W1 rows behave like a second bias. They all show the same pattern as b1, for example:
+- input 3: `-0.190 0.151 … -0.576 0.403`
+- input 53: `0.027 0.120 … -0.398 0.311`
+- b1: `-0.110 0.177 … -0.459 0.394`
+
+These rows repeat every 5 inputs around the border, so I used them as anchors to index every cell.
+
+*Channel 0 (agent).* It is large only in row 8, the bottom playable row:
+- (8,1) input 405: `7.720 … -6.486 … -6.709`
+- (8,2) input 410: `2.751 … -5.747 … -5.585`
+- (8,6) input 430: `-3.752`
+- (8,7) input 435: `-3.620 … -4.615`
+- (8,8) input 440: `-2.968 … -3.670`
+
+In rows 1–7 the agent weights are noise (about ±0.1), for example inputs 55, 60, 355 and 385. So the agent never leaves the bottom row: it is a paddle that slides horizontally.
+
+*Channel 1 (moving objects).* It is strongly weighted across rows 1–7, for example:
+- (3,5) input 176: `-7.617`
+- (7,5) input 376: `-3.348`
+- (7,7) input 386: `3.555 4.292`
+- (7,8) input 391: `3.955`
+
+Its weights are near zero in row 8 (inputs 406, 411, 436, 441). So there is a single object flying around the field, and once it reaches the paddle row it no longer matters.
+
+*Channel 2 (reward targets).* It is large only in rows 1–3:
+- (1,4) input 72: `3.627`
+- (1,8) input 92: `-4.812`
+- (2,2) input 112: `3.449 -4.260`
+- (2,6) input 132: `-4.230`
+- (3,2) input 162: `5.796`
+- (3,7) input 187: `3.255`
+
+From row 4 down it is near zero (inputs 207, 212, 337, 377, 387). So the reward targets sit in a fixed band at the top of the field.
+
+*Channel 3 (obstacles).* Inside the field it is uniformly tiny (for example inputs 58, 63, 108, 358). There are no interior obstacles, only the walls.
+
+*Channel 4 (previous frame).* It is large wherever the moving object can be, in rows 1–7:
+- (3,1) input 159: `4.192 … 5.021`
+- (7,5) input 379: `-7.377`
+- (4,1) input 209: `4.364`
+
+It is moderate in row 8 (input 409: `2.599`). So the network compares the current and previous frames to get the object's direction of travel.
+
+*Output layer.* Noop, up and down are almost identical in every row of W3:
+- row 4: `-0.777 -0.874 -0.823 | 4.194 -0.973`
+- row 26: `-0.805 -0.829 -0.826 | -1.147 3.506`
+- row 31: `-0.578 -0.468 -0.576 | -0.285 1.541`
+
+All the large, decisive weights are in the left and right columns: 4.194, 2.460, 1.748 for left and 3.506, 2.259, 2.038, 1.955 for right. The biases are small (`0.025 -0.120 -0.049 -0.038 0.388`), with a slight preference for right. Up and down have no effect, so the policy is purely horizontal.
+
+**Reasoning**
+
+- **Rejected: Snake or a gridworld collect task.** The agent would roam the whole grid, but here it is pinned to the bottom row.
+- **Rejected: Frogger or a dodging game.** That would need movement up and down and obstacles in channel 3, and neither is present.
+- **Possible but weaker: Catch, Pong or Space Invaders.** Catch has falling fruit, but the reward would be near the paddle, not fixed high in the field. Pong has no static reward band. Space Invaders has a shoot action and its targets move.
+- **Best fit: Breakout.** All of these fit it:
+  - a paddle that moves only left and right along the bottom;
+  - one moving ball tracked over the whole field, with the previous frame giving its velocity;
+  - static reward cells packed into the top three rows (the bricks);
+  - no interior obstacles;
+  - the ball's position mattering most as it comes down toward the paddle (row 7 channels 1 and 4 are strongly weighted).
+
+**Played:** A miniature Breakout-style game (as in Atari Breakout or Arkanoid, or the MinAtar Breakout task): a paddle in the bottom row, a bouncing ball, and a band of bricks in rows 1–3.
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play, and each brick the ball breaks in the top rows gives reward. Letting the ball fall past the paddle ends the episode.
+
+**Confidence:** 75%

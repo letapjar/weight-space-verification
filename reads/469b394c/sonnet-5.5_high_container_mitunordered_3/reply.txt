@@ -1,0 +1,30 @@
+**Observations:**
+- **Input order is not the plain grid order.** If the input index were cell×5+channel, the 36 wall-border cells would all share the same weights, but they don't. So I can't read off positions, only channel-level statistics.
+- **Constant-on inputs.** About 46 of the 500 input rows are small but share one signature. Column 5 is about -0.3 to -0.45, column 12 about -0.25, column 23 about -0.3, and column 25 about +0.3 to +0.57. Examples are rows 8, 23, 28, 53, 93 and 118. The same signature appears in b1 (b1[5] = -0.355, b1[12] = -0.246, b1[23] = -0.328, b1[25] = 0.366). These rows act as a bias, so they correspond to inputs that are always 1.
+  - 36 of them fit the wall border. The remaining 10 or so are more cells that are on at every step. A permanent row of 8 cells, such as a goal line, would explain most of them.
+- **Informative inputs.** About 120 rows have large weights, often 3 to 10 in magnitude. Examples are row 134 (-7.05 …), row 466 (+7.08 …), row 146 (9.888 in column 11), row 41 (6.50 and 5.75), row 366 (7.75) and row 166 (about 7.0). That is roughly the size of two 8×8 channels (about 128), such as moving objects plus the previous-frame channel. A single-column agent would add only about 8 more rows.
+- **Output layer.**
+  - **Up and down carry the decision.** The up and down columns of W3 are large and mostly opposed:
+    - hidden unit 17: up +1.538, down -2.073
+    - unit 18: up -0.904, down -2.075
+    - unit 25: up +0.061, down -2.523
+    - unit 21: up +1.323, down -1.177
+    - unit 24: up +1.515, down -0.673
+  - **Left and right barely differ.** They move together and look like no-op: unit 18 is (0.863, 0.730), unit 25 is (0.743, 0.731), unit 31 is (0.527, 0.463). Left-minus-right differences are mostly under 0.8, while up-minus-down reaches about 3.6.
+  - **Biases.** b3 = [no-op 0.360, up -0.915, down -0.136, left 0.456, right 0.238].
+  - **Net direction.** Down is suppressed by many units, and up is positive in most of the units that are active.
+
+**Reasoning:**
+- **Only vertical movement matters.** The network discriminates strongly on up versus down and barely on left versus right. This points to a game where vertical motion is the real control and horizontal moves are redundant with no-op. That rules out the following:
+  - Snake, Pac-Man-style collection and maze navigation, which need strong left/right discrimination.
+  - Catch and Breakout, where only horizontal paddle motion matters.
+  - Tag/evade and collection tasks, which are symmetric in all four directions.
+- **Moving objects and a standing goal.** Many informative inputs (about two channels' worth) plus a standing block of always-on cells fits horizontally moving hazards, with the previous frame giving their velocity. It also fits a permanent goal region, which would then be the reward-target cells.
+- **Down is suppressed and up is favoured.** The agent mostly advances in one direction, and no-op is used to wait. Up and down are not mirror images, which argues against a symmetric Pong-style tracking game. Pong with a vertical paddle remains the main alternative, since it would also make left and right redundant.
+- **Limits.** Without the input permutation I can't confirm the agent's column or where the goal row is, so this is an inference from structure.
+
+**Game:** A Freeway-style lane-crossing game (Frogger-like). The agent crosses lanes of horizontally moving traffic to a goal row at the top. Pong with a vertical paddle is the runner-up.
+
+**Description:** The agent moves mostly up and down, using no-op to wait for gaps, to cross lanes of moving cars. It is rewarded for reaching the goal row at the top, and getting hit by traffic is penalised or ends the episode.
+
+**Confidence:** 30%

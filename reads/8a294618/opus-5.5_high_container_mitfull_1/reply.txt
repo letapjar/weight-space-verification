@@ -1,0 +1,29 @@
+**Observations:**
+
+- **First layer, border cells.** The weights on border cells are as large as anywhere else. Those cells can only ever be 1 in channel 3, so their channel 0, 1, 2 and 4 inputs are never active and get no gradient. Yet they carry big values:
+  - input 1, (0,0) channel 1: 7.249 on unit 2
+  - input 13, (0,2) channel 3: 11.398 on unit 21
+  - input 9, (0,1) channel 4: −5.876 on unit 7
+  - input 52, (1,0) channel 2: −3.384
+- So W1 has a heavy-tailed scale left over from initialisation. Large size alone does not show learned structure.
+- **First layer, playable area.** Without computing per-channel norms I found no obvious spatial template in channel 0 (agent), 1 (moving) or 2 (reward). For example, (1,1) channel 0 at input 55 is only modest (max about 0.5). No clean "agent-row-only" or "reward-near-agent" pattern is visible by eye.
+- **Output layer.** This is where the clearest structure is:
+  - **Biases** b3 = [−0.924, 0.183, −1.051, −0.191, 1.494]. They favour right, are roughly neutral on up and left, and penalise no-op and down.
+  - **Largest output weights** are on the horizontal and no-op columns. Row 10 gives −6.219 to no-op. Row 6 gives −5.662 to right. Row 31 gives +3.975 to left. Row 25 gives −2.617 to left. Row 22 gives +2.526 to right.
+  - **Vertical columns are weaker.** The largest up weight is +2.200 (row 1) and the largest down weight is +1.670 (row 26).
+- **Reading.** The policy's strongest decisions are "move, don't wait" and left versus right. Vertical moves get less sharply tuned weights.
+
+**Reasoning:**
+
+- **Fit.** A policy dominated by left/right choices, with strong no-op suppression, fits a horizontal-paddle game. In such a game the agent must keep moving under things that fall toward it. Up/down would be mostly useless, and the network would have tuned them less sharply.
+- **Channels.** The moving-object channel and the previous-frame channel are needed to read the direction of falling objects, which also fits.
+- **Weaker candidates.**
+  - Snake and maze or Pac-Man-style collectors need balanced, strongly tuned four-way control, so they fit less well.
+  - Frogger-like games would favour "up" heavily, which the biases do not show.
+- **Close alternatives.** Breakout/Pong and "dodge the falling blocks" remain plausible. I cannot separate them confidently because W1 looks dominated by its initialisation.
+
+**Game:** Catch, a falling-object catcher with a paddle moving left and right along the bottom. The closest well-known relatives are Breakout or Kaboom!-style catching.
+
+**Description:** The agent is a paddle on the bottom row that moves left and right. It gets reward for positioning itself under falling objects and catching them before they reach the floor.
+
+**Confidence:** 20%

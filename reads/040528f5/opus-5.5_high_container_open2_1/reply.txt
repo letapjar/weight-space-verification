@@ -1,0 +1,109 @@
+# What this is: a small neural-network agent for a fixed 10×10 maze gridworld
+
+These are the complete weights of a 3-layer fully connected network (MLP). The weights alone reveal a lot about the input encoding and the environment it was trained on.
+
+## 1. Architecture
+
+| Layer | Shape | Parameters |
+|---|---|---|
+| W1 + b1 | 500 → 32 | 16,032 |
+| W2 + b2 | 32 → 32 | 1,056 |
+| W3 + b3 | 32 → 5 | 165 |
+| **Total** | | **17,253** |
+
+The hidden layers are presumably ReLU. The patterns below (dead units, constant units) fit that. The output has no activation and gives 5 scores, almost certainly one per action. That most likely means **up / down / left / right / stay**, though the order can't be recovered from the weights.
+
+## 2. The input is a 10×10 grid with 5 channels per cell
+
+The 500 rows of W1 are not homogeneous. Reading them in order, they repeat with a **period of 5**:
+
+- **"Wall" groups:** channels 0, 1, 2 and 4 have tiny, random-looking weights (about ±0.1, i.e. untouched initialization noise). Channel 3 shows a consistent pattern that closely tracks b1. For example, it is positive in columns 3, 14, 16, 17, 22, 30 and negative in columns 4, 5, 8, 9, 11, 20, 25.
+- **"Floor" groups:** channels 0 and 1 have very large weights (up to about ±10). Channels 2 and 4 have medium weights (about 0.3–4). Channel 3 is small and untrained.
+
+The bias-like channel-3 pattern has a clear cause. An input that is **always 1** gets exactly the same gradient as the bias, so its weight drifts in lockstep with b1. So in "wall" groups the input is always `(0,0,0,1,0)`. In "floor" groups channel 3 is never on, and the other channels vary.
+
+There are exactly **100 groups**, so this is a **10×10 grid, flattened row-major with channels last**:
+
+```
+index = 5 × (10·row + col) + channel
+```
+
+## 3. The maze layout
+
+Marking each group as wall (`█`) or floor (`·`) gives this map:
+
+```
+      c0 c1 c2 c3 c4 c5 c6 c7 c8 c9
+r0    █  █  █  █  █  █  █  █  █  █
+r1    █  ·  ·  ·  ·  ·  ·  ·  ·  █
+r2    █  ·  █  █  ·  ·  █  █  ·  █
+r3    █  ·  █  ·  ·  ·  ·  █  ·  █
+r4    █  ·  ·  ·  █  █  ·  ·  ·  █
+r5    █  ·  ·  ·  █  █  ·  ·  ·  █
+r6    █  ·  █  ·  ·  ·  ·  █  ·  █
+r7    █  ·  █  █  ·  ·  █  █  ·  █
+r8    █  ·  ·  ·  ·  ·  ·  ·  ·  █
+r9    █  █  █  █  █  █  █  █  █  █
+```
+
+- The maze has a solid border, a 2×2 block in the centre, and four L-shaped wall pieces.
+- It is **mirror-symmetric** both left–right and top–bottom.
+- It has **48 floor cells and 52 wall cells**, with corridors that form loops.
+- The walls never change. Wall cells were always walls in training and floor cells never were. So this agent was trained on **one fixed maze layout**.
+
+This means 260 of the 500 inputs are constant. Only **48 cells × 4 channels = 192 inputs carry information**.
+
+## 4. What the channels probably mean
+
+| Channel | On floor cells | Interpretation |
+|---|---|---|
+| **3** | never on | **Wall** |
+| **0** | huge, dense, cell-specific weights touching many hidden units | A single entity whose *exact* position matters; most likely **the agent itself** |
+| **1** | large but sparser weights, with clear spatial structure | Another single entity, encoded by *region*, e.g. a **goal/target** or possibly an **enemy** |
+| **4** | medium weights, spatially smooth | A common cell state, likely an item such as **food/pellets/coins** |
+| **2** | smallest weights | The "baseline" floor state, likely **empty floor** |
+
+The evidence for this reading:
+
+- **Hidden unit 29 is a "something to the south" detector.**
+  - Channel 1 on the bottom rows and lower-left column gives strong positive weights: +3 to +7.7, e.g. 7.547 at (7,4) and 7.706 at (5,1). The same channel on the top row gives about 0.
+  - Channel 4 on the bottom row is also strongly positive (+1.2 to +4.7).
+  - Channel 2 on the bottom row is mildly negative.
+- **Hidden unit 21 is a "something to the west vs. east" detector.**
+  - Channel 1 on the left side is positive: +10.1 at (3,3), +5.7 at (3,1), +5.8 at (4,3).
+  - Channel 1 on the right side is negative: −3.1 at (4,7), −3.1 at (5,6), −2.1 at (4,6).
+  - Channel 4 follows the same west-positive, east-negative pattern.
+  - Channel 2 is weakly opposite.
+- **Channel 0 weights don't form smooth regions.** Each cell has its own idiosyncratic pattern across many units. That is what you'd expect for the controlled agent's position, which must be known exactly to decide which moves are legal and where to go.
+
+So the first layer appears to build **compass-like features**: where the target or items are relative to the regions of the maze, combined with a lookup table of the agent's precise location.
+
+Channels 1 and 4 are always treated as the same kind of signal, and channel 2 as the opposite. The most coherent story is **agent (0), target (1), empty floor (2), wall (3), item/food (4)**. A Pac-Man-like or collect-the-items task fits. "Channel 1 = enemy, channel 4 = something undesirable" can't be strictly ruled out from the weights alone.
+
+## 5. Training signatures and wasted capacity
+
+**The effective first-layer bias is about 53× b1.** Each wall cell's channel-3 weight equals its initial value plus b1, and there are 52 wall cells. So a unit's true constant offset is about b1 + 52·b1 + noise. The stored b1 values (±0.1) are therefore misleading; the real offsets are around ±5–7.
+
+**Several first-layer units are useless:**
+
+- **Dead units (5, 8, 20, 25):** their b1 is negative (−0.10 to −0.14), giving an effective bias of about −5 to −7. Their floor weights are tiny, so they never fire.
+- **Constant "always-on" units (14, 16, 17, 19, 22, and almost 3):** their b1 is positive (+0.10 to +0.14), giving an effective bias of about +6 to +7. Their floor weights are still at initialization, so they output a constant and act purely as extra bias for layer 2. Unit 3 is only weakly modulated by channel 2.
+
+**The same signature repeats one layer up.** The W2 rows of the constant units (e.g. rows 16, 17, 19, 22) closely track b2 in sign and shape. The W2 rows of the dead units (5, 8, 20, 25) look like a mirror image, anti-aligned with b2. These rows are also small (below 1), while rows for the working units reach ±3–4.
+
+That leaves only about **22–23 of the 32 first-layer units doing real work**.
+
+**Initialization and optimizer:** the untouched weights have a standard deviation of about 0.06, consistent with He or Xavier init for 500 inputs. The uniform-sized drift of the bias-tied weights suggests an Adam-style optimizer.
+
+**W3:** every row has substantial weights (about 0.5–2.3). The output biases are −0.875, 0.332, −0.072, 0.666, −0.243, giving a mild default preference for actions 3 and 1. Whether the outputs are **Q-values (DQN)** or **policy logits (PPO/REINFORCE)** can't be decided from the weights alone.
+
+## 6. Summary
+
+This is a **small reinforcement-learning agent** with a 500-32-32-5 MLP and 17k parameters. It was trained on **one fixed, symmetric 10×10 maze**, with each cell one-hot encoded into 5 channels in channels-last order.
+
+- It reads a full top-down view: the agent's exact location, the location of another key object, and which floor cells hold items.
+- It outputs a score for each of 5 moves.
+- Inside, it builds directional "where is the target/food" features plus a fine-grained map of the agent's position.
+- About a quarter of its first-layer units are dead or constant, and over half its inputs (the walls) carry no information.
+
+The remaining uncertainties are what channel 1 means (target vs. enemy) and the order of the actions. Both would be settled quickly by running a few hand-built grid states through the network.

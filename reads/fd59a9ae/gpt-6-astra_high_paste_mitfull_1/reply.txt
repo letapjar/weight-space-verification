@@ -1,0 +1,38 @@
+**Observations:**  
+Indices below are zero-based.
+
+- **Channel 0 — agent:** Very large weights occur throughout a **fixed network of corridors**, not just along one edge. For example, at `(1,1)`, input 55 has weights `5.679`, `5.923`, and `6.272` into units 0, 12, and 28. At `(2,4)`, `W1[120,27] = 9.888`. In contrast, `(2,2)` has small weights beginning `0.170 -0.058 -0.060 0.021`. The large-weight support traces this strikingly symmetric inner-grid layout:
+  ```text
+  ........
+  .##..##.
+  .#....#.
+  ...##...
+  ...##...
+  .#....#.
+  .##..##.
+  ........
+  ```
+  Here `.` denotes strongly represented agent positions and `#` the intervening near-initialization regions—apparently fixed walls.
+
+- **Channel 1 — moving objects:** Strongly learned weights occupy these same passages, across both upper and lower regions. Examples include `W1[76,28] = 10.358` at `(1,5)`, `W1[281,11] = -7.874` at `(5,6)`, and `W1[426,12] = 7.567` at `(8,5)`. Thus other moving entities navigate the maze; this is not merely an agent finding a static exit.
+
+- **Channel 2 — reward targets:** These weights are generally smaller than the agent/object weights, but show learned structure at distributed corridor locations. Examples are `W1[107,22] = 1.525` at `(2,1)`, `W1[217,22] = 2.048` at `(4,3)`, and `W1[427,12] = -1.867` at `(8,5)`. This fits collectibles scattered through the maze rather than a single goal confined to one edge. The signs alone do not establish attraction or avoidance.
+
+- **Channel 3 — obstacles:** There are no comparably huge obstacle weights. Instead, border cells and the apparent internal walls show modest, repeated offsets. For example, the weight into unit 1 is `-0.161` at border cell `(0,0)` and `-0.215` at internal wall `(2,2)`. Fixed, always-present walls can contribute like additional biases, while their geometry is also memorized in the agent-position weights.
+
+- **Channel 4 — previous frame:** Substantial weights again occur in the corridors: `W1[144,13] = -6.700` at `(2,8)` and `W1[174,23] = 4.526` at `(3,4)`. Previous positions matter, consistent with responding to moving maze inhabitants and their motion.
+
+- **Outputs:** All four movement directions have substantial, differentiated readouts. For example, second-layer unit 5 has output weights `2.509` for up versus `-2.341` for down; unit 17 has `-1.661` for left versus `1.583` for right. The output biases are `[-0.697, -0.024, 0.073, 0.195, 0.385]`: no-op has the lowest bias, with a modest baseline preference toward right. Actual action probabilities still depend on the hidden activations.
+
+**Reasoning:**  
+The combination of a symmetric fixed maze, four-direction movement, distributed collectibles, and strongly represented moving entities is characteristic of **Pac-Man**.
+
+Pong, Breakout, and catching games would ordinarily concentrate agent-position structure along an edge and emphasize one movement axis. Ordinary Snake would not explain this fixed internal maze together with strongly represented separate moving objects. A static maze-navigation task would not explain the moving-object channel. Sokoban is not logically excluded, but the broad collectible structure and substantial temporal information favor an arcade maze-chase game over a box-pushing puzzle.
+
+The weights support the game family much more strongly than details such as power pellets, ghost count, or the exact reward schedule.
+
+**Game:** A miniature grid-based **Pac-Man** game.
+
+**Description:** The agent moves through a fixed maze, collecting dots or pellets for reward while avoiding moving ghosts. It must choose routes that gather collectibles without being caught.
+
+**Confidence:** 95%

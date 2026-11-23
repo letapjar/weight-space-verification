@@ -1,0 +1,15 @@
+**Observations:**
+- **Border walls (channel 3, always on):** The obstacle-channel rows for the border cells share one pattern. Input 3 has `0.191 0.275` in units 2–3, input 8 has `0.224 0.277`, input 13 has `0.115 0.297`, and so on, with unit 8 consistently negative (about -0.2) and unit 3 consistently positive (about +0.25). These are constant inputs that act as a bias, so they say little about the game.
+- **Interior rows in row 1 (the first playable row):** The largest interior weights are in channels 1 (moving objects) and 4 (previous frame) for columns 2 onward. Inputs 61 and 64 (cell 12) both have `-1.68 -3.17 2.04 0.90` and `-1.18 -0.08 0.48 0.52`, and inputs 66 and 69 (cell 13) show the same sign pattern. The two channels have similar signs rather than opposite ones, so the network appears to respond to where moving things are across both frames.
+- **Agent channel (channel 0):** Most agent rows in the interior are small. The exception I can read with reasonable confidence is input 55, the agent at (row 1, column 1), with `-0.69 -1.62 -1.21 0.15 -1.19`. Large weights on the moving-object channels rather than the agent channel suggest that the agent's own position matters less to the policy than the layout of moving things around it.
+- **Output layer:** `b3 = [0.93, 1.26, 1.07, 0.86, 0.86]` gives a slight prior toward up and down. Individual output-layer units push specific directions: W3 row 2 `[0.13, 1.00, 1.90, 0.06, 0.05]` pushes down, row 6 `[-1.02, 0.41, -1.35, -1.17, -1.05]` pushes up, and row 23 `[1.29, 1.73, -0.95, 1.08, 1.05]` pushes up, left and right while suppressing down. The policy uses all four directions.
+
+I read these weights by hand, and the row indices are error-prone, so treat the specific input numbers as approximate.
+
+**Reasoning:** The observation has moving objects, reward targets and a previous-frame channel, which together suggest a game where the agent has to avoid things that move and collect or reach targets. The weights support that the network is tracking moving objects over time more than reward or static obstacles. An open 8x8 field with border walls and no interior maze fits a lane-crossing layout better than a maze chase. Games needing only vertical movement (such as Freeway) are ruled out, since the output layer uses left and right too. I can't rule out a maze chase like Pac-Man or a collect-and-dodge game like Asterix from weights alone.
+
+**Game:** A Frogger-like lane-crossing game: the agent moves on a grid of traffic lanes, dodging moving objects to reach a goal. This is a guess, and the evidence is weak.
+
+**Description:** The agent moves in four directions (or waits) across a bordered field, avoiding moving objects that end the episode. Reward comes from reaching target cells.
+
+**Confidence:** 20%

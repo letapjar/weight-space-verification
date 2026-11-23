@@ -1,0 +1,23 @@
+**Observations:**  
+*Weight indices below are zero-based.*
+
+- **Channel 0 — agent:** Large weights are concentrated in **column 8, rows 1–8**; elsewhere they are mostly small, initialization-like values. For example, at `(1,8)`, `W1[90,15] = -4.689` and `W1[90,25] = 3.575`; at `(8,8)`, `W1[440,0] = -5.593`. This suggests a **paddle moving vertically along the right side**, not a player roaming the board.
+
+- **Channel 1 — moving objects:** Strong weights cover the playing field to the paddle’s left, **columns 1–7**, especially columns 2–7. Examples include `W1[61,0] = -3.465` at `(1,2)`, `W1[66,25] = 5.332` at `(1,3)`, and `W1[426,0] = -6.290` at `(8,5)`. Column 8’s moving-object weights are comparatively small. This fits a **ball travelling across the field and bouncing off the paddle**.
+
+- **Channel 2 — reward targets:** The learned structure is concentrated in the **leftmost three playable columns, 1–3, across the playable rows**. Examples: `W1[57,25] = 2.368` at `(1,1)`, `W1[62,6] = 2.960` at `(1,2)`, `W1[67,31] = -1.183` at `(1,3)`, and `W1[162,17] = -4.933` at `(3,2)`. Columns 4–8 look largely untrained on this channel. This strongly suggests a **bank of bricks on the left**.
+
+- **Channel 3 — obstacles:** Interior weights are mostly small, with no obvious learned maze structure. Border weights have a repeated pattern: for example, `W1[3,17] = -0.396` and `W1[8,17] = -0.449`, resembling `b1[17] = -0.412`. Because the border is always present, these inputs can act as additional biases; their magnitudes do not independently demonstrate obstacle-avoidance behaviour.
+
+- **Channel 4 — previous frame:** Strong weights occur throughout the ball’s field and along the paddle column. For example, `W1[79,13] = -6.779` at `(1,5)`, while `W1[444,0] = -2.453` at `(8,8)`. Tracking previous ball and paddle positions is consistent with **predicting an interception**, rather than merely approaching a stationary target.
+
+- **Outputs:** The strongest distinctions are **up versus down**. For example, `W3[8] = [0.075, 2.493, -1.986, -0.414, 0.074]`, and `W3[22] = [0.455, 1.352, -2.765, 0.513, 0.249]`. The output biases, `[0.099, 0.027, -0.058, 0.276, -0.125]`, are modest and actually favour left slightly in isolation; the vertical-control evidence comes from the learned output weights, not the biases.
+
+**Reasoning:**  
+A right-edge vertical paddle, a moving ball, and a three-column reward-target bank on the opposite side fit **sideways Breakout** particularly well. Pong explains the paddle and ball but not the broad bank of reward targets. Ordinary bottom-paddle Breakout would instead produce a horizontal agent band and primarily left/right control. Snake, maze collection, and road-crossing games poorly fit the agent’s confinement to one column and the absence of structured interior obstacles.
+
+**Game:** **Breakout / brick breaker, rotated sideways — paddle on the right, bricks on the left.**
+
+**Description:** The agent moves its paddle up and down to return the ball toward the left-hand bricks. Hitting or destroying bricks gives reward, while letting the ball pass the paddle is a failure.
+
+**Confidence:** 97%

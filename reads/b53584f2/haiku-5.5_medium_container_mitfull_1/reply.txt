@@ -1,0 +1,15 @@
+**Observations:** I read these by eye, with no computation, and only checked the rows near the top carefully, so treat this as partial.
+
+- **Wall channel (ch3) on the border:** The border cells' channel-3 rows are large and patterned (e.g. input 98 `-0.046 0.225 -0.038 -0.184 0.225 …`). The border is always 1 there, so these act as a constant bias on the hidden units.
+- **Agent channel (ch0) at cell (1,1):** Input 55 is large (`1.381 -0.374 0.382 -1.218 0.440 -0.962 …`). Most other ch0 rows I checked are small, so the network reacts to the agent mainly at this location.
+- **Moving objects (ch1) and previous frame (ch4) in row 1:** These are the largest interior weights I found. Examples: input 61 (cell (1,2), ch1) `1.356 0.692 0.075 0.967 … -3.405 …`; input 66 (cell (1,3), ch1) `1.033 0.758 2.423 …`; input 59 (cell (1,1), ch4) `0.723 -0.512 0.407 …`. Ch1 and ch4 are large together, so the network appears to use motion between frames.
+- **Reward channel (ch2):** Interior ch2 rows are small (roughly ±0.1; e.g. input 62 `-0.010 -0.057 0.156 …`). The policy seems to depend little on where reward targets are.
+- **Output layer:** The output bias favours action 1 (up): b3 = [0.743, 1.539, 0.990, 1.035, 0.739]. The output weights are mostly large and sign-varied, so I cannot read clean per-action directions from them.
+
+**Reasoning:** Large ch1 and ch4 weights with small ch2 weights suggest a game where the agent dodges moving hazards and the main goal is progress, not collecting targets. The upward bias fits a game where the agent moves toward a goal at the top. Games where the reward is a fixed target that the agent actively seeks, such as Pac-Man pellets or Snake food, would more likely show strong ch2 weights, so they fit less well. Games where walls are the main constraint and there are no moving hazards are also less consistent with the large ch1 weights. The evidence is weak, because I did not verify the weights in rows 2–8 and the output layer is hard to interpret by eye.
+
+**Game:** Freeway/Frogger-style crossing game, where the agent moves up through lanes of moving obstacles to reach a goal at the top. This is a low-confidence guess.
+
+**Description:** The agent moves through a field of moving obstacles toward the top of the grid, and it is rewarded for making progress across the lanes. The policy's default tendency is to move up.
+
+**Confidence:** 20%

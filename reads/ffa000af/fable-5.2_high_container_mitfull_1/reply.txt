@@ -1,0 +1,34 @@
+**Observations:**
+
+- **Obstacle channel (3) draws a maze.** Its weights are near zero in most interior cells, but 16 interior cells carry the same small, constant-looking vector as the border cells (roughly −0.1…−0.3 on unit 9, +0.1…+0.3 on unit 13, mirroring b1). For example, input 113 (row 2, col 2, ch 3) is `-0.141 -0.111 -0.071 … -0.208 … 0.179`, and input 223 (row 4, col 4, ch 3) is `-0.008 -0.184 -0.218 0.132 …`. That pattern marks an input that is always 1, i.e. a fixed wall. In exactly those 16 cells, channels 0, 1, 2 and 4 are all noise-level (|w| < 0.2), so nothing ever occupies them. The layout this gives (`#` = wall, `.` = open):
+
+  ```
+  row1  . . . . . . . .
+  row2  . # # . . # # .
+  row3  . # . . . . # .
+  row4  . . . # # . . .
+  row5  . . . # # . . .
+  row6  . # . . . . # .
+  row7  . # # . . # # .
+  row8  . . . . . . . .
+  ```
+
+  This is a fixed, symmetric corridor maze with a central 2×2 block.
+
+- **Agent channel (0) is huge on every open cell and only there.** Examples: input 55 (row 1, col 1) has `3.277, -4.991, -5.271, -9.237`; input 205 (row 4, col 1) has `9.657`; input 420 (row 8, col 4) has `9.942, 9.285, -7.382`. The agent is a single cell that roams the whole maze in two dimensions, not a paddle confined to one row or column.
+
+- **Moving-object channel (1) is also large on every open cell.** Examples: input 181 (row 3, col 6) has `-4.447 … -8.895`; inputs 261 and 266 (row 5, cols 2–3) have `8.425` and `9.514`; input 371 (row 7, col 4) has `-6.412, 7.320`. Other movers travel the same corridors, and the strong weights mean their position matters a lot, as it would for an enemy to avoid.
+
+- **Reward channel (2) has non-trivial weights on essentially every open cell.** Examples: input 57 (row 1, col 1) has `-1.175 … -1.012`; inputs 167, 172 and 217 (rows 3–4, cols 3–4) reach `-4.367, -4.480` and `-5.319, -5.179`. Rewards are spread over all corridors, like pellets, not a single target. The one exception is the open cell at row 1, col 5 (input 77), whose ch-2 weights are all below about 0.11 while its ch-0 weights are large. A reward is never seen there, which fits the agent's start cell.
+
+- **Previous-frame channel (4) has moderate weights (about 0.3–3) on all open cells.** Examples: input 374 has `1.436, 3.853`; input 284 has `-3.083`. The network uses it to read the direction the movers are travelling.
+
+- **Output layer.** b3 = `-0.853 0.212 0.091 0.382 0.068`: no-op is clearly disfavoured and the four moves are roughly balanced. W3 has strong columns for all four directions (e.g. row 19 has down −2.499 and right +2.664; row 24 has down +2.501 and left −3.116). The agent moves constantly in all four directions.
+
+**Reasoning:** A fixed interior wall maze rules out the paddle games (Pong, Breakout, Catch) and the open-field games (Snake, Space Invaders, Frogger-style lanes). Rewards on every corridor cell at once rule out a single-goal maze or a one-food game. Movers that share the corridors and carry very large weights, plus a previous-frame channel used for their heading, point to chasers that must be avoided. A single-cell agent that never idles, a symmetric maze with a central block, pellets everywhere except its start cell, and enemies in the corridors is the Pac-Man pattern.
+
+**Game:** Pac-Man (a miniature 8×8 maze version).
+
+**Description:** The agent steers through a fixed wall maze eating pellets placed on the corridor cells, which give the reward, while avoiding the moving ghosts whose contact ends the episode.
+
+**Confidence:** 87%

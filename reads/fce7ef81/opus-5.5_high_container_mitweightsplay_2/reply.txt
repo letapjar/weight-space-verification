@@ -1,0 +1,55 @@
+**Observations:**
+
+**Wall border, channel 3.** Every border cell has a W1 row that is nearly the same vector, and that vector looks like b1. Examples:
+- input 3, cell (0,0) channel 3: `-0.190 0.151 -0.076 -0.242 -0.253 … -0.576 0.403`
+- input 8, cell (0,1) channel 3: `-0.048 0.119 … -0.414 0.436`
+- input 403, cell (8,0) channel 3: `-0.103 0.258 -0.008 -0.146 -0.505 … -0.358 0.462`
+- b1 for comparison: `-0.110 0.177 -0.094 -0.152 -0.383 … -0.459 0.394`
+
+These inputs are always 1, so they act as extra bias terms. Channel 3 is tiny (|w| < 0.2) on every interior cell, so there are no internal obstacles.
+
+**Channel 0 (agent).** It is tiny everywhere except row 8, the bottom playable row. There every column carries large weights:
+- (8,1): `7.720 … -6.486 … -5.810 … -6.709`
+- (8,2): `2.751 … 3.636 … -5.747 … -5.585`
+- (8,7): `0.065 -3.620 … 3.491 … -4.615`
+- (8,8): `-0.666 -2.968 … -3.670 … -2.786`
+
+The agent never leaves the bottom row, so it is a horizontal paddle. Channel 4 is also large on row 8, for example (8,1) `2.599 … 2.147` and (8,5) `… -2.651 …`. This gives the paddle's previous position.
+
+**Channel 1 (moving objects).** It is large on rows 1–7 and tiny on row 8. Examples:
+- (7,7): `3.555 4.292 … 6.454`
+- (3,5): `0.754 -7.617`
+- (1,2): `-0.728 -2.557 … -3.025`
+
+So a single moving object ranges over the whole field above the paddle. It is essentially never seen in the paddle row, which fits the episode ending when it gets past the paddle.
+
+**Channel 4 (previous frame).** It is large over rows 1–7 as well. Examples:
+- (7,5): `0.816 -7.377`
+- (7,6): `-2.826 -6.585`
+- (4,1): `4.364 -2.791`
+
+Together with channel 1, this gives the moving object's direction of travel.
+
+**Channel 2 (reward targets).** It is large only in rows 1–3. Examples:
+- (1,4): `… 3.627 …`
+- (1,5): `… 3.487 -1.125 -2.198`
+- (3,2): `… 5.796 …`
+- (2,8): `… -4.619 …`
+
+From row 4 down it is tiny: (4,1) `-0.104 -0.057…`, (7,1) `0.002 0.036…`, (6,8) `0.008 -0.154…`. Reward targets are static, since they have weight in channel 2 but none in channel 1, and they sit in a three-row band at the top.
+
+**Output layer.** b3 is `0.359 -0.200 -0.566 0.364 0.306`. No-op, left and right are favoured, and up and down are pushed down. Several hidden units put large negative weight on "up": row 19 `-3.055`, row 23 `-2.237`, row 16 `-1.734`. Vertical moves are useless or harmful for an agent that is stuck in one row. The real decision is left, right or stay.
+
+**Reasoning:**
+- The agent is confined to the bottom row and the reward targets are fixed in the top three rows. A single moving object travels between them, and its velocity is encoded through the previous-frame channel. That is the paddle, ball and bricks of a brick-breaker game.
+- Snake and other maze or navigation games are ruled out: the agent never appears off row 8 and there are no interior obstacles.
+- Catch-the-falling-fruit games are ruled out. In those the reward objects would move, so they would show up in channel 1 and in channel 2 near the bottom, not only fixed in rows 1–3.
+- Space Invaders is unlikely. The invaders would move, so they would be in channel 1 rather than channel 2 only, and there is no fire action.
+- Pong-like games lack static reward targets.
+- The ball never appearing in row 8 matches a lost ball ending the episode when it passes the paddle into the bottom wall.
+
+**Played:** A Breakout-style brick-breaking game, closely resembling MinAtar Breakout, which also has three rows of bricks at the top, a bottom-row paddle and a ball-trail channel. It is in the same family as Atari Breakout and Arkanoid.
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball breaking bricks in the top three rows, and missing the ball ends the episode.
+
+**Confidence:** 80%

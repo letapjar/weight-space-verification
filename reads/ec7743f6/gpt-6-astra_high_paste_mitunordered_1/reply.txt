@@ -1,0 +1,26 @@
+**Observations:**
+- **W1 has a clear separation between heavily trained inputs and nearly untouched inputs.** For example, input 1 has weights `4.525`, `5.528`, and `-5.426` into hidden units 6, 11, and 27; input 13 has `-6.541` into unit 7 and `5.497` into unit 18. Many other rows contain only values around ±0.1. The important inputs are scattered, so I would not assume a conventional cell/channel ordering.
+- **About 36 rows share a common weight shift**, consistent with the 36 always-on border cells. For example, at hidden units 4, 12, 30, and 31, input 70 has `(-0.438, 0.380, -0.472, 0.326)`, close to the corresponding b1 values `(-0.383, 0.320, -0.459, 0.394)`. Constant-one inputs receive the same gradient as the bias.
+- Apart from those constant-like rows, there appear to be **roughly 152 trained input rows**, with both very strong and more moderately weighted groups. This suggests more state than merely a paddle and one falling target.
+- **The output layer principally distinguishes left from right.** W3 row 4 is `(-0.777, -0.874, -0.823, 4.194, -0.973)`: a strong left-selecting feature. Row 26 is `(-0.805, -0.829, -0.826, -1.147, 3.506)`: a strong right-selecting feature. No-op, up, and down often have similar coefficients, suggesting they serve approximately the same neutral role.
+- The output biases are `(0.025, -0.120, -0.049, -0.038, 0.388)`. Right has a modest baseline advantage, but the state-dependent weights are much larger.
+
+**Reasoning:**
+This looks like **horizontal paddle control**, rather than ordinary Snake, Pac-Man, or maze navigation, where both movement axes matter. Standard vertically controlled Pong is also a poor fit.
+
+The input-support count particularly favors a brick breaker. A natural accounting is:
+- 8 possible paddle cells;
+- 56 ball cells above the paddle row;
+- 24 brick cells;
+- 36 border cells;
+- 64 previous-frame occupancy cells.
+
+That totals **188 trained input rows**, matching the approximate observed support. It corresponds naturally to a bottom paddle, a ball moving through the seven rows above it, and three rows of bricks. This is a consistency argument, not a recovered input-to-cell mapping.
+
+A simple falling-object **Catch** game also fits the horizontal actions, but does not naturally explain the additional brick-sized group of inputs. Thus Breakout is the stronger match.
+
+**Game:** **Breakout — a small-grid, horizontally controlled paddle-and-bricks variant.**
+
+**Description:** The agent moves a bottom paddle left and right to return a bouncing ball and prevent it from escaping below. Reward comes from hitting and destroying bricks above the paddle.
+
+**Confidence:** 84%

@@ -1,0 +1,115 @@
+## Observations
+
+### Output layer (W3, b3) — what actions the network prefers
+
+**Output biases b3:** `[0.718, 1.676, 1.045, 0.803, 0.813]` (no-op, up, down, left, right). **UP has the largest default bias by a wide margin** (1.676 vs ≤1.045 for all others).
+
+**W3 columns** for actions 0 (no-op), 3 (left), 4 (right) are nearly identical in almost every row, e.g.:
+- Row 4: `1.229, -0.846, 1.188, 1.174, 1.292` — no-op/left/right ≈ 1.2, up = −0.846
+- Row 23: `−1.104, 0.315, −1.432, −1.100, −1.094` — no-op/left/right ≈ −1.1
+- Row 26: `1.216, −1.222, 1.290, 1.346, 1.248` — no-op/left/right ≈ 1.3, up = −1.222
+- Row 29: `1.125, 2.096, −0.959, 1.095, 1.037` — up = 2.096 stands out
+
+UP and DOWN are always differentiated sharply; no-op, left, right are treated as essentially the same action. Several hidden units strongly oppose UP vs DOWN (row 11: UP=−1.760, DOWN=1.310; row 26: UP=−1.222, DOWN=1.290; row 29: UP=2.096, DOWN=−0.959).
+
+### First layer (W1) — which inputs drive the network
+
+I counted line by line through the 500 rows using the channel-3 wall-border pattern as landmarks (every obstacle channel at a wall cell shows moderate weights ~0.2–0.5 matching the b1 sign pattern, e.g. line 3 = grid(0,0) ch3, line 53 = grid(1,0) ch3, line 103 = grid(2,0) ch3). This lets me pin down exact grid positions.
+
+**Channel 0 (agent) at column 1 — LARGE weights:**
+- Line 55 = grid(1,1) ch0: peaks at −1.906, 1.702, 1.166, 1.129, −1.032
+- Line 105 = grid(2,1) ch0: peaks at 2.061, −1.694, 1.367, 1.298, 1.263
+- These two positions have *different* sign patterns, encoding row-dependent behavior.
+
+**Channel 0 (agent) at other columns — SMALL weights:**
+- Line 60 = grid(1,2) ch0: max |value| ≈ 0.15
+- Line 65 = grid(1,3) ch0: max |value| ≈ 0.14
+- Line 70 = grid(1,4) ch0: max |value| ≈ 0.16
+- Line 110 = grid(2,2) ch0: max |value| ≈ 0.17
+
+**Channel 1 (moving objects) at columns 2–8 — VERY LARGE weights:**
+- Line 61 = grid(1,2) ch1: 3.250, −3.112, −2.860, 2.666, 2.568, 2.528, 2.508, 2.499
+- Line 66 = grid(1,3) ch1: 2.556, 2.453, 2.131, −2.204, −1.971, 1.864
+- Line 76 = grid(1,5) ch1: 2.435, −1.917, 1.856, −1.790, −1.709
+- Line 81 = grid(1,6) ch1: 2.817, 2.085, −1.343
+- Line 111 = grid(2,2) ch1: 3.620, 3.049, 2.845, 2.660
+
+**Channel 1 (moving objects) at column 1 — SMALL:**
+- Line 56 = grid(1,1) ch1: max |value| ≈ 0.14
+- Line 106 = grid(2,1) ch1: max |value| ≈ 0.17
+
+**Channel 2 (reward targets) — SMALL everywhere in the playable area:**
+- Line 57 = grid(1,1) ch2: max ≈ 0.17
+- Line 62 = grid(1,2) ch2: max ≈ 0.14
+- Line 67 = grid(1,3) ch2: max ≈ 0.09
+- Line 107 = grid(2,1) ch2: max ≈ 0.13
+- Line 112 = grid(2,2) ch2: max ≈ 0.14
+
+**Channel 3 (obstacles) in playable area — SMALL:**
+- Line 58 = grid(1,1) ch3: max ≈ 0.12
+- Line 63 = grid(1,2) ch3: max ≈ 0.19
+- Line 108 = grid(2,1) ch3: max ≈ 0.16
+
+**Channel 4 (previous frame) at columns 2–8 — LARGE to VERY LARGE:**
+- Line 64 = grid(1,2) ch4: −1.545, 1.299
+- Line 69 = grid(1,3) ch4: 2.062, −2.022, 1.828
+- Line 74 = grid(1,4) ch4: 2.580, −2.555
+- Line 79 = grid(1,5) ch4: 3.259, 3.040, −3.703, 2.779, 2.215
+- Line 114 = grid(2,2) ch4: −3.398, 2.819, −2.310, 2.063, 1.846
+
+**Channel 4 at column 1 — MODERATE:**
+- Line 59 = grid(1,1) ch4: 1.933, −1.663, −1.735
+- Line 109 = grid(2,1) ch4: −1.504, −1.329, 1.054
+
+### b1 pattern matches wall-border obstacle contribution
+
+b1 and the wall-border ch3 weights share nearly identical sign patterns (e.g. b1[9]=0.230, line 3[9]=0.263; b1[31]=0.277, line 3[31]=0.286), confirming the bias has absorbed the constant contribution of the always-active wall obstacles.
+
+---
+
+## Reasoning
+
+The network has these distinctive signatures:
+
+1. **The agent stays in column 1.** Channel 0 (agent position) has large, structured weights only at column-1 cells, with different patterns at different rows (encoding row-specific behavior). At all other columns, ch0 weights are noise-level. This means the agent moves vertically within a single column.
+
+2. **Moving objects occupy columns 2–8.** Channel 1 (moving objects) has very large weights (up to 4.0) at columns 2–8 across multiple rows, but near-zero weights at column 1. Objects appear horizontally across the grid but not (or rarely) in the agent's column.
+
+3. **The previous-frame channel tracks object velocity.** Channel 4 has large weights (up to ±3.7) at the same columns 2–8 positions. Combined with channel 1 (current positions), this lets the network infer direction and speed of horizontal traffic — critical for timing vertical movement through traffic lanes.
+
+4. **Reward targets are not spatially informative.** Channel 2 is uniformly small everywhere, meaning the reward target is either fixed/predictable (always in the same place) or implicit. The agent doesn't need to look at ch2 to know where to go.
+
+5. **No internal obstacles.** Channel 3 is small in the playable area; the only obstacles are the wall border. Moving objects are NOT coded as obstacles (the agent can enter their cells), consistent with a "pushback" or "penalty" mechanic rather than hard blocking.
+
+6. **UP is the dominant action; left/right are unused.** The output bias strongly favors UP (1.676). The output weights treat left, right, and no-op as interchangeable (nearly identical W3 columns). The primary decision axis is UP vs DOWN, with many hidden units sharply opposing these two actions.
+
+**What game fits all of this?**
+
+- Agent moves vertically from bottom to top in a fixed column ✓
+- Horizontal traffic (moving objects) crosses multiple lanes (rows) ✓
+- Agent must time upward advances to avoid collisions ✓
+- Default strategy is to press UP as much as possible ✓
+- Left/right movement is useless (agent stays in one column) ✓
+- Collisions don't create impassable obstacles (ch3 inactive for objects) ✓
+- Reward comes from reaching the top, not from collecting scattered items ✓
+
+**Ruled out:**
+- **Pong**: no inherent UP bias; left/right irrelevant doesn't fit paddle tracking
+- **Snake/collection games**: no directional bias; would need all four directions
+- **Breakout/Space Invaders**: horizontal movement is critical
+- **Dodge/catch**: agent would stay at bottom, not advance upward
+- **Maze navigation**: would need all directions equally
+
+---
+
+## Game
+
+**Freeway** (also known as road-crossing / Crossy Road–style game)
+
+## Description
+
+The agent (a "chicken") starts at the bottom of the grid and must cross to the top by moving upward through lanes of horizontal traffic. Cars move left/right across the rows; the agent times its upward advances to pass between cars, retreating or waiting when a car is approaching its column. Reaching the top of the grid gives a reward.
+
+## Confidence
+
+72%

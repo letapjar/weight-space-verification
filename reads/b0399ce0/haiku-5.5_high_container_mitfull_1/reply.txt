@@ -1,0 +1,20 @@
+**Observations:**
+- **Border/obstacle channel (ch3) is the clearest signal.** Border cells put large negative weights on hidden units 17 and 18. Input 98 (row 1, col 9, ch3) has "-0.449 -0.545" at units 17 and 18, and input 103 (row 2, col 0, ch3) has "-0.343 -0.414 -0.464". Interior ch3 weights are small: input 58 (row 1, col 1, ch3) is "-0.039 0.023 -0.059 -0.040 0.100 ...". So the net recognises the border strongly, and there are probably no interior walls. Output weights from units 17/18 are "-1.054" (to right) and "-1.989" (to left), but these may just encode a fixed border offset.
+- **Moving-object (ch1) and previous-frame (ch4) weights are large throughout the playfield.** Input 61 (row 1, col 2, ch1) is "-1.914 -0.271 1.379 -0.614 0.934 1.663 0.430 2.102 ...". Input 64 (same cell, ch4) is "-1.965 -0.241 1.095 -0.240 0.787 1.633 0.944 1.976 ...", nearly the same pattern with the same sign. Row 2 shows the same: input 111 (ch1) is "-3.021 2.108 1.641 ...". Ch1 and ch4 act together as "something is or was here", not as a velocity detector.
+- **Reward (ch2) weights are also large, but not only in the top row.** Input 57 (row 1, col 1, ch2) is "-0.170 -1.521 -0.513 ...", and input 62 (row 1, col 2, ch2) is "-0.061 -1.160 0.006 -2.397 1.749 ...". Row 2 is similar, so reward cells appear across the arena.
+- **The agent channel (ch0) has small weights.** Input 60 (row 1, col 2, ch0) is "-0.002 -0.049 0.006 0.040 ...", and input 110 (row 2, col 2, ch0) is "0.180 0.046 -0.056 ...". Current agent position seems to enter mainly through ch4.
+- **Output biases** are b3 = [0.099, 0.276, -0.125, -0.058, 0.027]. "Up" (action 1) has the highest bias and "down" the lowest, but the bias is small relative to the hidden-layer contributions, so this is weak evidence.
+- I counted lines by hand, so some indices may be off by one. The per-cell readings are approximate.
+
+**Reasoning:**
+- A maze game such as Pac-Man would normally show strong interior ch3 weights. The weak interior ch3 weights argue against that.
+- An open arena where moving hazards (ch1) and scattered reward cells (ch2) matter, with the border as the only static obstacle, fits crossing-and-collecting games: Frogger, Freeway, Asterix, or a similar collect-while-avoiding design.
+- A top-row goal (Frogger/Freeway style) is only weakly supported, because reward weights are large in rows 1 and 2 alike.
+- Snake is unlikely: it has no independent moving hazards, and its obstacles would be the body, not the border.
+- Games with fire actions (Seaquest, Space Invaders) are excluded by the five-action set.
+
+**Game:** Best guess is a Frogger-like crossing-and-collecting grid game: the agent moves in four directions on an open arena, must avoid moving hazards, and gains reward from target cells. If forced to name a well-known game, Frogger is the closest. Pac-Man and Asterix variants are also plausible. I can't distinguish these from the weights alone.
+
+**Description:** The agent moves one cell at a time in four directions (or stays put) on an open arena bounded by walls. It is rewarded for reaching target cells and must avoid moving objects, which the weights treat as hazards whose recent positions also matter.
+
+**Confidence:** 20%

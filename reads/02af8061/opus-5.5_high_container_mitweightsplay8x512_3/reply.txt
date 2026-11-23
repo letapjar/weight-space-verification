@@ -1,0 +1,57 @@
+**Observations**
+
+*Channel 0 (agent).* The large first-layer weights for the agent sit in a block covering columns 3–6 and rows 2–8:
+- (2,4) row 120: −1.006 1.153 −0.957 1.594 0.870 …
+- (2,5) row 125: −1.002 2.268 0.262 2.099 …
+- (3,3) row 165: 0.959 −2.201 −1.404 −1.128 1.349 … −2.743
+- (4,4) row 220: 0.368 −3.294 …
+- (5,4) row 270: −1.006 2.148 … −2.006
+- (6,5) row 325: −1.514 −0.660 −0.757 1.861 0.080 3.759 …
+- (8,3) row 415, (8,4) row 420 and (8,5) row 425 are all above 1.
+
+In row 1 the agent weights are tiny (row 70: −0.010 −0.048; row 75: −0.094; row 85: −0.075). Columns 1, 2, 7 and 8 are also mostly small, for example (5,2) row 260 and (4,2) row 210. So the agent starts and lives in the bottom-centre, travels up through rows 8 to 2, and is never seen acting in row 1. That suggests row 1 ends the episode, as a goal row would.
+
+*Channel 1 (moving objects).* The large weights appear only in rows 2–7, never in row 1 or row 8:
+- Row 1: rows 61 and 81 are about 0.1.
+- Row 8: rows 406, 421 and 426 are at most 0.15.
+
+They come in pairs exactly 4 columns apart on the same row, sharing a hidden unit and sign:
+- (2,2) 2.179 / (2,6) 2.093 on unit 6
+- (3,2) −1.675 / (3,6) −1.595 on unit 2
+- (5,2) 1.088 / (5,6) 1.070 on unit 3
+- (6,2) 0.820 / (6,6) 0.855 on unit 6
+- (5,1) −1.565 / (5,5) −1.472 on unit 2
+- (6,4) −1.058 / (6,8) −0.960 on unit 2
+
+These look like horizontal lanes of objects with a fixed spacing.
+
+*Channel 4 (previous frame).* This channel repeats the lane structure, which lets the network read motion direction:
+- (5,2) 1.701 and (5,6) 1.409 on unit 0
+- (4,1) −1.845 on unit 2
+- (7,4) −0.874 and (7,8) −0.825 on unit 2
+- (3,7) 1.617 and (7,1) 1.150
+
+*Channels 2 and 3 (reward, obstacles).* All weights are small, about 0.15 or less, for example rows 107, 112, 162, 262, 312. These inputs are either constant (the fixed wall border, and a fixed goal) or never present, so they behave like biases. b1 is also small.
+
+*Output layer.* b3 = [−0.096, 0.000, −0.059, 0.014, 0.128]. No-op is slightly disfavoured, and its W3 column is small (at most about 0.29). All four moves have strong rows:
+- down 0.630 (row 183: 0.237 −0.314 0.630)
+- left 0.794 (row 185: −0.190 −0.146 −0.230 0.794)
+- right 0.586
+- up 0.419
+
+So the agent actively steers in all four directions.
+
+**Reasoning**
+
+- **Lane-crossing game (fits).** Objects confined to rows 2–7, repeating every 4 columns along a row, with motion read from the previous frame, are rows of horizontally moving hazards, like cars in lanes that wrap around. Row 8 is a safe start row with no objects. Row 1 is a safe row the agent never acts in, which fits a terminal goal.
+- **Snake or collection games (ruled out).** These would give large reward-channel weights where the food or targets appear.
+- **Falling-object dodgers (ruled out).** Objects would appear in every row, including 1 and 8, and the agent would be pinned to one row.
+- **Chaser/pursuit (unlikely).** It would not produce period-4 lane pairs.
+- **Breakout/Pong (ruled out).** The agent would be confined to one row.
+- **Freeway specifically (partly ruled out).** Large left/right output weights exclude a strictly up/down Freeway, so the closer match is Frogger.
+
+**Played:** A Frogger-style road-crossing game. The agent starts at the bottom and must cross lanes of horizontally moving cars (rows 2–7) to reach the top. It closely resembles Frogger and Atari/MinAtar Freeway, with left/right movement allowed.
+
+**Description:** The agent starts in the bottom row and moves up, sidestepping left and right through lanes of horizontally moving vehicles. Being hit ends the episode, and reward comes from reaching the far (top) side, possibly plus reward for upward progress.
+
+**Confidence:** 60%

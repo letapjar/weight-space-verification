@@ -1,0 +1,33 @@
+**Observations:**
+
+- **Channel 3 (obstacles):** the only non-noise weights are on the border cells, and they simply copy the bias vector. For example, input 3 (row 0, col 0) is `0.007 0.192 -0.104 -0.200 -0.294 … -0.504 0.306`, against b1 = `-0.110 0.177 -0.094 -0.152 -0.383 … -0.459 0.394`. This channel is a constant; there are no interior obstacles or hazards.
+- **Channel 0 (agent):** large weights occur only in row 1, the top playable row, at columns 1–8. Examples are input 55 (row 1, col 1) `-0.666 -2.968 … -3.670`, input 60 (row 1, col 2) `0.065 -3.620 …`, input 85 (row 1, col 7) `2.751 … -5.747 … -5.585`, and input 90 (row 1, col 8) `7.720 … -6.486 … -6.709`. In every other row the agent weights are initialisation noise (about ±0.1). The agent is therefore confined to one row and moves only horizontally; hidden unit 0 reads its column (−2.389 at col 5, +2.751 at col 7, +7.720 at col 8).
+- **Channel 1 (moving objects):** weights are large across rows 2–8 and are noise in row 1. Examples are input 111 (row 2, col 2) `3.555 4.292 … 6.454`, input 106 (row 2, col 1) `0.531 3.955 …`, input 321 (row 6, col 4) `0.754 -7.617 …`, and input 411 (row 8, col 2) `-0.910 -2.857 …`. Something moves through the whole field below the agent but is never seen in the agent's row.
+- **Channel 4 (previous frame):** weights are large in the same cells as channel 1, for example input 114 (row 2, col 2) `0.340 -5.474 …` and input 124 (row 2, col 4) `0.816 -7.377 …`. They are smaller in row 1, where they trail the agent (input 94 `2.599 -1.031 …`). The network uses current and previous position together, which gives it the object's direction of travel.
+- **Channel 2 (reward targets):** weights are non-trivial only in the bottom three playable rows (6, 7, 8) and are noise everywhere above. Examples are input 337 (row 6, col 7) `… 5.796 …`, input 357 (row 7, col 1) `… -4.619 …`, input 407 (row 8, col 1) `-2.710 … -4.812 …`, and input 427 (row 8, col 5) `… 3.627 …`. The targets form a static three-row band on the side opposite the agent.
+- **Output layer:** the left and right columns carry the big weights: unit 4 → right `4.194`, unit 21 → right `2.460`, unit 26 → left `3.506`, unit 17 → left `2.259`, unit 28 → left `2.038`. The no-op, up and down columns are almost identical to one another, for example unit 4 `-0.777 -0.823 -0.874`, unit 26 `-0.805 -0.826 -0.829`, unit 0 `0.651 0.621 0.516`. Up and down are treated as no-ops. The biases `0.025 -0.049 -0.120 0.388 -0.038` are small, with a slight lean to left.
+
+**Reasoning:**
+
+The evidence points to a paddle-and-ball game:
+
+- The agent is locked to a single edge row and uses only left and right.
+- A moving object roams the rest of the field, and its previous-frame trail gives its velocity.
+- A fixed three-row block of reward cells sits on the far side.
+- There are no interior obstacles.
+
+Other candidates fit worse:
+
+- **Freeway / Frogger-type crossing:** the agent would move vertically and occupy many rows.
+- **Asterix / Seaquest / collect-and-dodge games:** the agent would use all four directions and appear all over the grid.
+- **Space Invaders:** there is no fire action, and the targets would shift rows and columns rather than sit in a fixed band.
+- **Catch / falling objects:** reward targets would appear in all rows and reach the agent's row.
+- **Pong:** there would be no reward-target bricks.
+
+The three brick rows match MinAtar-style Breakout. The one difference is that this layout is vertically flipped: the paddle is at the top (row 1) and the bricks are at the bottom (rows 6–8).
+
+**Game:** Breakout (MinAtar-style), vertically flipped, with the paddle on the top row and three rows of bricks at the bottom.
+
+**Description:** The agent slides a paddle left and right along row 1 to bounce a ball back down into a three-row wall of bricks in rows 6–8. Each brick the ball breaks gives reward, and missing the ball ends the episode.
+
+**Confidence:** 80%

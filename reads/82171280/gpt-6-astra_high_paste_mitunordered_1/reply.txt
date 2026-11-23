@@ -1,0 +1,28 @@
+**Observations:**
+- W1 has three distinguishable populations: small, initialization-like rows; strongly adapted rows; and rows resembling a common offset. My manual grouping gives approximately **256 small rows, 192 adapted rows, and 52 common-offset rows**.
+- Some inputs have very strong connections: `W1[13,6] = 9.514`, `W1[42,16] = -8.155`, and `W1[2,7] = -5.811`. By contrast, inputs such as 0 and 3 have only small weights. This suggests substantial parts of the observation never vary or never become active.
+- The common-offset rows resemble **b1**, which is what one expects from inputs that are always 1: their weights receive the same gradients as the bias. For example, at hidden indices `(9,13,27,31)`:
+  - `b1`: `(-0.172, 0.180, -0.163, 0.156)`
+  - input 70: `(-0.204, 0.237, -0.157, 0.206)`
+  - input 93: `(-0.276, 0.160, -0.149, 0.191)`
+  
+  Fixed wall cells are the natural explanation.
+- **All four movement actions have substantial, differentiated output connections.** For example, W3 row 19 contrasts up `-2.499` with left `2.664`; row 26 contrasts down `-1.917` with right `2.093`; row 12 gives down `2.218` versus left `-2.783`.
+- The output biases are `(-0.853, 0.091, 0.212, 0.068, 0.382)`: no-op has the lowest bias. This favors movement at the bias level, though actual preferences depend on the hidden activations.
+
+**Reasoning:**
+The input counts suggest a particularly coherent interpretation: **52 fixed walls**, comprising the 36 border cells plus 16 interior walls, leaving **48 traversable cells**.
+
+Then the **192 adapted inputs equal 4 × 48**: agent, moving objects, reward targets, and previous-frame occupancy on those traversable cells. The remaining **256 inputs equal 4 × 52 + 48**—non-obstacle channels inside walls, plus obstacle indicators on permanently open cells.
+
+That is a strong signature of a **fixed maze containing a player, moving entities, and collectible targets**. Pac-Man fits naturally: player, ghosts, pellets, and their previous positions.
+
+Ordinary Pong, Breakout, and falling-object catching fit poorly because the output layer genuinely distinguishes both movement axes. Simple maze navigation without enemies would not naturally explain the additional moving-object input family. Standard Snake would ordinarily require changing body-obstacle inputs rather than this predominantly fixed-wall structure.
+
+Box-pushing or another maze pursuit game cannot be excluded from weights alone, but **Pac-Man-style pellet collection with moving enemies is my best interpretation**. I cannot recover the precise ghost rules or scoring scheme.
+
+**Game:** A small grid-based **Pac-Man** variant.
+
+**Description:** The agent moves through a fixed maze collecting pellets while avoiding moving ghosts. Collecting pellets gives reward; contact with a ghost is hazardous and likely ends the episode.
+
+**Confidence:** 90%

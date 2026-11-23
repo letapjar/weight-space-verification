@@ -1,0 +1,25 @@
+**Observations:**
+- **Output layer.** `b3 = [-0.697, -0.024, 0.073, 0.195, 0.385]`: no-op is suppressed and the four moves are roughly balanced. W3 treats all four directions as distinct, opposed actions. For example, h2 unit 5 is `+2.509 up / -2.341 down`, unit 3 is `-2.579 up`, unit 18 is `+2.779 left`, unit 25 is `-2.174 left`, unit 31 is `+2.045 right`, and unit 4 is `-2.059 right`. Layer-1 unit 4 drives h2 unit 5 with `-3.123`, so it acts as an up-versus-down switch. Vertical and horizontal movement both matter.
+- **Always-on inputs.** About 52 rows of W1 are just initial noise plus the bias vector `b1` (negative on units 1, 3, 16; positive on 5, 9, 18, 19, 29, 30). One example is the row `-0.060 -0.268 -0.275 -0.102 … 0.151 … 0.146 … 0.195 0.131`. Such rows are inputs that are on essentially all the time. The wall border accounts for 36, which leaves about 16 extra permanently-on cells.
+- **Never-on inputs.** About 258 rows are pure initial noise (|w| ≲ 0.15).
+- **Mostly-on inputs.** About 46 rows carry the same bias signature plus small changes on only one to three units. Examples: a row with only unit 9 = `0.992` and unit 22 = `1.525`; another with `-1.086 / 2.048`; another with `1.838 / 1.651`; and `0.149 -0.269 0.340 … -0.482 … -0.457`. These look like inputs that are present most of the time and occasionally switch off, each casting a small directional "vote".
+- **Strongly trained inputs.** About 144 rows remain, in three families of roughly 48 each:
+  - A family with very large, cell-specific weights, such as `-12.391`, `-12.332`, `-11.974` on unit 21, `10.607` and `9.889` on unit 4, `-10.535 … 10.714`, and `10.005` and `10.358` on unit 28. This looks like a per-cell lookup for a single object.
+  - A family with unit 4 uniformly negative (about −1 to −3.5), structured in row-like lines. One line has unit 7 ≈ +5 and unit 21 ≈ +5 (`5.162 … 4.653`, `6.788 … 4.870`, `4.605 … 6.152`).
+  - A weaker family with unit 4 ≈ +0.4 to +1.2, where each line has one dominant unit. Examples: unit 13 = `-3.394, -4.382, -4.518, -8.536`; unit 10 = `-4.161, -4.147`; units 10 and 11 = `-5.587 -7.874`, `-4.310 -8.085`.
+- I counted these by eye, so each count is good to within a few rows.
+
+**Reasoning:**
+- The counts fit one layout almost exactly: 36 border walls plus about 16 fixed interior obstacle cells (52 always-on), leaving 48 free cells used by four changing channels (4 × 48 = 192 active; I count about 190). That predicts 256 dead inputs; I count about 258.
+- The mostly-on family fits reward targets that sit on nearly every free cell and disappear when collected, i.e. dots or pellets.
+- The three strongly trained families fit the agent's position, a moving object roaming the same cells, and the previous-frame channel. I think the huge-weight family is the agent, but I cannot pin down which family is which.
+- Paddle games (Pong, Breakout, Catch) are ruled out: the agent occupies about 48 cells and up/down are strongly distinguished.
+- Snake or a single-goal game is ruled out: a single food cell would not produce dozens of mostly-on target inputs, and there would be no extra always-on cells.
+- A Frogger-style crossing game fits worse: it would not have reward targets on nearly every cell.
+- A plain collect-the-dots game without enemies fits worse: it would give only two strongly trained families, not three.
+
+**Game:** A Pac-Man-style maze game: fixed interior walls, pellets on the free cells, and one or more moving enemies (ghosts).
+
+**Description:** The agent moves in four directions through a small fixed maze, eating the pellets that cover the free cells for reward. It must avoid the moving enemies, and contact with one presumably ends the episode.
+
+**Confidence:** 60%

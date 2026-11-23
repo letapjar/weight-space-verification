@@ -1,0 +1,27 @@
+**Observations**
+
+- **Agent (ch0):** Only the eight cells of the left interior column (cells 11, 21, …, 81; rows 1–8, column 1) have large channel-0 weights. Examples: input 55 `-0.145 -2.018 -1.330 … 3.466 …`, input 105 `1.455 -1.283 -1.079 … 4.516 …`, input 405 `-1.490 0.262 0.139 … 1.969 …`. Channel-0 weights in columns 2–8 are small (about ±0.1), so the agent appears to be confined to column 1 and moves vertically.
+- **Moving objects (ch1):** Channel-1 weights are large across columns 2–8 in every row (input 61 `-4.058 7.748 1.674 …`, input 166 `-2.633 6.299 0.427 …`, input 361 `7.083 -2.994 5.323 …`). Channel 1 in column 1 is small (input 56 `0.038 -0.034 0.121 …`, input 106 `-0.023 -0.065 0.051 …`). Objects therefore occupy the field but essentially never sit in the agent's column.
+- **Previous frame (ch4):** Large weights in column 1 (input 59 `2.195 -0.224 -2.348 …`) and in columns 2–8 (input 64 `-0.850 -1.976 0.702 …`). The network uses prior-frame information for both the agent and the objects, which suggests it needs velocity.
+- **Reward targets (ch2):** Interior weights are all small (input 57 `0.027 -0.063 0.090 …`, input 262 `-0.021 -0.107 -0.092 …`). The policy does not depend on reward-target cells.
+- **Obstacles (ch3):** Interior weights are small (input 58 `0.045 0.047 -0.092 …`). Only the border cells have large channel-3 weights (input 3 `0.143 -0.144 -0.002 0.075 -0.029 -0.488 …`), which act as a constant offset.
+- **Output layer:** `b3 = [0.360, -0.915, -0.136, 0.456, 0.238]`. The no-op and left logits are similar, which matches "stay" being the default when left is blocked by the wall at column 1. Several hidden units drive the up/down logits strongly, e.g. W3 row 17 `0.289 1.538 -2.073 -0.059 0.087` and row 25 `0.615 0.061 -2.523 0.743 0.731`.
+
+**Reasoning**
+
+The network sees a 1-D vertical agent on the left edge, a field of moving objects in the other columns, no interior obstacles, and almost no dependence on reward-target cells.
+
+- *Freeway* (chicken crossing horizontal traffic) fits the vertical agent and the lanes. But cars crossing the chicken's column would require substantial column-1 channel-1 weights, and those are absent. This makes Freeway less likely, though not impossible.
+- *Snake, Seaquest, Asterix, Space Invaders, Catch*: ruled out, since each needs the agent in more than one column, or needs fire/food/gold weights to be large.
+- *Breakout*: a paddle that tracks a ball needs ball-cell weights, which fits. But the paddle would normally run horizontally, and bricks are reward targets whose weights are small here.
+- *Pong-style one-sided paddle*: a paddle on one edge moves up/down. The ball crosses the field, so channel-1 and channel-4 weights are needed everywhere except the paddle's column. The ball is only in that column at contact, which is consistent with the small column-1 channel-1 weights. The reward-target channel is unused, as expected for a game with no reward objects. This fits best.
+
+**Game**
+
+A Pong-like game: a single paddle on the left edge moves up/down to return a ball that travels across the field. Reward comes from returning the ball, and the policy tracks the ball's position and velocity.
+
+**Description**
+
+The agent moves its paddle up or down along the left edge to intercept a ball moving across the field; it is rewarded for returning the ball and loses when the ball gets past it.
+
+**Confidence:** 30%

@@ -1,0 +1,25 @@
+**Observations:**  
+The strongest evidence is the spatial distribution of learned weights. Indices below are zero-based.
+
+- **Channel 0 — agent:** Large weights are concentrated in **column 8**, across the playable rows; most other locations retain small, initialization-like weights. At `(1,8)`, for example, `W1[90,22] = 5.938` and `W1[90,31] = 6.467`. This suggests a player-controlled object constrained to the right-hand side—most naturally a **vertical paddle**.
+
+- **Channel 1 — moving objects:** Strong weights cover much of the interior, especially **columns 1–7**, rather than a single lane. Examples include `W1[61,6] = 3.235` at `(1,2)` and `W1[221,6] = 9.050` at `(4,4)`. Column 8 is comparatively weak in this channel. This fits a ball moving through the area to the paddle’s left.
+
+- **Channel 2 — reward targets:** There is a conspicuous band of learned weights in **columns 1–3**, spanning the playable rows. For example, `W1[57,5] = 2.797` at `(1,1)`, `W1[62,28] = 1.852` at `(1,2)`, and `W1[67,5] = 2.198` at `(1,3)`. Farther-right target inputs are generally small. A multi-column target field opposite a paddle strongly suggests **bricks**.
+
+- **Channel 3 — obstacles:** Interior weights are generally small. The wall border has a repeated, moderately sized pattern: for hidden unit 15, the first three top-border cells have weights `0.425`, `0.515`, and `0.529`, close to `b1[15] = 0.534`. Since these border inputs are always on, their shared pattern can function as additional bias; it does not imply an internal maze. There is little evidence for variable obstacles inside the arena.
+
+- **Channel 4 — previous frame:** Strong weights occur throughout the ball’s region, with additional structure at the paddle column. Examples are `W1[69,19] = -7.461` at `(1,3)` and `W1[94,2] = 3.135` at `(1,8)`. The policy therefore uses temporal information, consistent with estimating ball direction and anticipating its arrival at the paddle.
+
+- **Outputs:** The clearest action distinctions are **up versus down**. For example, W3 row 12 is `[-0.403, 2.531, -0.737, -0.405, -0.553]`, strongly favoring up when that unit is positive; row 19 is `[-0.453, -0.786, 2.119, -0.355, -0.331]`, favoring down. Left and right often have similar, smaller coefficients. The biases are `[0.538, -0.648, 0.405, -0.025, -0.121]`: a baseline tilt toward no-op/down, but not enough by itself to determine action frequencies.
+
+**Reasoning:**  
+Together these indicate a vertically controlled paddle on the right, a moving ball to its left, and a three-column reward-bearing target field on the opposite side. That is the geometry of **sideways Breakout**.
+
+Pong explains the paddle, ball, and vertical actions, but not nearly as naturally the broad, spatially variable reward-target field in columns 1–3. Ordinary falling-object catching games would instead suggest a bottom-row agent and left/right control. Snake, maze navigation, and general collection games fit poorly because the agent representation is confined to one column and the output layer emphasizes vertical control.
+
+**Game:** **Breakout / brick breaker, rotated sideways**, with a vertical paddle on the right and bricks on the left.
+
+**Description:** The agent moves its paddle up and down to bounce a ball into the brick field. Reward comes from hitting or destroying bricks while preventing the ball from escaping past the paddle.
+
+**Confidence:** 97%

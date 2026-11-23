@@ -1,0 +1,24 @@
+**Observations**
+
+- **Channel 3 (obstacles).** Every border cell carries the same small, bias-like vector, a near copy of b1 (b1 starts 0.252, -0.182 and has 0.384 at unit 10). For example, cell (0,1) reads 0.314, -0.240 … 0.373 and cell (1,0) reads 0.389, -0.239 … 0.477. Interior channel-3 weights are noise (|w| ≲ 0.15). So the wall is a constant input and there are no obstacles inside the arena.
+- **Channel 2 (reward targets).** All interior cells are noise. The only structure is in the right wall column: cells (1,9) through (8,9) again carry the bias-like vector, e.g. (1,9) reads 0.103, -0.200 … 0.399 and (2,9) reads 0.246, -0.167 … 0.429. Rows 0 and 9 and column 0 do not have it. So the "reward target" is a fixed strip covering the whole right-hand wall, always on; nothing rewarding ever appears inside the playfield.
+- **Channel 0 (agent).** Weights are large only in column 1, in every row 1–8. For example, (1,1) reads -0.017, 0.216, 2.244, 1.052, 1.750 … -3.718 … and (2,1) reads 0.839, -1.554, -0.653, 3.115, 3.012, 3.110 … 5.506. Agent weights in columns 2–8 are noise (e.g. (1,2): 0.058, -0.001, 0.046). So the agent lives in the left-most playable column and only moves vertically. Several hidden units code its row monotonically: unit 3 over rows 1→8 reads 1.052, 3.115, 2.140, 0.165, -1.646, -2.840, -2.249, -2.413, and unit 7 reads -0.174, 1.969, 2.128, 0.836, 0.306, -1.122, -1.606, -3.054.
+- **Channel 1 (moving objects).** Weights are large (up to about ±9) in every cell of columns 2–8, rows 1–8. For example, (1,2) reads -2.400, 2.873, -2.575 … -8.763 … 6.569 and (1,7) reads 0.481, -0.265, 4.248. In column 1 they are noise (e.g. (1,1): -0.053, 0.002). So something moves over the whole field but is never observed in the agent's column.
+- **Channel 4 (previous frame).** Weights are large in all of columns 1–8, e.g. (1,1) reads -0.245, -1.423, 0.907, 1.527 and (1,2) reads 0.648, 1.819, 3.022. The network uses the previous position of the agent and of the object, which is how it would get the object's direction of travel.
+- **Output layer.** b3 = [0.359, -0.200, -0.566, 0.364, 0.306], so no-op, left and right are favoured by default over up and down. In W3 the up and down columns hold the big, opposite-signed weights, e.g. row 16 is (0.100, -1.734, 2.380, -0.082, -0.482) and row 7 is (-0.395, -0.552, 1.299, -0.194, -0.748). The no-op, left and right columns are small and move together, e.g. row 19 is (1.078, -3.055, -0.242, 0.713, 0.831) and row 23 is (0.903, -2.237, -0.012, 0.812, 0.764). Left and right therefore behave as extra no-ops; the real decision is up, down or stay.
+
+**Reasoning**
+
+- A one-column agent that only moves up and down, with left and right doing nothing, is a paddle.
+- An object that roams all of columns 2–8, whose previous position matters, and that is never seen in the paddle's column is a ball. If it reaches that column unreturned, the episode ends, so that state is never observed.
+- The reward strip is the entire opposite wall, which fits a ball game where the far side is the scoring side.
+- Collecting games (Snake, item pickup) and Breakout are ruled out: they would put varying reward targets inside the field, and channel 2 is empty there.
+- Maze, navigation and Frogger-style crossing are ruled out: the agent never leaves column 1 and there are no interior obstacles.
+- Shooters are ruled out: there is no fire action and no agent projectiles.
+- A sideways Catch or a pure dodging game would fit the paddle and the moving object, but neither explains the permanent reward strip on the far wall. I could not trace the full policy by hand to confirm it tracks the ball's row, so this alternative is not fully excluded.
+
+**Game:** Pong — a single-paddle version on a small grid, with the agent's paddle on the left edge and the right wall as the scoring side.
+
+**Description:** The agent slides a paddle up and down the left column to intercept a ball bouncing around the arena and send it back toward the right wall, which is the reward target. Letting the ball get past the paddle loses or ends the episode.
+
+**Confidence:** 70%

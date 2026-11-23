@@ -1,0 +1,37 @@
+**Observations:**
+
+- **Obstacle channel (3).** The rows for the border cells (inputs 3, 8, 13, …, 98, 103, …, 348, 403…) all share one vector, `0.21 0.03 0.34 0.10 … -0.31 … 0.58`, and it matches b1 (`0.254 0.044 0.342 -0.030 … -0.225 … 0.567`). The wall is always on, so these rows just act as a second bias. The interior obstacle rows (e.g. inputs 58, 108, 123) are near zero, so there are no interior obstacles.
+- **Reward-target channel (2).** All of its rows are small, mostly under 0.15 (e.g. input 67: `0.002 0.029 0.049 …`). Nothing to collect is ever on the grid, so reward does not come from picking up targets.
+- **Moving-object channel (1).** Large weights appear only in rows 2–7 (inputs 106, 111, 116, …, 386, 391). Row 1 and row 8 are small (e.g. input 66: `-0.107 0.094 -0.026 …`).
+  - Rows 2–7 therefore hold six lanes of moving things, and the top and bottom rows hold none.
+  - Within a lane, columns c and c+4 have nearly identical weight vectors. Row 2: input 106 `-0.700 -2.880 0.032 -1.462` vs input 126 `-0.634 -2.838 0.085 -1.498`. Row 3: input 156 (3rd-column weight 6.095) vs input 176 (5.997).
+  - Weights are only forced to match like this when two inputs are always active together. That means the objects are evenly spaced 4 columns apart, like cars in traffic.
+  - In row 3, ch1 at column c resembles ch4 at column c+1, which shows the network infers the direction of travel from the previous-frame channel.
+- **Agent channel (0).** Weights are large (magnitude about 3–11) in the central columns 3–8 of rows 1–7, and small in columns 1–2.
+  - Examples: row 1 inputs 70, 75, 80 give `-6.977`, `-8.928` and `-10.463` (unit 24).
+  - Row 3 input 175 has `-9.014 … 11.760`.
+  - Row 6 inputs 320–330 have `5.5`, `4.8`, `4.7`.
+  - Row 8 (inputs 400–449) has no large weights at all. The agent is almost never seen there, even though the lanes in rows 2–7 are visited constantly.
+  - Row 1 has the largest, most uniform weights, which fits a start row visited at the beginning of every episode.
+- **Previous-frame channel (4).** Large weights appear on the same lane cells as the car channel (e.g. input 119 has `7.822`, input 175-area rows have 5–6), so motion information is used.
+- **Output layer.**
+  - b3 = `[0.017, -1.931, 1.491, -0.422, 0.147]`. This is a strong prior for down (action 2) and against up (action 1).
+  - The hidden units with large positive weights to "down" (units 3, 5, 7, 15, 23, 24, 25) are the ones fed heavily by lane and agent inputs.
+  - Left and right are used less, which is consistent with sidestepping to dodge traffic.
+
+**Reasoning:**
+
+- Games with collectible targets (Asterix, Breakout, Snake, Pacman) are ruled out by the empty reward channel. Games with interior walls or mazes are ruled out by the empty obstacle channel.
+- Pong or Breakout would put a ball in the moving-object channel, but a ball would not produce period-4 lane weights.
+- The structure fits a lane-crossing game in the Freeway/Frogger family.
+  - Row 1 is the safe start row, with no cars and a heavily visited agent.
+  - Rows 2–7 are traffic lanes with evenly spaced cars moving horizontally.
+  - Row 8 is never occupied by the agent, as with a goal row where the episode resets or the agent is teleported on arrival (as in Freeway).
+- The down bias in b3 points the same way: the agent travels from the top toward the bottom.
+- The previous-frame weights let the network judge car speed and direction, and a nearby car forces it to pause or sidestep.
+
+**Game:** A Freeway/Frogger-style road-crossing game, played here from the top of the grid to the bottom.
+
+**Description:** The agent starts in the top row and must cross six lanes of evenly spaced, horizontally moving cars (rows 2–7) to reach the bottom row (row 8), avoiding or timing around the cars. Reward is given for reaching the far side.
+
+**Confidence:** 60%

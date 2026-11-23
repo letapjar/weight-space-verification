@@ -1,0 +1,20 @@
+**Observations:**
+- **Channel 0 (agent):** Only column 1 has large weights, at inputs 55, 105, 155, 205, 255, 305, 355, 405 (rows 1 to 8). Input 155 (row 3, column 1) is `-0.859 -1.144 1.429 -0.205 …`, and input 405 (row 8, column 1) is `-1.297 0.481 -0.100 1.226 …`. Agent weights in columns 2 to 8 are small (input 60 is `0.058 -0.001 0.046 -0.055 …`). The network reads the agent mainly from one left-edge column, and the row varies the weights.
+- **Channel 4 (previous frame):** Column 1 mirrors channel 0. Input 59 (`-0.778 -0.923 -0.603 0.990 …`) closely resembles input 55 (`-0.123 -0.963 0.283 0.950 …`). Channel 4 is also large across columns 2 to 8.
+- **Channel 1 (moving objects):** Weights are large (often 1 to 3) in columns 2 to 5 and somewhat smaller in columns 6 to 8. Column 1 is near zero (inputs 56, 106, 156 all have |w| < 0.2). Input 61 (row 1, column 2) is `0.365 1.567 -1.815 0.576 …`, and input 411 (row 8, column 2) is `-2.900 -2.857 2.213 …`. In column 2 several units change sign between rows 1 to 4 and rows 5 to 8: input 211 is `2.819 2.235 -2.197 …` and input 261 is `-1.695 -1.518 2.285 …`.
+- **Channel 2 (reward targets):** Interior weights are small, mostly below 0.15 in magnitude (input 62 is `-0.020 -0.018 -0.116 …`). The first layer largely ignores reward-target cells.
+- **Channel 3 (obstacles):** Interior weights are also small, with a few near 0.2. The only consistent, sizable channel-3 rows belong to the wall border, which is a constant input.
+- **Output layer:** The columns for no-op, left and right are nearly identical in every hidden unit. Row 0 of W3 is `-0.735 -2.557 0.318 -0.779 -0.767`, and row 4 is `1.229 -0.846 1.188 1.174 1.292`. Only up (column 1) and down (column 2) differ. The biases are b3 = [0.718, 1.676, 1.045, 0.803, 0.813], so up has the largest bias and left/right match no-op to within about 0.1.
+
+**Reasoning:**
+- Left and right are functionally equivalent to no-op, which suggests the agent moves only vertically. That rules out Breakout, Asterix, Space Invaders and Frogger-style games, which all need horizontal control.
+- Reward targets and interior obstacles are essentially unused, so reward probably comes from how the moving objects behave, not from collecting items or avoiding static barriers.
+- The agent sits in the left column and the moving objects are weighted most heavily in the nearby columns 2 to 5. That suggests a player on the left edge facing objects arriving from the right.
+- Two vertical-only games fit. **Freeway** (a chicken crossing traffic) is the weaker fit: cars would pass through the chicken's column, and collisions there would need column-1 car weights, which are absent. **Pong-style** play fits better: a ball is resolved on contact at the paddle column, so the decision-relevant information sits in columns 2 to 5. The sign split in column 2 is suggestive of a rule that compares the ball's position with the middle of the field to choose up or down, though it is not conclusive.
+- I did not compute the forward pass by hand, and I inspected only a subset of rows, so the channel usage is more reliable than the game identification.
+
+**Game:** A one-player Pong-style paddle game on the 8×8 playfield. The paddle sits in the left column and moves only up and down. The closest well-known alternative is Freeway.
+
+**Description:** The agent moves a paddle on the left edge up or down to meet a ball that travels toward it from the right. Reward comes from returning the ball, with penalties when it gets past.
+
+**Confidence:** 30%

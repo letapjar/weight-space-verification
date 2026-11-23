@@ -1,0 +1,47 @@
+**Observations:**
+
+- **Input order is shuffled.** Inputs that are inactive or constant are scattered through the 500 rows instead of sitting in channel blocks or at every 5th index. So the input layout has to be recovered from the shape of each row, not its position.
+- **About 296 rows are tiny (|w| < 0.2).** These are inputs that never fire during training, so they keep their initial values. Examples are rows 3–8 and 10–12.
+- **44 rows copy the first-layer bias b1.** b1 starts `-0.122 -0.192 -0.312 0.194 0.133 -0.141 -0.217 -0.380…`. Matching rows include:
+  - row 28: `-0.094 -0.133 -0.268 0.190 0.107 -0.102 -0.219 -0.242…`
+  - row 80: `-0.143 -0.222 -0.339 0.292 0.150 -0.156 -0.196 -0.370…`
+  - rows 55, 70, 93, 107, 141, 223, 293, 489 and others.
+
+  A weight row only copies the bias when its input is always 1. That gives 44 constant inputs: 36 for the wall border plus 8 more. Eight extra constant cells look like one full fixed interior row, such as a goal row in the reward channel.
+- **About 160 rows are active, and many come in near-identical pairs.** The pairs differ only by noise of about 0.1, the size of the initial weights. Examples:
+  - row 9 `…4.941 5.319…` and row 75 `…4.944 5.217…`
+  - row 1 `4.359…4.948…-5.452` and row 64 `4.471…5.057…-5.570`
+  - rows 85 and 454 (`4.995` / `4.991`)
+  - rows 88 and 198 (`5.401` / `5.322`)
+  - rows 193 and 406 (`-6.321` / `-5.732`)
+  - rows 333 and 343 (`5.287` / `5.336`)
+  - rows 289 and 394 (`-4.902` / `-4.936`)
+  - about 30 such pairs in total.
+
+  Two inputs end up with the same weights only when they are always on together. Here that means an object that is both a moving object (channel 1) and a deadly obstacle (channel 3) in the same cell, which is what a hazard like a car looks like.
+- **A separate family of about 16 rows looks like agent positions.** They share one pattern: unit 2 negative, unit 3 positive. Examples are rows 2 (`-1.954 -1.480 5.614`), 22, 120, 123, 127 (`0.825 -1.590 5.040`), 129, 134, 176, 285, 298, 344, 403 and 488. Sixteen rows fits 8 current-agent cells plus 8 previous-frame cells. So the agent is probably confined to a single line of 8 cells.
+- **Output layer:**
+  - b3 = `[1.494 no-op, 0.183 up, -1.051 down, -0.924 left, -0.191 right]`. Waiting is the default, and up is the cheapest move.
+  - Many hidden units push "up": h5 `+3.975`, h26 `+1.863`, h18 `+1.719`, h6 `+1.399`, h29 `+1.262`, h3 `+1.241`.
+  - "Down" gets weaker support. Its largest weight is h2 at `1.723`.
+  - Two units strongly veto sideways moves: h7 → left `-5.662`, h24 → right `-6.219`.
+
+**Reasoning:**
+- The game has moving hazards that kill on contact (the channel 1 / channel 3 pairs).
+- The agent seems limited to about 8 cells and mainly chooses between waiting (no-op) and stepping up.
+- One extra full row is constant, which fits a fixed goal strip.
+- Up is strongly favoured over down, so progress means moving toward row 0.
+
+That combination matches a road-crossing game: wait for a gap, then advance.
+
+Other candidates fit worse:
+- **Catch or Breakout** (paddle on one row): up would be irrelevant and would not get this much weight. In Breakout the bricks also disappear, so they could not be constant inputs.
+- **Pong**: up and down would be symmetric, not lopsided like this.
+- **Snake**: the body would make the agent and previous-frame inputs correlated, not the moving-object and obstacle inputs. It also has no constant interior row.
+- **Free-roaming collect or avoid games**: these would need about 64 active agent inputs, which does not fit the roughly 160 active inputs seen.
+
+**Game:** Freeway (a Frogger-style road-crossing game).
+
+**Description:** The agent starts at the bottom and moves up through lanes of horizontally moving cars, waiting for gaps. Touching a car ends the run or resets it, and reaching the goal row at the top gives reward.
+
+**Confidence:** 45%

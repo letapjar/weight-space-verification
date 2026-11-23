@@ -1,0 +1,101 @@
+# What this is: a small trained neural network whose weights reveal its input data
+
+## 1. The surface-level facts
+
+This is a fully connected feed-forward network (an MLP) with three weight layers:
+
+| Layer | Shape | Parameters |
+|---|---|---|
+| W1, b1 | 500 → 32 | 16,000 + 32 |
+| W2, b2 | 32 → 32 | 1,024 + 32 |
+| W3, b3 | 32 → 5 | 160 + 5 |
+| **Total** | | **17,253** |
+
+It has 500 inputs, two hidden layers of 32 units each, and 5 outputs. The activation function isn't given; ReLU is the usual default. Five outputs with small biases look like the logits of a **5-way classifier**. The data contains no labels, feature names, or training data, so everything below is inferred from the weight values. The inferences are still fairly strong.
+
+## 2. The rows of W1 fall into distinct types
+
+Reading all 500 rows of W1 (one row per input), most rows fit one of these types:
+
+**(a) "Untouched" rows** (about 188 rows). These hold small, structureless values, roughly N(0, ~0.06), with max |w| ≈ 0.24. This is what freshly initialised weights look like. Example: rows 0–2, 4–7.
+
+**(b) "Bias-clone" rows** (36 rows). Each of these is almost identical to **b1** plus small noise. For example, column 10 of b1 is −0.264 and these rows read −0.375, −0.275, −0.295, −0.348…; column 20 of b1 is +0.303 and these rows read 0.337, 0.296, 0.370…. Examples: rows 3, 8, 13, 18, …
+
+**(c) Trained rows.** These have large and varied values, up to about ±11 (row 65 has −11.153).
+
+**(d) Identical clone groups**, where many rows share one distinctive learned pattern:
+- **Pattern P**: column 5 ≈ +1.7, column 6 ≈ +1.2, column 16 ≈ −1.05, column 17 ≈ +1.1, column 29 ≈ −1.4, column 30 ≈ −1.1. It appears in 8 rows: 97, 147, 197, 247, 297, 347, 397, 447.
+- **Pattern Q**: column 5 ≈ −0.83, column 12 ≈ −0.85, column 25 ≈ −0.9, column 26 ≈ +1.2. It appears in 16 rows: 113, 118, 133, 138, 163, 188, 223, 228, 273, 278, 313, 338, 363, 368, 383, 388.
+
+Each type tells you something about the training data:
+
+- **Untouched row → that input was always 0 in the training data.** A weight multiplied by zero never receives a gradient, so it stays at its initial value.
+- **Bias-clone row → that input was a positive constant (very likely 1) in every training sample.** Such a weight receives exactly the same gradient as the bias, so it moves in lockstep with it. With plain SGD the constant must equal 1. With Adam, any positive constant gives the same updates.
+- **Identical clone group → those inputs had identical values in every sample.** They always switched on and off together, so they received identical updates. Each group is effectively a single bit of information spread over 8 or 16 inputs.
+
+## 3. The inputs are a 10×10 grid with 5 channels per cell
+
+The row types repeat with a **period of 5**, and the bias-clones and clone groups also repeat with a **period of 50**. The layout that explains every row is:
+
+> **input index = 5 × (10·row + col) + channel**
+
+This is a 10 × 10 grid with 5 feature channels per cell, flattened channels-last (an `(H, W, C)` array, as in NumPy, TensorFlow, or Gym observations).
+
+Under this layout, **channel 3** has the following pattern:
+- It is a constant 1 on every **border cell**: the top row, bottom row, left column and right column. That accounts for the 36 bias-clones.
+- It is never active in the interior (an untouched row), except at **16 specific interior cells**, which all share pattern Q.
+
+That is exactly how a **wall channel** behaves in a gridworld. The playable area is the 8×8 interior surrounded by a 1-cell wall. Plotting the Q cells gives this map:
+
+```
+   c: 0 1 2 3 4 5 6 7 8 9
+r0    W W W W W W W W W W
+r1    W . . . . . . . . W*
+r2    W . Q Q . . Q Q . W*
+r3    W . Q . . . . Q . W*
+r4    W . . . Q Q . . . W*
+r5    W . . . Q Q . . . W*
+r6    W . Q . . . . Q . W*
+r7    W . Q Q . . Q Q . W*
+r8    W . . . . . . . . W*
+r9    W W W W W W W W W W
+
+W  = channel 3 always on (wall)
+Q  = channel 3 on in some samples, always all 16 together (obstacle layout)
+W* = wall + channel 2 on (pattern P), all 8 cells together
+```
+
+The obstacles form a **symmetric layout**: four L-shaped corner blocks and a 2×2 centre pillar. Because all 16 cells move as one bit, the training data most likely mixes **two map variants**: an open room and a room with this obstacle layout.
+
+Other channel-level observations:
+- **Channels 0, 1 and 4** are trained at nearly every interior cell. They are the main content, probably things like agent, goal/object, or empty floor, though their exact meaning can't be determined.
+- **Channel 2** is the odd one out:
+  - On the east border column it is a shared on/off flag (pattern P). This might be something like an exit or door, or some global condition drawn on that side.
+  - In the interior its weights are generally weaker, so it is rarer.
+  - It is spatially smooth: neighbouring cells have similar weights, e.g. rows 407/412/417 and 432/437/442.
+  - It **never** appears at the four centre cells (rows 222, 227, 272, 277 are untouched).
+- **Channel 0** is noticeably weaker at the corner obstacle cells. That fits an object that can only be there when those cells aren't walls.
+- The map could be transposed (column-major order), in which case the "east border" would be the bottom edge. The structure is the same either way.
+
+## 4. A likely interpretation
+
+The most plausible reading is a **policy or classifier for a gridworld agent**. It takes an 8×8 room with walls, encoded as 5 one-hot or multi-hot feature planes, and outputs one of 5 classes. Five classes is the classic action set **{stay, up, down, left, right}**, which suggests behaviour cloning or a small reinforcement-learning policy. The output biases b3 = (0.03, 0.20, **−0.46**, 0.27, 0.27) suggest class 2 was the least frequent. That would fit a rarely chosen action such as "stay". The 5-action reading is a hypothesis; the grid-and-walls reading is strongly supported by the evidence above.
+
+## 5. What the weights reveal about training
+
+- **Initialisation:** The untouched rows have a standard deviation of about 0.06 and some values beyond ±0.2. This fits **Glorot-normal** (σ = √(2/532) ≈ 0.061) or **He-normal** (σ ≈ 0.063). It rules out Glorot-uniform (bound ±0.106) and PyTorch's default Linear initialisation (bound ±0.045).
+- **Biases started at zero.** Otherwise the bias-clone rows would equal b1 minus its initial value, not b1 itself.
+- **No meaningful weight decay or L2 regularisation.** Decay would have shrunk the untouched rows toward 0, and it would have prevented weights reaching ±11.
+- **All 32 + 32 hidden units are alive.** Every row of W2 and W3 is far from its initial scale, so no unit died during training.
+- **The real layer-1 bias is much larger than b1.** The 36 always-on border inputs each act as an extra copy of the bias, so the effective bias is about b1 + Σ(36 rows) ≈ 37 × b1. For example, hidden unit 20 has an effective bias of about +11 and unit 10 about −10, even though b1 itself never exceeds ±0.31.
+
+## 6. Practical consequences
+
+- **Effective input size:** only about **276 of the 500 inputs** carry information, and since P and Q are single bits, that amounts to about **254 independent features**. Of the rest, 188 are always zero and 36 are always one.
+- **Pruning:** the 188 untouched rows can be deleted and the 36 constant rows folded into b1 with **no change in output** on in-distribution inputs.
+- **Out-of-distribution risk:** if any dead input becomes active at test time, the result would be pure noise from random initial weights. Examples are an interior wall where none existed in training, or channel 2 at the centre. The network has never learned anything about those inputs.
+- **Two map variants:** the model effectively knows about two specific layouts, and the obstacle layout is a single learned bit. It will likely not generalise to other wall arrangements.
+
+## 7. Caveats
+
+All of this comes from the numbers alone; I had no training data, labels, activation function, or framework metadata. The 10×10×5 grid, the border walls and the two-map conclusion are well supported because the row patterns line up exactly. The specific meanings of channels 0, 1, 2 and 4 and of the 5 output classes are educated guesses. A short script could confirm the grid structure by reshaping the per-row norm of W1 to (10, 10, 5) and plotting each channel.

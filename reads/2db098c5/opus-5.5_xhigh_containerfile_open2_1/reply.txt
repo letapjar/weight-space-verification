@@ -1,0 +1,100 @@
+I read all 579 lines of `/work/weights.txt` in four chunks and made no other tool calls.
+
+# What this is
+
+**The file holds the trained weights of a small fully-connected network, 500 → 32 → 32 → 5, that most likely plays a Breakout-style paddle-and-ball game.** Its input is a 10×10 board with a wall border and 5 object channels per cell. The network compares the ball's column with the paddle's column and picks between "move left", "move right" and three outputs that all behave like "stay".
+
+The file contains no labels or metadata, so all of this comes from patterns in the numbers. Confidence ranges from certain (the board layout) to plausible (the game itself). I mark which is which below.
+
+## 1. What the file literally contains
+
+| Block | Location | Shape | Parameters |
+|---|---|---|---|
+| W1 | lines 2–501 | 500 × 32 | 16,000 |
+| b1 | line 504 | 32 | 32 |
+| W2 | lines 507–538 | 32 × 32 | 1,024 |
+| b2 | line 541 | 32 | 32 |
+| W3 | lines 544–575 | 32 × 5 | 160 |
+| b3 | line 578 | 5 | 5 |
+
+That's **17,253 parameters**, rounded to 3 decimals. Each row is one input unit, so the forward pass is `x @ W + b` (Keras-style, not PyTorch's out×in layout). The file doesn't name the activation functions. I assume ReLU in the hidden layers.
+
+## 2. The W1 rows come in three kinds (certain)
+
+1. **Noise rows (314 of 500):** values around ±0.06, e.g. line 2. That spread matches a normal initialisation (He: √(2/500) ≈ 0.063, or Glorot: ≈ 0.061). These weights **never moved from their starting values**, so those inputs were always 0 in the training data.
+2. **Copies of the bias (36 rows):** lines 5, 10, 15 … 55, 100, 105, 150, 155, … 450, 455, 460 … 500 all look almost exactly like b1. For example, in column 15 the 36 rows average **0.532** and b1[15] = **0.534**; in column 25 they average −0.377 against b1[25] = −0.371. An input that is always on gets exactly the same gradient as the bias. So these inputs were **constant**, and each row ended up as b1 plus its own starting noise.
+3. **Learned rows (150):** large values, up to ±9.3 (e.g. line 121: −9.302, line 273: 9.050). These are the only inputs that carry information.
+
+## 3. The 500 inputs are a 10×10 board with 5 channels per cell (certain)
+
+The pattern only makes sense with this decoding: input *i* is cell *p = i // 5* with channel *c = i % 5*; row = *p // 10*, column = *p % 10*. Input *i* sits on file line *i + 2*. The board was stored as (10, 10, 5) and flattened.
+
+With that decoding, the 36 constant inputs are exactly channel 3 on the 36 border cells of a 10×10 grid. That gives a solid wall around an 8×8 playing field. Here is which channels ever turn on in each cell:
+
+```
+        c0  c1  c2  c3  c4  c5  c6  c7  c8  c9
+  r0    #   #   #   #   #   #   #   #   #   #      # = ch3 only, always on (wall)
+  r1    #   P   P   P   P   P   P   P   P   #      P = ch0, ch4
+  r2    #   m   m   m   m   m   m   m   m   #      m = ch1, ch4
+  r3    #   m   m   m   m   m   m   m   m   #
+  r4    #   m   m   m   m   m   m   m   m   #
+  r5    #   m   m   m   m   m   m   m   m   #
+  r6    #   B   B   B   B   B   B   B   B   #      B = ch1, ch2, ch4
+  r7    #   B   B   B   B   B   B   B   B   #
+  r8    #   b   B   B   B   B   B   B   x   #      b = mostly ch2 (ch1/ch4 faint), x = ch2 only
+  r9    #   #   #   #   #   #   #   #   #   #
+```
+
+- **ch3** appears only on the border and is always on there. It's a wall.
+- **ch0** appears only in row 1: one object confined to a single row.
+- **ch2** appears only in rows 6–8 and is strongest in row 8. It's a fixed band of objects that never moves into rows 2–5.
+- **ch1 and ch4** cover almost the same area across the open field. One difference: **ch4 can appear in row 1, ch1 never does.**
+- Cell (8,8) only ever shows ch2, and that ch2 row is not a bias copy, so the cell is sometimes completely empty. Empty therefore means "all channels 0"; it isn't its own channel.
+
+## 4. What the network computes (strong evidence)
+
+**It encodes the paddle's column.** Several first-layer units have smooth gradients across the eight ch0 cells in row 1, columns 1→8. For example:
+- unit 12: −2.67, −1.68, −1.55, 0.05, −0.27, 0.85, 1.35, 1.26
+- unit 23: 2.72, 3.90, 0.85, 1.09, 0.68, −0.23, −1.14, −1.81
+
+**It compares that column with ch1's column.** The same units have the opposite slope for ch1 just above the paddle row (row 2):
+- unit 12: 2.67, 4.31, 2.82, −0.72, 0.75, −4.11, −3.66, −1.44
+- unit 26: paddle weights rise from −4.79 to +0.63, ch1 weights fall from +3.00 to −3.17
+
+So units **12, 13, 26 and 30** fire when the ch1 object is in a lower-numbered column than ch0, and units **1, 4, 14 and 23** fire when it's in a higher-numbered column.
+
+**Those units push opposite outputs.** I traced each unit through W2 and W3 with the sum Σⱼ W2[i,j]·(W3[j,3] − W3[j,4]), ignoring the ReLUs:
+- ch1 in a lower column: +35.7, +43.9, +56.7, +43.8, all toward **output 3**
+- ch1 in a higher column: −32.3, −39.0, −31.0, −23.3, all toward **output 4**
+
+All 8 units agree. A paddle at the far right also pushes toward output 3. So **output 3 moves the paddle toward lower columns ("left") and output 4 toward higher columns ("right")**.
+
+**Outputs 0, 1 and 2 behave as one "stay" option.** In almost every row of W3 they share a sign, e.g. row 6: 0.99 / 0.85 / 0.65 against −2.78 for output 3. The second-layer units act as pairwise votes: stay vs left (6, 17), stay vs right (18, 21), left vs stay (2, 12, 28), right vs stay (11, 19, 25, 29), and left vs right (16, 22, 26). In effect the network makes a 3-way choice spread over 5 outputs. That fits a generic 5-action set such as stay/up/down/left/right, where up and down do nothing for a paddle that only moves sideways.
+
+## 5. Interpretation: a Breakout-like agent (plausible, not proven)
+
+| Channel | Likely meaning | Why |
+|---|---|---|
+| ch3 | Wall | Always on at the border, never inside |
+| ch0 | Paddle | Stays in one row; the network tracks its column |
+| ch2 | Bricks | Fixed 3-row band at the far side. Even the top row is sometimes empty, so bricks do get destroyed |
+| ch1 / ch4 | Ball and its trail | Cover the open field and only reach the brick rows sometimes. Row 8 is weak and (8,8) never sees them, as if the ball rarely tunnels through |
+
+The policy amounts to "keep the paddle under the ball", the textbook Breakout strategy.
+
+Points of uncertainty:
+- **Which of ch1/ch4 is the ball?** ch4 reaching the paddle row while ch1 never does fits ch4 = ball (it only gets there when the paddle misses) and ch1 = trail. The left/right logic keys most clearly on ch1, which still works because the trail is one column from the ball. I can't settle this from the weights alone.
+- **Orientation is arbitrary.** The paddle sits in the first interior row, so the board may be stored upside-down compared with how it's drawn on screen.
+- **Comparison with MinAtar Breakout.** It's a similar format (10×10, channel-last, paddle/ball/trail/brick) but differs here: MinAtar has no wall border or wall channel, a different brick layout, and 3 actions.
+- **Alternatives fit worse.** In Space Invaders the enemy band would move down into rows 2–5; here ch2 never does. Tetris has multi-row pieces, which doesn't match a single-row ch0.
+- I can't tell whether the 5 outputs are Q-values (e.g. from DQN) or policy logits. The near-duplicate outputs 0–2 fit either.
+
+## 6. What the weights reveal about training
+
+- **Biases started at zero** (the bias copies equal b1 plus noise), and **there was no weight decay**: the 314 dead rows still hold their starting values.
+- **The effective first-layer bias is about 37× b1**, because 36 constant wall inputs each act as another copy of it (≈ +19.7 for unit 15).
+- **About 58% of the parameters (10,048) are untouched random values.** You could fold the 36 wall rows into b1 and drop all 350 non-informative inputs. That shrinks W1 from 16,000 to 4,800 parameters with identical outputs, as long as the inputs keep following the same layout.
+- **The model is fragile outside its training layout.** If something ever turns on a "dead" channel (e.g. a paddle outside row 1, or a brick in row 3), it would meet random starting weights.
+- **The large weights** (W1 up to ±9.3, W2 up to ±3.9) suggest long training and a very confident decision rule.
+
+The remaining caveats: activations are assumed, the left/right trace ignores the ReLUs, and the values are rounded to 3 decimals.

@@ -1,0 +1,32 @@
+**Observations:**
+- **Channel 2 (reward targets):** the weights are small everywhere in the interior, e.g. input 107 (2,1): -0.033 0.006 -0.002 0.013 0.062, and input 112 is similar. I read this as the game having no reward-target objects, or the network ignoring them.
+- **Channel 3 (obstacles):**
+  - Border cells share one learned pattern, e.g. input 453 (8,... bottom wall row): -0.114 -0.491 ... and input 3 (0,0): -0.086 -0.385 ... 0.547 (unit 12).
+  - Inputs 3-103 also show this pattern, so rows 0 and 1 and cell (2,0) behave like an always-on wall block.
+  - Interior ch3 cells in rows 2-8 have small, random-looking weights, so there are no interior obstacles.
+- **Channel 0 (agent):**
+  - It has very large weights only in the central columns 3-5 (some in 2 and 6), across every interior row 2-8.
+  - Examples: (6,3) input 315: 11.266 -2.405 1.458 5.969 4.152; (4,4) input 220: 5.170 -1.557 6.511 ... 8.300 8.386; (4,5) input 225: -0.904 7.767 -0.861 -4.566; (8,3): -1.923 -2.696 -10.058 -0.630 -6.838.
+  - Columns 1, 7 and 8 are small or medium.
+  - The agent therefore moves in both directions, mostly near the middle, and over many rows.
+- **Channel 1 (moving objects) and channel 4 (previous frame):**
+  - These also have large weights in all interior rows 2-8.
+  - The weights repeat with period 4 across columns within a row. In row 3, input 156 (3,1): -1.520 1.151 -0.278 -0.504 1.541 matches input 176 (3,5): -1.472 1.179 -0.215 -0.430 1.649. Input 161 (3,2): 5.893 0.906 -1.017 ... -2.950 matches input 181 (3,6): 5.971 0.896 -0.955 ... -2.976.
+  - Each row has its own set of weights, as if each row were a lane with its own pattern.
+  - In row 2, ch4 at column x matches ch1 at column x+1 (input 109 vs 111: -5.136 vs -4.451 in unit 26). That suggests the net reads motion from the current/previous pair.
+- **Outputs:**
+  - b3 = [0.901, 0.253, -1.282, -0.415, 0.483], so no-op is the default and down is the least favoured action.
+  - All four moves are used by strong hidden units. Unit 1 drives up (+3.689) against right (-3.456), unit 8 drives right (+3.346) against no-op/left, and unit 5 strongly suppresses left (-5.209).
+  - The network is a reactive dodge-or-advance policy rather than a fixed-direction one.
+
+**Reasoning:**
+- **Ruled out by the lack of channel 2 and of interior ch3 structure:** collecting games (Snake with food, Pac-Man), maze or navigation games, and Breakout-style games with bricks.
+- **Ruled out by the agent layout:** Pong or a paddle game, because agent weights are not concentrated on one edge row or column. Space Invaders is also unlikely, since it needs a fire action and the agent is not confined to one row.
+- **What fits:** a game with only an agent and moving hazards, where the agent moves in 2D through several rows, and the objects form periodic horizontal lanes that the net reads as moving. The row-specific, period-4 patterns in ch1/ch4 look like lanes of evenly spaced traffic. Reward is probably for progress through the lanes or for surviving.
+- **Why the confidence is low:** I could not trace the logic through the hidden layers by hand, so this is inferred from the input-layer structure only.
+
+**Game:** A Freeway/Frogger-style lane-crossing game, i.e. cross lanes of traffic while avoiding collisions.
+
+**Description:** The agent moves up, down, left and right through rows of horizontally moving, regularly spaced objects (cars or logs) and must avoid colliding with them. Reward is for making progress through the lanes (or for surviving).
+
+**Confidence:** 22%

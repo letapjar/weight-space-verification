@@ -1,0 +1,27 @@
+**Observations:**
+
+- **First layer, all channels.** I could not find any spatial or channel structure in W1. Every input row looks the same: about 80% of entries are small background values (roughly ±0.08) and about 10% exceed 1 in magnitude, scattered seemingly at random.
+- **Inputs that can never be active carry weights as large as any others.** Input 0 (corner cell, agent channel) has 3.174, -1.973, -1.715 and 1.451. Input 4 (corner, previous frame) has -10.479, -5.630 and -4.553. Input 8 (wall cell (0,1), obstacle channel) has 9.136 and -5.840. Interior inputs look no different, for example input 55 (cell (1,1), agent) with 6.112 and -8.076, and input 90 (cell (1,8), agent) with -10.194.
+- **Hand tally of entries with |w| > 1 over inputs 0–149 (approximate).** The mean is about 3.3 of 32 per input. Over the first 100 inputs the variance is about 3.0, which is what independent random placement would give.
+  - By channel (first 100 inputs): agent 75, moving 57, targets 58, obstacles 77, previous frame 63, which is flat within noise.
+  - By grid row: wall row 0 averages 3.7, playable row 1 averages 2.9, row 2 averages 3.4, so wall and playable rows do not differ.
+  - No input row is uniformly large, and almost none is uniformly small (input 14 is the only quiet one I saw).
+- **What that means.** Gradient training cannot move the weights of an input that is always 0, and an input that is active gets all 32 of its weights updated. So W1 as given does not look like an intact trained first layer; the positional information appears scrambled or masked. I cannot say honestly where in the grid each channel matters.
+- **b1** is tiny (largest magnitude 0.144), the same scale as the W1 background.
+- **Output layer.** b3 = [no-op -0.875, up -0.072, down -0.243, left 0.332, right 0.666]. Left and right are the only positive biases. The three others average about -0.40, roughly 0.9 below the left/right mean of 0.50, which is close to log 3 ≈ 1.1. That is what you would see if no-op, up and down were three interchangeable ways of staying put that share one action's worth of probability.
+- **W3 columns.** All five have similar norms (about 5–6). Left and right are anti-correlated (about -0.35 by hand); left and no-op also (about -0.36). The other pairs are near zero, so there is no clean clustering of no-op, up and down.
+
+**Reasoning:**
+
+- With no usable grid structure, only weak global cues remain.
+- A game needing vertical movement to reach a goal (Frogger-like crossing) should favour "up"; it does not.
+- A symmetric four-direction game (Snake, coin collecting, chase) gives no reason for both horizontal actions to sit above both vertical ones.
+- The bias pattern (left and right up, the other three down by about log 3) and the left/right antagonism in W3 fit a game where only horizontal movement matters. That points to a paddle on the bottom row tracking a moving object.
+- Against this, the W3 columns for no-op, up and down are not clearly similar, which is why Snake or another four-direction game remains quite possible.
+- Within the paddle family I cannot separate Breakout, Pong and Catch from these weights. I pick Breakout because it is the one that would use all five channels (paddle, ball, bricks as targets, walls, previous frame for ball direction).
+
+**Game:** A horizontal paddle-and-ball game, best guess Breakout (possibly Catch or Pong instead).
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a moving ball in play; reward comes from the ball hitting the reward targets (bricks), and missing the ball ends the episode.
+
+**Confidence:** 15%

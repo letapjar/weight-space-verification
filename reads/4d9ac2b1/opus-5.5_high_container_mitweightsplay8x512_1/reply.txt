@@ -1,0 +1,58 @@
+**Observations:**
+
+*Channel 0 (agent).* Weights on this channel are near zero everywhere except column 1. They are moderately large there in every row:
+- (1,1): −0.279 … −0.437
+- (2,1): −0.320
+- (3,1): −0.423 0.239 0.253
+- (4,1): 0.058 0.292
+- (5,1): 0.168 … 0.199
+- (6,1): 0.360
+- (7,1): −0.009 −0.661
+- (8,1): 0.146 0.191 … 0.406
+
+Unit 0 goes roughly from −0.28, −0.32, −0.42 at the top to +0.36 and +0.15 lower down, so it encodes how high the agent is. The agent therefore lives only in the left inner column and its row is what matters.
+
+*Channel 1 (moving object).* This channel carries the largest weights in the net, spread over columns 2–8 of every playable row. They are biggest next to the agent's column, for example:
+- (1,2): 0.628 −1.829 0.953 1.015 1.221 0.447 1.266 0.754
+- (2,2): 0.760 −1.091 …
+- (2,3): 0.536 −1.106 1.008 …
+- (3,2): 0.433 −1.039 …
+- (3,3): 0.778 −0.977 1.017 …
+
+Unit 1 changes sign with the object's row. It is about −1 to −1.8 in rows 1–3, positive in row 5 (0.519, 0.367, 0.739), and positive again in row 8 (0.442, 0.544, 0.555). Lower-row cells carry the opposite pattern, e.g. (8,2): −0.782 0.187 −0.464 −0.881 …. Channel 1 in column 1 itself is about 0, so the object never sits in the agent's column.
+
+*Channel 4 (previous frame).* This channel has large weights in the same region, for example:
+- (1,5): −1.314 … −1.464 −1.459
+- (5,3): −0.653 −1.175 1.064
+- (8,5): 1.358 −1.485 0.684 1.465 1.665
+- (8,4): 0.973 … 1.066
+
+Comparing these with channel 1 gives the object's direction of travel.
+
+*Channels 2 (reward) and 3 (obstacle).* All weights are about ±0.1 or less, including on the wall border. No reward targets are ever seen, and obstacles are ignored.
+
+*Output layer.* The biases are no-op 0.225, up −0.292, down −0.295, left 0.113, right 0.142. In every large W3 row, the no-op, left and right weights are nearly equal and only up and down differ:
+- row 15: −0.112 **0.750** −0.020 −0.104 −0.127
+- row 27: 0.128 0.001 **−0.946** 0.172 0.160
+- row 143: −0.125 **1.023** −0.010 −0.123 −0.130
+- row 310: −0.135 0.013 **1.004** −0.183 −0.166
+
+So left and right behave exactly like no-op, and the policy only chooses between up, down and staying put.
+
+*Rough forward pass.* With the object at (1,2), hidden unit 15 has pre-activation about +0.8, which adds about +0.5 to the up logit. Unit 16 comes out about −0.73, which adds about −0.5 to down. The net moves toward the object's row.
+
+**Reasoning:**
+- The agent is confined to one edge column and can only move vertically, which describes a paddle.
+- There is a single moving object that is neither a reward target nor an obstacle. Its position and previous position (velocity) are read across the whole field, which is what you need to predict where a bouncing ball will arrive.
+- The policy chases the object's row rather than fleeing it. That rules out dodge or avoid games.
+- No reward targets rules out Breakout (it would have bricks in channel 2), Snake and collect-the-coin games.
+- No obstacle use rules out maze or navigation games.
+- A horizontal "Catch" game is possible. But catchable items would usually be marked as reward targets, and the heavy use of velocity fits a ball that bounces off the walls.
+
+The best fit is a single-player Pong or squash setup. The paddle is in column 1, the ball bounces off the walls, and reward comes for returning the ball; missing it ends the episode.
+
+**Played:** Single-player Pong (squash/handball against the wall): a vertical paddle in the left column against a bouncing ball. It resembles Atari Pong played against a wall instead of an opponent.
+
+**Description:** The agent moves a paddle up and down in the leftmost playable column to line up with a ball that bounces around the board. It is rewarded for intercepting and returning the ball, and letting the ball get past the paddle ends the episode.
+
+**Confidence:** 70%

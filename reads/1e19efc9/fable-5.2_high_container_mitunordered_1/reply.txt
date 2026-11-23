@@ -1,0 +1,29 @@
+**Observations**
+
+- **Input order is scrambled.** Inputs 0, 1 and 2 all carry large weights, which cannot be three channels of a single cell, so I classified the 500 rows of W1 by weight pattern instead of position.
+- **About 300 rows are dead.** Their weights are at initialisation scale (|w| ≲ 0.15), so those inputs never fire.
+- **44 rows are near-copies of b1.** b1 begins `0.254 0.044 0.342 … -0.403 0.316 … 0.415 … 0.567`; input 28 is `0.273 0.082 0.400 … -0.456 0.332 … 0.431 … 0.625` and input 32 is `0.307 -0.009 0.407 …`. An input that is always 1 gets the same gradient as the bias, so these are always-on inputs. The wall border accounts for 36 of them; by my hand count there are 8 more, which is exactly one full interior row or column that is permanently on.
+- **About 156 rows are live, and roughly 30 of them come in near-identical pairs.** Two inputs only end up with matching weights if they are always on together. Examples:
+  - inputs 1 and 64: `-0.067 0.536 4.332 -0.486 … 2.583` and `-0.202 0.507 4.527 -0.621 … 2.584`
+  - inputs 9 and 75: `-0.250 0.628 4.826 … 1.868` and `-0.207 0.477 4.789 … 1.905`
+  - inputs 37 and 464: `… 5.997 …` and `… 6.095 …` on unit 3
+  - inputs 193 and 406: `-1.147 3.007 … 7.548 … 5.959` and `-1.242 3.053 … 7.822 … 6.216`
+  
+  The natural reading is one object marked in two channels at the same cell: a moving object that is also an obstacle.
+- **The paired inputs pool onto shared hidden units.** For example, unit 5 takes about 2–5.7 from roughly nine of them, unit 19 takes 3.4–6.2 from six, unit 15 takes 4.3–5.0 from three pairs, and unit 7 takes 2–6 from about seven. These look like "is there a hazard anywhere in this lane or neighbourhood" detectors.
+- **About 21 unpaired rows have very large, distinctive weights.** Input 0 has `… 4.468 -4.274 … -6.540 … -5.882 5.842`, input 27 has `4.689 -5.072 … -8.097 … -9.477`, and input 397 has `-9.014 … 11.760`. These fit agent-position inputs: a few dozen cells, concentrated in a corridor, each strongly resetting the hidden state.
+- **The output biases favour up.** b3 = `0.017 1.491 -1.931 0.147 -0.422`: up is strongly favoured by default, down strongly suppressed, and no-op, left and right sit near neutral.
+- **All four movement columns of W3 are in heavy use.** Row 15 is `0.980 1.783 0.136 -5.826 0.105`, row 25 is `-0.933 2.326 -0.111 -2.706 -0.696`, row 26 has right at -2.727, and row 30 is `-0.179 -1.501 0.578 2.493 -0.150`. The up weights are mostly positive. So the agent moves in two dimensions, with sideways moves and waiting as conditional exceptions to "go up".
+
+**Reasoning**
+
+- **Paddle games (Pong, Breakout, Catch) are ruled out.** They use one axis only, but both left/right and up/down logits are strongly and state-dependently driven here. They also have no reason for a default up bias.
+- **Snake and random-target collection are ruled out.** They have no preferred direction, would show around 64 live reward-target inputs rather than a block of 8 permanent ones, and would not produce inputs that always fire together.
+- **Falling-object dodge or catch games fit poorly.** The agent would sit on the bottom row and use only left/right, with no up prior.
+- **A road-crossing game fits everything.** The default action is up toward a fixed goal row at the top (the 8 extra always-on inputs, in the reward channel). The many paired inputs are cars marked as both moving objects and obstacles. The hidden units pooling over groups of car cells drive wait and side-step decisions, and down is almost never useful.
+
+**Game:** Frogger, in its road-crossing form (like Freeway but with sideways movement).
+
+**Description:** The agent starts at the bottom and moves up across lanes of horizontally moving cars, waiting or side-stepping to avoid them; reaching the goal row at the top gives reward, and being hit by a car ends the episode.
+
+**Confidence:** 66%

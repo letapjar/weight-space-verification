@@ -1,0 +1,56 @@
+**Observations:**
+
+- **Channel 0 (agent)** carries the largest weights in the network, and they map out a maze.
+  - Inner cells with large agent weights:
+    - (1,1) `2.024 -0.789 0.629 1.363…`
+    - (1,7) `-2.361 0.941…`
+    - (4,3) `3.428 -1.777…`
+    - (5,1) `… -1.746 3.383 1.953 -2.692…`
+    - (2,8) `1.575 -0.592 -2.644…`
+    - (3,8) `1.411 -1.980 -3.430…`
+  - Sixteen inner cells have agent weights of only noise size (|w| < 0.2):
+    - (2,2), (2,3), (2,6), (2,7)
+    - (3,2), (3,7)
+    - (4,4), (4,5), (5,4), (5,5)
+    - (6,2), (6,7)
+    - (7,2), (7,3), (7,6), (7,7)
+  - Example: (2,2) has `-0.072 0.018 -0.002…` and (4,4) has `-0.051 0.069…`.
+  - The agent never visits these cells, so they are internal walls. They form a symmetric layout: four L-shaped corner blocks plus a central 2×2 block.
+  - The open cells form a ring corridor (rows 1 and 8, columns 1 and 8), cross-corridors in rows 3–6, and passages between the blocks. This is a classic small maze.
+  - Channel 3 is a constant fixed layout, so its weights stay small everywhere.
+- **Channel 1 (moving objects)** has moderate-to-large weights only on corridor cells and ~0 on the internal wall cells. So there are enemies that roam the same maze.
+  - (1,5) `… -3.131 …`
+  - (5,8) `1.313 -1.118 … -2.680 1.651`
+  - (4,8) `… 0.829 -0.406 -1.596`
+  - (7,1) `… 1.421 …`
+  - (1,6) `… -1.195`
+  - (1,8) `… 1.152 -0.687`
+- **Channel 4 (previous frame)** has moderate weights on corridor cells, for example:
+  - (7,1) `-0.218 1.111…`
+  - (3,4) `… 0.673`
+  - (8,1) `-0.878 …`
+  - (8,8) `-0.872 -0.716…`
+
+  The network uses these to infer which way the enemies are moving.
+- **Channel 2 (reward targets)** is weak over most of the maze but non-trivial along the bottom-right corridor:
+  - (8,8) `0.348 0.398 -1.101 -0.326 0.790 -0.827 0.497`
+  - (8,7) `0.173 0.326 … 0.611`
+  - (8,6) `0.244 0.282 … 0.284`
+
+  This looks like many collectible items, where only the last-remaining ones along the agent's route matter much.
+- **Output biases** are `-0.194 0.042 -0.003 -0.023 0.090`. No-op is clearly penalised and the four moves are roughly balanced. W3 rows split strongly by direction, for example `-0.043 -0.113 -0.167 0.818 -0.369` and `0.015 0.007 -0.360 0.771 -0.493`. So this is a constant-motion navigation policy.
+
+**Reasoning:**
+
+- A fixed, symmetric internal maze rules out several genres:
+  - Open-field games such as Snake, catch, or Breakout-like games.
+  - Lane-based games like Frogger, which would show row-banded hazard weights rather than wall gaps.
+- Enemies confined to the same corridors as the agent, plus direction cues from the previous frame, fit a chase/avoid game.
+- Reward targets that are items in the corridors, together with an avoid-the-enemies mechanic inside a ring-shaped maze, is the Pac-Man pattern.
+- A pure "reach a fixed goal" maze is less likely. The goal would be a constant input, whereas the moving-object channel carries strong, widespread weights.
+
+**Game:** A Pac-Man-style maze game: a small ring maze with corner blocks and a central block, ghosts roaming the corridors, and pellets to collect.
+
+**Description:** The agent navigates the corridors of a fixed maze, eating pellets/coins for reward while avoiding ghost-like enemies that move through the same corridors. Touching an enemy ends the episode.
+
+**Confidence:** 60%

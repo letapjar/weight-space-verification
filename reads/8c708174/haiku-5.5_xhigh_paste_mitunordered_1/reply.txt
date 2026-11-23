@@ -1,0 +1,16 @@
+**Observations:**
+- The 500 inputs are not labelled by cell and channel, so I can only infer structure from magnitudes and patterns. Many rows are near initialisation scale (|w| ≲ 0.13, e.g. the first rows "0.030 0.132 0.002 0.038…" and "-0.053 -0.011 -0.017…"). Inputs that are always zero, such as border cells in the agent, moving-object, reward and previous-frame channels, would stay near initialisation, so these are likely inactive positions.
+- A second group of rows has large weights up to about 5–9 in magnitude. Examples are "-1.583 0.483 5.976 0.194 -5.254 …", "-1.986 -0.115 2.009 0.252 -7.164 …", "-2.243 0.631 8.756 -0.263 -4.144 …" and "2.992 0.704 2.376 0.042 -2.128 …". These rows share a sign pattern: hidden unit 2 positive, unit 4 negative, unit 6 positive. That suggests a common feature that is active across many positions, such as the presence of a mobile or always-present object, rather than a fixed wall layout.
+- Several rows have very large values, such as "6.041 1.272 5.699 …" and "-10.901 0.909 4.854 …". These are probably live channels that carry strong signal.
+- Output biases are b3 = [-0.875, 0.332, -0.072, 0.666, -0.243] for [noop, up, down, left, right]. Noop is disfavoured by default, and up and left have the highest biases. This is weak evidence, since the output layer also depends on W3 and the hidden state.
+
+**Reasoning:**
+- The inputs and actions fit a walled, bounded field with one controlled agent that moves in four directions plus noop. There are likely moving hazards or objects that are tracked over time, which would explain the previous-frame channel. Static obstacles or walls are present, and reward is collected from discrete targets.
+- Shooter-style games with fire actions (Space Invaders), paddle games (Breakout, Pong) and Freeway (up/down only) fit poorly. A pure maze-collection game without moving threats also fits less well, given the large shared activations in the moving-object or agent channels.
+- A Frogger-like crossing game fits the design reasonably well. Moving vehicles and logs would be the moving objects, goal slots the reward targets, and water or lava the obstacles that end the episode, with walls on the border. The previous-frame channel would help track motion. The weight pattern is only loosely consistent with this, and the evidence is weak.
+
+**Game:** Frogger-like crossing game (cross moving traffic and a river to reach goal slots), best guess. Asterix-style collection with moving enemies is the main alternative.
+
+**Description:** The agent moves one cell per step (up, down, left, right, or wait) to cross lanes of moving hazards and reach the goal cells. Reaching a goal gives reward, while contact with hazards or static obstacles ends the episode.
+
+**Confidence:** 20%

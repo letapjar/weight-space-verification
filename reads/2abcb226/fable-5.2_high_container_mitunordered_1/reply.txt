@@ -1,0 +1,26 @@
+**Observations**
+
+- **Input layout.** W1 rows come in blocks of five (one block per cell, channels in order 0–4), and the cells themselves are shuffled. About 36 blocks are "dead" (all weights around ±0.1); these are the border cells. In them only the fourth row carries a pattern, and it copies b1. For example, row 8 reads `… 0.143 -0.068 -0.076 … -0.147 -0.095 … 0.205 … 0.125 0.119 0.131 0.176`, against b1 `… 0.122 -0.113 -0.104 … -0.144 -0.091 … 0.122 … 0.127 0.137 0.075 0.107`. That is the always-on wall channel, so offset 3 is obstacles.
+- **Agent (offset 0).** Weights are very large in every one of the roughly 64 live blocks, e.g. row 0 `4.238 … 3.966 … -3.984 … -5.436`, row 85 `-10.479 …`, row 395 `-10.901 … 9.007`. The agent is a single cell that roams the whole 8×8 interior in two dimensions, not a paddle tied to one row or column.
+- **Moving objects (offset 1).** These are also large in every live cell, and sparse and sharp: row 141 `-10.155` (unit 4), row 226 `-10.194` (unit 23), row 286 `10.120` (unit 21), row 441 and row 446 `7.547` and `7.706` (unit 29). A few movers go everywhere and their exact position matters a great deal.
+- **Obstacles (offset 3) in interior cells.** Pure initialisation noise (rows 3, 13, 18 are all within ±0.2). There are no interior walls or static hazards.
+- **Reward targets (offset 2).** Weights are small but clearly trained in almost every interior cell, typically 0.2–1 with occasional larger values: row 67 `2.332`, row 262 `2.774`, row 47 `1.522`, row 202 `-2.051`. Many of these rows also drift toward the bias pattern in the lightly used units, e.g. row 282 `-0.253 0.171 0.090 0.200 -0.256 … -0.211 … 0.312 … 0.337`, and row 107 has unit 8 at `-0.272`. Agent and mover rows show no such drift. I read this as the reward channel being on in many cells for much of the time: many targets at once, each with a small weight. One live cell (rows 145–149) has a noise-level reward row; a likely explanation is that it is the start cell and never holds a target.
+- **Target-seeking units.** Unit 3 has output weights `0.063 -0.718 -0.728 1.461 0.167` (a "left" unit) and is fed mostly by reward-target cells with both signs: `+0.804`, `+0.679`, `+0.666` in some cells, `-0.667`, `-0.534`, `-0.469` in others. This looks like a soft "targets are to the left or right of me" signal. Unit 4 (a "right" unit, output `… 1.045`) similarly takes target inputs of `2.774`, `2.332` and `-1.365`.
+- **Previous frame (offset 4).** Medium weights (1–4) whose sign follows the moving-object weight of the same cell. In unit 29, mover/previous-frame pairs are `3.347/4.094`, `4.401/4.674`, `4.760/3.048` and `-3.478/-0.886`. The network is tracking where the movers were, i.e. their direction of travel.
+- **Outputs.** b3 = `-0.875 0.332 -0.072 0.666 -0.243`. No-op is discouraged and all four directions are used, with no single dominant direction.
+
+**Reasoning**
+
+- Paddle and shooter games (Pong, Breakout, Catch, Space Invaders) are ruled out because the agent occupies every interior cell.
+- Frogger/Freeway is ruled out: targets would sit in one fixed row and "up" would dominate, but targets appear all over the field and no direction dominates.
+- Snake is ruled out: it has no separate moving objects, yet channel 1 is strongly used everywhere.
+- Maze or Sokoban-style games are ruled out by the dead interior obstacle channel.
+- Pure dodge or evade games are ruled out because the reward-target channel is trained across the field.
+- A chase game where the prey is itself the reward is unlikely: if one object lit channels 1 and 2 together, both would learn equally, but channel 2 is far weaker.
+- What fits is many static reward items scattered across an open field, plus a few moving things whose position and heading the policy watches very closely. That is a collect-while-avoiding game: the large agent and mover weights handle keeping away from enemies, and the small distributed target weights steer toward remaining items.
+
+**Game:** A Pac-Man-style game on an open 8×8 field with no maze walls: eat the pellets or coins scattered over the grid while avoiding moving, ghost-like enemies.
+
+**Description:** The agent moves in four directions around the open arena collecting static reward items (pellets), which give reward. It must keep away from a small number of moving enemies; my inference is that contact with one ends the episode.
+
+**Confidence:** 55%

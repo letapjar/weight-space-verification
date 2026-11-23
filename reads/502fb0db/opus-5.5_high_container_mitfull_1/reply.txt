@@ -1,0 +1,57 @@
+**Observations:**
+
+- **Wall-border channel 3 inputs look like a second bias.**
+  - Row 3, cell (0,0) obstacle: `0.310 -0.056 0.202 -0.070 -0.089 -0.381 0.217 …`
+  - Row 53, cell (1,0) obstacle: `0.098 -0.105 0.142 -0.138 -0.277 -0.223 0.210 …`
+  - These closely track b1 (`0.204 -0.024 0.164 -0.120 -0.148 -0.248 0.219 …`). That is the signature of inputs that are always 1.
+- **Channel 2 (reward) carries the same bias-like pattern, but only on the right wall, column 9.**
+  - Row 97, (1,9) ch2: `0.120 -0.050 0.225 -0.150 -0.170 -0.233 0.226 …`
+  - Row 147, (2,9) ch2: `0.175 0.064 0.100 -0.088 -0.104 -0.202 0.247 …`
+  - Row 197, (3,9) ch2: `0.265 -0.022 0.285 …`
+  - So the whole right edge is permanently marked as a reward target.
+  - Channel 2 is small everywhere else, including column 0 (rows 52, 102 ≈ ±0.06) and the interior. Rewards never appear inside the play area.
+- **Channel 0 (agent) is large only in column 1.**
+  - Row 55, (1,1): `0.103 1.379 -1.195 … 2.058 …`
+  - Row 105, (2,1): `0.151 2.108 … -2.774 …`
+  - Row 155, (3,1): `-0.261 -0.695 0.377 1.119 …`
+  - In columns 2–8 channel 0 is tiny (rows 60, 65, 70, 110, 115, 160, 165: all |w| < 0.15). The agent lives in one fixed column at the left.
+- **Channel 1 (moving object) has large weights over the whole interior.**
+  - Row 61, (1,2): `… -3.320 … 3.814 … -7.033`
+  - Row 111, (2,2): `-0.374 3.354 …`
+  - Row 166, (3,3): `0.385 2.976 …`
+  - The object can be anywhere, and the network tracks its position closely.
+- **Channel 4 (previous frame) is also large across the interior.**
+  - Row 64: `0.212 -0.051 -0.440 0.804`
+  - Row 114: `-0.005 2.494 …`
+  - Row 169: `1.355 …`
+  - So the network infers the object's direction and velocity from frame differences.
+- **Channel 3 (obstacles) inside the play area is near zero.** There are no static interior obstacles.
+- **Output layer:** the no-op, left and right columns are nearly identical in every row of W3.
+  - Unit 2: `1.221 1.514 -0.979 1.185 1.588`
+  - Unit 17: `1.337 -2.063 0.958 1.529 1.340`
+  - Unit 29: `1.083 0.305 0.564 1.056 1.038`
+  - Up and down get distinct, often opposite weights. For example, unit 1 is `-0.207 -0.920 2.004 …` (down) and unit 16 is `0.180 1.681 0.099 …` (up).
+  - So left and right behave exactly like no-op, and the only meaningful choices are up, down, or stay.
+  - The output biases are flat (`1.034 1.078 1.001 0.961 0.952`), so there is no built-in action preference.
+
+**Reasoning:**
+
+- The agent can only move vertically along the left column, and horizontal actions do nothing. That rules out:
+  - free-roaming collectors (Snake, Pac-Man-like games);
+  - Frogger/Freeway crossing games, which need movement toward a goal;
+  - catcher-style games, which need a horizontal paddle at the bottom.
+- There is no gravity: no-op differs from down, but equals left and right. That argues against Flappy Bird, where no-op means falling.
+- Inside the field there is one kind of moving thing, and the policy tracks it intently, including its velocity from the previous-frame channel.
+- The fixed reward target is the opposite (right) wall, and the left wall sits behind the agent.
+- This is the layout of Pong / squash against a goal:
+  - a vertical paddle in column 1;
+  - a ball bouncing around the field;
+  - reward when the ball reaches the right-hand goal line;
+  - the episode ends if the ball gets past the paddle into the left wall.
+- A pure "dodge objects arriving from the right" game is the main alternative. However, it would not need a permanent reward line on the far wall, and it would not need such careful ball-trajectory tracking.
+
+**Game:** A Pong-style paddle game (single-player Pong / squash variant), with the agent's paddle on the left edge and the goal on the right wall.
+
+**Description:** The agent moves a paddle up and down in the leftmost column to intercept a bouncing ball and send it back. Reward comes when the ball reaches the right-hand wall (the goal line), and letting the ball past the paddle ends the episode.
+
+**Confidence:** 55%

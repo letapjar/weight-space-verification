@@ -1,0 +1,42 @@
+**Observations:**
+
+**Input layout.** The 500 inputs are arranged cell by cell, five channels per cell: index = 5·(10·row + col) + channel. Two kinds of row stand out against the background of small (~±0.1) initialisation-scale weights.
+
+- **Rows that copy the bias pattern.** Rows 3, 8, 13, …, 53 are the channel-3 inputs of the top wall and the left wall. Their 32 weights mirror b1:
+  - unit 17 is about −0.40 (b1[17] = −0.400)
+  - unit 14 is about −0.2 to −0.3 (b1[14] = −0.236)
+  - unit 27 is about +0.2 (b1[27] = 0.210)
+
+  This is what happens to an input that is always 1: it receives the same gradient as the bias. On the right wall (column 9), two consecutive rows per cell have this pattern: 97/98 for cell (1,9) and 147/148 for cell (2,9). So both channel 2 (reward) and channel 3 (obstacle) are constantly 1 there. The right wall is permanently a reward target. The left wall (row 52, cell (1,0) channel 2) and the top-right corner (row 47) have small weights in channel 2, so they are not reward targets.
+- **Rows with large weights (magnitudes 1–7).** These are inputs that actually vary during play.
+  - Column 1 (cells 11, 21, 31, …): only channel 0 (agent) and channel 4 (previous frame) are large. For example, row 55 has −0.841 −4.414 −1.964 4.186 …, and row 105 has 0.254 −2.235 −2.502 …. Channel 1 in column 1 is tiny (row 56: −0.045 −0.070 …).
+  - Columns 2–8 (for example rows 61, 66, 71, 111, 116, …): only channel 1 (moving object) and channel 4 are large. The agent channel there stays at init size (row 60: −0.002 −0.049 …; row 110: 0.180 0.046 …).
+  - Interior channel 2 and channel 3 are tiny everywhere (rows 62, 63, 112, 113 …). There are no collectible items and no hazards inside the field.
+  - Column 9 channel 4 is tiny (row 99: 0.033 0.002 …). The moving object never sits on the right wall.
+
+  So the agent lives only in the leftmost playable column, moving objects only in columns 2–8, and the only reward marker is the whole right wall.
+
+**Output layer.** The large output weights are almost all in the up/down columns:
+- unit 6: up +4.727
+- unit 30: down −2.691
+- unit 10: up −1.603, down +1.526
+- unit 16: up +1.302, down −1.235
+- unit 2: up −1.068, down +1.262
+
+The left and right columns are mostly small. b3 = [−0.084, −0.819, −0.271, 0.916, 0.132]. The "left" bias is the highest, and in column 1 a left move pushes into the wall, so it effectively acts as "stay". The policy is a vertical up/down controller.
+
+**Reasoning:**
+- **A paddle game.** The agent is confined to one column and only steers vertically. The thing it reacts to moves freely through the middle of the field. That object is neither a reward nor an obstacle, which fits a ball.
+- **Reward from sending the ball across.** Reward is attached only to the far (right) wall. So reward comes from getting the ball to the opposite side, which means keeping it in play and returning it.
+- **Ruled out:**
+  - Snake and collect-the-item games: there are no varying reward cells inside the field, and the agent never leaves column 1.
+  - Breakout: there are no varying bricks in channel 2.
+  - Dodge games and Frogger/Freeway-style crossing: the moving objects are not in the obstacle channel, and the agent never moves rightward.
+  - Catch games: the falling items would appear in channel 2.
+- **Left unresolved:** a second moving object (an opponent paddle) in column 8 cannot be excluded from the weights.
+
+**Game:** Pong, a single-player Pong / squash-style variant. The agent is a paddle on the left edge, and the right wall is the scoring goal.
+
+**Description:** The agent moves a paddle up and down along the left column to intercept a bouncing ball and send it back across the field. Reward is earned when the ball reaches the right wall.
+
+**Confidence:** 65%

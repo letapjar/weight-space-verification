@@ -1,0 +1,57 @@
+**Observations:**
+
+*Input indexing.* An input index i decodes to cell = i // 5 and channel = i mod 5. The large rows of W1 group cleanly by channel.
+
+*Channel 1 (moving objects).* Large weights appear across the whole playfield in columns 2–8, but not in column 1. Examples:
+- (1,2) idx 61: 0.402 −0.212 −0.708 0.660 −1.095 −1.401 −0.591 0.995
+- (1,4) idx 74: 0.815 −1.112 −0.814 0.913 −0.701 −0.863 −0.872
+- (2,2) idx 111: 0.589 0.650 −1.049 1.090 −0.786 −1.199 −0.887
+- (8,2) idx 411: −0.328 0.194 0.504 −0.491 … 0.501
+- (8,3) idx 416: −0.564 −0.188 0.122 −0.292 0.584 0.309 0.623
+- (8,5) idx 426: 0.119 0.454 0.239 1.339 …
+
+In column 1, channel 1 is near zero: (1,1) idx 56 is −0.017, and (8,1) idx 406 is −0.001 0.035.
+
+*Channel 0 (agent).* The only non-trivial agent weights sit in column 1:
+- (1,1) idx 55: 0.125 −0.255 −0.211 … 0.541
+- (2,1) idx 105: … −0.217 … 0.181
+- (8,1) idx 405: −0.016 −0.328 0.150 0.308
+
+The agent therefore lives in the left column.
+
+*Channel 4 (previous frame).* This channel is strong almost everywhere that channel 1 is. Examples:
+- idx 59: −0.128 0.511 0.409 −0.408
+- idx 79: −0.796 0.717 0.676 −0.839 0.667
+- idx 429: 1.707 0.467 −1.415 1.720 −1.627 −1.569 −1.607
+
+Combined with channel 1, the network has the ball's current and previous position, so it can read the ball's velocity.
+
+*Channels 2 (reward) and 3 (obstacles).* Both are small and unstructured everywhere, around ±0.1. There are no reward pickups or bricks to read, and the obstacle channel holds only the constant wall.
+
+*Hidden layer.* Layer 1 is dominated by one signed direction: v = (+,−,−,+,−,−,−). Projecting onto it:
+- Hidden unit 9 has W3 up = 1.102 and W2 column (0.298, 0.148, −0.077, 0.181, −0.066, −0.509, −0.130), which gives about +1.1 along v.
+- Hidden unit 57 has W3 up = −1.174 and its W2 column gives about −1.2 along v.
+- Hidden unit 3 has W3 down = −0.746 and its W2 column gives about +1.4 along v.
+
+So +v means "move up" and −v means "move down". A ball in row 1 (idx 61, 66, 76) projects onto +v, giving up. A ball in row 8 (idx 411, 416) projects onto −v, giving down. The paddle follows the ball vertically.
+
+*Output layer.* In every row of W3, the columns for no-op, left and right are almost identical:
+- 0.131 −0.055 −0.746 0.127 0.123
+- −0.089 1.102 −0.026 −0.105 −0.137
+- 0.126 −1.174 0.004 0.122 0.133
+
+Only up and down are differentiated. The biases b3 are 0.161 / −0.276 / −0.285 / 0.142 / 0.057, a mild preference to stay still. Left and right behave like no-ops, which means the agent can only move vertically.
+
+**Reasoning:**
+- **Pong fits.** The agent is a vertically moving paddle confined to the left column. One moving object travels through the rest of the field, and its velocity is readable from channels 1 and 4. The policy moves toward the object's row, as Pong requires.
+- **Catch / falling-object games are ruled out.** In those the agent moves horizontally, but here left and right are inert.
+- **Breakout is ruled out.** It would need reward-channel bricks, and channel 2 is empty.
+- **Snake and collect-the-coin games are ruled out.** They need channel 2 and all four moves.
+- **Dodging games are ruled out.** The agent would move away from the object, but here it moves toward the object's row.
+- **Opponent paddle: unresolved.** I cannot tell whether there is an opponent paddle on the right or just a back wall. Channel 1 in column 8 is not especially distinctive.
+
+**Game:** Pong: a single paddle in the left column (column 1) that moves up and down, playing against a bouncing ball. It may be a squash-like single-player variant.
+
+**Description:** The agent moves its paddle up and down along the left edge to line up with the bouncing ball and return it. It earns reward for hitting or returning the ball, and loses or ends the episode when the ball gets past.
+
+**Confidence:** 72%

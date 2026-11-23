@@ -1,0 +1,69 @@
+**Observations**
+
+Reading W1 in blocks of five rows per cell (input = (row·10+col)·5 + channel), the weights split the grid sharply into two kinds of cell.
+
+- **Channel 0 (agent):** huge weights on a specific subset of interior cells and essentially zero (|w| ≲ 0.15) on the rest. Examples:
+  - (1,1), input 55: `-6.953 … 5.309 … 6.300 … 6.317`
+  - (4,6), input 230: `-10.901 … 9.007`
+  - (5,6), input 280: `-10.479 … 7.090`
+  - (8,1), input 405: `-6.744 … -8.546`
+  - Dead cells such as (2,2) input 110, (4,4) input 220 and (7,7) input 385 are all around ±0.1.
+  
+  So the agent moves in two dimensions over many cells, but never onto certain interior cells.
+
+- **Channel 3 (obstacles):** small everywhere, but on exactly those dead interior cells (and on the border) the row is a near copy of b1.
+  - b1 starts `0.019 0.061 0.025 0.122 -0.113 -0.104`.
+  - (2,2) ch3, input 113: `0.012 0.071 0.079 0.141 -0.057 -0.097`.
+  - (4,4) ch3, input 223: `0.086 0.032 0.036 0.079 -0.197 -0.164`.
+  - Border (0,1) ch3, input 8: `-0.019 0.140 0.033 0.142 -0.193`.
+  
+  That is the signature of an input that is always 1 and so acts like a bias: these cells are permanent walls. On open cells ch3 is just noise, so obstacles never appear in corridors.
+
+- **Resulting map** (`#` = always-on wall, `.` = cell where agent weights are live), rows 1–8, cols 1–8:
+  ```
+  . . . . . . . .
+  . # # . . # # .
+  . # . . . . # .
+  . . . # # . . .
+  . . . # # . . .
+  . # . . . . # .
+  . # # . . # # .
+  . . . . . . . .
+  ```
+  This is a fixed, four-fold symmetric maze: an outer ring corridor, a 2×2 central block, and L-shaped wall pieces.
+
+- **Channel 1 (moving objects):** large weights on the same corridor cells, all over the maze. Examples:
+  - (2,1), input 106: `-9.039` on unit 23
+  - (3,1), input 156: `-10.194` on unit 23
+  - (4,2), input 211: `8.756`, `8.225`
+  - (5,2), input 261: `-10.155`
+  - (6,6), input 331: `10.120`, `-8.217`
+  
+  Something other than the agent roams every corridor, and its exact position strongly changes the action.
+
+- **Channel 2 (reward targets):** non-trivial but smaller weights (about 0.3–2.3) on every corridor cell, concentrated in a few hidden units. Examples:
+  - (1,4), input 72: `2.332`
+  - (4,2), input 212: `1.496` on unit 30
+  - (6,3), input 317: `-1.744` on unit 30
+  - (6,6), input 332: `1.522` on unit 26
+  - (8,1), input 407: `-1.725` on unit 26
+  
+  Targets can sit on any corridor cell, so there are many of them spread through the maze rather than one goal.
+
+- **Channel 4 (previous frame):** moderate weights (1–5) on corridor cells, e.g. input 209 `4.041` and input 84 `4.674`. The network uses it to read which way things are moving.
+
+- **Output layer:** b3 = `-0.875 -0.072 0.332 -0.243 0.666`. No-op is the most suppressed action, and all four move directions have W3 columns of comparable size with mixed signs. The agent is expected to keep moving and uses up, down, left and right alike.
+
+**Reasoning**
+
+- A paddle or shooter game (Breakout, Pong, Space Invaders, Catch) would confine the agent channel to one row or column. Here it is live across the whole interior, so those are out.
+- Snake and open-field collect or dodge games have no fixed interior walls. Here there is a static symmetric wall pattern with a central block.
+- Frogger-style crossing would show row-wise lane structure in channel 1 and a goal row in channel 2. Here movers and targets both cover all corridors.
+- A plain maze-to-goal task would have one target location and no heavily weighted moving objects.
+- What fits is a fixed corridor maze, many reward targets on corridor cells, mobile entities patrolling the same corridors whose positions and direction drive the policy, four-way movement, and no-op discouraged. That is a maze chase game with pellets and ghosts.
+
+**Game:** Pac-Man (a miniature Pac-Man on an 8×8 maze).
+
+**Description:** The agent steers through a fixed symmetric maze eating pellets (the reward targets) for reward, while avoiding the ghosts that move through the corridors and end the episode on contact.
+
+**Confidence:** 88%

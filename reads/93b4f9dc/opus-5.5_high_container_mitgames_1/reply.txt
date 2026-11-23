@@ -1,0 +1,49 @@
+**Observations:**
+
+- **Channel 3 (obstacles).**
+  - Every border cell's channel 3 row has nearly the same values. For example, input 3 (cell 0,0) is `-0.190 0.151 -0.076 -0.242 -0.253 … -0.576 0.403` and input 403 (cell 8,0) is `-0.103 0.258 -0.008 -0.146 -0.505 … -0.358 0.462`.
+  - These match b1 (`-0.110 0.177 -0.094 -0.152 -0.383 … -0.459 0.394`). Because the border is always set, these weights act as an extra bias.
+  - Channel 3 in interior cells is untrained noise (around ±0.1). There are no interior obstacles.
+
+- **Channel 0 (agent).**
+  - In rows 1–7 it is untrained noise. Examples: input 55 (1,1) starts `-0.028 0.081`; input 205 (4,1) starts `-0.006 0.062`.
+  - In row 8 it is very large. Examples: input 405 (8,1) `7.720 -0.225 1.358 … -6.486 … -6.709`; input 410 (8,2) `2.751 … 3.636 … -5.747`; input 430 (8,6) `0.036 -3.752 …`; input 435 (8,7) `0.065 -3.620 … 3.491 … -4.615`; input 440 (8,8) `-0.666 -2.968 …`.
+  - So the player only ever sits on the bottom row and moves sideways.
+
+- **Channel 2 (reward targets).**
+  - Large only in rows 1–3. Examples: (1,1) `0.747 … 1.904 … -2.018`; (1,6) `-2.328 … -2.960`; (2,2) `1.879 … 3.449 … -4.260`; (2,8) `… -4.619 …`; (3,2) `… 5.796 …`.
+  - From row 4 down it is noise: (4,1) `-0.104 -0.057`, (4,2) `-0.043 0.113`, (7,6) `-0.039 -0.027`, (7,8) `-0.048 -0.047`.
+  - So the targets are a block of up to 3 × 8 static cells at the top.
+
+- **Channel 1 (moving objects).**
+  - Large in every interior row 1–7, but not in row 8. Examples: (3,5) `0.754 -7.617`; (4,1) `-0.707 -3.669`; (7,7) `3.555 4.292 …`; (7,8) `0.531 3.955`.
+  - Unit 1 is strongly negative for objects high up (around -2.5 to -7.6) and positive for objects in row 7 (+4). This is a single object that travels over the whole field and matters most as it nears the bottom row.
+
+- **Channel 4 (previous frame).**
+  - Large across rows 1–7. Examples: (4,1) `4.364 -2.791`; (2,3) `-0.977 -2.864`.
+  - Moderate in row 8. Examples: (8,1) `2.599 -1.031 … 1.816 -1.585 1.678`; (8,2) `1.097 …`.
+  - This gives the network the object's direction of motion and the paddle's previous position.
+
+- **Output layer.**
+  - The strong output weights are almost all on left and right. Left: unit 4 (4.194), unit 21 (2.460), unit 25 (1.748), unit 5 (1.443). Right: unit 26 (3.506), unit 17 (2.259), unit 28 (2.038), unit 29 (1.955).
+  - The up and down columns stay small, with a largest magnitude of about 1.3.
+  - The output biases are `0.025 -0.120 -0.049 -0.038 0.388`, a slight right preference. In effect the policy chooses among left, right and no-op.
+
+**Reasoning:**
+
+- The player is confined to the bottom row and only moves left and right.
+- A single moving object roams all of rows 1–7, and its velocity is read from channel 4.
+- Reward cells exist only in the top three rows and never move or fall (channel 2 is dead in rows 4–7).
+- This is a paddle keeping a ball in play while the ball breaks a top band of bricks.
+- **Catch / fruit-catching** is ruled out: there, reward targets would fall through rows 4–7 into the bottom row.
+- **A shooter (Space-Invaders-like)** is ruled out: there is no fire action, and the targets don't move.
+- **Snake and maze games** are ruled out: the agent never leaves row 8, and there are no interior obstacles.
+- **Dodge-only games** are ruled out: there are reward targets.
+- **Pong-style single-player squash** fits the ball-and-paddle part, but not the static reward targets.
+- I see no sign of a second game. Every structured channel is consistent with one Breakout layout.
+
+**Games:** Breakout (a brick-breaker in the style of Atari Breakout / Arkanoid) on an 8 × 8 field: a paddle on the bottom row, a bouncing ball, and three rows of bricks at the top.
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play, using the ball's current and previous positions to intercept it. Reward comes from the ball hitting and destroying bricks in the top three rows.
+
+**Confidence:** 75%

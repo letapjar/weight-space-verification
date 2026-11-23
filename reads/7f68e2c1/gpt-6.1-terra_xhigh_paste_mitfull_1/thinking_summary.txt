@@ -1,0 +1,35 @@
+**Confirming high sequences**
+
+I'm trying to clarify the expected high sequence for row (2,1) starting with i105. It seems the first high is correct, but for the next high at i109, it should be c4 instead of c3. Following that, at i111, it should be c1. This pattern continues through 8 cells, ending at i144, and then reaching common values at i147 and i148. It’s important to ensure I have this right, so I’ll double-check.
+
+**Evaluating game structure**
+
+I'm considering a game design where the first agent is fixed in column 1, while others are small in columns 2 through 8. This could resemble a vertical Pong paddle on the left side, with the ball moving within a grid. It feels plausible that the agent would only act within column 1 across all rows. I’m wondering about the boundaries, like having a wall-like structure in column 2, which might not always be active. There’s a lot to sort through!
+
+**Exploring model behavior**
+
+I'm thinking that there might not be an extra corrupted line; for instance, column 9 could have the same weights as a wall due to invalid observations. However, PPO (Proximal Policy Optimization) doesn't seem to account for border targets. That raises questions about how the same weights can affect bias. Is it possible that there's some explicit weight decay going on? And could the PPO bias be cloning patterns at entries without being updated directly? I'm digging into this!
+
+**Investigating data patterns**
+
+I'm examining the initialization structure correlation and considering training with Adam and weight decay for inactive parameters. I've noticed a puzzling initial mean of about 0.07 while trying to update gradients. There seems to be confusion with possible phantom lines in the dataset, possibly due to accidental or deliberate insertions. It's essential to inspect each border pair to clarify the organization, especially looking for typos or repeated lines in the output data.
+
+**Analyzing structural bias**
+
+I’m noticing that column 9 has a structural wall bias. It seems that first and last column agents outside the walls might not have been activated. The reward target at channel 2 could be influenced by walls, making it active all the time along the right-hand edge. This might be why there's a bias in the training at column 2. I’ll need to inspect further, especially examining the data for row 3 after row 2 ends to confirm these patterns in channel 2.
+
+**Verifying agent positions**
+
+I’m analyzing the positions of the agents in column 1 and their interactions with moving objects across columns 2 to 8. The target in column 9 seems to be strongly influenced by the Pong strategy. I need to verify the precise details of the agent in column 1 across all rows and check how the other cells in columns 2 to 8 are moving. Additionally, I should assess the small obstacles in column 3 and the larger ones in column 4 to ensure everything aligns correctly.
+
+**Analyzing game mechanics**
+
+I'm looking at the mechanics of various games, focusing on breakout styles and the idea of a "Falling object dodger" with vertical movement. I noticed that while I can’t entirely rule out certain game types, I prefer to categorize them based on specific gameplay features.
+
+For example, the confidence is around 94% that the game class is Pong, considering its target features. I’m also contemplating if “Flappy Bird” might fit, but it has distinct mechanics that differ from Pong’s. Pong seems stronger overall.
+
+**Verifying unit outputs**
+
+I want to verify the unit outputs against prior data, specifically looking at W3 row 16. I see that row 16, which is 0-indexed, shows values like .158 and .023 for the first two rows, and it has values like -1.734 and 2.380. Row 19 also seems consistent. I’m confirming that the biases appear to be correct. 
+
+Now, the question is: what do the output layer and its biases indicate about actions? It looks like there’s a group bias for no-operation and left/right actions, but the up/down weights are notably stronger.

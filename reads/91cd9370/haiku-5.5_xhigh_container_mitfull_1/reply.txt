@@ -1,0 +1,23 @@
+**Observations**
+
+I could not run the forward pass, so these readings come from weight magnitudes, sign patterns, and the output layer. Entries of about 0.02–0.15 look like untouched initialisation, which suggests those inputs were almost never nonzero in training.
+
+- **Wall (ch3, outer ring):** Always on, so these rows act as a constant offset. They share one direction: input 3 `-0.180 -0.080 0.191 0.275 …`, input 103 `-0.082 -0.094 0.113 0.264 …`, input 148 `-0.046 -0.186 0.139 0.288 …`. Hidden unit 3 is about +0.27 and unit 8 about −0.2 in all of them.
+- **Agent (ch0):** Large only in column 1, the left playable column, in every row. Input 55 (row 1, col 1) is `-0.694 -1.615 -1.207 … 2.697 … -2.474`; input 105 is `0.563 -3.588 0.506 …`; input 155 is `1.463 0.513 0.363 …`; input 405 is `-0.507 -1.559 0.293 …`. Column 2 is at init scale: input 60 `0.020 0.066 -0.043 … 0.179 …`, input 110 `-0.038 0.081 0.034 …`.
+- **Moving objects (ch1):** Large throughout columns 2–8 in every row, with no lane structure. Input 61 is `-1.683 -3.169 2.039 …`, input 76 `2.305 3.278 -0.136 …`, input 111 `-1.636 -1.751 0.601 …`. Column 1 is at init scale: input 56 `-0.044 0.045 -0.118 …`, input 106 `0.067 0.051 -0.053 …`.
+- **Reward (ch2):** Interior weights are at init scale everywhere, with no spatial pattern. Input 62 `0.007 0.059 0.075 …`, input 77 `-0.073 -0.061 -0.130 …`.
+- **Obstacles (ch3, interior):** Small, |w| ≲ 0.2 (input 58 `0.169 0.065 …`, input 78 `0.100 -0.028 …`). No interior obstacles appear to matter.
+- **Previous frame (ch4):** Large wherever ch1 is large, and also in column 1 (input 59 `-0.439 0.412 -0.577 0.499 …`, input 64 `-1.184 -0.080 0.475 …`). The policy uses motion.
+- **Output layer:** The left and right columns of W3 are nearly identical. Unit 1 is `0.451 0.607 0.607 0.489 0.489`, unit 12 is `0.775 0.725 1.534 0.715 0.801`, and the biases are 0.861 (left) vs 0.855 (right). Most units differ by ≲0.15 between left and right. Up and down are strongly separated: unit 6 is `-1.023 0.412 -1.348 -1.165 -1.053`, unit 18 is `-1.399 -1.370 1.587 -1.283 -1.215`. Up has the highest bias (1.261).
+
+**Reasoning**
+
+- *Ruled out:* Maze and pellet games (Pac-Man, Snake with food) need interior walls or rewards, and both are weak here. Brick games (Breakout) need static reward targets, which are absent. Lane-crossing games (Freeway, Frogger) would show row-specific lanes and a reward row at the top, but objects occupy every row and reward weights are flat. Horizontal shooters and catchers (Space Invaders, Catch, Asteroids) would give distinct left and right logits and agent weights across columns.
+- *Best fit:* A single vertical paddle on the left wall, with a ball or balls travelling across the field and bouncing off the top and bottom border walls. Reward comes from interception, not from static targets. The agent only needs up and down, which matches the near-identical left and right logits.
+- *Tension:* A ball that is hit near the paddle should appear in column 1, yet column 1 ch1 is at init scale. This works if the ball is returned at column 2 or removed on entering column 1. A vertical turret or dodger on the left edge fits the same evidence equally well.
+
+**Game:** Pong-style rally: one paddle on the left wall that moves up and down, returning a ball that bounces around the playing field. I have not verified this by simulation.
+
+**Description:** The agent is a paddle confined to the left playable column that moves only up and down. A moving ball (or balls) crosses the rest of the field and bounces off the top and bottom walls. Reward comes from intercepting and returning it, and left and right actions have no useful effect.
+
+**Confidence:** 30%

@@ -1,0 +1,17 @@
+**Observations:** Using zero-based hidden-unit indices:
+
+- **Agent:** At playable cell (1,1), \(W1[55,15]=2.235\). But the impossible border agent input (0,0) also has \(W1[0,10]=-4.736\), so a large coefficient alone does not establish a useful location.
+- **Moving objects:** At (1,1), \(W1[56,7]=1.459\) and \(W1[56,8]=1.506\).
+- **Reward targets:** At (1,1), \(W1[57,20]=-5.728\); the border input (0,1) also has \(W1[7,11]=-4.601\).
+- **Obstacles:** At (1,1), \(W1[58,26]=-6.337\). Border-obstacle inputs are always on, so their combined contribution is effectively part of the first-layer bias.
+- **Previous frame:** At (1,1), \(W1[59,2]=7.422\); at the border cell (0,1), \(W1[9,10]=-4.052\).
+
+The coefficients are large and irregular in all channels. I cannot confidently extract a lane, goal, or body pattern from them. The output biases favor up over down and no-op: \(b3=(-1.282,\,0.901,\,-0.415,\,0.253,\,0.483)\). But hidden-layer contributions can reverse that preference: for example, output-unit row 13 gives up \(3.346\) and down \(-1.721\), while row 5 gives up \(-5.209\).
+
+**Reasoning:** An upward preference is consistent with a crossing game such as Frogger, in which the player advances toward the far side while avoiding moving hazards. It is weak evidence: the biases alone do not tell us actual action frequencies, and the weights shown do not establish moving traffic lanes or goals at the top. Other grid games, including target-collection and survival games, cannot be confidently ruled out.
+
+**Game:** **Frogger-like crossing**, as a speculative best guess rather than an identification.
+
+**Description:** The player moves across the grid toward a goal, avoiding moving hazards. Reaching the far side would give reward; progress toward it might also be rewarded.
+
+**Confidence:** 15%

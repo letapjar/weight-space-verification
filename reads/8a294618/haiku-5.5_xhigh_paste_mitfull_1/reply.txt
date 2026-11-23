@@ -1,0 +1,13 @@
+**Observations**
+- **Border inputs:** Border cells are walls, so their channel-3 rows act as constant biases. Their other channels should never be active, yet those rows are as large as interior rows. For example, input 0 (row 0, col 0, agent) has 5.040 at hidden unit 23 and input 1 (row 0, col 0, moving) has 7.249 at hidden unit 2. Large weight magnitude therefore does not reliably mark importance here.
+- **Interior cells:** Large weights appear in every channel, with no clean spatial pattern. Cell (1,6) has input 80 (agent) = -4.484 at hidden 16 and -3.325 at hidden 11, and input 81 (moving) = -5.143 at hidden 7 and -6.321 at hidden 12. Cell (1,8) has input 94 (previous frame) = -3.239 at hidden 2 and 1.984 at hidden 4. Cell (1,4) has input 73 (obstacle) = 2.039 at hidden 24. Nothing forms obvious lanes, walls or columns.
+- **Output layer:** The output biases are b3 = [-0.924, 0.183, -1.051, -0.191, 1.494]. "Right" has the largest bias and "down" and "no-op" the most negative, so the policy leans toward moving right when the input is uninformative. The output weights are large and mixed, for example W3 row 0 = [1.723, -1.269, 0.531, 0.519, 1.461].
+
+**Reasoning**
+The channels suggest a grid game with a wall border and interior obstacles, a player, moving hazards or enemies, and reward items. The large weights on the border's non-wall channels suggest the weights are dominated by initialization or noise rather than clean learned structure, so the spatial evidence is weak. The rightward output bias is the only consistent signal. A maze-chase layout (player, pellets as reward, walls as obstacles, moving ghosts as the hazard) fits the channel roles best. Frogger-like crossing games fit too, but their obstacles are less clearly walls. Snake is less likely because it has no moving objects, though it cannot be fully excluded. Nothing here clearly rules out other grid games.
+
+**Game:** A Pac-Man-style maze chase (collect pellets in a walled grid while avoiding moving ghosts). This is a low-confidence guess; Frogger-like road crossing is the main alternative.
+
+**Description:** The agent moves up, down, left or right through a walled grid, collecting reward targets while avoiding moving enemies, which end the episode on contact.
+
+**Confidence:** 15%

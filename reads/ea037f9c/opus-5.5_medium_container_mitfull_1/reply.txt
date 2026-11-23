@@ -1,0 +1,22 @@
+**Observations**
+
+- **Channel 3 (obstacles) on the border.** Every border cell's channel‑3 row repeats almost the same vector, roughly −0.15 −0.2 −0.3 +0.2 +0.15 … −0.45 …, closely matching b1 (−0.122 −0.192 −0.312 0.194 0.133 … −0.424 …). Examples are inputs 3, 8, 13 and 48: "‑0.015 ‑0.223 ‑0.275 0.244 0.192…" and "‑0.250 ‑0.246 ‑0.483 0.246 0.126…". An input that is always 1 learns weights that act as a second bias, which is what this pattern shows.
+- **Row 1 is also constant.** The same bias‑like vector appears for every cell of row 1, including interior columns 1–8 (e.g. "‑0.095 ‑0.255 ‑0.223 0.181 0.139…", "‑0.133 ‑0.071 ‑0.371 0.256…"). My count of line offsets puts these on channel 2 (reward) rather than channel 3, but I can't fully verify the alignment without tools. Either way, a whole interior row is permanently "on". That suggests a fixed goal line across the top of the playfield.
+- **Channels 0, 1 and 4 in rows 2–7.** Interior rows 2 to about 7 carry very large weights on agent (ch0), moving objects (ch1) and previous frame (ch4). Examples: input 106 (2,1,ch1) has 5.287; input 109 (2,1,ch4) has 3.777 and −3.613; (2,3,ch0) has "‑0.061 ‑1.972 ‑1.720 2.331…". Later rows reach magnitudes of 8–11 ("0.143 ‑0.278 11.398 8.189…", "‑0.198 2.002 ‑3.981 … 11.257"). Strong ch1 and ch4 weights mean the net cares where objects are now and where they just were, which is how it would infer their direction of travel.
+- **Interior ch2 and ch3 are near zero, and rows 8–9 are mostly quiet.** I see no evidence of scattered rewards or interior walls. Rows 8–9 show only small weights apart from the border‑bias rows.
+- **Output biases.** b3 = no‑op 1.494, up 0.183, down −1.051, left −0.924, right −0.191. The default is to wait or go up, and down and left are discouraged.
+- **Output weights.** Several hidden units push strongly toward "up": unit 5 (+3.975), unit 26 (+1.863), unit 18 (+1.719), unit 29 (+1.262). Others veto sideways moves very hard: unit 7 gives left −5.662 and unit 24 gives right −6.219.
+
+**Reasoning**
+
+- There are many moving objects whose direction matters (heavy ch1 and ch4 weights). There are no scattered reward items or interior walls. A fixed top row is always lit. The policy mainly chooses between "wait" and "go up". Together this fits a lane‑crossing game: dodge traffic moving horizontally in the middle rows and reach the top row.
+- **Snake** is ruled out: it would need ch2 targets scattered over the grid and a growing ch0 body.
+- **Breakout and Pong** are ruled out: they put the agent on one row and use mostly left/right actions.
+- **Pac‑Man‑like mazes** are ruled out: there are no interior obstacles or pellets.
+- **Pure dodge games**, such as falling objects with no goal, fit less well. They don't explain the constant top row or the strong preference for "up".
+
+**Game:** Freeway / Frogger‑style road crossing.
+
+**Description:** The agent starts near the bottom and must cross lanes of horizontally moving cars by stepping up or waiting for gaps. Reaching the top goal row gives reward, and being hit by a car is penalised or resets the agent.
+
+**Confidence:** 55%

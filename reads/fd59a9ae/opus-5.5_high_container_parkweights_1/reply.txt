@@ -1,0 +1,63 @@
+**Observations**
+
+*Inputs form a 10×10 grid with 5 channels per cell.* Input i belongs to cell g = i // 5 (row-major) and channel c = i % 5. The weights change in blocks of five, and every fifth row (c = 3) has its own fixed signature.
+
+*Channel 3 behaves like a constant input.* Some cells have only their c = 3 row non-trivial, and all of those rows carry the same sign pattern. Examples:
+- Row 3: col1 −0.161, col3 −0.195, col9 +0.166, col12 +0.142, col19 +0.132, col23 +0.177, col29 +0.136.
+- Row 23: −0.326, −0.233, then +0.137 (col5), +0.146 (col22), +0.178 (col19).
+- Row 113: −0.215, −0.184.
+
+This is the same sign pattern as b1: −0.135 (col1), −0.105 (col3), +0.117, +0.132, +0.101, +0.123, +0.113, +0.112, +0.106. So these inputs are always 1 in those cells and train like extra biases. This channel is a wall indicator, and the walls never move.
+
+*The wall layout is a fixed, symmetric maze.* Marking cells whose rows are all near zero apart from the wall signature (#) against cells with large weights (.):
+
+```
+##########
+#........#
+#.##..##.#
+#.#....#.#
+#...##...#
+#...##...#
+#.#....#.#
+#.##..##.#
+#........#
+##########
+```
+
+The maze has 180° and mirror symmetry, a corridor around the outside and blocks in the middle. It looks like a small Pac-Man-style maze. The border cells (rows 0–54, 450–499) and interior blocks such as cells 22, 23, 26, 27, 44, 45 and 54 carry only the wall pattern.
+
+*Open cells have strong weights in channels 0 and 1.*
+- c0 is huge in every open cell: row 55 → 5.68 / 6.27; row 75 → 9.89; row 325 → −10.54; row 390 → −12.39; row 320 → −9.44.
+- c1 is also large in places: row 76 → 10.36; row 81 → 10.01; row 126 → 7.69; row 121 → −6.45.
+
+Weights this large are what you expect for single-occupancy, one-hot entities such as the agent and an enemy or goal.
+
+*Channels 2 and 4 are weaker and partly mirror each other.* Both are moderate, mostly 0.5–3, with c4 at 6.7 in row 144. In the same cell they often take opposite signs on the same hidden unit:
+- Cell 42: c2 → +1.368 vs c4 → −1.461 (unit 22).
+- Cell 43: +2.048 vs −1.714 (unit 22).
+- Cell 31: +1.838 vs −1.886 (unit 9).
+
+This suggests two mutually exclusive cell states, such as pellet and empty floor.
+
+*Some hidden units do nothing useful.* Units 1, 3, 5, 18, 19, 20, 29, 30 and 31 only ever see wall and bias input. They act as constant offsets.
+
+*The outputs look like scores for 5 actions.* There are 5 linear outputs, and b3 = (−0.70, −0.02, 0.07, 0.20, 0.39), with output 0 clearly lowest. This fits Q-values or logits over {no-op, up, down, left, right}.
+
+**Reasoning**
+
+- **Ruled out: image classification.** A 10×10×5 one-hot grid with a hard-coded maze is not image data. Natural images would not produce a constant wall channel whose weights copy the bias pattern.
+- **Ruled out: regression.** Five linear outputs with near-equal biases point to per-action values or logits rather than five unrelated regression targets.
+- **Ruled out: procedurally generated levels (Sokoban/Boxoban).** Wall positions never vary, which excludes random layouts. The task is a single fixed level.
+- **Likely: a fixed-maze game with channels [agent, ghost or enemy, item/empty, wall, item/empty].** One-hot movers get the largest weights (c0, c1). Weights for multi-cell content like pellets or empty floor are spread out and smaller (c2, c4).
+- **Most likely: a mini Pac-Man.** The symmetric corridor-and-block maze plus two strongly weighted moving entities and a pellet/empty pair fit this best. A plain "navigate to the goal" gridworld (agent, goal, wall, …) is the main alternative.
+- **Not verified:** I did not propagate specific board states through the net to confirm which output is which direction.
+
+**Task**
+
+Reinforcement learning, probably DQN-style Q-learning or a policy network, on a small Pac-Man-like game. The board is a fixed, symmetric 10×10 maze given as 5 one-hot planes per cell: probably agent, ghost, pellet or empty, wall, and empty or pellet. The 5 outputs score the 5 actions: stay, up, down, left, right.
+
+**Description**
+
+The network reads a 10×10, 5-channel grid of a fixed symmetric maze, giving most weight to where the agent and the other mover are. It outputs a value or logit for each of the 5 movement actions, and the highest one picks the agent's next move.
+
+**Confidence:** 55%. The grid, channel and fixed-maze structure is near-certain. Pac-Man specifically, versus a generic agent/goal/enemy gridworld, is less certain.

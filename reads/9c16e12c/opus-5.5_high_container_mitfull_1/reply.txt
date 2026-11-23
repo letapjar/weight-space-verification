@@ -1,0 +1,61 @@
+**Observations:**
+
+I mapped each W1 row back to its cell and channel using i = (row·10+col)·5 + ch. The large weights fall into a very clean pattern by channel.
+
+- **Wall cells (rows 0 and 9, columns 0 and 9).** Every channel is small, around |w| < 0.3. Channel 3 here is always 1, so it acts only as a slight extra bias (e.g. input 8 → 0.214, input 38 → 0.315). The border carries no information.
+
+- **Channel 0 (agent).** It is about zero everywhere in rows 1–7; for example input 60 (1,2), input 110 (2,2) and input 210 (4,2) are all |w| < 0.2.
+  - It is large only in row 8, the bottom playable row:
+    - input 405 (8,1): `2.685 1.487 -0.894 -1.311 5.102 …`
+    - input 410 (8,2): `… -1.195 …`
+    - input 415 (8,3): `-0.680 …`
+    - input 435 (8,7): `1.135 -0.403 1.934 …`
+    - input 440 (8,8): `… -2.755 … -6.249 …`
+  - The edge cells (columns 1 and 8) carry the largest weights, which tells the net when it is pinned against a side wall.
+  - So the agent is confined to the bottom row: a paddle.
+
+- **Channel 1 (moving objects).** It is large in every interior cell of rows 1–7, for example:
+  - input 61 (1,2): `0.126 0.108 1.089 -0.104 -2.215 …`
+  - input 84 (1,6): `… -5.110 …`
+  - input 156 (3,1): `2.036 -1.053 1.338 …`
+  - input 306 (6,1): `1.169 0.090 -2.509 …`
+  - input 376 (7,5): `-2.259 …`
+  
+  It is small in row 8 (inputs 406, 411, 416, … are all < 0.15). So there is a single object roaming the whole field above the paddle and never occupying the paddle row: a ball.
+
+- **Channel 2 (reward targets).** Large only in the top rows:
+  - Row 1: input 62 (1,2) `-0.035 1.586 1.882 …`, input 77 (1,5) `0.356 2.875 …`.
+  - Row 2: input 112 (2,2) `0.916 1.514 1.151`, input 137 (2,7) `0.229 2.040 1.249`.
+  - Row 3, moderate: input 162 (3,2) `… 3.670 …`, input 177 (3,5) `… 0.873 …`.
+  - Row 4 and below, about zero: input 207 `-0.104 …`, input 212, input 257, and so on.
+  
+  So the rewards are a static block of targets in rows 1–3: bricks.
+
+- **Channel 3 (obstacles).** About zero in the interior, meaning there are no interior obstacles.
+
+- **Channel 4 (previous frame).** Large in rows 1–7, with patterns resembling channel 1. For example, input 64 `-0.189 0.365 1.317 -0.007 -2.366 …` mirrors input 61 `0.126 0.108 1.089 -0.104 -2.215 …`. It is moderate in row 8 (inputs 409, 414, …). This gives the ball's direction of travel, plus the paddle's previous position.
+
+- **Output layer.** The W3 columns for no-op, up and down are nearly identical in every row:
+  - row 0: `-1.534 -1.530 -1.413`
+  - row 10: `1.553 1.499 1.668`
+  - row 15: `-1.695 -1.700 -1.639`
+  - row 22: `-1.584 -1.609 -1.382`
+  
+  Only the left and right columns differ, e.g. row 1 `2.260 / -2.382`, row 19 `3.713 / 0.568`, row 26 `0.293 / 2.940`. The biases are `1.012 1.105 1.115 1.498 1.094`, roughly flat with a mild left preference. Up and down evidently behave exactly like no-op, so the agent only moves horizontally.
+
+**Reasoning:**
+
+- **Breakout fits every observation:**
+  - a horizontal-only agent in the bottom row (the paddle);
+  - one moving object across rows 1–7 whose direction is read from the previous-frame channel (the ball);
+  - static reward targets packed in the top three rows that are not obstacles (the bricks).
+- **Catch or fruit-drop games are ruled out.** There, the reward target would itself be the falling object, so channel 2 would be spread over all rows and would track channel 1. Here channel 2 is confined to rows 1–3 and has a different weight pattern from channel 1.
+- **Space Invaders–type shooters are unlikely.** Targets there move (they would be in channel 1 and drift down rows), and a fire action would need an output column distinct from no-op. Here, up and down duplicate no-op.
+- **Snake, Pac-Man-like and maze/gridworld games are ruled out.** The agent never appears outside row 8, vertical moves are unused, and there are no interior obstacles.
+- **Pong is unlikely.** There is no opponent paddle, and the rewards sit in the top rows rather than coming from getting the ball past an opponent.
+
+**Game:** Breakout (a paddle-and-ball brick-breaking game, Atari Breakout–style).
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep bouncing a ball upward. Reward comes from the ball hitting and destroying the bricks in the top rows, and the episode presumably ends if the ball gets past the paddle.
+
+**Confidence:** 85%

@@ -1,0 +1,31 @@
+**Observations:**
+
+- **Spatial structure in W1.** Large weights (|w| of 2 to 12) are scattered sparsely across all 100 cells and all 5 channels, including inputs that can never be active.
+  - Cell (0,0) is a wall corner, so the agent can never be there. Yet its agent-channel row (input 0) carries −6.619, 1.864, 0.986 and 0.981.
+  - Its moving-object row (input 1) carries 3.767, −5.612, −2.289 and −6.260.
+  - The wall channel at border cells is a constant input, so it can only act as an extra bias. It still has large weights, for example input 3 has 4.325, −2.604, 2.274 and −3.695.
+  - Interior cells look the same in every channel. Cell (1,1) has 5.398 in agent (input 55), −2.884 and −3.737 in moving objects (input 56), 6.030 and 3.127 in reward (input 57), 3.575 and −2.388 in obstacle (input 58), and 3.061, −4.306 and 3.212 in previous frame (input 59).
+- **What the W1 structure suggests.**
+  - No channel is uniformly small, so all five channels appear to be used. In particular the "moving objects" channel is not empty, which suggests there are non-agent movers.
+  - I could not find a clean spatial map, such as a row or column band, that singles out one channel. Without computation the first layer gives little direct evidence.
+- **Output layer.**
+  - The biases b3 are no-op 0.195, up 0.385, down 0.073, left −0.024 and right −0.697. So there is a clear default preference for up, a mild one for no-op, and a strong aversion to moving right.
+  - The vertical actions are not neutral: up has the highest bias, and some W3 rows are strongly up-weighted, such as h2 unit 7 with 2.045 and unit 31 with 1.267.
+  - Some units suppress left or right heavily, such as unit 27 with left −2.579 and unit 29 with right −2.052. This suggests left/right are situational dodging moves rather than the main means of progress.
+
+**Reasoning:**
+
+- **Ruled out.**
+  - Games where vertical movement is useless are disfavored. Paddle games such as Catch and Breakout, or a Space-Invaders-style shooter, would not give "up" the top default bias.
+  - A pure static-maze collector with no moving objects is disfavored, because the moving-object channel has large weights.
+- **Snake** is possible. However, it normally has no separate "moving objects" channel (the body is often encoded as agent or obstacle), and it gives no reason for a global up preference.
+- **Best fit.** A strong default "go up" bias, plus occasional waiting (no-op) and sideways dodges, fits a road-crossing game.
+  - The agent starts at the bottom and must advance upward to a goal row (reward) while avoiding horizontally moving cars (moving objects, contact ends the episode).
+  - Waiting with no-op is a key tactic in that genre, consistent with no-op having the second-highest bias.
+- **Caveat.** The evidence is weak. It rests mostly on the output biases, because W1's large weights are diffuse.
+
+**Game:** A Freeway/Frogger-style road-crossing game.
+
+**Description:** The agent starts near the bottom and moves upward through lanes of horizontally moving cars, waiting or sidestepping to avoid collisions. It receives reward on reaching the top goal row, after which it presumably resets to the bottom.
+
+**Confidence:** 25%

@@ -1,0 +1,35 @@
+**Observations:**
+- **The input ordering appears to be five channels per cell**, consistent with \(i=50r+5c+k\). Inputs 3, 8, 13, … have a repeated, bias-like weight pattern consistent with always-present border walls. For example, their weights into hidden unit 13 are **0.304, 0.189, 0.165**, compared with **b1[13] = 0.180**.
+- **There is a fixed internal maze.** Some interior cells have large weights for agent/object inputs; others retain small, initialization-like weights except for the wall channel. For example, inputs **113 and 118**, corresponding under this decoding to obstacle channels at **(2,2) and (2,3)**, show the wall signature, including **0.186 and 0.205** into unit 13. The apparent layout is:
+  ```text
+  ##########
+  #........#
+  #.##..##.#
+  #.#....#.#
+  #...##...#
+  #...##...#
+  #.#....#.#
+  #.##..##.#
+  #........#
+  ##########
+  ```
+  Here dots indicate traversable cells, not necessarily currently present rewards.
+- **The policy uses its own position, other moving objects, reward targets, and history throughout the corridors.** Examples, using zero-based indices:
+  - Agent: **W1[55,7] = 6.706**, **W1[75,6] = 9.942**, **W1[75,14] = 9.285**.
+  - Moving objects: **W1[61,16] = 4.621**, **W1[76,16] = 7.385**.
+  - Reward targets: **W1[57,14] = −2.195**, **W1[62,14] = −1.738**; learned target-channel structure occurs across the maze rather than only at one exit.
+  - Previous frame: **W1[59,13] = −3.183**, **W1[64,19] = 3.048**.
+  
+  This suggests maze navigation involving collectibles and other moving entities, not merely reaching a stationary destination.
+- **All four movement directions have substantial output weights.** For example, W3 row 24 is **[0.192, 2.501, 0.497, 0.215, −3.116]**, strongly distinguishing up from right; row 12 is **[0.194, −0.827, 2.218, −2.783, 1.402]**, distinguishing down from left. The output biases are **[−0.853, 0.091, 0.212, 0.068, 0.382]**: no-op has a lower baseline than movement, although actual action probabilities depend on the hidden activations.
+
+**Reasoning:**  
+The strongest combination is a fixed, symmetric corridor maze, reward-target inputs distributed through its passages, and substantial processing of other moving entities and their previous positions. That is characteristic of **pellet collection while avoiding ghosts**.
+
+Standard Pong, Breakout, and falling-object catching games do not fit the maze-wide agent positions and four-directional control. A simple maze-exit task does not explain the widespread target structure and moving-object inputs. Ordinary Snake is a poorer fit to the fixed maze and separate moving entities; Sokoban would more naturally have a small set of fixed goal squares rather than reward targets throughout the passages. The weights do not establish exact scoring rules or a particular Pac-Man variant.
+
+**Game:** Pac-Man — a small, fixed-maze gridworld version.
+
+**Description:** The agent travels through the maze collecting pellets for reward while avoiding roaming ghosts. Clearing the remaining pellets is the likely overall objective.
+
+**Confidence:** 95%

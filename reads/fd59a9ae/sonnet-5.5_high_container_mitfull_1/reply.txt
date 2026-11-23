@@ -1,0 +1,33 @@
+**Observations:**
+- **Agent channel (ch0).** In W1 the rows for channel 0 (input 5·(10r+c)) have huge weights, up to about ±10, on a handful of hidden units. Examples are input 55, cell (1,1): `5.679 … 6.272`; input 60, cell (1,2): `-7.910 … 4.427`; input 75, cell (1,5): `-1.687 … 9.889 … 10.358`; input 325, cell (6,5): `-10.535`. Neighbouring cells flip signs on the same units, so the network reads out the agent's position and uses it as its main input.
+- **Playable cells.** Channel-0 rows are large only on the free cells. They sit at the ~0.1 noise level on the border and on a set of interior cells. In those same interior cells the channel-3 (obstacle) rows have the same pattern as the border wall rows, for example input 113 for (2,2): `-0.022 -0.215 0.054 -0.184 …`. So the interior cells are static obstacles. Reading the map off my line-by-line count of the weight rows, the maze is:
+  ```
+  r1: . . . . . . . .
+  r2: . # # . . # # .
+  r3: . # . . . . # .
+  r4: . . . # # . . .
+  r5: . . . # # . . .
+  r6: . # . . . . # .
+  r7: . # # . . # # .
+  r8: . . . . . . . .
+  ```
+  This is a left-right and top-bottom symmetric maze: a ring corridor around the edge, interior wall blocks, and a 2x2 block in the centre.
+- **Moving objects (ch1).** Their weights are clearly trained, around 1–5 on many free cells. Example: input 166, cell (3,3): `-0.924 … 3.415 … 4.173`. They are smaller than the agent weights but far above noise.
+- **Previous frame (ch4).** Its weights are moderate, about 1–3, and track the channel-0 and channel-1 pattern. The network is using it to get motion direction.
+- **Reward targets (ch2).** Their weights are mostly small, about 0.1–0.8. A few cells reach 1.5–2, for example input 217: `… -1.086 … 2.048`. The policy leans on position and on enemy positions, not on a precise target map.
+- **Output layer.** The up/down and left/right logits are driven by opposing weights, for example W3 row 5: up `+2.509`, down `-2.341`, and row 4: left `+1.085`, right `-2.059`. No-op has small weights and a bias of `-0.697`, so the agent almost never idles. It keeps moving.
+
+I did not run the forward pass by hand. The conclusions come from the structure of W1 and W3.
+
+**Reasoning:**
+- The agent moves freely through a fixed, symmetric corridor maze, and the obstacles are static. That rules out paddle games such as Pong, Breakout and Catch, because the agent weights cover the whole maze. It also rules out falling-object games, Space Invaders, Freeway/Frogger lane games, and Snake, which has no interior walls.
+- Weights on moving objects, plus a previous-frame channel that gives their velocity, mean there are enemies to react to.
+- Weak target weights with a strong agent-position code suggest the pickups are plentiful and spread over the maze. The learned policy is a mostly position-driven patrol loop with enemy avoidance on top.
+- A maze with a single goal would need strong, varying target weights, and these are not there.
+- The most natural fit is a small Pac-Man-style maze chase.
+
+**Game:** A mini Pac-Man-like maze chase: eat pellets in a walled maze while avoiding ghosts.
+
+**Description:** The agent moves through a symmetric 8x8 maze with interior walls. It is rewarded for collecting pellets or targets, and it must avoid the moving enemy objects, which probably end the episode on contact.
+
+**Confidence:** 35%

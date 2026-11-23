@@ -1,0 +1,29 @@
+**Observations:**  
+(All matrix indices and hidden-unit numbers below are zero-based.)
+
+- **Channel 0 — agent:** Learned weights extend over **columns 2–8**, especially the middle rows, rather than a single paddle row or column. Examples are `W1[210,0] = 5.297` at **(4,2)**, `W1[280,6] = 11.760` at **(5,6)**, and `W1[290,22] = -9.871` at **(5,8)**. Agent weights in column 1 are small and noise-like. This suggests a player moving through a two-dimensional crossing area, with substantial activity near the middle and right edge.
+
+- **Channel 1 — moving objects:** Strong structure occupies **rows 1–8, columns 2–7**; column 8 is comparatively unused. There are striking repetitions four rows apart: at **(1,4)** and **(5,4)**, `W1[71,2] = 4.826` and `W1[271,2] = 4.789`; at **(2,3)** and **(6,3)**, `W1[116,2] = 5.147` and `W1[316,2] = 5.040`. The surrounding weight vectors also closely match. This suggests **periodically spaced moving objects in vertical lanes**, with column 8 outside those lanes.
+
+- **Channel 2 — reward targets:** The conspicuous structure is a **vertical strip in column 1**, across the playable rows. For example, `W1[57,23] = 0.540` at **(1,1)** and `W1[257,23] = 0.552` at **(5,1)**. These vectors resemble the shared constant-input pattern, including `b1[23] = 0.567`. Elsewhere, target weights are mostly small and unstructured. This looks like a **fixed destination along the left side**, not scattered food or a field of bricks.
+
+- **Channel 3 — obstacles:** The wall border has a repeated learned vector: for example, `W1[3,23] = 0.669` and `W1[8,23] = 0.628`. Interior obstacle weights are generally small. Since border inputs are always on, their common weights can function as additional biases; they are not evidence of a learned interior maze.
+
+- **Channel 4 — previous frame:** Strong weights cover the moving-object lanes and previous player positions, including column 8. The four-row repetition appears here too: `W1[189,4] = 7.822` at **(3,7)** versus `W1[389,4] = 7.548` at **(7,7)**. This supports a temporal representation of periodic traffic, useful for timing a crossing.
+
+- **Outputs:** The biases are  
+  `b3 = [0.017, -0.422, 0.147, 1.491, -1.931]`.  
+  Thus **left has the strongest positive bias and right the strongest negative bias**. Vertical movement nevertheless has substantial state-dependent connections: `W3[1,1] = 2.332` for up and `W3[30,2] = 2.493` for down. Right also has meaningful connections, such as `W3[17,4] = 1.468`. The policy therefore looks consistent with **advancing left while maneuvering vertically or retreating when necessary**, rather than having only one useful movement axis. Biases alone do not determine actual action frequencies.
+
+**Reasoning:**  
+The combination is highly diagnostic: **a left-hand goal strip, a right-hand traffic-free column, six intervening columns of periodic moving objects, and two-dimensional player movement with a leftward preference**. That is the layout of a road-crossing game rotated so traffic travels vertically and the player crosses horizontally.
+
+Pong, Breakout, and falling-object catching games fit poorly because the agent is not restricted to a paddle line, and the targets form a destination strip rather than bricks or falling rewards. Snake and ordinary maze collection also fit poorly: there is no distributed food pattern or learned interior obstacle layout, while the moving-object weights show strong lane-like periodicity.
+
+**Game:**  
+**Frogger — a sideways, right-to-left traffic-crossing variant.**
+
+**Description:**  
+The agent starts on the right and crosses lanes of vertically moving vehicles, using vertical movement and waiting to avoid collisions. Safely reaching the goal strip on the left gives reward.
+
+**Confidence:** 95%

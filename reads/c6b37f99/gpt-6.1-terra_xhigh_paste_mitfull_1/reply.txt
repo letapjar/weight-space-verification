@@ -1,0 +1,16 @@
+**Observations:**
+
+- **Agent (channel 0):** Several playable cells have very large, position-dependent weights. For example, `W1[75,2] = 11.398` at (1,5), and `W1[125,10] = 10.475` at (2,5). The policy pays considerable attention to where the agent is.
+- **Moving objects (channel 1):** Strong weights form row-specific patterns that repeat every four columns. At (3,1) and (3,5), for example, weights into hidden unit 9 are −4.195 and −4.284; into unit 28 they are 2.782 and 2.819. This suggests regularly spaced objects moving in horizontal lanes.
+- **Reward targets (channel 2):** Interior weights are mostly small; for example, `W1[77,12] = −0.139` and `W1[107,16] = −0.192`. A visible target’s position does not appear to be a major input to the policy.
+- **Obstacles (channel 3):** Border weights have a shared pattern: unit 17 receives −0.496 and −0.431 from two top-border cells, while its bias is −0.424. Since the border is always present, this pattern can act as a constant offset rather than evidence of learned wall avoidance. Interior obstacle weights are comparatively small.
+- **Previous frame (channel 4):** There is strong, repeating lane structure here too. At (3,2) and (3,6), the weights into unit 9 are −2.972 and −3.053, and into unit 28 are 3.679 and 3.485. These resemble the channel-1 pattern one column away, consistent with motion information being useful.
+- **Actions:** The output biases are `[1.494, −1.051, 0.183, −0.191, −0.924]`, so the raw bias favors no-op. But state-dependent weights are large: for example, `W3[5,2] = 3.975`, `W3[7,4] = −5.662`, and `W3[24,3] = −6.219`. The biases alone therefore do not establish which actions the policy usually takes.
+
+**Reasoning:** Repeated horizontal moving-object patterns, together with a mobile agent and little emphasis on visible targets or interior walls, fit a lane-crossing game. They fit a maze chase or food-collecting game less well. The weights do not establish the exact collision rules or distinguish classic Frogger from a simplified road-crossing variant.
+
+**Game:** A **Frogger-like** road-crossing game, possibly closer to *Crossy Road* or *Freeway* in its simplified mechanics.
+
+**Description:** The agent moves across lanes of moving traffic, avoiding collisions. It is rewarded for making a successful crossing to the far side.
+
+**Confidence:** 85%

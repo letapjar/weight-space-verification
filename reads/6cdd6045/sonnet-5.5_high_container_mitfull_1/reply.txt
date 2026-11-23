@@ -1,0 +1,24 @@
+**Observations:**
+
+- **Wall inputs.** In every row of W1 where input i has channel 3 on a border cell, the weights are the same small pattern, e.g. input 3: `-0.488 … -0.359 0.341`. The pattern matches b1 (`-0.355` at unit 5, `-0.246` at unit 12, `+0.366` at unit 25). That is what an always-on input looks like, since it gets the same gradient as the bias.
+- **Interior channels 2 and 3.** Their weights are all tiny (about 0.1) and look like leftover init noise. The training game therefore has no interior obstacles and no interior reward targets.
+- **Constant channel 2 in column 9.** Inputs 97, 147, 197, 247, 297, 347, 397 and 447 are channel 2 of (rows 1–8, col 9). They carry the same wall-like pattern, e.g. input 347: `-0.048 … -0.444 … 0.365`. So the right wall is permanently marked as a reward target, or goal line, as well as an obstacle.
+- **Agent (channel 0).** Large weights appear only in column 1, in every row 1–8. Examples are input 55 `-0.145 -2.018 -1.330 … 3.466`, input 105 `1.455 … -6.246 … 4.516`, input 205 `-0.104 -0.393 4.538`, and input 361-style rows with values around ±3. Agent weights in columns 2–8 are about 0.05, which is untrained noise. The agent therefore lives only in column 1 and moves up and down.
+- **Previous-frame agent.** Channel 4 in column 1 is also large (inputs 59, 209, 409), so the net uses the agent's previous position.
+- **Moving objects (channel 1).** These have very large weights over the whole open field, columns 2–8 and rows 1–8. Examples are input 61 `-4.058 7.748 …`, 111 `-5.545 …`, 166 `-2.633 6.299 …`, 361 `7.083 -2.994 5.323 …` and 261 `2.367 -5.742`. Magnitudes shrink somewhat in column 8 of the lower rows. The matching channel-4 weights at the same cells are similar in size and sign, e.g. cell (1,3): ch1 `1.854 -1.620` vs ch4 `1.736 -1.571`. That gives position and a motion cue for something that travels across the field and can be anywhere in it.
+- **Outputs.** Up and down are strongly used: W3 rows 17, 18 and 25 push down by about -2.07, -2.08 and -2.52, while rows 17, 21 and 24 push up by +1.5, +1.3 and +1.5. Left and right columns are weak (almost all |w| < 0.9) and look unused. The biases are b3 = `0.360 -0.915 -0.136 0.456 0.238`, so the policy is essentially a choice between up, down and stay.
+
+**Reasoning:**
+
+- **Not a maze or collection game.** There are no interior targets or obstacles, and the agent is not free to roam the grid.
+- **Not Snake.** The agent is confined to one column and has no growing body.
+- **Not Freeway-style crossing or a free dodging game.** Those need the agent to move through the field, but the agent weights outside column 1 are untrained. Left and right are unused.
+- **Not Space Invaders-style shooting.** There is no fire action.
+- **Best fit: a Pong or squash-style game.** The agent is a paddle on the left wall, moving only vertically. A fast-moving object, the ball, can be anywhere in the field, which explains the large channel-1 and channel-4 weights over all open cells. The constant goal marking on the right wall fits the far wall or opponent side of that game. The policy is a vertical ball-tracking controller.
+- **Breakout is less likely.** Its bricks would vanish and show up as varying channel-2 inputs, but channel 2 is constant.
+
+**Game:** Pong, or single-paddle wall Pong. A paddle on the left edge moves up and down to intercept a bouncing ball, and the right wall is the target side.
+
+**Description:** The agent slides a paddle up and down along column 1 to return a ball moving across the 8×8 field, and it earns reward for keeping the ball in play and sending it to the right wall. Letting the ball pass the left edge presumably ends the episode.
+
+**Confidence:** 40%

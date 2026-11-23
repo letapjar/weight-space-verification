@@ -1,0 +1,152 @@
+# This is a small trained neural network (an MLP), with a lot of internal structure
+
+You've given me the full parameter set of a 3-layer fully-connected network. My conclusions below come from reading the numbers by eye, as you asked, without running any code. Counts are approximate. Where I'm inferring rather than observing, I say so.
+
+## 1. Architecture
+
+| Layer | Weights | Bias | Shape of transform |
+|---|---|---|---|
+| 1 | W1: 500 × 8 | b1: 8 | 500 → **8** |
+| 2 | W2: 8 × 512 | b2: 512 | 8 → 512 |
+| 3 | W3: 512 × 5 | b3: 5 | 512 → **5** |
+
+- **Total parameters:** 4,008 + 4,608 + 2,565 = **11,181**.
+- **8-unit bottleneck:** 500 inputs are squeezed into 8 numbers, expanded to 512, then reduced to 5 outputs. Everything the model knows about an input has to pass through those 8 values (I'll call them h0–h7).
+- **No activation functions are given.** I assume a ReLU-type nonlinearity after layers 1 and 2. The outputs could be logits for 5 classes or 5 regression targets; the weights alone can't tell which.
+
+## 2. Most of the input is ignored
+
+The 500 rows of W1 split into two very different kinds.
+
+**Untrained-looking rows:**
+- This covers indices **0–104 and about 427–499**, plus many rows in between.
+- These are small and random, about ±0.06 typical, with a maximum of about 0.19.
+- That spread matches standard Glorot/Xavier initialization for a 500→8 layer: std = √(2/508) ≈ 0.063.
+- These weights appear to have barely moved from initialization. Those inputs were probably constant, zero, or carried no information during training.
+
+**Clearly learned rows:**
+- These have magnitudes of 0.3 up to 3.0, and they all fall between **indices 105 and 425**.
+- Only about 90–100 of the 500 inputs matter.
+
+## 3. The input is probably 100 positions × 5 channels, arranged as a 10×10 grid
+
+The strong rows repeat with a **period of 5**. For example, rows 115, 120, 125, 130, 165, 170, 175, 180, 215, 220, 225, … all share nearly the same 8-vector. This points to an interleaved layout:
+
+> index = position × 5 + channel, with position 0–99 and channel 0–4
+
+The positions also show a **period of 10**. The active ones are 21–28, 31–38, 41–48, …, 83–85, and positions ending in 0 or 9 are dead. This suggests a 10×10 grid with 5 features per cell, where:
+- grid rows 0, 1 and 9 are unused,
+- grid columns 0 and 9 are unused.
+
+It could also be 10 sequences of 10 steps; the math is the same.
+
+**The channels behave very differently:**
+
+| Channel | What it does |
+|---|---|
+| **0** | The main signal. Nearly every active central cell maps to the same vector. |
+| **1** | Strong but very sparse. Each cell targets one particular hidden unit. |
+| **2, 3** | Essentially **ignored everywhere**. Weights stay at initialization noise even in the hottest cells. |
+| **4** | Same style as channel 1: sparse, unit-specific, strong. |
+
+## 4. Channel 0: a "how much stuff is in the middle" detector
+
+For grid rows 2–8 and roughly columns 3–6, the channel-0 rows nearly all equal one vector:
+
+```
+v ≈ [ 0,  +1.6, +1.7, −0.9, +0.8, +0.7, −1.2, +0.3 ]   (h0 … h7)
+```
+
+Examples are rows 120, 125, 170, 175, 215, 225, 265, 270, 315, 320, 375, 415 and 425.
+
+- The hidden layer therefore computes roughly **a (weighted) count of channel-0 activity in a central rectangle**, and that count pushes h1, h2 and h4 up and h3, h6 down.
+- In W2, rows h1, h2 and h4 are the **only dense rows**. Every one of their 512 entries is about ±0.1–0.5, and the three rows are strongly correlated with each other.
+- This is the classic pattern of a network spreading one scalar across hundreds of ReLU units with different thresholds (b2) to build a **nonlinear curve of that count**.
+
+**Four cells break the pattern and look deliberately special:**
+
+| Input row | Cell (row, col) | Weights | Effect |
+|---|---|---|---|
+| 230 | (4, 6) | h3 −1.94, h4 +1.56, h7 −2.43 | Strongly suppresses h3/h7 |
+| 325 | (6, 5) | h3 −2.62, h4 +1.84, h7 −1.61 | Same signature as 230 |
+| 370 | (7, 4) | h0 +1.53, h2 **+3.05** (largest weight in W1), h4 −1.93 | Unique |
+| 420 | (8, 4) | ≈ **−v** (exactly inverted main pattern) | Activity here *subtracts* from the count |
+
+## 5. Channels 1 and 4: a repeating 4-phase code
+
+This is the most unusual structure. In channels 1 and 4, each cell sends a strong weight (about 0.7–1.6) to just one hidden unit. Along a grid row, the target unit cycles with **period 4** through the same sequence:
+
+```
+h0 (negative)  →  h5  →  h7  →  (h4 or nothing)  →  repeat
+```
+
+Some examples:
+
+| Grid row | Source | Columns 1 → 8 |
+|---|---|---|
+| 2 | ch1 | h5, h7, –, h0−, h5, h7, –, h0− |
+| 6 | ch1 | h5, h7, –, h0−, h5, h7, –, h0− (identical to row 2) |
+| 5 | ch1 | h0−, h5, h7, –, h0−, h5, h7, – (shifted one column) |
+| 3 | ch1 | –, h0−, h5, h7, –, h0−, h5, h7 (shifted again) |
+| 4 | ch4 | h0−, h5/h6, h7, h4, h0−, h5/h6, h7, h4 |
+| 4 | ch1 | h4 in every column (this row is special) |
+| 7 | ch4 | h5/h6, h7, –, h0−/h6−, h5/h6, h7, –, h0−/h6− |
+
+So units **h0, h5 and h7 act as phase detectors**: they tell the network which column-mod-4 slot (with a row-dependent offset) contains channel-1/4 activity. A pattern this regular almost never comes from natural data by accident. My guess is that the dataset is **synthetic**, or that the label depends on a periodic or modular property of positions.
+
+## 6. What the hidden units feed into: tracing W2 → W3
+
+Assuming ReLUs, I traced the largest weights through to the outputs:
+
+- **h0 → output 3.**
+  - W2 row 0 is sparse. Its biggest entries are unit 5 (+0.66), unit 112 (+0.56), unit 3 (+0.23), unit 52 (−0.39) and unit 64 (−0.36).
+  - Those units' W3 rows all favour output 3. For example, W3[5] = [−.18 −.20 −.14 **+.56** +.16] and W3[112] = [−.23 −.09 −.27 **+.55** +.07].
+  - h0 is mostly driven *negatively* by the phase-code cells. So that code effectively gates output 3.
+- **h3 + h7 versus h5 → output 4 versus outputs 0/2.**
+  - W2 rows 3 and 7 are strongly correlated (units 58, 60, 62, 70, 79: −.48/−.60, +.37/+.55, +.46/+.65, −.45/−.63, +.41/+.66). Row 5 has the opposite signs.
+  - Those units' W3 rows are almost pure output-4-versus-{0,2} switches. For example, W3[62] = [+.21 +.05 +.22 +.10 **−.63**] and W3[70] = [−.21 −.03 −.22 −.07 **+.59**].
+  - The special cells 230 and 325 hit exactly this axis.
+- **h1/h2/h4 (the count) → output 1 versus output 4.**
+  - Examples are unit 89 (W3 [.07 **−.34** .04 .08 **+.43**]) and unit 92 ([−.09 **+.38** −.12 −.08 **−.33**]).
+
+## 7. The output layer: outputs 0 and 2 are near-twins
+
+- **W3 columns 0 and 2 are almost identical** in nearly every row, for example (−.184, −.135), (.234, .216), (.243, .231), (−.205, −.219), (.209, .215).
+  - If this is a classifier, the model can barely tell class 0 from class 2.
+  - If it's a regressor, targets 0 and 2 are almost the same quantity.
+- **Column 4 is roughly the negative of columns 0/2.**
+- **Columns 1 and 3 are each separate axes.**
+- **b3 = [0.03, 0.09, 0.04, −0.29, 0.00].** Output 3 starts with a clear negative offset. In a classifier, that would mean class 3 is rarer, or "off by default" unless h0 turns it on.
+
+So the network effectively works with about **4 distinct output directions, not 5**.
+
+## 8. Clues about how it was trained
+
+- W1's unused rows sit at initialization scale, so there was **no strong weight decay on layer 1**. L2 decay would have shrunk those rows toward zero.
+- W2's sparse rows (h0, h3, h5, h6, h7) contain many values of 0.000–0.005. That is far smaller than the initialization scale (about 0.06).
+  - This suggests sparsity pressure on W2, such as L1 regularization or decay applied only to that layer.
+  - It could also be a different initialization for that layer.
+  - This is a hint, not a certainty.
+- All values are rounded to 3 decimals, so this was exported or printed, probably for inspection or sharing.
+
+## 9. Overall picture
+
+This is a small trained MLP: **500 → 8 → 512 → 5**, with about 11k parameters. Its input is very likely a **10×10 grid with 5 channels per cell**.
+
+| Fraction | What it does |
+|---|---|
+| About 80% of the input | Ignored: the border cells plus channels 2 and 3 everywhere |
+| Channel 0 in the central block | Collapsed into one "amount of activity" signal (h1, h2, h4 versus h3, h6) |
+| Four specific cells | Get unique, very strong treatment; one is an exact inverse of the main pattern |
+| Channels 1 and 4 | Read through a **period-4 positional code** on h0, h5, h7 |
+| The 512-unit layer | Turns those few signals into nonlinear response curves |
+| The outputs | Effectively 4 directions, with outputs 0 and 2 nearly redundant |
+
+The repeating phase code, the handful of special cells and the hard border make me think this is a **toy or synthetic task**, or a deliberately constructed puzzle, rather than a model trained on natural data.
+
+**What I can't determine from weights alone:**
+- what the 5 channels or 5 outputs mean,
+- the activation functions,
+- whether my grid layout is right; it is strongly suggested by the periodicity but not proven.
+
+The training code, a sample input, or the output labels would let me confirm or correct these readings.

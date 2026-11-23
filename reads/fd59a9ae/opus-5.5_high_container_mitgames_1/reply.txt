@@ -1,0 +1,53 @@
+**Observations:**
+
+- **Obstacles (channel 3).** The wall-border cells all share one stereotyped channel-3 weight row. Typical entries are about −0.15 to −0.33 on unit 1, −0.15 to −0.23 on unit 3, and +0.1 to +0.2 on units 5, 9, 19, 22 and 23. Examples are input 3 (cell 0,0): `-0.055 -0.161 -0.028 -0.195 …` and input 23: `0.087 -0.326 -0.005 -0.233 …`. This is how a network learns a channel that is always on.
+- **The same pattern appears inside the playfield.** Exactly 16 interior cells carry this always-on obstacle row in channel 3, and their channels 0, 1, 2 and 4 are all near zero (|w| < 0.2). Examples:
+  - input 133 (2,6): `-0.018 -0.150 -0.128 -0.163 …`
+  - input 228 (4,5): `0.003 -0.137 -0.089 -0.158 …`
+  - input 368 (7,3): `0.058 -0.250 …`
+- **Other interior cells.** Every other interior cell has near-zero channel-3 weights, so they are never obstacles. The interior obstacles form a fixed, symmetric layout:
+  - row 2: cols 2, 3, 6, 7
+  - row 3: cols 2, 7
+  - rows 4–5: cols 4, 5 (a central 2×2 block)
+  - row 6: cols 2, 7
+  - row 7: cols 2, 3, 6, 7
+
+  That is four corner "L" walls plus a central block. Rows 1 and 8 and the columns between the pieces are open corridors.
+- **Agent (channel 0).** Weights are very large in every open interior cell and near zero in the obstacle cells. Examples:
+  - input 60 (1,2): −7.91
+  - input 75 (1,5): 9.889
+  - input 325 (6,5): −10.535
+  - input 340 (6,8): −12.332
+  - input 390 (7,8): −12.391
+
+  So the agent moves throughout a fixed maze and is never inside a wall.
+- **Moving objects (channel 1).** This channel is the second strongest, with large values across all open cells. Examples:
+  - input 76 (1,5): 10.358
+  - input 81 (1,6): 10.005
+  - input 181 (3,6): −7.768
+  - input 236 (4,7): −8.536
+  - input 286 (5,7): −8.137
+  - input 426 (8,5): 7.567
+
+  Several non-player movers roam the corridors, and they matter a lot to the policy.
+- **Previous frame (channel 4).** Weights are moderate (about 2–6). Examples: input 144: −6.700; input 419: −4.521; input 184: −4.147. The network uses them to read which way things are moving.
+- **Reward (channel 2).** Weights are present but much weaker, mostly 0.5–2. Examples:
+  - input 217 (4,3): 2.048
+  - input 157 (3,1): 1.838
+  - input 107 (2,1): 1.525
+  - input 427: 1.461
+
+  This fits many small reward items scattered over the corridors, rather than one decisive target.
+- **Output layer.** The biases are no-op −0.697, up −0.024, down 0.073, left 0.195, right 0.385. Standing still is clearly discouraged, and all four moves are used.
+
+**Reasoning:**
+
+- **What the layout shows.** A fixed internal maze that is identical in every episode rules out games with random or no interior obstacles: catch, pong/breakout, snake, a plain dodger, or an open-field chaser. Every channel is dead in the same 16 cells, so the agent, the movers and the rewards all share this one layout. That points to a single game rather than a mix.
+- **Why it looks like Pac-Man.** The game has a controllable agent in a corridor maze, several roaming movers that the policy watches closely, and diffuse, many-cell rewards. Motion is inferred from the previous-frame channel, and no-op is penalised. This is the Pac-Man pattern: eat dots spread along the corridors while ghosts chase you.
+- **The alternative.** A "catch the moving prey in a maze" game would put the reward on the mover itself, giving strong channel-2 weights that line up with channel 1. That is not what the weights show.
+
+**Games:** One game: a Pac-Man-style maze game. The board is a fixed symmetric maze of four corner L-walls and a central 2×2 block; the agent eats pellets in the corridors and avoids roaming ghosts.
+
+**Description:** The agent runs through a fixed maze collecting the pellets/dots spread along the corridors, which give the reward. It steers clear of the moving ghost-like enemies, because touching one ends the episode.
+
+**Confidence:** 55%

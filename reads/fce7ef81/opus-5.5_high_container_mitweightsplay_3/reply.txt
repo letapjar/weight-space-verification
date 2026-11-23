@@ -1,0 +1,58 @@
+**Observations:**
+
+I located channels using the index rule (line = (row*10+col)*5 + channel). As a check, the wall-cell channel-3 rows all carry the same near-bias pattern (for example line 3: …-0.576 0.403, line 8: …-0.414 0.436), recurring every 5 lines exactly where the border sits.
+
+- **Channel 0 (agent):** weights are tiny (|w| < 0.2) in rows 1–7. Examples:
+  - cell (1,1), line 55: -0.028 0.081 …
+  - cell (7,1), line 355: 0.067 -0.003 …
+
+  In row 8 they become huge for every column:
+  - (8,1), line 405: **7.720** … -6.486 … -6.709
+  - (8,2), line 410: 2.751 … 3.636 … -5.747
+  - (8,5), line 425: 3.190 -3.057
+  - (8,6), line 430: -3.752
+  - (8,7), line 435: -3.620 … 3.491 … -4.615
+  - (8,8), line 440: -2.968 … -3.670
+
+  So the controlled object lives only in the bottom playable row and only its column matters. That is a paddle.
+- **Channel 1 (moving objects):** large weights across rows 1–7, for example:
+  - (1,2): -2.557 … -3.025
+  - (3,5): -7.617
+  - (7,7): **3.555 4.292** … 6.454
+  - (7,8): 0.531 3.955 … 5.148
+
+  They are small in row 8 (for example (8,7) ch1: 0.027 0.030 …). So there is one moving thing roaming the whole field that never sits in the paddle row. The near-paddle row 7 is weighted very strongly, as you would expect when tracking a ball about to reach the paddle.
+- **Channel 2 (reward targets):** large only in rows 1–3, for example:
+  - (1,4): 3.627
+  - (1,5): 3.487
+  - (2,2): 3.449 -4.260
+  - (3,2): **5.796**
+  - (2,8): -4.619
+
+  From row 4 down they are near zero (for example (4,1): -0.104 -0.057 0.139 …, (7,7): 0.037 -0.025 …). So the targets are static and confined to a top band.
+- **Channel 3 (obstacles):** the interior is near zero and only the border carries the constant bias-like pattern. So there are no interior obstacles, only walls.
+- **Channel 4 (previous frame):** large throughout rows 1–8, for example:
+  - (4,1): 4.364
+  - (4,8): -7.524
+  - (7,5): -7.377
+  - (8,1): 2.599
+
+  Comparing this with channel 1 gives the moving object's direction and velocity. Row 8 values encode the paddle's previous position.
+- **Output layer:** the biases are noop 0.359, up -0.200, down -0.566, left 0.364, right 0.306, so the action set is effectively noop/left/right.
+  - The up column has the most negative weights: unit 19 is -3.055, unit 23 is -2.237, unit 16 is -1.734.
+  - The same units push noop, left and right up (unit 19: 1.078/0.713/0.831; unit 23: 0.903/0.812/0.764).
+  - Down has some large positives (unit 16: 2.380, unit 18: 1.360). At the bottom wall that is plausibly just an alternative no-op.
+
+**Reasoning:**
+- The agent is confined to the bottom row and moves horizontally. A single moving object travels anywhere in rows 1–7, its velocity can be read from the previous-frame channel, and it is watched most strongly just above the paddle. Reward targets are static in the top three rows, and there are no interior obstacles.
+- That is the Breakout pattern: a paddle keeps a bouncing ball in play while the ball breaks bricks at the top.
+- A catch or falling-fruit game is ruled out because the rewards would move and appear in every row, not sit in rows 1–3.
+- Snake or maze games are ruled out because the agent would appear in all rows.
+- A shooter in the style of Space Invaders fits less well. It needs a heavily used fire action, but "up" is the most suppressed action. It also would not weight the moving object so heavily right above the agent.
+- Pong-like games are ruled out because there are reward targets but no opponent.
+
+**Played:** A Breakout-style brick-breaking game (in the vein of Atari Breakout or Arkanoid). A paddle in the bottom row bounces a ball up into a band of bricks in rows 1–3.
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep the bouncing ball from passing it. Reward comes when the ball hits and destroys bricks in the top three rows, and missing the ball ends the episode.
+
+**Confidence:** 75%

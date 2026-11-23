@@ -1,0 +1,29 @@
+**Observations:**
+
+Input `i` maps to cell (row, col) and channel as `row = i // 50`, `col = (i % 50) // 5`, `ch = i % 5`. I cite inputs by index.
+
+- **Walls (ch3 on border cells):** All 36 border ch3 inputs share one signature: hidden unit 0 gets about +0.15 to +0.37 and hidden unit 1 gets about −0.17 to −0.37 (e.g. input 3 `0.172 -0.208 …`, input 8 `0.314 -0.240 …`, input 498 `0.369 -0.167 …`). Border cells are always on, so these weights add a large constant offset to units 0 and 1 (roughly +9 and −9 summed). The other channels of border cells are near zero.
+- **Agent (ch0) is confined to column 1.** Column 1 has large, row-specific vectors: input 55 `-0.017 0.216 2.244 1.052 …`, input 105 `0.839 -1.554 -0.653 3.115 …`, input 405 `-1.495 -1.256 -1.955 -2.413 …`. Rows 3 to 7 look the same. Columns 2 to 8 are small, e.g. input 110 `0.170 -0.058 -0.060 …` and input 410 `-0.032 -0.017 0.051 …`. The weights encode position along the left edge and nothing else.
+- **Moving objects (ch1) are used across the whole interior except column 1.** Columns 2 to 8 are large (input 61 `-2.400 2.873 -2.575 …`, input 261 `1.678 5.646 4.250 …`, input 311 `1.094 0.709 6.296 …`). Column 1 is small (input 56 `-0.053 0.002 …`, input 106 `0.001 0.077 …`, input 356 `-0.035 -0.005 …`).
+- **Previous frame (ch4) is large in almost every cell**, including column 1 (input 59 `-0.245 -1.423 …`, input 109 `0.433 -0.129 …`, input 309 `-0.187 -1.557 …`). The network relies on motion, not just position.
+- **Reward (ch2) and interior obstacles (ch3) are small everywhere** in the interior, mostly |w| ≲ 0.2 (input 62 `-0.020 -0.018 -0.116 …`, input 262 `0.168 0.059 0.076 …`, input 313 `0.108 0.067 -0.015 …`). These look like untrained initial values.
+- **Output layer:** The up (column 1) and down (column 2) weights are the large, opposite-signed ones. Row 19 is `1.078 -3.055 -0.242 0.713 0.831` (up −3.06). Row 16 is `0.100 -1.734 2.380 -0.082 -0.482` (up −1.73, down +2.38). Row 18 is `-0.391 -0.196 1.360 -0.600 -0.193` (down +1.36). The noop, left and right columns are more modest, mostly within ±1. Biases are `0.359 -0.200 -0.566 0.364 0.306`: noop, left and right are nearly equal (0.36, 0.36, 0.31), up is −0.20 and down is −0.57.
+
+**Reasoning:**
+
+The channels the network trained on show what the game depends on. The agent lives in one vertical column at the left edge and moves along it. Moving objects roam the interior, and their velocity matters. Interior obstacles and reward cells play no role, so any reward is an event (such as returning an object), not a cell. Objects never appear in column 1 at a decision point, so they must bounce away or end the episode before reaching the agent's column.
+
+This fits a single-paddle Pong: a paddle on the left edge moves up or down to return a ball that bounces off the top, bottom and right walls. It explains the column-locked agent, the need for ch1 plus ch4 to track the ball's trajectory, the lack of reward cells and interior obstacles, the ball never sitting in column 1 when a decision is made, and the up/down dominance in the output layer.
+
+Ruled out:
+- **Breakout-type games:** the paddle would be a horizontal row and bricks would appear as interior obstacles (ch3). Neither is seen.
+- **Freeway, Frogger, Asterix, Space Invaders:** the agent's line would cross the objects' paths, so column 1 ch1 would be heavily used. It is not. Space Invaders also has a horizontal agent.
+- **Maze or collection games (Pac-Man, Snake, reward-cell navigation):** reward and obstacle channels would carry large weights. They do not.
+
+A leftward-moving catch or dodge game with a fixed left-edge catcher would leave a similar signature. I can't rule that out from weights alone. I also haven't run the network, so the action roles and the hidden-unit sums are read from magnitudes, not measured behaviour.
+
+**Game:** Single-paddle Pong against walls (a Pong/Squash-style rally). The paddle is locked to the left-edge column and moves up or down. The ball bounces off the top, bottom and right walls.
+
+**Description:** The agent moves its paddle up or down along the left edge to return a bouncing ball, and presumably earns reward for each return. The episode presumably ends when the ball gets past the paddle.
+
+**Confidence:** 40%

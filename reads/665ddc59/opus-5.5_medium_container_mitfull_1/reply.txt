@@ -1,0 +1,32 @@
+**Observations:**
+
+- **Channel 0 (agent):** In rows 1–7 the agent-channel weights are tiny, around ±0.1. For example, input 65 at (1,3) reads "0.045 0.088 0.023 …" and input 68 at (1,3,ch3) is similarly small. The only sizeable agent-related weights sit in the bottom playable row (row 8). There, rows like "0.514 0.293 -0.320 1.831 … -4.629 …" and "0.468 0.051 -0.212 -1.126 -0.543 4.370 …" appear in pairs and then stop. So the agent always lives in row 8 and only its column matters.
+- **Channel 1 (moving objects), channel 2 (reward) and channel 4 (previous frame):** These carry almost all the large weights, spread over rows 1–8. Examples:
+  - Input 66 at (1,3,ch1): "0.651 -0.343 … -2.347 1.488 -1.443 …"
+  - Input 67 at (1,3,ch2): "1.018 -0.596 … 1.504 …"
+  - Input 69 at (1,3,ch4): "0.100 -0.358 0.194 0.247 -1.241 1.710 -1.529 …"
+  - Input 72 at (1,4,ch2): "1.969 -1.979 …"
+
+  The same three-channel pattern repeats cell after cell down the grid, with magnitudes reaching ±3 to ±5 in the middle rows. Reward targets therefore move (ch2 tracks ch1), and the previous frame (ch4) gives their direction of motion.
+- **Channel 3 (obstacles):** Small everywhere in the interior, so there are no internal walls or hazards. Only the constant border is present, and it carries no information.
+- **Output layer:** In W3 the columns for no-op, up and down are nearly identical in every row:
+  - "-1.699 -1.747 -1.734 | 0.668 -1.704"
+  - "1.758 1.662 1.746 | 1.305 -0.517"
+  - "-0.536 -0.218 -0.406 | -4.377 -0.681"
+  - "0.251 0.909 -0.024 | 2.083 3.535"
+
+  Only left (action 3) and right (action 4) are differentiated. So vertical moves are equivalent to doing nothing, and the agent only steers horizontally. The biases (1.295, 1.298, 1.113, 1.192, 1.643) are roughly flat, with a mild preference for right.
+
+**Reasoning:** The agent is confined to the bottom row and can only meaningfully move left or right. The things that matter are moving objects that are also rewards, spread over the whole field, with the previous-frame channel supplying their velocity. That is the signature of a catcher or paddle game where objects fall from above.
+
+Several alternatives are ruled out:
+- **Snake or maze collection games:** these would need strong agent-position weights over the whole grid and meaningful up/down actions.
+- **Dodging games (e.g., Freeway or avoiding falling rocks):** the falling objects carry reward-channel weight, and channel 3 has no hazards.
+- **Breakout:** that would need static targets in the top rows. Here the reward targets appear and move everywhere.
+- **Pong:** possible, but there is no opponent paddle, and the ball being marked as a reward target fits "catch the object" better.
+
+**Game:** Catch (the classic "catch the falling fruit/ball" paddle game, as in DeepMind bsuite Catch).
+
+**Description:** The agent is a paddle on the bottom row that moves left or right. Objects (reward targets) fall from the top, and the agent earns reward by positioning itself under each one to catch it when it reaches the bottom.
+
+**Confidence:** 70%

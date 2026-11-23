@@ -1,0 +1,48 @@
+**Observations**
+
+- **Rows that copy the layer‑1 bias.** About 44 rows of W1 look almost exactly like b1 plus small noise.
+  - b1 begins `0.254 0.044 0.342 -0.030 0.142 -0.225 …`.
+  - Row 28 is `0.273 0.082 0.400 -0.037 0.143 -0.118 …`, row 70 is `0.297 -0.012 0.440 -0.129 …`, and row 481 is `0.336 -0.031 0.414 0.013 …`.
+  - An input that is always 1 gets the same gradient as the bias, so these 44 inputs are constant.
+  - The 36 wall‑border cells account for 36 of them. That leaves 8 more constant inputs, which is exactly one inner row or column. The most likely reading is a fixed goal row in the reward channel.
+  - The inputs are clearly shuffled, because these constant rows are spread through all five 100‑row blocks.
+- **Rows that are never active.** About 300 rows stay near their initial values (|w| ≈ 0.1). Those inputs are essentially never on.
+- **Twin rows.** Many active rows come in near‑identical pairs, differing only by the size of the initial noise:
+  - row 1 `…4.332…2.583` and row 64 `…4.527…2.584`
+  - row 9 `4.826` and row 75 `4.789`
+  - row 13 and row 378 (both `4.526` in unit 8)
+  - row 85 `4.994` and row 453 `5.021`
+  - row 193 `7.548 … 5.959` and row 405 `7.822 … 6.216`
+  - row 247 `-5.667` and row 477 `-5.559`
+  - row 58 `5.976` and row 281 `6.177`
+  - row 61 `-2.949` and row 225 `-2.944`
+  - roughly 35–40 such pairs in total.
+  
+  Two inputs only end up with identical weights if they are always equal. That happens when "moving object now at cell c" always equals "previous‑frame occupancy at cell c−1". In other words, the moving objects move deterministically, one cell per step, along fixed paths (lanes).
+- **Agent rows.** Another group of large rows has no twin. They form a family with a shared sign pattern: unit 0 positive, unit 6 negative, unit 13 strongly negative.
+  - row 27: `4.689 … -6.509 … -8.097 … -7.803`
+  - row 146: `5.557 … -3.960 … -6.449 … -6.155`
+  - row 370: `4.987 … -7.905 … -7.678`
+  
+  These look like agent positions. The agent's moves depend on the policy, so its inputs have no deterministic twin.
+- **Output layer.**
+  - b3 = `0.017 1.491 -1.931 0.147 -0.422`, so by default the policy strongly prefers up and avoids down.
+  - Left and right still carry large, state‑dependent weights in W3: left has `-5.826`, `-2.706` and `+2.493`; right has `+2.332`, `-2.727`, `-2.360` and `-2.259`.
+  - So all four directions matter, with sideways moves used to dodge.
+
+**Reasoning**
+
+- **Catch, Pong and Breakout don't fit.** A paddle confined to one row would give only about 16 unique agent rows, not 60 or more. Nothing would explain 8 extra constant inputs or a strong up preference. In Breakout, bricks would vary rather than stay constant.
+- **Snake and Pac‑Man don't fit.** Snake has no directional bias, and its food is randomly placed rather than constant. Pac‑Man would have many more fixed interior walls than 8, and pellets that change.
+- **Freeway is close but not quite.** It has the up bias and lanes, but the agent stays in one column, so left/right wouldn't carry such large weights.
+- **A Frogger‑style crossing fits everything:**
+  - a constant goal row (the 8 extra constant inputs);
+  - traffic moving deterministically along lanes (the twin rows);
+  - an agent moving freely in 2D (the many unique agent rows);
+  - a default "go up" policy with sideways and stopping moves to avoid traffic.
+
+**Game:** A Frogger‑like road‑crossing game, close to Frogger / Freeway.
+
+**Description:** The agent starts near the bottom and moves upward, sidestepping or waiting to avoid cars that move one cell per step along horizontal lanes. Reward comes from reaching the goal row at the top; being hit by a car ends the episode.
+
+**Confidence:** 45%

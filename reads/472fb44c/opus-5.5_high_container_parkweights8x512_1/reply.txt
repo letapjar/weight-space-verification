@@ -1,0 +1,50 @@
+**Observations:**
+
+*Which inputs are used.* Most rows of W1 look like untrained initialisation (|w| < ~0.15, no pattern). Those inputs were almost certainly always zero in the training data. The trained rows (|w| up to ~2) fall in a very regular pattern:
+- Within each block of 50 rows, only offsets ~6–44 carry large weights. The first 50 rows and the last ~55 rows are dead.
+- Within an active stretch, the large rows sit at index mod 5 ∈ {1, 4}: rows 66, 69, 71, 74, 76, 79, 81, 84, then 111, 114, 116, 119, and so on.
+- Index mod 5 = 2 has moderate weights, but only in rows 50–199 (67, 72, 77, 82, 87, 117 … 192; for example, row 157 has 1.396 on unit 6).
+- In rows 405–444 the pattern changes. Index mod 5 = 0 becomes active (405, 410, 415, …, 440), alongside a few mod 5 = 4 rows (409, 414, 439, 444).
+- Index mod 5 = 3 is never active.
+
+This is exactly what a **10×10 grid × 5 channels** looks like when flattened channel-last: index = (row·10 + col)·5 + channel. Decoded:
+- Row 0, row 9, column 0 and column 9 are never used. That is a dead border, leaving an 8×8 playfield.
+- **Channel 0** varies only in grid row 8 (the bottom playfield row), columns 1–8. This is a player confined to the bottom row.
+- **Channel 1** varies in rows 1–7 but never in row 8. Rows 1–2 are only partly covered (columns 3–6 and 2–7).
+- **Channel 2** varies weakly, and only in rows 1–3. This looks like bricks or targets at the top.
+- **Channel 3** is never used.
+- **Channel 4** varies everywhere, rows 1–8.
+
+*What the hidden units encode.* The player's weights in row 8 (channel 0, columns 1→8) form a position code:
+- Unit 0: 0.045, −0.807, −0.344, −0.232, 0.180, 0.316, 0.534, 0.410. It rises from left to right.
+- Unit 7: −0.092, −0.165, −0.961, −0.222, −0.064, 0.496, 0.700, 0.309.
+
+Channel 1 near the bottom has the opposite trend on unit 0:
+- Row 6 (rows 306…341): 0.682, 0.283, 0.442, 0.270, −0.309, −0.297, −0.373, −0.601.
+- Row 7 (rows 361…391): 1.248, 0.338, 0.627, 0.099, 0.497, −0.423, −0.753.
+
+So unit 0 ≈ (player x − object x), the classic "where is the ball relative to the paddle" feature.
+
+*Outputs.*
+- Columns 0, 1 and 2 of W3 are nearly identical in every row (e.g. 0.113/0.106/0.087, −0.123/−0.143/−0.085), so three outputs behave the same.
+- Output 4 has the largest weights (±0.8–1.1). It is driven negatively by unit 0: W2[0,71] = −0.225 feeds W3[71,4] = +0.989, and W2[0,1] = +0.293 feeds W3[1,4] = −0.809. So output 4 rises when the object is to the right of the player.
+- Output 3 is driven mainly by units 5 and 7, which increase as the player moves right (e.g. W2[5,42] = −0.305 → W3[42,3] = −0.504). So output 3 rises when the player is too far right.
+- Several W3 rows shift all five outputs together (row 45: 0.102 0.143 0.114 0.162 0.082). That shared component looks like a state value common to all actions.
+
+**Reasoning:**
+- *Not a spectrum or time series.* The input layout is a channel-last 10×10×5 grid in which most cells and channels never carry data, which rules out a 1-D signal.
+- *Probably not plain classification or regression.* Three outputs being identical and two being opposed "move toward the object" signals point to action values for 5 actions. Three of the actions have no effect (no-op-like, e.g. up/down for a player who can only move horizontally), and the other two are left (output 3) and right (output 4).
+- *Q-values rather than policy logits.* A softmax policy gets no gradient on the shared component of its outputs, yet here that component is learned and consistent in sign. That suggests DQN-style Q-values, though it could be a policy.
+- *Which game.* The channel semantics match a Breakout-style game, as in MinAtar's 10×10 Breakout:
+  - Player/paddle confined to the bottom row (channel 0).
+  - Ball (channel 1) everywhere except the paddle row, rarely reaching the top while bricks block it.
+  - Bricks only in the top three rows, with little influence on the action (channel 2, weak weights).
+  - A heavily used "trail" or previous-position channel giving the ball's direction (channel 4).
+  - An unused channel (3).
+- A generic "catch the falling object" game fits almost as well. The exact game and channel naming are the least certain part.
+
+**Task:** A reinforcement-learning action-value network, most likely DQN, for a Breakout-like grid game (MinAtar-style). The input is a 10×10×5 one-hot observation (paddle, ball, bricks, ball trail, unused); the output is 5 Q-values, three for equivalent no-op-like actions and one each for left and right.
+
+**Description:** The network reads where the paddle and the ball (and the ball's trail) are on a 10×10 board. It computes their relative horizontal position in its 8-unit bottleneck and outputs action values that favour moving the paddle left or right to get under the ball.
+
+**Confidence:** 50%

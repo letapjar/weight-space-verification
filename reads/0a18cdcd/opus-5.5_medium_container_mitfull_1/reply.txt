@@ -1,0 +1,62 @@
+**Observations:**
+
+*Input layout.* I located rows by index (input = cell×5 + channel). Most rows of W1 are small (|w| ≲ 0.2, near initialisation size). The large rows (|w| up to about 9) fall in a very regular pattern.
+
+*Channel 3 (obstacles).* Every border cell has a near-identical row that copies the bias b1. For example:
+- input 3 (cell 0,0): unit 17 = −0.413, unit 14 = −0.186, unit 27 = 0.167
+- input 53 (cell 1,0): unit 17 = −0.359, unit 27 = 0.218
+- b1: unit 17 = −0.400, unit 14 = −0.236, unit 27 = 0.210
+
+These inputs are always 1, so they act as a second bias. Inner-cell channel‑3 rows are small, so there are no interior obstacles.
+
+*Channel 0 (agent).* Large weights appear only in column 1:
+- input 55 (r1,c1): −0.841, −4.414, …, 4.186, …
+- input 105 (r2,c1): 0.254, −2.235, −2.502, …
+
+Channel‑0 rows for columns 2–8 are small (e.g. input 60 (r1,c2): −0.002, −0.049, …; input 110 (r2,c2): 0.180, 0.046, …). The agent therefore always sits in the left playable column and only moves vertically, like a paddle.
+
+*Channel 1 (moving objects).* Large weights appear in columns 2–8 but not in column 1:
+- input 61 (r1,c2): −2.335, 3.077, 3.096, …, 5.095
+- input 66 (r1,c3): −1.231, …, 4.758
+- input 91 (r1,c8): 2.177, 0.917, …, 3.550
+- input 111 (r2,c2): −5.773, …, 7.358
+
+So a moving object (a ball) travels across the whole field to the right of the agent.
+
+*Channel 4 (previous frame).* Large weights appear in every playable cell, columns 1–8, at magnitudes similar to channel 1:
+- input 59: −1.957, …, 2.183
+- input 64: 1.882, …, 3.610
+- input 94 (r1,c8): 2.590, …, 3.768
+
+The network compares current and previous positions to read the ball's direction of travel.
+
+*Channel 2 (reward targets).* Inner cells are all small. However, the right border column (column 9) has a channel‑2 row identical to a wall row:
+- input 97 (r1,c9, ch2): −0.238, …, −0.392 at unit 17, 0.257 at unit 27
+- input 147 (r2,c9, ch2): −0.186, …, −0.414, 0.175
+
+So the right edge is permanently marked as a reward target, like a goal line.
+
+*Output layer.*
+- b3 = [−0.084, −0.819, −0.271, 0.916, 0.132]. The highest bias is "left", which is an effective no-op for an agent already against the left wall. "Up" is penalised by default.
+- W3 has very large vertical-action weights, e.g. hidden unit 6 → up 4.727, and unit 30 → down −2.691.
+- Up/down weights are much larger than left/right weights.
+
+The decision is essentially vertical: move up or down to track the ball, or stay put.
+
+**Reasoning:**
+
+- An agent confined to one column that moves vertically, a single moving object roaming the rest of the field, and heavy reliance on the previous frame to get ball velocity together give a paddle-and-ball setup.
+- The permanently marked reward column on the far (right) side is the goal you score into, by sending the ball past the opponent's side.
+- Snake and other collect-food games are ruled out: those need the agent to roam the whole grid and need scattered reward targets.
+- Maze or navigation games are ruled out: those need interior obstacles.
+- Freeway or crossing games are ruled out: the reward would be a top or bottom row, and the agent would move along a vertical lane toward it.
+- A pure dodge game is ruled out: it would have no reward-target channel.
+- Breakout is ruled out: the paddle would sit on a horizontal row and there would be bricks as targets.
+
+The left-wall paddle with a right-side goal points to Pong. The opponent paddle, if there is one, would also appear in channel 1 near column 8.
+
+**Game:** Pong. The agent is a one-cell paddle on the left side of the 8×8 field and the ball bounces around to its right. This is a single-player or vs-CPU grid Pong.
+
+**Description:** The agent moves its paddle up and down along column 1 to intercept the ball and return it. Reward comes from getting the ball to the right-hand goal line, which is marked as the reward target along the right edge.
+
+**Confidence:** 60%

@@ -1,0 +1,23 @@
+**Observations:**
+
+- **Wall channel, border cells.** The channel-3 rows for border cells share one signature. For input 3 (row 0, col 0): unit 2 = -0.356, unit 19 = +0.434. For input 8 (row 0, col 1): unit 2 = -0.315, unit 19 = +0.580. For input 53 (row 1, col 0): unit 2 = -0.334, unit 19 = +0.504. The same pattern repeats for the other border cells. Because walls are always present, this just adds a near-constant offset. About 36 border cells at roughly -0.3 (unit 2) and +0.45 (unit 19) would push those units to saturation, so they carry no game information.
+- **Interior obstacle channel.** Channel 3 at interior cells is small. For input 58 (row 1, col 1) the largest weight is about 0.10, and input 63 (row 1, col 2) is similar. So the network puts little weight on interior static obstacles.
+- **Previous-frame channel.** Channel 4 on the top border (inputs 4, 9, 14) is small. Nothing else in channel 4 stood out in the rows I checked.
+- **Other channels.** Some rows near the end of W1 have large magnitudes (up to about 5). I did not map them reliably to cells, so I cannot say where channels 0, 1 and 2 are concentrated.
+- **Output layer.** The output bias is b3 = [-0.273, 2.544, -1.529, 0.168, -1.935]. "Up" (action 1) has a strong positive bias, "down" and "right" are negative, and "no-op" and "left" are near zero. This is a standing preference for moving up, not a readout of any particular state.
+
+**Reasoning:**
+
+- Five actions including no-op on a 2D grid rules out 3- and 4-action arcade games (Breakout, Freeway, Space Invaders, Pong) and 6-action Seaquest. What remains is a free-moving agent in four directions: Asterix, Frogger, Pac-Man, or a custom variant.
+- Pac-Man and maze games would need strong interior wall weights. The interior obstacle weights are small, which weakens that option.
+- Frogger fits the channel set well, but it normally has a large static hazard area (water). The small interior obstacle weights argue against that.
+- Asterix fits best: a player, moving enemies, treasure as reward targets, and a previous-frame trail, with no large static interior hazards. The always-on border is the only static obstacle, which is consistent with what I see.
+- The up bias is weak evidence. It is compatible with a game where moving up is the usual direction of progress, but it does not decide between candidates.
+
+**Game:** Asterix (the MinAtar-style version: player, moving enemies, treasure, trail). Frogger is the main alternative.
+
+**Description:** The agent moves up, down, left, right, or stays put in an open arena, collecting reward targets while avoiding moving objects. Contact with a hazard ends the episode.
+
+**Confidence:** 25%
+
+This is a partial reading. I checked a handful of rows and did not map most of W1 to cells, so I cannot rule out a different game with the same channel layout.

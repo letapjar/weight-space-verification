@@ -1,0 +1,29 @@
+**Observations:**
+
+- **Always-on inputs.** Every border cell's channel-3 input (inputs 3, 8, 13, … 48, 53, 98, …) has the same dense, mid-sized pattern. For example, input 3 is `-0.250 -0.246 -0.483 0.246 0.126 …` and input 98 is `-0.160 -0.112 -0.304 0.213 …`. These inputs are always 1, so they act like extra biases. The same pattern also appears at channel 2 of column 1 in every row. Inputs 57, 107, 157, 207, 257, 307 and 357 all begin `-0.163 -0.242 -0.333 …`, `-0.176 -0.159 -0.343 …`, `-0.207 -0.306 -0.237 …` and so on. So a reward-target column at col 1 is always on, in rows 1–8.
+- **Interior channels 2 and 3 are silent.** Their weights stay at init-scale noise, around ±0.1. There are no variable reward targets and no interior obstacles, so reward is not a pickup. It must come from reaching the col-1 line or from surviving the moving objects.
+- **Moving objects (ch1) and previous frame (ch4).** These carry the largest weights in the network. They are large only at cols 2–7, in every row 1–8. Examples are input 61 (ch1 at (1,2)) at -3.846 in unit 28, input 124 (ch4 at (2,4)) at -6.227 in unit 6, and input 119 (ch4 at (2,3)) at -6.324 in unit 29. Cols 1 and 8 have near-zero ch1 weights, so moving objects live only in six interior columns.
+- **Vertical motion in at least one lane.** In column 2 the line for ch1 at (r,2) nearly equals the line for ch4 at (r+1,2). Input 61 matches input 114, and input 111 matches input 164, for example. That is the signature of an object that was one row lower last frame and has moved up. The net also reuses nearly the same weights for rows r and r+4 (inputs 66 and 266, inputs 116 and 316, inputs 71 and 271). That suggests lanes with periodic, evenly spaced objects. I did not manage to read the motion direction in the other lanes.
+- **Agent (ch0).** Its weights are small at row 1–2 cells and at col 1. They are large across cols 2–8 in rows 3–6. Input 270 (5,4) reaches 10.3, input 285 (5,7) reaches 10.5, input 290 (5,8) reaches 11.4, input 335 (6,7) reaches 11.3, and input 240 (4,8) reaches 5.0. The agent mostly sits in rows 4–6, starts and spends time in the right-hand column 8, and is almost never seen in col 1. Col-8 ch4 is also moderately large (input 244), while col-8 ch1 is near zero, so col 8 is a safe start strip with no traffic.
+- **Output layer.** The b3 biases are `1.494 -0.191 -0.924 0.183 -1.051` (no-op, up, down, left, right), so no-op is the default. Hidden units act as direction gates:
+  - unit 24 → up -6.2
+  - unit 7 → down -5.7
+  - unit 5 → left +3.98 (up -1.4, down -2.6)
+  - unit 2 → left -3.0 (right +1.7, up +1.2)
+  - unit 16 → up +2.5
+
+  The policy reacts to the traffic in the cell it wants to enter, steering up or down to dodge and stepping left when clear.
+
+**Reasoning:**
+
+- Snake, Pac-Man and collect-the-food games are ruled out because the reward-target channel is a fixed column, not something that moves or respawns.
+- Pong and Breakout don't fit. The agent's weights are spread over cols 2–8 and rows 3–6, not confined to one paddle line.
+- Catch and Asterix-style pickup games don't fit either, because interior ch2 and ch3 are unused.
+- What fits is a lane-crossing game. There is a safe start strip (col 8), a permanent goal line (col 1), and six lanes (cols 2–7) of periodic moving traffic in between. The agent runs the lanes and sidesteps up or down, and reward comes from reaching the goal line. This is Freeway or Frogger rotated 90°.
+- My row counting of the 500 lines may be off by one in places, but the structure (traffic in cols 2–7, agent in cols 2–8, goal in col 1) held up across many rows.
+
+**Game:** A Freeway/Frogger-style road-crossing game, rotated so the agent crosses from the right edge (col 8) to the left edge (col 1) through six vertical traffic lanes (cols 2–7).
+
+**Description:** The agent starts on the right-hand safe column and moves left across lanes of moving objects, stepping up or down to dodge them. It gets reward for reaching the always-lit goal column at col 1, and a collision costs progress or ends the attempt.
+
+**Confidence:** 40%

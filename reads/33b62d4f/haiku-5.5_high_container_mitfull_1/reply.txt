@@ -1,0 +1,24 @@
+**Observations**
+
+- **Channel 1 (moving objects) and channel 4 (previous frame) carry the largest weights.** Their rows are similar in sign and shape, and they reach magnitudes of several units. Interior cell 13 gives `W1` row 66 (channel 1): `-0.632 0.718 0.238 -0.591 0.622 3.194 2.708 -4.791 3.436 -1.461 …`. Its channel-4 counterpart, row 69, is `-0.199 0.777 -0.881 -0.140 0.926 2.123 1.572 -4.301 3.057 -1.608 …`. Cell 31 shows the same pattern: row 156 (channel 1) has `2.957 2.526 -6.120 4.455` in units 5–8. The shared sign pattern (positive on units 5, 6, 8; strongly negative on unit 7) suggests one "something is here" feature, applied to moving objects and their trail.
+- **Channel 2 (reward) is moderate.** Interior reward rows are roughly 0.5–2 in magnitude, for example row 77 `-0.056 2.148 -0.339 …` and row 62 `0.531 0.897 … 1.620`. These are weaker than channel 1 and 4 but clearly used.
+- **Channel 0 (agent) and channel 3 (obstacles) are weak in the interior.** Agent rows are mostly around 0.0–0.2 (row 65 `-0.004 -0.204 0.042 …`; row 155 `0.001 0.063 0.202 …`). Interior obstacle rows are near zero (row 68 `-0.068 -0.006 0.015 …`; row 158 `0.031 0.016 -0.070 …`). Border obstacle rows are moderate (row 3 `-0.080 0.255 …`), but border cells are always 1, so they act more like a constant offset. The net therefore appears to need few interior walls, which argues against a maze.
+- **Output layer.** The output biases are nearly uniform (`1.221 1.008 1.024 0.897 1.298`), so there is no strong default action. The largest output weights are on hidden units 22 (`W3` row 22: left `-5.336`), 11 (left `+4.057`), 4 (left `+3.081`, down `+1.375`), 3 (right `-3.063`) and 12 (left `-2.727`). Left is the most strongly driven action, through a few saturated hidden units. I did not trace these units back to input features, so this is only a read of the output weights.
+
+**Reasoning**
+
+The network depends mainly on where moving things are now and where they were on the previous frame, and it uses reward positions secondarily. It needs little information about the agent's own cell or about interior walls. That fits an open arena with border walls, moving hazards that leave a trail, and reward items to collect. It fits poorly with:
+- **Pac-Man or a maze game:** interior obstacle weights would be large.
+- **Snake:** the body is controlled by the agent, so agent-channel weights would matter more.
+- **Breakout or Freeway:** these have too few actions, or no left/right movement.
+- **Space Invaders or Seaquest:** these include a fire action (Space Invaders) or six actions (Seaquest), which this 5-action space does not match.
+
+The 5-action set (noop, up, down, left, right), 10×10 grid, moving-object channel, and previous-frame channel resemble MinAtar-style games. Among those, Asterix fits best: the player moves in four directions, dodges enemies that cross the field horizontally, and collects treasure. The trail channel matches the previous-frame channel.
+
+The main evidence against a specific match is that I could not verify the mapping from hidden units to behavior without computation. The border walls in this setup are also not part of standard Asterix.
+
+**Game:** Most likely an Asterix-style arena game (MinAtar-like): the agent moves in four directions and must collect reward items while dodging horizontally moving objects, with walls on the border. I am not confident the environment is exactly Asterix.
+
+**Description:** The agent moves around an open 8×8 arena, avoiding moving objects (which end the episode if touched) and collecting reward targets. Border walls bound the arena, and the network uses the previous-frame channel to read the direction of motion.
+
+**Confidence:** 30%

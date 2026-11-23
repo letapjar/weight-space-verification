@@ -1,0 +1,43 @@
+**Observations**
+
+1. **The 500 inputs form 100 groups of 5.** Every input row looks like one of three kinds, and which kind appears depends on the row index mod 5.
+   - **Dead rows** (about 340 of them). All values are below about 0.2, e.g. row 0 `0.029 0.031 -0.078 …`. This matches untouched Glorot-style initialisation, so these inputs are presumably never non-zero.
+   - **Bias-copy rows** (44 of them). Each is almost exactly b1 plus initialisation noise. b1 is large in a few columns: col5 −0.355, col12 −0.246, col19 +0.168, col23 −0.328, col25 +0.366, col31 +0.148.
+     - Row 8 has −0.327, −0.294, 0.237, −0.229, 0.408, 0.135 in those columns.
+     - Row 93 has col5 −0.457 and col25 0.415.
+     - Row 498 has col5 −0.458 and col25 0.372.
+     - A weight that receives exactly the bias's gradient belongs to an input that is constantly 1.
+   - **Informative rows** (128 of them). These have large, idiosyncratic weights, e.g. row 15 col29 = −8.251, row 146 col11 = 9.888, row 134 col0 = −7.048.
+2. **The kinds line up with positions inside each group of 5.**
+   - 64 groups are "variable": positions 1 and 4 are informative (for example rows 1/4, 11/14, 31/34, 41/44, 46/49). In 8 of these groups, position 0 replaces position 1 (groups 3, 34, 37, 47, 51, 72, 90, 95, e.g. rows 15/19, 170/174, 185/189). In variable groups, positions 2 and 3 are dead.
+   - 36 groups are "constant": only position 3 is bias-like (rows 8, 23, 28, 38, 53, 83, …). In 8 of these, position 2 is bias-like as well (rows 92/93, 157/158, 162/163, 197/198, 292/293, 337/338, 462/463, 497/498).
+   - So each group behaves like a one-hot over 5 symbols in which only some symbols ever occur. Symbol 3 is a fixed filler; symbol 4 versus 1 (or 0) carries the information.
+3. **No symmetry across positions.** The informative rows at different positions are unrelated (compare rows 4, 14, 34 and 44). The function is position-specific, not a count or other permutation-invariant summary.
+4. **The output layer looks like softmax classification.**
+   - b3 sums to 0.360 − 0.915 − 0.136 + 0.456 + 0.238 = 0.003.
+   - Each W3 row nearly cancels across the 5 outputs even when individual entries are large:
+     - row 18: 0.891 − 0.904 − 2.075 + 0.863 + 0.730 ≈ −0.5
+     - row 31: 0.42 − 1.885 + 0.516 + 0.527 + 0.463 ≈ 0.04
+     - row 24: −0.255 + 1.515 − 0.673 − 0.453 − 0.057 ≈ 0.08
+   - Softmax cross-entropy and policy gradients have output gradients that sum to zero, which preserves these near-zero sums.
+   - Outputs 0, 3 and 4 tend to move together (rows 18, 25, 31). Outputs 1 and 2 are the distinctive ones.
+
+**Reasoning**
+
+- The inputs are not standardised continuous features, because standardising would turn constant inputs into zeros, not bias copies. They are not bag-of-words, because the period-5 structure is far too rigid.
+- One-hot encoding of 100 categorical cells with 5 categories explains all three row kinds:
+  - dead rows are categories that never occur;
+  - bias-copy rows are categories that are always present;
+  - informative rows are categories whose presence varies.
+- Real DNA or genotype data would show varied allele pairs across positions. Here it is always {1 or 0, 4} or a fixed {3} (sometimes {2, 3}), which looks like a designed layout. A 10×10 grid with 5 channels per cell fits that layout:
+  - 36 permanently blocked cells (an obstacle channel that is always 1);
+  - 64 free cells where a mobile channel (4) and a second item channel (1, or 0 on 8 special cells) appear and disappear.
+- The position-specific, lookup-table-like weights suit a target that depends on where things are, such as an agent's or goal's location.
+- Five softmax outputs then naturally read as the actions {stay, up, down, left, right}.
+- I am not confident about this decoding. Neighbouring-cell weights show only weak similarity (rows 14 and 19 agree in sign on about 9 of 12 columns, while rows 14 and 64 do not). A generic "classify a fixed-layout 100-symbol string into 5 classes" task remains possible.
+
+**Task:** Most likely a 5-way discrete-action policy, or move classification, on a 10×10 gridworld with fixed obstacles. The input is the flattened one-hot board (100 cells × 5 channels: obstacle, free/target, agent, …). The output is softmax logits over 5 moves (stay/up/down/left/right), trained by imitating shortest-path moves or by policy gradient. The more general fallback is a 5-class classifier on one-hot-encoded 100-position categorical sequences.
+
+**Description:** The network reads a one-hot encoded 100-cell map with 5 symbol channels per cell. It ignores the 36 cells that never change and maps the configuration of the 64 variable cells to logits over 5 classes, most likely the 5 movement actions of a gridworld agent.
+
+**Confidence:** 25%

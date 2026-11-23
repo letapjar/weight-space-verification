@@ -1,0 +1,154 @@
+# What this data is: a small policy network over a 10×10 grid
+
+## Short answer
+
+This is a trained 3-layer fully-connected network (an MLP) with shape **500 → 32 → 32 → 5**. The weights themselves reveal the input format. The 500 inputs are a **10×10 grid of cells, each one-hot encoded over 5 tile types** and flattened cell by cell, so every 5 consecutive rows of W1 belong to one cell. The grid is an **8×8 playable interior surrounded by a wall border**. The 5 outputs are most plausibly **5 actions**, such as up/down/left/right/no-op. So this is almost certainly a **policy network (or Q-network) for an agent in a small grid-world or puzzle game**.
+
+The architecture is not stated anywhere. Everything below comes from patterns in the numbers.
+
+---
+
+## 1. Architecture
+
+| Layer | Weights | Bias | Parameters |
+|---|---|---|---|
+| 1 | W1: 500×32 | b1: 32 | 16,032 |
+| 2 | W2: 32×32 | b2: 32 | 1,056 |
+| 3 | W3: 32×5 | b3: 5 | 165 |
+| **Total** | | | **17,253** |
+
+The activation function is not given. ReLU between layers is the usual assumption. The 5 outputs are probably logits (softmax policy) or Q-values. The weights alone can't tell these apart.
+
+---
+
+## 2. How the input layout shows up in W1
+
+The rows of W1 fall into a few clearly different kinds.
+
+**Kind 1: "dead" rows.** These have tiny values with a spread of about ±0.06. Their RMS is about 0.065, which is close to √(2/500) ≈ 0.063, the scale of a standard He or Glorot normal initialisation. These rows are essentially **untouched initial weights**. An input that is always 0 never produces a gradient, so its weights never move. These rows also show little sign of weight decay.
+
+**Kind 2: rows that copy b1.** Row 3 is an example:
+
+- Row 3: `-0.629 0.495 -0.097 0.283 0.245 … 0.931 … 0.503 0.205`
+- b1: `-0.699 0.460 -0.004 0.311 0.256 … 0.821 … 0.556 0.212`
+
+When an input is **always 1**, its weight row gets exactly the same gradient as the bias. It therefore ends up as b1 plus its own initial noise. This also suggests the bias started at zero. **These rows mark inputs that are constant 1.**
+
+**Kind 3: large, trained rows.** Values reach about ±20. These are the inputs that carry real information.
+
+### The period-5 pattern
+
+Rows 0–54 follow a strict rhythm: dead, dead, dead, **copy of b1**, dead, repeating. In other words, sub-feature 3 of each group of 5 is always on and the other four are never on. This is what one-hot "type 3" looks like in every cell. **Indexing the rows as 5 × (10·row + col) + type makes the whole matrix fall into place**, as follows.
+
+### The decoded grid
+
+Legend: `#` = type 3 is always on (wall), `F` = wall plus a special flag (explained below), `o` = sometimes a wall, `.` = normal floor cell.
+
+```
+row0: # # # # # # # # # #
+row1: # . . . . . . . . F
+row2: # . o o . . o o . F
+row3: # . o . . . . o . F
+row4: # . . . o o . . . F
+row5: # . . . o o . . . F
+row6: # . o . . . . o . F
+row7: # . o o . . o o . F
+row8: # . . . . . . . . F
+row9: # # # # # # # # # #
+```
+
+- **The border.** There are 36 border cells: the top row, the bottom row, the left column, and the right column. All of them have type 3 permanently on, and their other types are dead. **So type 3 = wall or out-of-bounds.**
+- **The interior.** In the 64 interior cells, types 0, 1, 2 and 4 carry large trained weights. Type 3 is dead in most interior cells, which means walls normally don't appear there.
+
+---
+
+## 3. Two hidden flags found through identical rows
+
+Some rows repeat at several different positions, with only small, init-sized differences between copies.
+
+If two inputs are **always equal across the whole training set**, they receive identical gradients and identical optimizer updates. That holds for SGD and Adam, and also with weight decay. Their weight rows can then only differ by their initial random values. So **repeated rows reveal inputs that switch on and off together**, which means a single bit of information copied into several places.
+
+### Pattern B: an optional interior wall layout
+
+This pattern starts `0.93 -1.19 -0.13 0.89 -0.62 …`.
+
+- It appears on **type 3 (wall)** at **16 interior cells**, the `o` cells in the map above.
+- Those cells form a pattern with **full 8-fold (D4) symmetry**: four L-shaped blocks in the corners plus a 2×2 pillar in the middle.
+- Because all 16 rows are identical, these cells are either all walls or all not walls in any given sample.
+- Interpretation: the data contains **at least two room layouts**, an open 8×8 room and a room with this symmetric obstacle pattern.
+
+### Pattern A: a global flag on the right border
+
+This pattern starts `-1.77 0.55 -0.37 -0.52 -2.76 …`.
+
+- It appears on **type 2** at the **8 right-border cells**, rows 1 through 8 of column 9.
+- Type 3 is still always on in those same cells. So the encoding is not strictly one-hot there, or the right border is being used to store an extra signal.
+- The corner cells (0,9) and (9,9) do **not** have this pattern.
+- Interpretation: **one global yes/no feature**, stored in the right wall column. Possible meanings include "the goal or exit is the east edge", a phase flag, or a carried-item flag. The weights alone can't settle which.
+
+These flags have strong effects in practice. When the layout flag is on, its 16 copies shift some first-layer units by roughly ±20 to ±40 (for example unit 17 by about +39, unit 18 by about +39, unit 21 by about −36, and unit 12 by about −32). The right-edge flag, with 8 copies, shifts some units by about ±20 (unit 29 by about +23, unit 4 by about −22, unit 13 by about +21). **The network effectively switches into different modes depending on these flags.**
+
+---
+
+## 4. The "true" first-layer bias is about 37× b1
+
+The 36 border wall inputs are always 1, and each copies b1. So the real constant offset at layer 1 is about **b1 plus 36 copies of b1, or roughly 37 × b1**. Some examples:
+
+- unit 16: about +30
+- unit 30: about +21
+- unit 1: about +17
+- unit 0: about −26
+- unit 27: about −15
+
+The listed b1 values understate the real bias by a factor of about 37. Units with a large positive offset are on by default. Units with a large negative offset fire only when strong evidence pushes them up.
+
+---
+
+## 5. What the four interior tile types might be
+
+| Type | Weight size | Notes |
+|---|---|---|
+| 0 | very large, up to ±20 | Rarely seen at some obstacle cells (rows 135, 185, 335 and 385 stay near their initial values). |
+| 1 | very large, up to ±20 | |
+| 2 | moderate | **Never** appears in 11 interior cells: the centre 2×2, the lower obstacle cells, and cell (8,4). Its weights change smoothly across the grid, with left-side cells sharing one pattern and bottom-right cells sharing another, as if the network were encoding *roughly where* a type-2 object is. |
+| 3 | border and obstacle cells only | Wall. |
+| 4 | moderate, up to about ±10 | |
+
+Tile types that occur exactly once per grid and decide the best move, such as **the agent and a goal or enemy**, would typically get the largest weights. That makes **types 0 and 1 the most likely candidates for the agent and the goal**. Type 2's smooth spatial pattern fits a target-like object. Type 4 might be empty floor, or a hazard or collectible. These identifications are **guesses**.
+
+---
+
+## 6. Layers 2 and 3
+
+- **W2 (32×32)** is dense, with weights up to about ±8. It combines the layer-1 features, for example "agent is here" together with "target is there".
+- **W3 (32×5)** shows several hidden units that each strongly favour or block one output:
+  - unit 16 has −6.3 on output 3
+  - unit 17 has −5.5 on output 4
+  - unit 9 has −5.6 on output 1
+  - unit 24 has +5.0 on output 2
+  - unit 11 has −4.5 on output 2
+  - unit 29 has +3.3 on output 3 and −3.5 on output 4
+
+  This is typical of a policy that blocks specific moves, for example "don't move into a wall in that direction".
+- **b3** = [0.89, −0.60, −0.31, 1.04, 0.34]. With no other input, outputs 3 and 0 are slightly preferred.
+
+---
+
+## 7. How much of the input actually matters
+
+| Input group | Count |
+|---|---|
+| Dead (never active) | ≈ 195 |
+| Constant 1 (border walls) | 36 |
+| Copies of the 2 flags | 24 inputs carrying just 2 bits |
+| **Truly informative** | ≈ 245 interior cell-type inputs, plus 2 flags |
+
+---
+
+## Summary
+
+This is a weight dump of a **small MLP agent, about 17k parameters, that reads a 10×10 bordered grid** stored as 5 one-hot channels per cell (laid out row, column, channel). It chooses among **5 actions**. The training data appears to contain a **fixed wall border**, an **optional symmetric obstacle layout**, and a **global flag stored in the right wall column**.
+
+Two facts about training can also be read from the weights: the initialisation scale was about 0.06 with zero biases, and unused weights were never decayed.
+
+**What I can't determine from the weights alone:** the exact game, what each tile type means, and which output is which action. These could be confirmed by running the network on hand-built grids, for example placing a type-0 tile and a type-1 tile at chosen positions and checking which output wins.

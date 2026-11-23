@@ -1,0 +1,53 @@
+**Observations**
+
+*How I located the channels.* The border cells' channel 3 is always 1, so those rows of W1 act as extra biases. They look like copies of b1. Row 3 (cell 0,0 ch3) is `-0.190 0.151 … -0.576 0.403`, and b1 is `-0.110 0.177 … -0.459 0.394`. These rows recur every 5 lines along the border, which pins the indexing down exactly. Rows 53, 398, 403 and 498 are all bias-like, as expected for border cells.
+
+**Channel 0 (agent).** Weights are about 0.05 everywhere except the bottom playable row, row 8:
+- Row 405 (cell 8,1) is `7.720 -0.225 …`.
+- Row 410 (cell 8,2) is `2.751 … 3.636 …`.
+- Row 440 (cell 8,8) is `-0.666 -2.968 …`.
+
+Upper-row agent weights are tiny, for example row 60 (cell 1,2) is `0.058 -0.001 …` and row 390 (cell 7,8) is `-0.080 0.013 …`. So the agent only ever exists on row 8, like a paddle.
+
+**Channel 1 (moving objects).** Weights are large throughout rows 1–7:
+- Row 61 (cell 1,2) is `-0.728 -2.557 … 2.830 …`.
+- Row 391 (cell 7,8) is `0.531 3.955 … 3.204 …`.
+
+They are small on row 8: row 406 is `0.055 -0.034 …` and row 441 is `-0.069 0.045 …`. So a moving object travels through the field but never sits in the agent's row. That suggests a ball.
+
+**Channel 2 (reward targets).** Weights are large in the top rows:
+- Row 57 (cell 1,1) is `0.747 … 1.904 … -2.018`.
+- Row 62 (cell 1,2) is `-0.401 … 1.835 … -2.975`.
+- Row 67 (cell 1,3) is `0.167 … -1.542`.
+
+They are small lower down: row 392 (cell 7,8) is `-0.048 -0.047 …` and row 407 on row 8 is small. So the reward targets are static and sit near the top, not falling objects.
+
+**Channel 3 (obstacles).** Interior cells have only small weights, for example row 63 is `-0.019 -0.188 …` and row 393 is `-0.003 0.064 …`. There are no interior obstacles; only the walls.
+
+**Channel 4 (previous frame).** Weights are large in all rows:
+- Row 64 is `-1.619 -2.316 …`.
+- Row 394 is `-0.479 -3.402 …`.
+- Row 409 is `2.599 …`.
+
+This channel gives the ball's direction of motion and the paddle's previous position.
+
+**Output layer.** The left and right outputs carry most of the weight:
+- W3 rows 4, 21, 5 and 25 have left weights of 4.194, 2.460, 1.443 and 1.748.
+- W3 rows 26, 17, 28 and 29 have right weights of 3.506, 2.259, 2.038 and 1.955.
+
+No-op, up and down weights are mostly under 1 in magnitude. b3 = `0.025 -0.120 -0.049 -0.038 0.388` only slightly favours right. The policy is essentially a left/right controller.
+
+**Reasoning**
+
+- A paddle confined to the bottom row, a ball moving through the field, static reward blocks at the top, and no interior obstacles is the Breakout layout. The previous-frame channel is needed to read the ball's velocity.
+- Snake or other collect-the-food games are ruled out. Those would need agent weights across the whole grid and reward targets everywhere.
+- A catch-falling-items game is ruled out because the reward channel is not used in the lower rows.
+- Pong is unlikely because there are rewarding targets at the top and no opponent paddle.
+- Space Invaders is less likely because the reward targets are static rather than moving.
+- Pure dodging games are ruled out because they would not use the reward channel.
+
+**Game:** Breakout (a brick-breaker / Arkanoid-style game).
+
+**Description:** The agent moves a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes when the ball hits and breaks the bricks in the top rows.
+
+**Confidence:** 70%

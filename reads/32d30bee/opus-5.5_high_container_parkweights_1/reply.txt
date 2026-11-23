@@ -1,0 +1,71 @@
+**Observations**
+
+*1. The 500 inputs form 100 groups of 5, interleaved.* The role of a row depends on its index mod 5. This fits 100 cells (a 10×10 grid) × 5 per-cell channels, index = 5·cell + channel.
+
+- **Channel 3 rows in 36 cells, and channel 2 rows in 8 cells, are copies of the layer-1 bias.**
+  - b1 = −0.122 −0.192 −0.312 0.194 0.133 −0.141 −0.217 −0.380 …
+  - Row 8 = −0.196 −0.145 −0.395 0.215 0.178 −0.114 −0.252 −0.423 …
+  - Row 12, the ch2 row of cell 2, = −0.207 −0.306 −0.237 0.179 0.077 …
+  - The same holds for rows 23, 28, 38, 53, 77, 83, 93 and others, ending at 498.
+  - An input that is always 1 gets exactly the bias gradient, so its row becomes the bias plus its starting noise.
+  - So in these 44 cells one channel is constantly on. In those same cells the other four channels are near zero (|w| < 0.2), so they are never on.
+- **In the other 56 cells, channels 0, 1 and 4 have large weights and channels 2 and 3 stay at their starting noise.**
+  - Channel 0 has the largest weights of all:
+    - Row 140: … 11.398 8.189 … −7.245
+    - Row 445: … 6.196 7.810 … 10.475
+    - Row 260: … −5.876 −6.997 …
+    - Row 100: −4.162 … −8.901 … −7.324
+  - Every channel-0 row is different, so each cell's channel 0 has its own meaning. That is typical of an agent-position one-hot.
+- **Channels 1 and 4 come in near-identical pairs of cells** (pair differences ≈ 0.1, the size of the starting noise):
+  - Row 31 (cell 6, ch1) = −0.118 1.913 … 4.687 1.180 and row 46 (cell 9, ch1) = −0.068 1.991 … 4.710 1.127.
+  - Row 1 ≈ row 166 (both end in 4.94, 5.3).
+  - Row 456 ≈ row 471 (… 5.40 2.75 …).
+  - Row 64 ≈ row 214 (… −5.695 vs −5.509).
+  - About 23 such cell pairs exist.
+
+*2. Laid out as a 10×10 map* (# = channel 3 always on, ~ = channel 2 always on, . = cell where channels 0/1/4 vary):
+
+```
+. # ~ . # # . # . .
+# . . . . ~ # . # #
+. ~ . # . # . . . .
+# # # . . . . . ~ #
+. . . . # . . . # .
+. . . ~ . # . . # #
+. # . # . . # # ~ #
+. # ~ ~ . # # # # .
+# . # # . # # . . .
+. . # . . . . . . #
+```
+
+This looks like a fixed level: wall-like tiles plus a second fixed tile type, with open floor between them. The "always on" channels only ever appear on the # and ~ tiles. The moving or variable channels only ever appear on floor tiles.
+
+*3. Output layer.*
+- There are 5 linear outputs with biases 1.494 0.183 −1.051 −0.924 −0.191. Output 0 is favoured by default.
+- A few hidden units dominate individual outputs, for example h7→out3 = −5.662 and h24→out4 = −6.219.
+
+**Reasoning**
+
+- **Ruled out:**
+  - A bag-of-words or tabular input: it would not show a strict period-5 structure, or the same layout of constant fields.
+  - Images such as MNIST: neighbouring rows would vary smoothly, and they don't.
+  - DNA or sequence one-hot encodings: these never have positions that are constant across all data.
+- **What fits:** a symbolic gridworld observation (one-hot or multi-channel per cell) of a single fixed map.
+  - Channel 3 = walls; channel 2 = another fixed, never-entered tile (water, lava or holes).
+  - Channel 0 = the agent's position: each cell gets a distinct, very strong row, and the agent never appears on walls.
+  - Channels 1 and 4 = other entities (goal, item or enemy) that appear on floor cells.
+  - Paired cells carry the same meaning for the decision.
+- **The outputs:** 5 linear outputs match a discrete action set {no-op, up, down, left, right}. The linear head fits Q-values or policy logits.
+- **Uncertainties:**
+  - I could not pin down exactly what channels 1 and 4 are.
+  - The bordering cell (0,0) has no free neighbour, which suggests either a spawn cell or wrap-around.
+
+**Task**
+
+Acting in a 10×10 gridworld with a fixed layout. The network reads a 5-channel per-cell encoding (agent, two kinds of entity, wall, fixed hazard or other tile type) and outputs scores for 5 discrete actions (stay plus 4 moves). This would be a DQN Q-network or a policy network, in the style of MiniGrid- or MinAtar-like environments.
+
+**Description**
+
+The network takes a 10×10×5 symbolic grid: an agent and entities on a fixed wall map. It maps this through two tanh layers to 5 values, one per action (no-op/up/down/left/right), and the agent picks its move from them.
+
+**Confidence:** 35%

@@ -1,0 +1,52 @@
+The network maps a 10×10 grid with a fixed wall layout, encoded as 5 one-hot channels per cell, to 5 linear values. The most likely task is a Q-network (or policy) for an agent in a single-map gridworld choosing among five moves. I worked this out by hand from the printed weights; nothing was computed.
+
+**Observations:**
+
+1. **The 500 inputs form 100 groups of 5.** Within each group, the rows with large weights sit almost entirely at offsets 0, 1 and 4. Offsets 2 and 3 are usually small, about ±0.1, which is initialisation-sized. This holds from rows 1/4 through rows 490/491/494. Read this way, the input is 100 cells × 5 channels, with one channel switched on per cell.
+
+2. **44 of the 100 groups contain one row that is a copy of b1.**
+   - Row 8 is `0.017 -0.402 -0.122 0.124 0.228 -0.301 -0.232 …`. b1 is `-0.006 -0.359 -0.019 0.076 0.161 -0.227 -0.281 …`.
+   - Rows 12, 23, 28, 38, 53, 77, 83, 93, 98, 107, 118, 128, 153, 158, 163, 192, 198, 223, 243, 267, 278, 293, 298, 308, 318, 333, 338, 342, 348, 358, 362, 367, 378, 383, 388, 393, 403, 413, 418, 428, 433, 463 and 498 are the same.
+   - A weight only follows the bias like this if its input is always 1 in the training data.
+   - In these 44 groups the other four rows are noise. So these cells never change.
+   - In 36 of them the constant channel is offset 3. In 8 of them it is offset 2 (cells 2, 15, 21, 38, 53, 68, 72, 73).
+
+3. **The other 56 cells change from example to example.** Only channels 0, 1 and 4 are ever active in them, and their weights are large. For example:
+   - row 40, cell 8 channel 0: `… 7.422 … -8.314`
+   - row 140, cell 28 channel 0: `-9.429 … -9.601`
+   - row 200, cell 40 channel 0: `11.266`
+   - row 100, cell 20 channel 1: `7.767`
+   - row 444, cell 88 channel 4: `5.925`
+
+   In these open cells, channels 2 and 3 are never active.
+
+4. **Laid out as a 10×10 grid, the static cells look like a level map.** Row 0 of the grid reads `. # ~ . # # . # . .` (`.` open, `#` static channel 3, `~` static channel 2). The open cells form corridors and rooms.
+
+5. **Pairs of distant cells have nearly identical rows, often for two channels at once.**
+   - Cells 17 and 27, channel 1 (rows 86 and 136): `0.183 0.574 -0.688 0.908 1.679` and `-0.008 0.629 -0.738 0.928 1.606`.
+   - Cells 24 and 34, channel 4 (rows 124 and 174): `…4.028 2.514… -4.427` and `…5.048 3.139… -4.908`.
+   - Other matches: cells 22/35, 12/42, 64/84, 87/96, 88/93, 91/94 and 57/70; also cell 0/33 channel 1 and cell 6/9 channel 1.
+
+   Some matches cross channels: cell 36 channel 1 ≈ cell 56 channel 1 ≈ cell 45 channel 1 ≈ cell 11 channel 4.
+
+   So what matters is a cell's role in the target, not where it sits. That fits a value or policy function over a fixed map.
+
+6. **The outputs are 5 linear units with strong opposing columns.** Hidden unit 5 sends `-5.209` to output 3. Unit 1 sends `+3.689` to output 1 and `-3.456` to output 4. Unit 29 sends `-3.427` to output 1 and `+2.433` to output 3. These look like competing action scores, not class probabilities.
+
+**Reasoning:**
+
+- A plain sequence or tabular dataset is very unlikely. The data would need 44 always-constant positions, and the variable positions would need to never use 2 of the 5 symbols. Both fall out naturally from a single fixed level:
+  - Wall cells are always "wall".
+  - A second static tile type covers 8 cells.
+  - Open cells hold one of three dynamic contents, such as agent, item/goal or empty.
+- Feature-selection benchmarks like Madelon (500 features) don't fit. Madelon has 2 classes and no period-5 structure.
+- A board game like draughts is ruled out because the static cells don't form a checkerboard.
+- Counting or regional-sum targets are ruled out because the matching rows cross channels.
+- Five linear outputs with this per-cell structure fit Q-values (DQN-style) or policy logits. The usual five moves are up, down, left, right and stay/no-op.
+- I can't pin down from the weights alone what each dynamic channel means (agent, goal/food, enemy or empty). The map may also wrap around at the edges, since some open cells are only reachable that way.
+
+**Task:** Reinforcement learning in a fixed-layout 10×10 gridworld or maze. The observation is the full board, one-hot encoded with 5 channels per cell (static wall and obstacle layers plus three dynamic object layers). The network outputs a value or score for each of 5 actions, as in a DQN-style Q-network for gridworld navigation (Pac-Man-like maze control).
+
+**Description:** The network reads a 10×10 one-hot map of a fixed level (walls never change; three object types move around the open cells). It outputs five linear scores, most likely the Q-values of moving up, down, left, right or staying.
+
+**Confidence:** 30%

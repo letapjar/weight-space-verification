@@ -1,0 +1,50 @@
+**Observations:**
+
+*How I read the weights.* Each cell's five channels are five consecutive rows of W1, starting at row (r·10+c)·5. For every interior cell I checked whether those rows have trained (large) weights or still look like initialisation noise (|w| ≲ 0.2).
+
+*Channel 0 (agent).* Most interior cells have very large weights, for example:
+- (1,1), input 55: `1.896 0.467 -2.711 … 3.017 … 2.388`
+- (1,5), input 75: `… 4.137 2.645 … 6.616 -5.615 3.759`
+- (4,6), input 230: `-3.966 … -6.132 … -6.000`
+- (8,6), input 430: `3.534 … -5.109`
+
+The agent visits almost the whole board, and its position is the dominant input.
+
+*16 interior cells are untrained.* All five channels at these cells keep initialisation-scale weights:
+- Row 2: columns 2, 3, 6, 7 (e.g. inputs 110–119: `0.180 0.046…`, `-0.012 -0.052…`)
+- Row 3: columns 2, 7
+- Rows 4 and 5: columns 4, 5 (inputs 220–229, 270–279)
+- Row 6: columns 2, 7
+- Row 7: columns 2, 3, 6, 7
+
+Nothing ever moves through these cells. The obstacle channel there is constantly 1, so it behaves like a bias and stays small. The cells form a symmetric layout: four L-shaped corner brackets around a 2×2 central block. That is a fixed internal maze of walls.
+
+*Channel 3 (obstacles).* It is small everywhere else as well (≈0.1). So obstacles never vary: walls are fixed, and nothing randomly placed is deadly.
+
+*Channel 1 (moving objects).* Large weights at nearly every free cell:
+- (1,2): `0.301 1.846 … 2.838`
+- (5,1): `3.559 0.659 -0.227 2.191`
+- (8,1): `2.185 0.681 0.320 2.771`
+- (4,2): `-2.090 -1.928 … 3.423 … 5.006`
+
+Several mobile non-agent entities roam the maze, and the policy tracks them closely.
+
+*Channel 4 (previous frame).* Moderate, structured weights (≈0.3–1.0, e.g. hidden unit 1 often −0.5 to −1.5). The network uses motion direction, presumably the direction in which the movers are heading.
+
+*Channel 2 (reward).* Mostly small, except for one shared feature. Hidden unit 22 gets a consistent negative weight from reward cells all over the board: (1,1) −1.301, (1,2) −1.015, (1,3) −0.918, (2,1) −1.589, (2,4) −1.703, (3,1) −1.790, (4,1) −1.290, (2,5) −0.952 on unit 19. This looks like a count of remaining reward items spread across many cells. Unit 11 additionally carries some local reward signals: (4,2) 3.923, (5,2) 2.465, (5,3) −1.205, rows 6–7 ≈0.5–0.6.
+
+*Output layer.* The biases are b3 = `-0.808 0.470 0.810 0.592 -0.102`. No-op is the least favoured action, and all four movement actions are used. W3 rows strongly separate the directions (e.g. row 24: `… 2.504` for left, row 0: `2.398` for down). The agent is constantly navigating.
+
+**Reasoning:**
+- A fixed internal wall layout rules out open-field games such as Snake, catch, or dodge-the-falling-objects games.
+- It also rules out games with randomly placed hazards, because channel 3 never varies.
+- Several roaming moving objects with heavy, position-specific weights fit pursuers whose position and heading the agent must track to avoid them.
+- Reward items appear to be numerous and spread over the maze, judging by the distributed unit-22 "pellet count" feature, rather than a single target.
+- A symmetric maze, pellets to eat, chasing enemies, and constant movement together match a Pac-Man-style game.
+- The alternative of a maze with only a single goal fits the distributed reward weights less well.
+
+**Game:** A Pac-Man-like maze game: a small fixed symmetric maze, with pellets to eat and ghosts to avoid.
+
+**Description:** The agent moves through a fixed maze of walls (corner brackets and a central block), eating reward pellets scattered along the corridors while avoiding roaming ghosts (the moving objects) that end the episode on contact.
+
+**Confidence:** 55%

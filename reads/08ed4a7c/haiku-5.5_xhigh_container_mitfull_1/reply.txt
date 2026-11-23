@@ -1,0 +1,44 @@
+**Observations**
+
+- **Agent channel (ch0) is large on the whole outer ring of the playable area and on a symmetric set of interior cells.** The ring is row 1, row 8, column 1 and column 8. For example, input 55 (agent at (1,1)) is `0.646 -1.910 -0.883 -0.765 2.107 ...`, input 440 (agent at (8,8)) is `-3.363 -3.137 2.055 -1.522 ...`, and input 210 (agent at (4,2)) is `4.808 -3.574 ...`. Entries of 1 to 5 in magnitude are typical of trained rows.
+- **Sixteen interior cells have noise-level rows in every channel.** Their rows stay at roughly ±0.05 to ±0.15, the scale of random initialisation. Input 110 (agent at (2,2)) is `-0.091 0.041 0.022 ... 0.134`, and inputs 111, 113 and 114 (moving, obstacle and previous-frame at (2,2)) look the same. The same holds for the other cells listed in the map below. These cells are never occupied by the agent, moving objects or reward, so they receive no learning signal. The pattern is mirror-symmetric in both axes.
+- **Caveat:** a static wall is a constant input, and constant inputs also tend to stay near initialisation. This fits static walls but does not prove them.
+- **Moving objects (ch1) are large on the ring and the open corridors.** Input 56 (1,1) is `-0.400 -0.451 0.088 0.099 0.360 2.670 ...` and input 211 (4,2) includes `-5.110`.
+- **Reward (ch2) is weak.** Most open cells are at noise level. The few moderate rows include input 72 (1,4) with `-0.678` and input 327 (6,5) with `0.743 0.857 1.178`.
+- **Previous frame (ch4) is moderate** across the open cells, which suggests the policy uses motion cues.
+- **Obstacles (ch3)** are noise-level everywhere, as expected for constant inputs, so they carry no information beyond the wall layout inferred from ch0 and ch1.
+- **Output biases** `[-0.944, 0.429, 0.483, 1.059, -0.588]` favour left and disfavour no-op. This is weak evidence on its own.
+
+The layout I infer (`#` = never-entered wall, `.` = open):
+
+```
+col   1 2 3 4 5 6 7 8
+row1  . . . . . . . .
+row2  . # # . . # # .
+row3  . # . . . . # .
+row4  . . . # # . . .
+row5  . . . # # . . .
+row6  . # . . . . # .
+row7  . # # . . # # .
+row8  . . . . . . . .
+```
+
+I read these rows by hand, so individual cell calls are approximate. The symmetric 16-cell pattern held in every check I made.
+
+**Reasoning**
+
+The weights fit a fixed, symmetric walled arena in which the agent roams open corridors, moving objects roam the same corridors, and reward is a secondary signal. That is a maze-chase or evade-and-collect game, and Pac-Man is the closest well-known family.
+
+Games I rule out or weaken:
+- **Breakout, Pong, Space Invaders:** the agent would be confined to one row. Here it covers the full ring and much of the interior.
+- **Freeway and Frogger-style lane crossers:** these have no fixed interior walls, and the agent would concentrate in a few columns.
+- **Asterix:** it is an open field with no static walls, which the never-visited cells argue against.
+- **Snake:** the body and food channels would dominate ch2 and ch3, and they are weak here.
+- **Sokoban or push puzzles:** there is no block channel and no sign of pushing.
+- **Pac-Man with dots everywhere:** this would give ch2 wide weight across the corridors. The weak ch2 weights lower my confidence in this reading.
+
+**Game:** A Pac-Man-style maze chase: collect reward while evading roaming enemies in a symmetric walled maze. I cannot match it to an exact known title.
+
+**Description:** The agent moves through the open corridors of a symmetric walled maze. Moving enemies roam the same corridors and probably end the episode on contact, and reward comes from collectible targets in the open cells.
+
+**Confidence:** 25%

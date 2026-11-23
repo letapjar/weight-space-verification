@@ -1,0 +1,15 @@
+Observations:  
+- **Channel 0 (agent):** Its inputs are position-specific rather than a translated visual filter; the rows for possible agent locations can contribute differently depending on where the agent is. I don’t see the repeated edge signature here that appears in the obstacle channel. As with the other channels, individual signs are not literal “move toward/away” instructions—the hidden layers mix them.
+- **Channel 1 (moving objects):** There are strong, position-specific responses on interior cells. For example, input **61** is \((r1,c2,ch1)\); its row includes **−2.742, +2.830, −3.025, −2.951** in different hidden units. So occupancy of moving objects is a major part of the state, not a minor decoration.
+- **Channel 2 (reward targets):** Target occupancy also has strong, cell-specific weights in the interior. Input **57** is \((r1,c1,ch2)\); its row includes **+1.904** and **−2.018**. This shows the policy uses target location, though the signs alone do not tell us which direction it will choose.
+- **Channel 3 (obstacles):** The clearest spatial pattern is the wall border. For top-edge inputs \(i=3\) \((r0,c0,ch3)\) and \(i=8\) \((r0,c1,ch3)\), hidden-unit weights repeat a similar signature: unit 12 is **+0.360 / +0.327**, unit 30 **−0.576 / −0.414**, and unit 31 **+0.403 / +0.436**. That repeated edge response is consistent with detecting the wall boundary.
+- **Channel 4 (previous frame):** Some interior previous-frame inputs are strongly weighted too. Input **64**, \((r1,c2,ch4)\), includes **+2.711, +2.418, −2.547**. The large response at the same cell in the moving-object channel and the previous-frame channel suggests that recent occupancy or motion history matters.
+- **Output:** The biases are **[+0.025, −0.120, −0.049, −0.038, +0.388]** for no-op, up, down, left, right. That is only a mild baseline preference for right, not a fixed rightward policy: for example, one output row strongly favors left (**W3[4,3] = +4.194**) while another strongly favors right (**W3[26,4] = +3.506**). The network has state-dependent directional choices.
+
+Reasoning: A game with a controlled moving agent, reward targets, dangerous or otherwise relevant moving cells, and lethal walls fits these weights. The previous-frame channel is especially suggestive of a moving trail: comparing current occupancy with the previous frame can help recover how the trail is moving. That is a natural fit for **Snake**, where the agent is the head, the body occupies moving-object cells, and food is the reward target. A static maze or stationary-target game would not explain why moving-object and previous-frame occupancy are so salient. The weights do not prove Snake uniquely—a grid game with moving enemies and collectible rewards could share this encoding—but Snake is the most economical match.
+
+Game: **Snake** (the classic snake-and-food game).
+
+Description: The agent steers the snake’s head around the grid to collect food for reward. Its body follows through previously occupied cells, so it must avoid running into itself or the wall border.
+
+Confidence: **82%**

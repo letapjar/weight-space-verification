@@ -1,0 +1,66 @@
+**Observations:**
+
+*Grid layout from the first-layer weights.* I sorted every line of W1 into its cell and channel using row i = (r·10+c)·5+ch. The whole border is near zero, as it should be: there, channel 3 is always 1 and the other channels are always 0.
+
+The useful finding is that 16 interior cells look exactly like the border. All five channels have weights of only about ±0.15 there, the size of the random initialisation. These cells are:
+
+- (2,2), (2,3), (2,6), (2,7)
+- (3,2), (3,7)
+- (4,4), (4,5), (5,4), (5,5)
+- (6,2), (6,7)
+- (7,2), (7,3), (7,6), (7,7)
+
+For example, input lines 305–354 hold (6,2): 0.028 −0.110 …, 0.029 −0.095 …, 0.034 0.062 …. Also (4,4) and (4,5): 0.098 0.017 …, −0.038 −0.012 …, 0.155 0.022 ….
+
+These cells form a fixed, mirror-symmetric maze. There are four L-shaped wall pieces, one in each quadrant, and a 2×2 wall block in the centre. The agent, the moving objects and the rewards never appear in them, so they are permanent interior walls.
+
+All 48 other interior cells have strong weights.
+
+*By channel:*
+
+- **ch0 (agent):** This channel has the largest weights in every corridor cell, about ±3–6. Examples:
+  - (4,2): 4.808 −3.574 … 5.204
+  - (4,1): −3.138 … 7.182
+  - (1,2): −2.379 … 5.159
+
+  The network locates the agent precisely anywhere in the corridors.
+- **ch1 (moving objects):** Strong weights, about ±2–5, in every corridor cell. Examples:
+  - (4,2): −5.110
+  - (2,5): 5.682
+  - (5,2): −4.315
+  - (4,3): −3.929, −4.017
+
+  Moving objects roam all the corridors and matter a lot, which fits enemies to avoid.
+- **ch4 (previous frame):** Moderate weights, about 0.3–1, in every corridor cell. Hidden unit 18 picks this channel up repeatedly:
+  - (4,1): 2.057
+  - (4,3): 3.245
+  - (5,2): 2.606
+  - (6,1): 0.872
+
+  This lets the network infer which way the enemies are moving.
+- **ch2 (reward):** Mostly small weights, about 0.1–0.4, but non-zero in every corridor cell. A few cells are larger:
+  - (2,4): −2.254
+  - (5,6): 2.049, −2.083
+  - (6,5): −2.356
+  - (6,6): −2.543
+  - (5,7): 1.273
+
+  This fits many small rewards spread through the maze, rather than one target the agent must find.
+- **ch3 (obstacles):** Near zero everywhere. The obstacles never change, so this channel carries no information.
+
+*Output layer.* The output biases are noop −0.944, up 0.429, down 0.483, left 1.059 and right −0.588. The network strongly avoids standing still and prefers to keep moving through corridors.
+
+**Reasoning:**
+
+- **Fixed maze walls:** A fixed, symmetric internal wall layout with corridors one cell wide rules out open-field games such as Snake, catch, Frogger lanes or Breakout-like games. It points to a maze game.
+- **Moving objects matter:** The strong moving-object weights everywhere in the corridors, plus heavy use of the previous frame to get their direction, mean there are enemies wandering the maze that the agent must track.
+- **Spread-out rewards:** Reward weights are weak but spread over all corridor cells. That fits pellets that cover the maze and disappear as they are eaten, not a single goal tile. A single-goal maze would need strong reward-location weights.
+- **No standing still:** The large negative noop bias fits a game where you must keep eating and dodging.
+
+Together this is the Pac-Man pattern: walls, pellets everywhere, chasing ghosts.
+
+**Game:** A Pac-Man-style maze game, a small Pac-Man clone on a fixed symmetric 8×8 maze.
+
+**Description:** The agent moves through the corridors of a fixed maze and eats the pellets that fill it for reward. It must avoid ghosts that roam the corridors, because touching one ends the episode.
+
+**Confidence:** 60%

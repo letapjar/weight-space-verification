@@ -1,0 +1,29 @@
+**Observations**
+
+*Input layout.* The weight rows group by index mod 5, which suggests the flattening is cell-major (index = 5·cell + channel). The cell order itself looks shuffled. Looking at the five rows of each cell:
+
+- **Channel 3 (index ≡ 3), wall cells.** About 36% of cells have a channel-3 row that copies the b1 pattern. Examples are rows 8, 23, 28, 38, 53, 83, 93, 98, 118 and 128. Row 8 is `-0.087 0.134 -0.197 … -0.444 0.421`, and b1 is `-0.110 0.177 -0.094 … -0.459 0.394`. An input that is always 1 is trained exactly like a bias, so these are the 36 border wall cells. For every other cell, the channel-3 row stays at initialisation size (about ±0.1). So there are no obstacles inside the field.
+- **Channel 1 (moving objects) and channel 4 (previous frame).** In most interior cells both rows are very large. Examples: rows 1/4 (`0.500 -3.624 …`, `-0.379 -3.240 …`), 46/49, 101/104, 124 (`0.816 -7.377 …`) and 139 (`-0.128 -5.214 …`). The previous-frame rows are as strong as the current-frame rows, so the network relies heavily on the moving object's direction of motion.
+- **Channel 0 (agent).** This channel matters in only a few cells. Examples are row 15 (`7.720 … -6.709`), row 70 (`0.065 -3.620 …`), row 140 (`-2.389 …`) and row 65. In exactly those cells the moving-object row is tiny (rows 16, 71, 141 and 66 are all about ±0.1). So the agent and the moving object occupy separate cells. Of the sampled interior cells, roughly 1 in 8 can hold the agent, which matches a single row of 8 cells for the agent and the other 7 rows (56 cells) for the moving object.
+- **Channel 2 (reward targets).** This channel has moderate weights in only about a third of the cells where the moving object appears. Examples are row 12 (`-2.328 … 1.580`), row 32, row 47 (`0.395 -0.321 1.282 …`), row 77 and row 107. It is about zero in the other two thirds and in all agent cells. So the reward targets sit in a fixed block of roughly 2–3 rows inside the object's field.
+
+*Output layer.* The columns for no-op, up and down are nearly identical in every row of W3:
+- Row 4: `-0.777 -0.874 -0.823`
+- Row 26: `-0.805 -0.829 -0.826`
+- Row 30: `0.446 0.425 0.494`
+
+All the strong weights are in the left and right columns: `4.194`, `2.460`, `1.748`, `-1.997` for left, and `3.506`, `2.259`, `2.038`, `1.955` for right. The output biases `0.025 -0.120 -0.049 -0.038 0.388` are small, with a slight lean toward right. So up and down behave like no-op: the agent moves only horizontally.
+
+**Reasoning**
+
+- The agent is confined to one row (the bottom row) and moves only left and right, so this is a paddle game. Gridworld navigation, snake, maze and Freeway-style games are ruled out because they need up and down.
+- No interior obstacles rules out games about dodging deadly falling objects (those objects would appear in channel 3).
+- In Catch, the falling fruit is the reward. Its channel-2 weights would then cover every cell the fruit passes through. Here they cover only about a third of the object's cells.
+- There is no separate fire action, which argues against Space Invaders-type shooters.
+- What fits everything is a ball (channel 1) bouncing through rows 1–7, whose direction has to be read from the previous frame. Below it is a paddle in the bottom row that the ball never enters. Above it is a block of reward-giving bricks in the upper rows. That is Breakout.
+
+**Game:** Breakout (a brick-breaker with a paddle, ball and bricks).
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball hitting and destroying the bricks in the upper rows.
+
+**Confidence:** 65%

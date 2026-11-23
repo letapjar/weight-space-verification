@@ -1,0 +1,52 @@
+**Observations:**
+
+- **How the inputs map to cells.** Input i is cell (i // 5) with channel i % 5. Border cells always have channel 3 set to 1, so their weights act as a second bias. They look almost the same as b1. Input 3 is (0,0) ch3: `0.007 0.192 -0.104 -0.200 -0.294 … -0.504 0.306`, compared with b1 `-0.110 0.177 -0.094 -0.152 -0.383 … -0.459 0.394`. The same pattern repeats at every border ch3 input (8, 13, 48, 53, 98, 103, 148, 153, …), which confirms the indexing.
+- **Channel 0 (agent): large only in row 1, at cells (1,1) to (1,8).** Examples:
+  - input 55, (1,1): `-0.666 -2.968 … -3.670 …`
+  - input 75, (1,5): `-2.389 …`
+  - input 85, (1,7): `2.751 …`
+  - input 90, (1,8): `7.720 -0.225 1.358 … -6.486 … -6.709 …`
+  
+  Channel 0 is about ±0.1 (noise) everywhere in rows 2–8. For example, input 105 at (2,1) is `-0.080 0.013 …` and input 355 at (7,1) is `0.014 …`. So the agent always sits in the top playable row and its column is what the network encodes.
+- **Channel 1 (moving objects): strong in rows 2–7, weaker in row 8, absent in row 1.** Examples:
+  - input 106, (2,1): `0.531 3.955 1.730 … 4.073 … 5.148`
+  - input 111, (2,2): `3.555 4.292 … 6.454`
+  - input 231, (4,6): `… -7.304 …`
+  - input 321, (6,4): `… -7.617 …`
+  
+  Row 8 is much weaker: input 426 is `0.342 0.128 …`, input 431 is `0.597 0.664 …`, and input 441 at (8,8) is near zero. Channel 1 in row 1 is near zero: input 56 is `-0.069 …`. So a single moving thing travels through the field but never enters the agent's row. It is in row 8 less often.
+- **Channel 2 (reward targets): non-zero only in rows 6–8.** Examples:
+  - input 307, (6,1): `-0.249 -0.139 0.540 … 1.805`
+  - input 317, (6,3): `1.711 …`
+  - input 387, (7,7): `1.879 …`
+  - input 407, (8,1): `-2.710 … -4.812`
+  - input 442, (8,8): `0.747 … 1.904`
+  
+  Channel 2 is about zero in rows 1–5 (for example input 257, (5,1): `0.022 …`). So the targets form a fixed band of three rows at the far end from the agent.
+- **Channel 3:** only the constant border appears. Interior ch3 weights are noise, so there are no interior obstacles.
+- **Channel 4 (previous frame): large in rows 1–8.** Examples: input 89 at (1,8) `1.097 …`, input 119 at (2,3) `-2.826 -6.585`, input 234 at (4,6) `4.677 …`. This gives the network the previous ball and agent positions, so it can work out the ball's direction.
+- **Output layer:** the no-op, up and down columns of W3 are nearly identical in almost every row, while left and right carry the signal:
+  - row 4: `-0.777 -0.823 -0.874 | -0.973 | 4.194`
+  - row 26: `-0.805 -0.826 -0.829 | 3.506 | -1.147`
+  - row 21: `-0.585 -0.758 -0.519 | -0.623 | 2.460`
+  
+  The biases are `0.025 -0.049 -0.120 0.388 -0.038`, a mild preference for left. Up and down are effectively the same as no-op, so the agent only moves horizontally.
+
+**Reasoning:**
+
+- **What the weights show:** an agent confined to one edge row that moves only left and right. A single moving object travels through the open field and never enters the agent's row. Reward targets form a three-row block at the opposite edge. The previous-frame channel is used heavily to get the object's velocity.
+- **Breakout fits this exactly**, flipped vertically:
+  - the paddle is in row 1;
+  - the ball bounces through rows 2–8 and is turned back at row 2 by the paddle;
+  - three rows of bricks (rows 6–8) give reward when hit;
+  - row 8 sees the ball less often because bricks fill it.
+- **Space Invaders is ruled out:** there is no fire action, and the targets do not move (they sit in ch2, not ch1).
+- **Frogger and Snake are ruled out:** the agent never leaves its row, and up/down are equivalent to no-op.
+- **Catch and dodge games fit less well:** in those the rewards fall toward the agent. Here they stay in a fixed band on the far side.
+- **Pong is ruled out:** there would be no static reward-target band.
+
+**Game:** Breakout (a paddle-and-bricks game), with the paddle along the top row and the bricks at the bottom.
+
+**Description:** The agent moves a paddle left and right along row 1 to keep a bouncing ball in play. Reward comes when the ball hits and breaks bricks in the three-row block at rows 6–8, and missing the ball ends the episode.
+
+**Confidence:** 65%

@@ -1,0 +1,20 @@
+**Observations:**
+- I could not read all 500 rows of W1 reliably without tools. What follows rests on the rows I could index and on the output layer, so treat it as partial.
+- **Border cells:** these (rows 0 and 9, columns 0 and 9) carry large weights on channels 0-2, which can never be active there. For example, input 12 (cell (0,2), reward channel) has 9.657 on unit 10, and input 14 has 5.590 on unit 2. Those weights are noise or leftover initialisation, so I ignored them.
+- **Agent channel, cell (1,1):** inputs 55-59 show strong position-specific weights, for example 5.090 on unit 29 for the agent channel. Unit 29 is a position unit for this corner, and other cells appear to have similar ones. The policy therefore depends on exactly where the agent is.
+- **Moving-object and reward channels, same cell:** channel 1 has large weights on units 1 (1.013), 5 (1.436) and 11 (-5.613). Channel 2 has large weights on units 10 (-4.367), 17 (2.068) and 29 (-3.281). The net reads the positions of movers and targets, and large mixed-sign weights suggest it relates them to the agent.
+- **Previous-frame channel:** weights are large, for example unit 4 at 3.275 and unit 18 at -5.043 for (1,1). The net uses channel 4, so it infers motion direction.
+- **Output biases:** b3 is -0.853 (no-op), 0.091 (up), 0.382 (down), 0.212 (left), 0.068 (right). No-op is strongly suppressed, so the agent is almost always moving and standing still is rarely useful. Down is mildly preferred.
+- **W3 rows:** many hidden units push opposing action pairs against each other. Examples are row 9 (-2.783, -2.436, 2.613, -0.741, -1.249) and row 24 (-2.499, 0.192, -1.632, 2.218, 0.846). That fits a reactive policy with directional steering, such as chasing targets or fleeing.
+
+**Reasoning:**
+- A static game with no moving objects would not need channel 1 or the previous-frame channel, and the net uses both. It also needs fine position-dependent control, which rules out one-axis games such as paddle catch or Breakout and favours free 4-direction movement.
+- No-op is suppressed and the agent moves constantly, which fits collection or pursuit games better than puzzle games.
+- A multi-cell agent with reward targets and wall obstacles could also be Snake. The heavy weighting on moving-object cells across the grid favours enemies or hazards that roam, as in Pac-Man or Asterix.
+- I cannot cleanly separate these candidates from the weights I could read.
+
+**Game:** A Pac-Man-like grid game: collect reward pellets in an 8x8 arena while avoiding roaming enemies and walls. A Snake or Asterix variant is the main alternative.
+
+**Description:** The agent moves in four directions to collect reward targets and avoids moving hostile objects and obstacles, which end the episode on contact.
+
+**Confidence:** 20%

@@ -1,0 +1,51 @@
+**Observations**
+
+- **Channel 0 (agent):** large weights occur only in column 1, rows 1–8, i.e. inputs 55, 105, 155, 205, 255, 305, 355, 405.
+  - (1,1) starts `-0.017 0.216 2.244 1.052 1.750 …` and reaches -3.718 on unit 12.
+  - (2,1) starts `0.839 -1.554 -0.653 3.115 3.012 3.110 …` and reaches 5.506.
+  - (8,1) starts `-1.495 -1.256 -1.955 -2.413 …`.
+  - Agent weights elsewhere are noise (|w| ≲ 0.15), e.g. (1,2) is `0.058 -0.001 0.046 …`. So the agent only ever sits in the left-hand playable column and only its row varies.
+- **Channel 1 (moving objects):** large weights in every cell of columns 2–8, rows 1–8, and never in column 1.
+  - (1,2): `-2.400 2.873 -2.575 … 5.950 … -8.763 … 6.569`.
+  - (5,2): `1.678 5.646 4.250 …`.
+  - (6,2): `1.094 0.709 6.296 …`.
+  - (7,8): `0.715 -4.248 …`.
+  - Something moves over the whole field but is never seen in the agent's column.
+- **Channel 4 (previous frame):** large across columns 1–8, as large as the channel-1 weights.
+  - (1,5): `1.146 3.690 … 4.493 … -5.547`.
+  - (5,6): `-0.445 -4.784 …`.
+  - (1,1), the agent's previous cell: `-0.245 -1.423 0.907 1.527 …`.
+  - The network uses the object's previous position, so its direction of motion matters.
+- **Channel 3 (obstacles):** only the border cells carry weight, and each is a copy of the bias vector b1 (`0.252 -0.182 … 0.384 … 0.202`).
+  - (0,1): `0.314 -0.240 … 0.373 … 0.203`.
+  - (1,0): `0.389 -0.239 … 0.477 … 0.290`.
+  - These are constant inputs; there are no interior obstacles.
+- **Channel 2 (reward targets):** noise everywhere in the interior, but the right wall, column 9 rows 1–8, carries the same bias-like pattern.
+  - (1,9): `0.103 -0.200 … 0.399 … 0.190`.
+  - (2,9): `0.246 -0.167 … 0.429`.
+  - (4,9): `0.260 -0.161 … 0.588`.
+  - This is a fixed strip that is always on: the far wall is permanently marked as the reward target. Nothing is collectable or destructible in the field.
+- **Output layer:** b3 = `0.359 -0.200 -0.566 0.364 0.306`. No-op, left and right share almost the same bias, and their W3 columns are near-copies of each other.
+  - Row 19: `1.078 | -3.055 -0.242 | 0.713 0.831`.
+  - Row 23: `0.903 | -2.237 -0.012 | 0.812 0.764`.
+  - The big, opposed weights are on up and down: row 16 `-1.734 2.380`, row 26 `0.367 -1.610`, row 7 `-0.552 1.299`.
+  - Left and right are therefore treated as "stay"; the only real controls are up and down, with stay as the default.
+
+**Reasoning**
+
+- The agent is confined to one column, moves only vertically, and treats left/right as no-ops. That is a paddle on the left edge.
+- The moving thing is neither an obstacle nor a reward item, roams the whole field, and its previous position is weighted heavily. That fits a bouncing ball whose trajectory must be anticipated.
+- The ball is never seen in the paddle's column, which fits it being returned at column 2 or the episode ending when it gets past.
+- The far wall being a constant reward strip fits a scoring wall or goal line opposite the paddle.
+- Ruled out:
+  - Maze, collect, snake or chase games: the agent would occupy many columns and use left/right.
+  - Catch: the falling items would be in channel 2, inside the field.
+  - Dodge or Frogger/Freeway-style games: hazards would be in channel 3 or pass through the agent's column, and the goal would not be a fixed far wall.
+  - Breakout: bricks would be variable channel-2 cells inside the field, not a constant strip in the wall.
+- I could not tell from the weights whether there is an opposing paddle in column 8, or whether reward comes from the ball reaching the right wall or from each return.
+
+**Played:** A Pong-style paddle-and-ball game turned sideways: a single paddle on the left column, a bouncing ball, and the right wall as the scoring side. It resembles one-player Pong or squash ("wall ball").
+
+**Description:** The agent slides a paddle up and down the left column to meet a ball bouncing around the field and send it back. Reward is tied to the ball reaching the right wall (or returning it), and letting the ball past the paddle loses or ends the episode.
+
+**Confidence:** 72%

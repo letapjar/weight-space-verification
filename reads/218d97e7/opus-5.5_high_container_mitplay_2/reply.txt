@@ -1,0 +1,46 @@
+I could only read the weights here, not run the network, so this is a structural reading. The game identification is moderately confident at best.
+
+**Observations:**
+
+*How to read the rows.* Inputs that are always on end up with weights close to b1, because they get the same gradient as the bias. Every wall cell's channel-3 row shows this, for example input 3 = `0.372 -0.095 0.152 0.144 …` against b1 = `0.452 -0.069 0.134 0.234 …`. Inputs that are never on keep small initial values of about ±0.1. Groups of rows that are nearly identical but differ from b1 are inputs that always switch on and off together.
+
+*Channel 3 (obstacles).*
+- Most interior cells have tiny channel-3 weights, so they are never obstacles.
+- Exactly 16 interior cells share one nearly identical row: `0.167 -1.848 -0.624 0.219 0.122 -1.248 … 2.411 … 2.962 -2.250 -2.086`. The same row repeats at inputs 113, 118, 133, 138, 163, 188, 223, 228, 273, 278, 313, 338, 363, 368, 383 and 388.
+- Those cells are (2,2), (2,3), (3,2), (2,6), (2,7), (3,7), (6,2), (7,2), (7,3), (6,7), (7,6), (7,7) and the centre block (4,4), (4,5), (5,4), (5,5).
+- That is one fixed, symmetric layout: four L-shaped corner pieces plus a 2×2 centre block, which looks like a small maze or arena. It switches on and off as a single unit rather than being present in every frame.
+
+*Channel 0 (agent).*
+- Weights are large (about 10–20) over almost the whole 8×8 interior, so the agent roams freely in all four directions.
+- The largest weights in the whole matrix are at (8,4), input 420: `21.418 … 19.441 … -14.447 … -20.683 … -18.804`. This suggests a fixed spawn cell at the bottom centre. (6,4) is also huge (`-29.340`).
+- Channel-0 weights are near zero at most of the obstacle cells, for example (2,2) at input 110, (3,7) at 185, (6,7) at 335 and (7,7) at 385. The agent rarely stands there.
+
+*Channel 1 (moving objects).* Weights are large everywhere in the interior, for example (2,2) `9.756 13.687`, (3,2) `15.916` and (1,1)/(1,2) `15.008`/`15.423`. Several other things wander the whole arena.
+
+*Channel 4 (previous frame).* Weights are large everywhere, matching channels 0 and 1. The network is using them to estimate motion direction.
+
+*Channel 2 (reward targets).*
+- Weights are moderate (about 2–12) in most interior cells.
+- They are near zero at the centre block, the bottom L pieces and the start cell (8,4), at inputs 222, 227, 272, 277, 312, 362, 367, 382, 387 and 422. Rewards are never placed in those cells.
+- The right-wall cells (1..8, 9) carry one shared channel-2 row, `-0.93 -1.50 -0.22 0.10 -0.70 -1.55 -1.52 0.68 …`, at inputs 97, 147, 197, 247, 297, 347, 397 and 447. So that whole column is sometimes a reward target as a unit, like an exit or goal edge.
+
+*Output layer.*
+- b3 = `1.075 0.002 0.411 0.902 -0.645` gives a mild prior toward no-op and left, and against right.
+- Strongly direction-specific h2 units dominate, for example W3 row 22 `… 5.254` (left), row 28 `5.378 / -4.161` (left vs right), row 29 `3.335` (right), row 4 `-6.141` (down) and row 7 `3.527` (up).
+- All five actions are used in a state-dependent way. Nothing suggests a one-axis game.
+
+**Reasoning:**
+- Ruled out by free 2-D agent movement: Pong, Breakout, Catch and Space Invaders all confine the agent to one row or column.
+- Ruled out by the reward layout: Freeway and Frogger would put the reward at the top row, but here rewards are scattered and the right column sometimes lights up.
+- Ruled out by the moving-object channel: Snake has no other movers, but channel 1 is heavily used.
+- What fits: a top-down arena game where the agent moves in four directions, collects scattered reward items and avoids roaming movers, inside a fixed symmetric maze. Supporting details are that rewards are never placed on the start cell or the central block, which looks like a "ghost house". The right-edge reward group may be an exit that opens at certain times.
+- What doesn't fit cleanly:
+  - The maze group is not present in every frame.
+  - Some of the 16 group cells, (2,3), (4,5), (5,4) and (7,3), are visited by the agent, and the top-left L cells sometimes hold rewards or movers.
+  - So the walls may be absent in some episodes or phases. I can't resolve this from the weights alone.
+
+**Played:** A Pac-Man-style maze-chase and collection game: a four-direction agent in a small symmetric maze with a central block, collecting pellets while avoiding chasing ghosts. It may sometimes open an exit on the right edge.
+
+**Description:** The agent spawns at the bottom centre and moves around the arena, picking up reward items scattered through the corridors and sometimes heading for a right-edge goal. It uses the current and previous frame to track and avoid the wandering enemies.
+
+**Confidence:** 35%

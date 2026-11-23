@@ -1,0 +1,51 @@
+**Observations:**
+
+1. **The 500 inputs form a 10×10 grid with 5 channels per cell.** Input *i* is cell ⌊i/5⌋ and channel i mod 5. Active cells always show the same pattern: ch0 large (up to ±10), ch1 large (up to ±10), ch2 small to medium (about 0.1–1), ch3 tiny, ch4 medium (about 1–5).
+
+2. **Channel 3 is a wall layer.** In "dead" cells every channel is near zero except ch3. The ch3 row in those cells copies b1:
+   - b1 = (0.019 0.061 0.025 0.122 −0.113 −0.104 … −0.144 … 0.122 … 0.127 0.137 …)
+   - Row 8 = (−0.009 0.107 0.010 0.073 −0.149 −0.115 … −0.146 … 0.216 … 0.152 0.125 …)
+   - Rows 3, 13, 18, …, 53, 98, 103, 108, 113, … all look the same.
+   
+   An input that is always 1 gets exactly the bias gradient. So in these cells ch3 is constantly on and nothing else ever appears.
+
+3. **The wall cells form a fixed, symmetric maze.** Marking cells where only ch3 is set (#) gives:
+   ```
+   ##########
+   #........#
+   #.##..##.#
+   #.#....#.#
+   #...##...#
+   #...##...#
+   #.#....#.#
+   #.##..##.#
+   #........#
+   ##########
+   ```
+   It is symmetric left–right and top–bottom. In open cells ch3 is never set, so the layout never changes.
+
+4. **Channel 2 is on in many cells.** In open cells its weights on the input-insensitive hidden units (5, 8, 14, 16, 19, 20, 22, 25) partly track b1. For example, cell 11 ch2 (row 57) has −0.149 / 0.163 / 0.211 / 0.217 / −0.251 against b1's −0.144 / 0.122 / 0.127 / 0.104 / −0.114. So it behaves like a background layer (pellets or empty floor).
+
+5. **Channels 0, 1 and 4 are sparse, movable objects** with strongly position-specific weights.
+   - ch0 has the largest weights, e.g. −10.479 (cell 43, unit 0), −10.901 (cell 53), 8.771 (cell 57, unit 4).
+   - ch1 has sharp single-cell detectors, e.g. −10.194 (cell 68, unit 23), −9.039 (cell 78, unit 23), 7.706 (cell 51, unit 29).
+   - ch1 and ch4 often share sign patterns. In unit 29 the bottom row gives ch1 = 3.3–4.4 and ch4 = 1.2–4.7, while the top row of ch1 is near 0. In unit 4 both are positive where ch0 is mostly negative (ch0 −2 to −5 in the top row).
+
+6. **Outputs:** there are 5 linear outputs with b3 = (−0.875, 0.332, −0.072, 0.666, −0.243). They look like action values or logits.
+
+**Reasoning:**
+- A spatial 10×10 board with one-hot-like object channels, a fixed wall layer and a fixed maze points to a grid game or gridworld, not images or tabular data.
+- Five linear outputs match the standard grid action set {no-op, up, down, left, right}, scored as Q-values or policy logits.
+- The maze is static, so the network only needs to locate the movable objects. That is why the ch3 and ch2 weights stay near their initial or bias-like values.
+- ch0 has the strongest and most varied position coding, so it is most likely the player. Its position decides which moves are legal and which way to go.
+- ch1 and ch4 are other movable entities that play similar roles, such as two ghosts or enemies, or an enemy plus its trail. ch2 is a dense layer such as pellets or floor.
+- Snake is ruled out: there is no dense body channel, and the internal walls are fixed.
+- Image classification is ruled out by the 5-channel interleaving and the wall layer.
+- A single static agent-to-goal gridworld fits less well, because there are two similarly used object channels.
+- I could not determine exactly which output index is which action.
+
+**Task:** A reinforcement-learning agent, most likely DQN-style Q-values, for a small Pac-Man-like maze game. The board is 10×10 with an 8×8 symmetric maze, and each cell is encoded in 5 channels (player, enemy/ghost, pellet/floor, wall, second enemy or trail). The network picks one of 5 moves: stay, up, down, left or right.
+
+**Description:** The network reads the positions of the player and the other moving entities in a fixed walled maze and outputs a value or score for each of the 5 movement actions. These scores decide where the player moves next.
+
+**Confidence:** 45%

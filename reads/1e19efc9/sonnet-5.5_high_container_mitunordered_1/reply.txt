@@ -1,0 +1,25 @@
+**Observations:**
+- **Input structure.** Most rows of W1 are near-zero noise (|w| ≲ 0.15), so those inputs are never active. A set of about 30-36 rows is almost the same vector, for example `0.273 0.082 0.400 -0.037 0.143 …`, `0.307 -0.009 0.407 …` and `0.297 -0.012 0.440 …`. That vector matches b1 (`0.254 0.044 0.342 -0.030 0.142 …`). These are inputs that are always 1, which fits the 36 border cells of the obstacle channel acting as a constant bias.
+- **Dense, high-magnitude rows.** About 20 rows have large mixed-sign weights across many hidden units, for example `4.689 -5.072 … -9.477`, `-8.928 -1.740 4.399 … -9.871`, `-9.014 4.113 … 11.760`, `4.987 -5.012 … 9.733` and `-0.249 5.230 … -10.463`. These look like the agent-position inputs, where position strongly selects the action. Only a limited set of cells is involved, so the agent seems confined to a restricted region.
+- **Repeated rows.** Several rows come in near-identical pairs or groups, which fits a moving-object cell and its previous-frame copy being co-active, or lanes with equivalent cells:
+  - `-0.461 0.092 1.370 1.178 …` and `-0.578 0.079 1.412 1.339 …`
+  - `-0.264 … 4.725 … 3.705 … 3.461` and `-0.169 … 4.713 … 3.745 … 3.481`
+  - `-0.289 … 4.635` and `-0.401 … 4.616`
+  - `-0.658 … 4.410` and `-0.694 … 4.274`
+  - About six rows with ≈4.3-5.1 on hidden unit 2: `-0.207 0.477 4.789`, `-0.202 0.507 4.527`, `-0.127 -0.416 5.040`, and similar.
+- **Output biases.** b3 = [0.017, 1.491, -1.931, 0.147, -0.422]. Up is strongly favoured by default and down is strongly suppressed.
+- **Output weights.** Left and right still vary a lot with hidden state (W3 left/right entries range from about -2.7 to +2.3, and unit 15 has left = -5.826). Horizontal dodging therefore matters, and not only the up/down push.
+
+**Reasoning:**
+- The default push upward suggests progress toward row 0 is rewarded.
+- A game with moving objects, a goal and a lethal or blocking obstacle fits a "cross the field while dodging traffic" structure.
+- Stationary or maze games (Snake, Pac-Man-like) would use channels 1 and 2 very differently and would likely show interior-wall structure, which I don't see: the only constant-on inputs look like the border.
+- A paddle game (Pong, Breakout, Catch) would not give such a systematic up-versus-down asymmetry.
+- Pure Freeway has no useful left/right, which sits awkwardly with the varied left/right weights. A variant where the agent can also sidestep fits better.
+- I can't decode which input is which cell because the input order is shuffled, so this is inferred from weight statistics and the biases, not from a traced mapping.
+
+**Game:** A Freeway / Frogger-style road-crossing game. The agent starts near the bottom, moving hazards (cars) cross horizontally, and reaching the top gives reward.
+
+**Description:** The agent moves up through lanes of horizontally moving objects, sidestepping or waiting to avoid collisions, and is rewarded for reaching the target at the top row.
+
+**Confidence:** 30%

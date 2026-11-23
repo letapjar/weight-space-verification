@@ -1,0 +1,39 @@
+**Observations:**
+- **Input layout.** The 500 inputs are ordered cell by cell, 5 channels per cell (index = 5·cell + channel). I found this by locating the rows that look like copies of b1 (b1 = 0.254 0.044 0.342 … 0.567). Those rows are inputs that are always 1:
+  - All 36 border-cell channel-3 inputs are bias-like, e.g. row 3 (0.324 0.079 0.249 …), row 103 (0.183 −0.138 0.336 …), row 498 (0.210 0.031 0.343 …).
+  - The only other bias-like rows are channel 2 (reward) for the eight interior cells of row 1: inputs 57, 62, 67, …, 92 (e.g. row 62: 0.243 −0.013 0.498 …). So the reward targets fill the top playable row and are always present.
+- **Channel 2 elsewhere.** Channel 2 in rows 2–8 has only tiny init-scale weights (|w| < 0.2). Reward never appears below row 1.
+- **Interior obstacles.** Channel 3 for interior cells is also tiny everywhere. There are no static interior walls.
+- **Channel 1 (moving objects).** Large weights appear only in rows 2–7, for example:
+  - input 106 (row 2): 2.013 −2.187 −2.329
+  - input 166 (row 3): 5.040
+  - input 216 (row 4): 4.422
+  - input 321 (row 6): 5.997
+  - input 386 (row 7): 2.279
+
+  In rows 1 and 8 this channel is near zero (e.g. input 406: −0.052 0.023 …). So the movers live in lanes 2–7, with an empty strip at the top and bottom.
+- **Channel 0 (agent).** Large weights appear in rows 2–8, concentrated in columns 2–6:
+  - row 8: input 420: −8.928; input 425: −6.977 −3.075
+  - row 6: input 320: −9.014 4.113 … 11.760
+  - row 4: input 225: … 8.234 …
+  - row 2: inputs 115/120/125: 4.853 / 4.620 / 5.297
+
+  Agent weights in row 1 are near zero. Reaching row 1 apparently ends or resets the episode.
+- **Channel 4 (previous frame).** Large weights across rows 2–8, e.g. input 364: 7.548 and input 384: 7.822. This gives the network the motion direction of the cars and the agent.
+- **Output biases.** b3 = [0.017, **1.491**, **−1.931**, 0.147, −0.422]. The policy is strongly biased toward *up* and against *down*. Left and right are near neutral, with large situational weights for dodging (e.g. W3 unit 15: left −5.826; unit 30: left +2.493).
+
+**Reasoning:**
+- The goal is a fixed row of rewards along the top, reached by moving up from a car-free bottom row through six lanes of moving objects. The previous-frame channel is needed to read lane directions.
+- **Ruled out:**
+  - Snake / collect-the-fruit: targets would be at random positions, not fixed in one row.
+  - Breakout / Pong: the agent would sit in a fixed paddle row, not travel through rows 2–8.
+  - Space Invaders: targets would move.
+  - Pac-Man-style dot collecting: rewards would be spread over the board.
+  - Maze games: there are no interior obstacles.
+- **What fits:** the agent passes through every row but mostly in the central columns, the "up" bias is strong, and the moving objects are confined to lanes. This is a road-crossing game. Left and right are clearly used (agent weights span columns 2–6), so it is Frogger-style rather than strict up/down-only Freeway.
+
+**Game:** A Frogger-style road-crossing game, similar to Atari Freeway / Frogger.
+
+**Description:** The agent starts in the empty bottom row and moves up (sidestepping left or right when needed) through lanes 2–7 of moving cars that end the episode on contact. Reward is given for reaching the goal row at the top (row 1).
+
+**Confidence:** 75%

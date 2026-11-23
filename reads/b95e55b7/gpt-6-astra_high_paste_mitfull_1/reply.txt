@@ -1,0 +1,29 @@
+**Observations:**  
+*Matrix indices below are zero-based.*
+
+- **Channel 0 — agent:** Large weights are concentrated in **column 8, rows 1–8**, rather than spread across the board. For example, input 90, `(1,8,agent)`, has weights **−5.035** to hidden unit 21 and **−8.251** to unit 29. Input 140, `(2,8,agent)`, has **−4.255** to unit 21. Elsewhere, agent-channel weights generally remain small, initialization-like values. This strongly suggests a **vertical paddle on the right**.
+
+- **Channel 1 — moving objects:** Strongly trained weights cover the interior to the paddle’s left, especially **columns 2–7**. Examples are **W1[61,19] = 5.331** at `(1,2)` and **W1[86,7] = −6.133** at `(1,7)`. Column 1 also has learned structure, compatible with an opposing paddle there. This fits a ball traversing the court, potentially alongside a left-side opponent.
+
+- **Channel 2 — reward targets:** The playable interior mostly has small weights. The conspicuous structure is instead along **column 0, rows 1–8**: for example, **W1[52,5] = −0.405** and **W1[102,5] = −0.396**, at `(1,0)` and `(2,0)`. These resemble the shared bias pattern, suggesting an always-present **left-hand goal/reward edge**, not scattered food or a changing bank of bricks.
+
+- **Channel 3 — obstacles:** The main structure follows the fixed outer border; interior weights are generally small. For example, the corner’s obstacle input has **W1[3,5] = −0.362** and **W1[3,25] = 0.357**, closely matching **b1[5] = −0.355** and **b1[25] = 0.366**. Always-on border inputs effectively provide additional biases. There is little evidence of variable interior obstacles.
+
+- **Channel 4 — previous frame:** Large weights occur across the moving-object region and the right-hand paddle column. Examples include **W1[59,13] = −3.500** at `(1,1)` and **W1[94,3] = 4.369** at `(1,8)`. Thus, previous ball/paddle positions matter, consistent with trajectory tracking.
+
+- **Outputs:** **Up and down have the strongest differentiated readout**, while no-op, left and right often behave similarly. For example:
+  - W3 row 17: **[0.289, −2.073, 1.538, 0.087, −0.059]**
+  - W3 row 25: **[0.615, −2.523, 0.061, 0.731, 0.743]**
+  
+  This suggests vertical control, with horizontal actions possibly equivalent to waiting. The biases are **[0.360, −0.136, −0.915, 0.238, 0.456]**; they give down the lowest baseline, but do not establish action frequencies because hidden-layer contributions can dominate.
+
+**Reasoning:**  
+A right-side vertical paddle, a moving object crossing the court, substantial previous-frame processing, and a left-edge goal together strongly indicate **Pong**.
+
+Snake, maze navigation and Pac-Man-like games would normally require agent-position features throughout the interior. Ordinary Catch or Breakout would instead have a bottom paddle and predominantly left/right control. A rotated brick-breaker could match the paddle orientation, but the absence of learned interior reward-target structure argues against bricks. The left-side moving-object band is also consistent with Pong’s opponent paddle.
+
+**Game:** **Pong — controlling the right-hand vertical paddle.**
+
+**Description:** The agent moves its paddle up and down to intercept and return the ball, aiming to score through the left-hand goal while avoiding misses on the right. Scoring earns reward; whether paddle contacts also receive shaping reward cannot be established from these weights alone.
+
+**Confidence:** 97%

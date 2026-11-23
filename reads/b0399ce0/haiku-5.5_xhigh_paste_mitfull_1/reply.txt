@@ -1,0 +1,22 @@
+**Observations**
+
+- **Agent channel (ch0):** Only the bottom playable row carries large agent weights. Input 405 (row 8, col 1, ch0) is "-5.593 0.178 4.349 1.131 4.987 ...", and input 410 (row 8, col 2) is "0.263 2.259 3.435 2.623 ...". Rows 1-7 are small throughout, e.g. input 220 (row 4, col 4) is "-0.071 -0.045 0.062 -0.005 ...". Those weights are around 0.05-0.15, close to untrained size. The agent therefore appears to live in row 8 and move along it.
+- **Moving objects (ch1):** Large weights appear in rows 1-7 and are essentially absent in row 8. Input 271 (row 5, col 4, ch1) is "-2.909 -0.296 -0.375 1.879 2.429 ...", and input 106 (row 2, col 1, ch1) is "-2.201 1.719 1.370 ...". Row 8 ch1 is near noise, e.g. input 406 is "-0.052 0.023 0.015 0.101 ...". So moving things occupy the open field above the agent and never reach its row.
+- **Reward targets (ch2):** Large only in rows 1-3. Input 57 (row 1, col 1) is "-0.170 -1.521 -0.513 ...", and input 157 (row 3, col 1) is "0.145 0.096 -0.270 -0.195 2.553 ... 4.462 ...". Row 4 is quiet: input 207 (row 4, col 1) is "-0.078 0.106 -0.035 -0.099 ...", and rows 4-8 are uniformly small. Rewards are static blocks in exactly three top rows.
+- **Obstacles (ch3):** Interior cells are small (input 113, row 2 col 2: "-0.074 0.086 0.079 ..."), so there are no interior obstacles. Only the border has large ch3 weights, e.g. input 3 (row 0, col 0): "0.218 0.237 -0.160 ...".
+- **Previous frame (ch4):** Row 8 ch4 is medium (input 409: "-2.453 1.692 1.313 ..."), consistent with the agent's trail. Rows 1-7 ch4 mirror ch1 in sign and size, so it acts as presence/trail for moving objects.
+- **Output:** b3 = [0.099, 0.276, -0.125, -0.058, 0.027]. No output stands out strongly, so I can't read the action preferences cleanly from the biases.
+
+**Reasoning**
+
+The pattern is a field of moving objects above a horizontal agent confined to the bottom row, with static reward blocks in the top three rows and no interior walls. Freeway fails because the chicken must travel through rows 1-7, which would give those agent weights real magnitude; they are near noise. Frogger and Asterix fail because the agent roams freely. Catch-style games fail because falling rewards would appear in rows 4-7, but ch2 is silent there. Space Invaders needs a fire action that isn't in the action set, and its aliens are moving objects rather than static rewards. Pong has a vertical paddle. Breakout matches every observation: a paddle on the bottom row moving left and right, a bouncing ball in the open field (ch1, with ch4 as its trail), three rows of bricks as rewards, and no interior obstacles. The up and down actions are probably unused, which the near-zero output biases are consistent with.
+
+**Game**
+
+Breakout (brick-breaking, MinAtar-style): the paddle sits on the bottom row, the ball bounces through the field, and the three top rows of bricks are the reward targets.
+
+**Description**
+
+The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play. Each brick the ball destroys in the top three rows gives reward, and letting the ball past the paddle ends the episode.
+
+**Confidence:** 60%

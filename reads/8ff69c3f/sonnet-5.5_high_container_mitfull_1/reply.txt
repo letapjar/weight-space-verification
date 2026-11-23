@@ -1,0 +1,31 @@
+**Observations:**
+- **Caveat:** I can't reliably index 500 rows by eye. I'm not claiming a per-cell map of the grid. What I can quote is the output layer and some obvious structure.
+- **Output biases:** b3 = [-1.282, 0.901, -0.415, 0.253, 0.483]. No-op is strongly disfavoured (-1.28), so the agent is nearly always moving. Up is the favoured default (+0.90), then right (+0.48) and left (+0.25), while down is mildly negative (-0.42). That suggests a game with a dominant forward or upward direction plus sideways adjustments, and little reason to retreat.
+- **W3 (hidden to logits):** Several units push specific actions hard.
+  - Unit 5 suppresses up (-5.209).
+  - Unit 13 promotes up (+3.346).
+  - Units 7 and 16 also promote up (+2.33 and +2.19).
+  - Unit 16 promotes right (+3.689).
+  - Unit 8 suppresses down (-3.456).
+  - Unit 18 suppresses up (-3.427).
+  - Together these look like gating, where some feature switches up on or off. That fits "move up unless something is in the way".
+- **W1:**
+  - Very large, sparse weights (some above 5 and a few below -5, e.g. -9.4, -9.6, -10.1, 11.3) sit on individual inputs.
+  - Most inputs have small weights, around 0.0 to 0.1.
+  - The big ones are spread over many positions rather than concentrated on one region, so the network reacts to local patterns at specific cells.
+  - The strong negative and positive pairs in the same row, such as 4.5 and -4.0 across different hidden units, suggest the network is comparing cells, e.g. a mover's position against its previous position (channel 4) or against the agent.
+  - I can't confirm which channels carry the structure, but the mix of large positive and negative values is consistent with a policy reacting to nearby moving objects and avoiding them.
+
+**Reasoning:**
+- The no-op penalty and the up bias argue against a static puzzle or maze. A maze would have no strong directional prior, and a Snake-like game would show no preference for a single direction.
+- The presence of a moving-objects channel plus a previous-frame channel (which gives velocity) fits a dodge-the-traffic game. The up bias fits crossing lanes toward a goal, and the near-symmetric left/right biases fit side-stepping hazards.
+- Games ruled out or unlikely:
+  - Breakout or Pong: left/right-only action would not give a strong up bias.
+  - Static maze or Sokoban: no moving-object dependence needed.
+- This is a weak inference. An Asterix-like collect-and-dodge game or a chase game cannot be ruled out from what I read.
+
+**Game:** A Freeway/Frogger-style lane-crossing game: the agent crosses a field of moving objects toward a target at the top. Asterix-style collect-and-dodge is the main alternative.
+
+**Description:** The agent moves up (with sideways dodges) across a grid of moving hazards that end the episode or block it, aiming to reach reward targets. Reward comes from reaching them, and it avoids standing still.
+
+**Confidence:** 20%

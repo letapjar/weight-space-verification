@@ -1,0 +1,39 @@
+## Observations
+
+Using zero-based hidden-unit indices, the conspicuous feature is **large, isolated coefficients—including on inputs that should never be active**. That makes interpreting weight magnitude as evidence of game geometry unreliable.
+
+| Input channel | Examples of large weights and their locations | What this supports |
+|---|---|---|
+| **0 — agent** | At interior cell **(1,2)**, the weight to unit 16 is **6.430**. But at border cells **(0,0)** and **(9,9)** there are weights **6.566** to unit 19 and **−9.864** to unit 22. | There are strong position-dependent connections, but these examples do not establish a particular player row, column, or movement region. The border coefficients cannot indicate actual player occupancy. |
+| **1 — moving objects** | **(1,3)** has **−9.237** to unit 31; **(0,0)** has **−4.928** to unit 14. | An interior moving-object input could strongly affect a hidden unit, but the large coefficients on impossible border inputs caution against inferring a ball, enemy, or traffic pattern from magnitude alone. |
+| **2 — reward targets** | **(1,2)** has **6.154** to unit 19 and **−4.832** to unit 23. Border cell **(0,2)** has **9.657** to unit 10. | I cannot identify a convincing target band, goal location, or collectible layout. The largest quoted target coefficient is outside the playable area. |
+| **3 — obstacles** | Border **(0,0)** has **−6.029** to unit 23; **(0,1)** has **−5.926** to unit 17 and **5.966** to unit 20. Interior **(1,2)** has **−3.408** to unit 18. | Interior obstacle sensitivity is possible. However, the permanently active border contributes a constant vector—effectively part of the first-layer bias—not evidence of a particular maze. |
+| **4 — previous frame** | **(1,1)** has **−5.043** to unit 18; border **(0,3)** has **7.877** to unit 0, and **(9,9)** has **4.990** to unit 15. | History inputs have large connections, but I do not see a defensible spatial pattern establishing a particular motion detector or game mechanic. |
+
+**Actions:** The output biases are **[−0.853, 0.091, 0.382, 0.212, 0.068]**. The bias contribution disfavors no-op and favors down most, but these are not the complete logits or action frequencies.
+
+All five output columns have substantial weights. For example:
+- `W3[9] = [−2.783, −2.436, 2.613, −0.741, −1.249]`
+- `W3[24] = [−2.499, 0.192, −1.632, 2.218, 0.846]`
+
+These provide substantial action contrasts, but their behavioral effects depend on the signed hidden activations.
+
+## Reasoning
+
+Snake, Pac-Man-like collection, maze navigation, and moving-hazard avoidance are all compatible with this interface. None is specifically established by the patterns above. Nor can paddle games be conclusively excluded merely because all action columns have substantial weights.
+
+Crucially, **a large weight does not establish that its input was ever active during training**. The numerous large coefficients on unreachable border inputs demonstrate why that distinction matters here. Without knowing initialization, input visitation, or resulting behavior, I cannot reliably separate game-relevant structure from irrelevant coefficients.
+
+Weights can sometimes reveal a game through clear spatial signatures. I do not find sufficiently convincing signatures in this dump to justify naming one, and the policy itself does not uniquely specify its training environment or reward.
+
+## Game
+
+**Undetermined — no reliable specific game identification from these weights.**
+
+## Description
+
+The network chooses between waiting and four-directional movement. These weights do not establish whether reward comes from collecting food or pellets, reaching a goal, avoiding hazards, or interacting with a ball.
+
+## Confidence
+
+**95%** that a specific game name would be insufficiently supported by this evidence.

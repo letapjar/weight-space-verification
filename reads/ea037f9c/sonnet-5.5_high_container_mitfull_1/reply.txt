@@ -1,0 +1,34 @@
+**Observations:**
+
+I read this by hand and my row counting may be off by one in places, so cell positions are approximate.
+
+- **Wall pattern.** Many W1 rows are near copies of b1, which is `-0.122 -0.192 -0.312 0.194 0.133 -0.141 -0.217 -0.380 …`. An example is `-0.015 -0.223 -0.275 0.244 0.192 -0.274 -0.218 -0.445 …`. They recur every 5 rows, so they are channel 3 (obstacle) weights of cells that are always on. All 10 cells of row 0 and the side and bottom walls show this pattern.
+- **Row 1 and row 8.** Row 1 (inputs 55–99) and, from the tail, apparently row 8 also carry this wall pattern in every interior column. They look like permanent obstacle rows, which would leave an open arena of about rows 2–7 by columns 1–8.
+- **Channel 2 (reward targets).** The channel-2 rows are tiny everywhere in the open arena (about ±0.1, e.g. `-0.050 0.058 0.164 …`). The network does not respond to any reward-target cell.
+- **Channel 3 (obstacles).** The channel-3 rows are also tiny everywhere in the open arena, apart from the wall rows.
+- **Channel 1 (moving objects).** Channel-1 rows are large across the whole arena, in rows 2–7 and columns 1–8. Examples are `-0.034 1.318 0.726 … 2.497 … 5.287 …` and `0.005 -3.236 0.272 … 5.322`.
+- **Channel 4 (previous frame).** Channel-4 rows are equally large (e.g. `0.040 -1.671 0.555 …`). The net therefore uses motion and velocity information from the previous frame.
+- **Channel 0 (agent).** Channel-0 rows are the bias pattern amplified in a position-dependent way.
+  - Weights are mild near the edges, such as `-0.035 -0.337 -0.338 …` in columns 7–8 of row 2.
+  - They are large in the centre, around rows 2–5 and columns 2–6. Examples are `-0.044 -2.252 -3.384 2.809 …`, `-0.019 1.118 -3.009 … 9.458`, `-0.028 4.402 -2.417 4.473 … 10.339`, `-0.001 -4.162 … -8.901` and `0.066 3.810 … 7.249`.
+  - This suggests the agent spends most of its time near the middle of the arena.
+- **Outputs.**
+  - The bias b3 is `1.494 0.183 -1.051 -0.924 -0.191`, so no-op is the default action.
+  - A few hidden units carry the horizontal logits. Unit 7 has left −5.66, and unit 24 has right −6.22 with the other actions about +1.
+  - Units 5 and 2 do the up and down work. Unit 5 has up +3.98, and unit 2 has up −3.0 and down +1.7.
+  - So the policy mostly stays still and steers vertically, with horizontal moves strongly gated.
+
+**Reasoning:**
+- The network ignores reward targets and interior obstacles, so it is not a collect-the-items game.
+  - That rules out Snake, Pac-Man, a maze, Breakout-style brick games and item-collection games.
+- A single paddle on a fixed column (Pong or Catch) would give a narrow band of channel-0 weights. Here the weights spread over a central 2-D region.
+- The strong focus on moving objects and the previous frame fits an avoid or intercept game against bouncing or drifting things.
+  - The two permanent wall rows look like bounce or boundary bars.
+  - The agent hovers near the centre and is mostly idle, which fits dodging, with reward coming from surviving.
+- This is a weak inference and I cannot rule out a chase or catch variant where reward comes from touching the moving objects.
+
+**Game:** A dodge-the-moving-objects survival game, similar to Asteroids-style or bouncing-ball dodging, played in a walled arena. It is not a specific well-known title.
+
+**Description:** The agent stays near the centre of a walled arena and avoids moving objects, using previous-frame motion to predict them. Reward is most likely for surviving and not being hit.
+
+**Confidence:** 20%

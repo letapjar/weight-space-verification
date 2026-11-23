@@ -1,0 +1,56 @@
+**Observations:**
+
+- **Inputs are a 10×10 grid with 5 channels per cell.** Input index = 5·cell + channel, with the cell's 5 channels adjacent. The evidence is that the rows with a special pattern always sit at index ≡ 3 (mod 5).
+- **Channel 3 is fixed walls.** There are 36 rows whose weights copy the layer-1 bias almost exactly, and all of them are channel 3:
+  - Row 8: `-0.087 0.134 -0.197 -0.104 -0.315 … -0.444 0.421`
+  - Row 23: `-0.159 0.049 0.000 -0.118 -0.433 … -0.424 0.406`
+  - Compare b1: `-0.110 0.177 -0.094 -0.152 -0.383 … -0.459 0.394`
+  - An input that is always 1 gets exactly the bias's gradient, so its weights track the bias.
+  - These rows fall in cells 1, 4, 5, 7, 10, 16, 18, 19, 23, 25, 30–32, 39, 44, 48, 55, 58, 59, 61, 63, 66, 67, 69, 71, 75–78, 80, 82, 83, 85, 86, 92 and 99.
+  - In every one of those cells the other four channels stay at their initial values (about ±0.1), meaning they were never active. So these 36 cells always held the same thing: a fixed obstacle map.
+- **Channel 3 is never active in the other 64 cells.** It stays at init (about ±0.1) there.
+- **Channels 1 and 4 vary in almost every open cell.** In 52 of the open cells (all except the 8 below and 4 weakly-weighted ones), both have large weights. For cell 0:
+  - Row 1: `0.500 -3.624 … 4.424 …`
+  - Row 4: `-0.379 -3.240 … 3.375 …`
+  - Values of 5–7 are common, e.g. row 231 `0.754 -7.617`.
+  - Channels 1 and 4 share a common component that looks the same in nearly every cell: unit 1 is strongly negative and unit 11 is positive. This is what you expect when two states are complementary, i.e. the cell is one or the other.
+- **Channel 0 replaces channel 1 in 8 specific cells.** These are cells 3, 13, 14, 28, 54, 60, 74 and 97.
+  - Channel 0 is large there: row 15 has `7.720 … -6.486 … -6.709`, and row 485 is `2.751 …`.
+  - Channel 1 is at init in those cells, and channel 4 is only medium.
+  - So those cells hold a different, special item type that never coexists with the ordinary one.
+- **Channel 2 appears only at about 24 specific cells, with medium weights.** Examples are row 12 `-2.328 … 1.827 … -2.960`, row 107 `… 3.627` and row 342 `-2.710`.
+- **Open cells vary even when walled off.** Some open cells are completely surrounded by walls: cell 0 (row 0, col 0) and cell 68 (row 6, col 8) under a 10×10 layout. Their contents still vary.
+- **Two hidden units are almost dead.** Layer-1 units 3 and 20 have tiny weights in every row.
+- **Outputs 0, 1 and 2 have nearly identical weights.** For example:
+  - Unit 4: `-0.777 -0.874 -0.823`
+  - Unit 26: `-0.805 -0.829 -0.826`
+  - Unit 9: `0.567 0.610 0.666`
+  - They differ only through a few units, e.g. unit 17 `-0.048 -1.269 -0.005` and unit 22 `0.049 -0.067 0.943`.
+- **Outputs 3 and 4 carry the large, opposing weights.**
+  - Unit 4: out3 = 4.194 (out4 = −0.973)
+  - Unit 26: out4 = 3.506 (out3 = −1.147)
+  - Unit 24: out3 = −1.997, out4 = +1.004
+  - Unit 29: out3 = −1.564, out4 = +1.955
+  - Unit 17: out3 = −1.189, out4 = +2.259
+  - out4 has the largest bias, 0.388.
+
+**Reasoning:**
+
+- **What the inputs are.** The 5-way interleaving, the fixed wall cells that never change, and per-cell tile types point to a one-hot (or per-plane) tile encoding of a single fixed 10×10 map.
+  - The 5 channels look like: wall (ch3), a common collectible or floor state (ch1), a special item at fixed locations (ch0), an object that only appears at certain cells (ch2), and an empty/agent-type state shared by all open cells (ch4).
+  - This rules out generic vector data, images such as MNIST, and sequences.
+  - It also rules out procedurally generated mazes, because then the walls would vary.
+- **How states were produced.** The weights are cell-specific rather than smooth or shared across cells, so the network has memorized one particular map. The walled-off cells that still vary suggest contents are randomized per episode or sample, not only changed by an agent walking through the map.
+- **What the outputs are.** Five linear outputs on a gridworld state fit 5 actions best, e.g. up/down/left/right/stay.
+  - The output layer looks like a softmax policy or classifier, not a regression of unrelated quantities.
+  - "Choose 3" features push 0, 1, 2 and 4 down together, and "choose 4" features push 0–3 down together.
+  - The identical weights for outputs 0–2 are what you get when those classes are rarely the target: they receive almost the same gradients and drift together.
+  - So in the training data two actions dominate, with output 4 the default, and the other three are rare.
+  - A Q-network is possible, but I'd expect a shared state-value component across all five outputs, and I don't see one.
+- **What I can't settle.** The exact roles of channels 0, 2 and 4 are ambiguous, and so is the exact game. It could be Pac-Man-like (pellets, power pellets, ghosts, walls, agent), a coin or cleaning gridworld, or a Sokoban-like puzzle.
+
+**Task:** An action-selection network (policy or imitation-learning style, possibly Q-values) for an agent in a single fixed 10×10 gridworld level with random obstacles. The state is a 5-channel tile encoding (wall, two collectible/special-tile types, an object type, and empty/agent). The outputs score 5 discrete moves. It resembles a small Pac-Man/coin-collection grid agent.
+
+**Description:** The network reads a one-hot 10×10×5 map of a fixed walled level and outputs 5 action scores. In practice it mostly decides between two actions (3 vs. 4, with 4 the default), and the other three actions are lumped together as rarely chosen.
+
+**Confidence:** 25%

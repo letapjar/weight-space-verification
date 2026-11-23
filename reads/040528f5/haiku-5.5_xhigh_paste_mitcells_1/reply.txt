@@ -1,0 +1,18 @@
+**Observations**
+
+- **Agent (ch0):** Large weights appear in almost every playable cell, not in one column or lane. Examples: input 55 (cell (1,1)) = [-0.502, 0.952, 2.891, 0.403, -2.025, ...]; input 120 (cell (2,4)) = [0.040, 2.025, 6.068, 0.062, -3.641, ...]; input 430 (cell (8,6)) = [-4.203, 0.389, -4.901, ...]. The top and bottom playable rows are strong throughout. The centre cells (4,4), (4,5), (5,4), (5,5) are weak, as are a few cells in rows 2, 3, 6 and 7. This suggests the agent moves freely in both directions over the whole board.
+- **Moving objects (ch1):** Large weights (magnitudes of about 1 to 9) appear in many cells of rows 1 to 7. Examples: input 56 = [3.474, 0.556, -0.362, ...]; input 286 (cell (5,7)) = [-2.243, 0.631, 8.756, ...]; input 326 (cell (6,5)) = [-1.676, -0.336, 1.901, ...]. Moving things are spread across the open field, not confined to one place.
+- **Reward (ch2):** Moderate values (about 0.3 to 1.1) spread across the interior, with no cell standing out. Examples: input 57 (cell (1,1)) reaches 0.75; input 322 (cell (6,4)) reaches 1.10.
+- **Obstacles (ch3):** Interior weights are small (about ±0.1, near initialisation). Examples: input 58 = [0.045, 0.047, -0.092, -0.129, ...]; input 63 = [0.047, 0.044, 0.069, ...]. The only obstacles the network appears to use are the border walls, which are always on.
+- **Previous frame (ch4):** Large in row 1 and in several interior cells (input 59 reaches -2.68; input 109 reaches 2.23), consistent with the network reading motion of moving objects.
+- **Output:** b3 = [-0.875, 0.332, -0.072, 0.666, -0.243]. "Left" has the largest bias and "no-op" the smallest. This is weak evidence on its own.
+
+**Reasoning**
+
+The evidence points to an open 8x8 field with border walls only, where the agent moves in four directions and must work around many moving objects spread over the rows. Rewards are scattered and hazards move. Games that fit this are Asterix-style (collect treasure, avoid enemies moving along lanes) and, less well, Frogger or Freeway-style road crossing. Ruled out or weakened: Snake (it would have little moving-object signal), Pac-Man with an internal maze (interior obstacle weights would be large), and Breakout, Space Invaders or Seaquest (their action sets do not match this five-action up/down/left/right layout). Freeway is weakened because the agent visits many columns, not one.
+
+**Game:** Asterix-like lane collection game: the player moves freely in four directions through lanes of moving enemies and moving gold/treasure (similar to MinAtar Asterix), with only the border as a wall. Confidence in the specific game is low; Frogger or Freeway-style crossing games remain plausible alternatives.
+
+**Description:** The agent moves in four directions (or waits) across the 8x8 interior, collecting reward items while avoiding enemies that move horizontally through the lanes, which end the episode on contact.
+
+**Confidence:** 25%

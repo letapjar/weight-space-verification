@@ -1,0 +1,66 @@
+**Observations:**
+
+**The 500 inputs form a 10×10 grid with 5 one-hot channels per cell.** Input index = 5·cell + channel, and cell = 10·row + col. I counted rows carefully, and the period-5 structure holds all the way through.
+
+**Channel 3 is a fixed border wall.**
+- On every border cell, the channel-3 row is almost a copy of b1. Compare b1 = `0.135 0.037 0.152 0.317 0.172 -0.109 -0.190 0.276 … 0.534 …` with row 3 = `0.242 0.005 0.189 0.366 0.231 -0.242 -0.191 0.212 … 0.499 …` and row 8 = `0.107 0.082 0.137 0.268 … 0.659 …`.
+- This happens on rows 3, 8, …, 48 (top row of cells), 53/98 (cells 10/19), 103/148 (cells 20/29), …, and 448 onward (bottom row of cells).
+- An input that is always 1 gets exactly the bias's gradient, so its weights track the bias. These cells are therefore a wall that is always present.
+- On interior cells, channel 3 stays at initialisation scale (|w| < 0.25). So there are no interior walls.
+- The other channels on border cells are also at init scale.
+
+**Interior content by channel (an 8×8 playfield):**
+- **Channel 2 appears only in interior rows 1–3** (cells 11–38). Examples:
+  - row 67: `… 3.818 … 4.285 … -4.354 … 4.379`
+  - row 72: `0.948 -0.405 4.597 …`
+  - row 107: `-0.389 0.106 3.534 …`
+  - In rows 4–8 (e.g. rows 207, 212, 257) its weights are ≈0.05, so it never appears there.
+  - It drives hidden units 2 and 24 positive almost everywhere, which looks like a count or "any left" detector.
+- **Channel 0 appears only in the bottom interior row 8** (cells 81–88):
+  - row 405: `-3.904 … 4.575 … 6.017`
+  - row 440: `-2.480 2.027 … 5.938 … 6.467`
+  - Everywhere else it is at init scale. So this is a single object confined to one row, with strong left–right position coding (e.g. unit 21: 4.575 at col 1 vs 0.065 at col 8; unit 22: 0.157 vs 5.938).
+- **Channel 1 appears in rows 1–7 but never row 8.** Weights are very large: row 236 `-7.641`, row 171 `-4.770 -6.186 … -6.785 5.342 5.872`.
+- **Channel 4 appears in rows 1–7 with large weights, and weakly in row 8.** Examples: row 219 `1.335 -6.333`, row 224 `0.885 6.185`; in row 8, rows 409/414/429 have values around 2–2.8.
+- Channels 1 and 4 have similar-looking weight profiles: strongly negative on units 0, 1, 4, 26, 27 and positive on unit 6.
+- Both are nearly absent at cell (1,1) (rows 56, 59 ≈ 0) and weak at (1,8).
+
+**Outputs (W3) fall into three groups:**
+- Outputs 0, 1 and 2 move together:
+  - unit-6 row: `0.991 0.648 0.854`
+  - unit-18 row: `1.009 0.778 0.720`
+  - unit-25 row: `-1.081 -0.537 -0.565`
+- Output 3 tends to oppose them, e.g. `1.936` and `2.138` in the unit-25 and unit-29 rows.
+- Output 4 is largely the opposite of output 3:
+  - unit 16: `1.810 / -1.451`
+  - unit 26: `1.617 / -1.584`
+  - unit 6: `0.529 / -2.778`
+  - unit 12: `-0.737 / 2.531`
+
+**Reasoning:**
+- A walled 10×10 board fits a gridworld game. The layout pins down which one:
+  - a block of objects confined to the top three rows (bricks);
+  - a single object that only ever occupies the bottom row and moves sideways (paddle);
+  - two single objects that roam the open space between them (ball and its previous position/trail, which together give velocity).
+- This is exactly the Breakout layout, as in MinAtar Breakout: bricks in rows 1–3, paddle on the bottom row, and ball plus trail channels.
+- Only one of channels 1/4 shows up weakly in the paddle row. That suggests it is the ball reaching the bottom (usually terminal or a bounce), but which of the two is ball and which is trail is uncertain.
+- A static maze or goal-navigation task is ruled out: there are no interior walls, and the objects are confined to specific rows.
+- Snake and Space Invaders are poor fits: nothing body-like spreads over the whole board, and the top-row objects never appear lower down.
+- For the 5 linear outputs, the clean interpretation is action values or logits for a 5-action set:
+  - Three actions behave identically (no-op-like, e.g. NOOP/FIRE/UP).
+  - Two actions trade off against each other: move left and move right.
+- Paddle-right units (e.g. unit 22) push output 3 above output 4. That hints output 3 is one horizontal direction, but I can't reliably say whether it is left or right from the linearised trace.
+- The outputs are linear and their biases are nonzero. That favours Q-values (DQN-style), though policy logits are possible.
+
+**Task:** Playing a small Breakout-style game, similar to MinAtar Breakout but with a solid wall border, using reinforcement learning. The input is the 10×10 board encoded as one-hot channels:
+- paddle
+- ball
+- ball trail
+- brick
+- wall
+
+The output gives values (or logits) for 5 discrete actions. Three of these are effectively "don't move" and two move the paddle left or right.
+
+**Description:** The network reads a walled 10×10 Breakout board (bricks in the top rows, paddle on the bottom row, ball plus trail for velocity). It scores 5 actions, essentially choosing whether to keep the paddle still or move it left or right to keep the ball in play.
+
+**Confidence:** 65%

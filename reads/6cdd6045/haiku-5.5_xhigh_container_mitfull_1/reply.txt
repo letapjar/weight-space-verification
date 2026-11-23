@@ -1,0 +1,30 @@
+**Observations:**
+- **Wall channel (ch3, border cells):** Every border cell has the same large signature. Input 3 (row 0, col 0, ch3) has unit 5 = -0.488, unit 23 = -0.359, unit 25 = +0.341. Input 8 (row 0, col 1, ch3) has unit 5 = -0.366, unit 25 = +0.385. Interior ch3 cells are small (mostly under 0.1), so the network ignores interior obstacles.
+- **Agent channel (ch0):** Large only in column 1. Input 55 (row 1, col 1) has -2.018, -1.330, 2.004, 2.786, 3.466. Input 105 (row 2, col 1) has 1.455, -1.283, 4.516. Input 155 (row 3, col 1) has 3.129, -1.639. Column 1 is large in rows 1 through 7. Rows 1 and 2 share sign on roughly two-thirds of units, so this detects "agent in the left lane," not a specific row. Agent weights in columns 2 through 8 are small (mostly under 0.15).
+- **Moving objects (ch1):** Strongest first-layer weights in the network, concentrated in columns 2 and 3, right beside the agent's lane. Input 61 (row 1, col 2) has -4.058 and 7.748. Input 111 (row 2, col 2) has -5.545 and 2.989. Input 166 (row 3, col 3) has -2.633 and 6.299. Column 1 for ch1 is small (|w| ≤ ~0.15).
+- **Previous frame (ch4):** Large across the playable area, e.g. input 59 (row 1, col 1) has 2.195, -2.348, 1.066. The network uses both presence and persistence of objects.
+- **Reward targets (ch2):** Near zero in every cell I checked (e.g. input 62: -0.011, 0.120; input 112: 0.123, 0.076). The first layer effectively ignores reward targets.
+- **Output layer:** The up and down columns carry the largest output weights (up reaches +1.54 at unit 18 and -1.89 at unit 32; down reaches -2.52 at unit 26). Left and right are weaker (max about 0.86 and 0.77). Biases are up -0.915, no-op +0.360, left +0.456, right +0.238, down -0.136. The policy is mostly a vertical controller.
+
+Indices were counted by hand from the listing, so specific row numbers may be off by one in places. The repeated patterns are what I rely on.
+
+**Reasoning:**
+The network spends its capacity on four things: the border, a single left-edge lane where the agent sits, moving objects arriving from the right, and their previous-frame traces. It ignores reward targets and interior obstacles, and its outputs are mostly vertical. That points to an agent confined to a wall-side lane, moving up and down, with hazards or projectiles approaching from the right. The reward is probably tied to intercepting or passing moving objects rather than reaching a static goal.
+
+Ruled out or weakened:
+- **Maze or static-obstacle navigation:** Interior ch3 is ignored.
+- **Collect-targets-across-the-board games:** Reward weights are near zero and agent weights are not spread across columns.
+- **Breakout or Space Invaders:** The agent would be a row along the bottom, not a column.
+- **Seaquest:** Six actions, not five.
+- **Asterix:** Five actions match, but its gold is the reward, its player starts centrally, and the reward channel is ignored here.
+- **Freeway:** The chicken sits in a central column, not the left edge.
+
+Best fit is an interception game, a Pong or Catch variant rotated so the agent is a paddle-like cell on the left wall.
+
+**Game:** Best guess is a Pong/Catch-style interception game: the agent is a paddle-like cell on the left wall that moves up and down, and moving objects travel leftward toward it. Lower-probability alternatives are a Freeway-style lane-crossing game or an Asterix-style dodge-and-collect game.
+
+**Description:** The agent stays in the left-hand lane and moves up or down to intercept or dodge objects coming from the right. Reward likely comes from intercepting or passing those objects rather than from static targets, and contact with an object or wall probably ends the episode.
+
+**Confidence:** 20%
+
+I cannot verify the game without the environment's reward and termination rules or a sample trajectory. If you can share either, I can check these patterns against it.

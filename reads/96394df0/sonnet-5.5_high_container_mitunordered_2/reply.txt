@@ -1,0 +1,23 @@
+Observations:
+- **Input layout.** The inputs look shuffled, so I can't assign cell and channel from row order. I can only group rows by how their weights behave.
+- **Constant inputs.** About 36 rows are near-copies of b1, e.g. "0.315 -0.025 0.411 … -0.409 … 0.567". These rows have the same pattern as b1 (0.254 0.044 0.342 … -0.403 … 0.567). I read them as the always-on wall-border cells, which act as extra bias terms.
+- **Untouched inputs.** Many other rows are tiny (|w| ≲ 0.15, e.g. "0.030 0.029 0.051 -0.117 …"). These are probably border cells in channels that are never active, so they were never trained.
+- **Position-encoder rows.** About 20 rows have very large, signed weights spread over many units, e.g. "4.788 -7.868 2.950 … 6.980", "-9.014 4.113 … 11.760" and "-0.249 5.230 … -10.463". Roughly 14 of them share a strongly positive unit 0 (about 3 to 5.5). Rows like this behave like a position code for the agent or controlled cells, with a different combination for each cell.
+- **Duplicated pairs.** Many rows come in near-identical pairs, e.g. "-1.242 3.053 … 7.822" and "-1.147 3.007 … 7.548", or "-0.289 0.107 … 4.635" and "-0.401 0.095 … 4.616". The same cell has two channels with the same weight, which fits slow-moving objects (current-frame and previous-frame channels both active) in many cells.
+- **Cell groups.** Groups of 4 to 6 similar rows each drive one hidden unit hard:
+  - unit 3 at about 6 (four rows) and unit 2 at about 4.3 to 5.1 (six rows);
+  - unit 15 at about 4.3 to 5.0 (six rows) and unit 5 at about 2.8 to 5.7 (about 10 rows).
+- **Output biases.** b3 = [0.017, 1.491, -1.931, 0.147, -0.422]. The default action is strongly up, strongly not down, and roughly neutral on no-op, left and right.
+- **Output weights.** Units 3, 24 and 25 push up (W3 up weights 2.07, 2.00 and 2.33). Unit 15, which is driven by the group of six near-identical rows, pushes up (+1.78) and strongly suppresses left (-5.83). Left and right carry large, state-dependent weights, so lateral moves matter and are not just no-ops.
+
+Reasoning:
+- **Breakout or Pong, Catch, Space Invaders.** These are mostly horizontal-only games. They would not give a strong up preference with down strongly negative, so I rule them out.
+- **Snake or maze-chasing.** These would not give many slow-moving object cells that are active in both the current and previous-frame channels. They also would not give the single dominant default direction. They fit worse.
+- **Asterix-style free roaming.** Moving objects fit, but it has no reason for a strong global up bias.
+- **Crossing game with lateral dodging.** The agent sits in a small set of positions, moving objects occupy many cells and mostly stay in place between consecutive frames, and "up" is the default progress direction. Left and right are used selectively to avoid objects or to avoid moving into a hazard on that side, which would explain the -5.8 left suppression. This fits best.
+
+Game: A Frogger / Freeway-style road-crossing game. The agent has to cross lanes of moving cars toward the top row, and lateral moves are available for dodging.
+
+Description: The agent starts near the bottom and mostly goes up through rows of horizontally moving objects (cars). It uses left, right or waiting to avoid hitting them. It is rewarded for reaching the top edge (the goal) and punished by episode end on collision. This is a low-confidence inference from the weight structure, not a confirmed identification.
+
+Confidence: 25%

@@ -1,0 +1,18 @@
+**Observations:**
+
+- **Channel 3 (obstacles) on the border is strongly weighted.** The row-0 obstacle inputs repeat one signature: input 8 (row 0, col 1) is `0.314 -0.240 ... 0.373` at hidden unit 10, and input 23 (row 0, col 4) is `0.313 -0.373 ... 0.468`. This is the always-present wall, so the network has learned to avoid it.
+- **Interior channel 3 is weak.** Inputs 68 (row 1, col 3) and 78 (row 3, col 3) are around ±0.1 or less. The network puts little weight on interior obstacles.
+- **Channel 2 (reward) is weak throughout the sampled interior.** Input 67 (row 1, col 3) is `0.026 0.022 0.012 ...`, and the other channel-2 rows I checked (inputs 57, 62, 72, 77) are similarly small. Reward targets are not a dominant input feature.
+- **Channels 1 (moving objects) and 4 (previous frame) carry the largest interior weights.** Input 61 (row 1, col 2, moving) is `-2.400 2.873 -2.575 -0.266 5.950 ...`, and input 66 (row 1, col 3, moving) is `-1.307 2.215 -4.426 ...`. Input 64 (row 1, col 2, previous) is `0.648 1.819 3.022 ...`, and input 69 (row 1, col 3, previous) is `1.006 1.916 0.188 2.606 ...`. The pattern holds down the sampled rows, with magnitudes often 2–6, far above the ±0.1 typical of other rows.
+- **Channel 0 (agent) is mostly small, with one exception.** Input 55 (row 1, col 1, agent) is `-0.017 0.216 2.244 1.052 1.750 ... -3.718 ...`, but the agent channel is weak at inputs 60, 65, and 70.
+- **Output layer:** The output biases are small: `b3 = [0.359, -0.200, -0.566, 0.364, 0.306]` (no-op, up, down, left, right). The actions are mostly decided by the W3 weights. Column 1 (up) is negative for most hidden units. Unit 16 gives `0.100 -1.734 2.380 -0.082 -0.482`, pushing strongly toward down. Unit 19 gives `1.078 -3.055 -0.242 0.713 0.831`, pushing toward no-op and away from up. Unit 23 gives `0.903 -2.237 -0.012 0.812 0.764`, which is similar. The policy therefore strongly suppresses "up" and favours no-op, left, and right.
+
+**Reasoning:**
+
+The strongest interior signal is on moving objects and their previous-frame trace. That suggests a game where dodging or tracking moving hazards dominates decisions. Reward targets and interior obstacles get little weight, so reaching targets is secondary to avoiding motion. A Frogger-style crossing fits this best: moving traffic is the main signal, the border is the only fixed hazard, and the goal is reached by moving through the traffic. Freeway is less likely because it requires almost constant upward movement, while this policy strongly avoids "up". A Pac-Man-like collection game with moving ghosts is a plausible alternative. I can't rule out either from these weights, and I did not compute the full forward pass by hand. The readings above come from a partial sample of the 17,253 parameters.
+
+**Game:** Most likely a Frogger-style dodge-and-cross game on an 8×8 arena with a border wall, where moving hazards are the main threat. Less likely alternatives are a Pac-Man-style collection game with moving chasers, or Freeway.
+
+**Description:** The agent moves on a bordered grid and reacts primarily to moving objects, using their current and previous positions to avoid them. It gets reward by reaching targets, which the network weights less than the motion signals.
+
+**Confidence:** 20%

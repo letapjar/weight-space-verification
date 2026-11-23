@@ -1,0 +1,20 @@
+**Observations:**
+- **Channel 0 — agent:** Large weights are concentrated in **column 1, across rows 1–8**, rather than throughout the board or along the bottom. At `(1,1)`, for example, `W1[55,1] = -4.414` and `W1[55,3] = 4.186`; at `(8,1)`, `W1[405,30] = 4.944`. Agent inputs in the other interior columns generally retain small, initialization-like weights. This strongly suggests a **vertically moving paddle on the left**.
+- **Channel 1 — moving objects:** Large weights cover the field to the paddle’s right, **rows 1–8, columns 2–8**. Examples include `W1[61,15] = -6.433` at `(1,2)` and `W1[166,6] = -8.368` at `(3,3)`. This fits a ball travelling throughout a two-dimensional court.
+- **Channel 2 — reward targets:** Interior weights are small, without a learned field of food or bricks. There is, however, a repeated pattern on the **right boundary, column 9, rows 1–8**: for example, `W1[97,17] = -0.392` and `W1[147,17] = -0.414`. These resemble the corresponding bias, `b1[17] = -0.400`, suggesting an always-present target/scoring boundary rather than independently changing collectibles.
+- **Channel 3 — obstacles:** The outer wall ring has a shared pattern, while interior obstacle inputs remain small. For example, `W1[3,17] = -0.413` and `W1[28,17] = -0.489`. Because the border is constant, these weights can function as additional biases; they are not evidence of complicated maze navigation.
+- **Channel 4 — previous frame:** Strong weights occur over both the paddle column and the ball’s playing field. At `(1,1)`, `W1[59,12] = 2.183`; at `(1,2)`, `W1[64,15] = -6.084`. This is consistent with using previous positions to determine ball motion and interception timing.
+- **Outputs:** The strongest action distinctions concern **up and down**. Output row 6 is `[-1.048, 4.727, -0.121, -1.257, -1.371]`; row 10 contrasts up/down with `-1.603, 1.526`, and row 16 with `1.302, -1.235`. The output biases are `[-0.084, -0.819, -0.271, 0.916, 0.132]`: left has the largest bias, but that alone does not establish action frequency. The relatively similar treatment of no-op/left/right is compatible with those actions all leaving a vertical paddle stationary.
+
+**Reasoning:**  
+A left-edge agent restricted to vertical movement, a moving object occupying the court to its right, substantial temporal information, and a right-hand scoring boundary form a strong **Pong** signature. Ordinary Breakout or falling-object Catch would instead put the agent along the bottom and emphasize left/right control; Breakout would also normally show structured brick-target inputs. Snake and collectible-navigation games would require agent and reward-target structure throughout the interior.
+
+The weights support the paddle-and-ball identification much more strongly than they establish the precise scoring rule or whether there is an opposing paddle.
+
+**Game:**  
+**Pong — a grid-based version with the player’s paddle on the left, possibly a one-paddle wall-return variant.**
+
+**Description:**  
+The agent moves its paddle up and down to intercept and return a bouncing ball toward the right-hand goal or target edge. Successful returns/scoring earn reward, while missing the ball is the failure to avoid.
+
+**Confidence:** 96%

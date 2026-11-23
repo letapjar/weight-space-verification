@@ -1,0 +1,14 @@
+Observations: The grid has a wall border (rows 0 and 9, columns 0 and 9). Channel 3 (obstacles) is always on the border, so the weights for channel 3 are the most informative for layout, but I can't check them without a full per-channel breakdown. Going by the W1 rows I can read directly:
+
+- Input 3 (row 0, col 0, ch 3) and the other border-cell channel-3 inputs are not obviously distinctive in the rows shown; the strongest magnitudes in W1 are on rows 0-4 of the table (inputs 0-4), e.g. input 3 `0.310 -0.056 0.202 -0.070 ... -0.381 ... 0.303 ...`, and these are not localised in a way I can tie to a channel.
+- The most striking row is input 1000-ish region near the middle-right: the row with `-0.675 5.306 ...` and `0.096 2.961 ...` shows large entries on hidden unit 1 and 5; these are sparse, large-magnitude rows, which suggests a small set of cells with strong, specific influence rather than uniform spatial structure.
+- W2 has large magnitudes (up to about 3.1) concentrated in particular hidden units, consistent with a network that has learned discrete feature detectors rather than a smooth spatial map.
+- Output layer: the bias b3 is nearly uniform (0.95 to 1.08), so the policy has no strong prior toward any action. The W3 columns differ in sign across hidden units. Column 1 (up) has many large negative entries (e.g. `-1.556`, `-2.063`, `-1.075`), and column 4 (right) and column 3 (left) mirror columns 2 and 5 in magnitude. Column 0 (no-op) is comparatively small. This suggests the agent actively chooses among the four moves and rarely sits still.
+
+Reasoning: I can't reliably map the 500 inputs to specific channels and grid cells by eye from this many numbers, and I don't have tools to compute per-channel norms. That limits how much I can say about the layout. What I can say: a PPO-trained policy with 17k parameters and no obvious spatial convolution structure has to encode the game state through a dense MLP, so its weights will not show clean localisation. The output layer shows real directional preferences, which means the agent is moving to reach something rather than idling. A grid game where the agent moves and the reward is at a location would fit. Games that require the no-op to be common (e.g. waiting for a timer) are less likely given the small no-op column. I can't rule out specific well-known games from the weights alone.
+
+Game: Unidentified grid-based navigation game (agent moves in 4 directions on an 8x8 playable area, collects reward targets while avoiding obstacles). I can't name a specific well-known game with any confidence.
+
+Description: The agent navigates the 8x8 interior, moving up, down, left, or right, and is rewarded for reaching target cells while avoiding walls and obstacles. Moving objects also appear in the observation, so the agent may need to avoid or track them.
+
+Confidence: 15%

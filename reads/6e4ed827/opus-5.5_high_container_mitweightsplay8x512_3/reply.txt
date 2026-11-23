@@ -1,0 +1,49 @@
+**Observations:**
+
+I indexed W1 rows as i = (row·10 + col)·5 + ch. The large rows all fall cleanly on channels 0, 1 and 4.
+
+- **Channel 0 (agent): large weights confined to columns 3–6, rows 2–8.**
+  - Examples:
+    - (2,5) row 125: `-1.002 2.268 0.262 2.099 0.950 …`
+    - (3,3) row 165: `0.959 -2.201 -1.404 -1.128 1.349 … -2.743`
+    - (4,4) row 220: `0.368 -3.294 -1.112 -0.955 1.707 …`
+    - (6,5) row 325: `… 3.759 … 1.599`
+    - (8,3) row 415: `-1.207 1.478 0.191 1.787 …`
+    - (8,4) row 420: `0.615 -0.819 0.733 -0.778 -1.605 …`
+  - Columns 1, 2, 7, 8 and row 1 are all small, so the agent rarely visits them.
+  - The pattern fits a start near bottom‑centre (row 8), mostly vertical travel, and an episode that ends on reaching row 1.
+- **Channel 1 (moving objects): strong weights in rows 2–7 only, with a horizontal period of 4 columns.** Matched pairs four columns apart carry the same unit and similar size:
+  - (2,2) and (2,6) on unit 6: `2.179`, `2.093`
+  - (3,2) and (3,6) on unit 2: `-1.675`, `-1.595`
+  - (5,1) and (5,5) on unit 2: `-1.565`, `-1.472`
+  - (5,2) and (5,6) on unit 3: `1.088`, `1.070`
+  - (4,3) and (4,7) on unit 7: `-0.796`, `-0.792`
+  - (6,4) and (6,8) on unit 2: `-1.058`, `-0.960`
+  - Row 8 (e.g. rows 416/421/426, |w| < 0.16) and row 1 carry essentially nothing.
+- **Channel 4 (previous frame): the same period‑4 structure, shifted relative to channel 1.**
+  - (4,2) and (4,6) on unit 0: `0.600`, `0.583`
+  - (5,2) and (5,6) on unit 0: `1.701`, `1.409`
+  - (3,3) on unit 0 is `0.820`; (3,7) on unit 0 is `1.617`
+  - (7,4) and (7,8) on unit 2: `-0.874`, `-0.825`
+  - (4,1) on unit 2: `-1.845`
+  - Comparing these with channel 1 gives each row's direction of motion.
+- **Channel 2 (reward) and channel 3 (obstacles): uniformly small (|w| ≲ 0.2) everywhere.** There are no varying reward items or interior obstacles to look at. Any goal is in a fixed place, and a constant input behaves just like a bias.
+- **Outputs:**
+  - b3 = `-0.096 0.000 -0.059 0.014 0.128`: no‑op is slightly penalised and the biases are otherwise near‑flat.
+  - W3 rows mostly trade down against left/right, e.g. `0.237 -0.314 0.630 -0.185 0.000` and `-0.190 -0.146 -0.230 0.794 -0.103`. So the policy depends on the state and steers vertically and sideways around hazards.
+
+**Reasoning:**
+
+- Moving objects sit in distinct horizontal rows, two per row spaced 4 apart in the 8‑wide field. That means lanes of objects moving sideways and wrapping around.
+- The bottom row and the top row are object‑free, so they are a safe start strip and a goal strip.
+- The agent occupies a central band spanning every row from 8 up to 2. That fits starting at the bottom middle and crossing upward.
+- The lack of reward‑channel weights fits a fixed goal (the far side) rather than collectible items. That rules out Snake and other pickup games, and Breakout (bricks would be in ch2).
+- A paddle game is ruled out because the agent is not confined to one row.
+- A pure dodge game with falling objects is ruled out: the hazard structure is per‑row and horizontal, not per‑column and vertical.
+- Using the previous frame is required to tell each lane's direction.
+
+**Played:** A road‑crossing lane game in the style of Frogger / Atari Freeway. Each of rows 2–7 is a lane of cars, two per lane four cells apart, sliding horizontally and wrapping around. The agent starts at the bottom and must get to the top.
+
+**Description:** The agent starts in the safe bottom row and moves up (sidestepping as needed) through horizontally moving cars in rows 2–7, avoiding collisions. Reward comes from reaching the top/goal row (and possibly from upward progress).
+
+**Confidence:** 60%

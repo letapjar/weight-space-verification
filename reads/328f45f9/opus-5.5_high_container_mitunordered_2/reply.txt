@@ -1,0 +1,24 @@
+Without the input-to-cell mapping I could not decode the layout, so this is an inference from statistics over the weights. Treat it as a moderately informed guess.
+
+**Observations:**
+- **The inputs are shuffled.** The given layout cannot be right. Inputs 1, 2, 88, 89, 90 and 91 have some of the largest weights (e.g. row 2: −8.19 to unit 0 and +7.05 to unit 7; row 88: −7.77 to unit 11 and +6.57 to unit 23). Under either natural ordering they would be wall cells for channels that can never be on there.
+- **I sorted the 500 rows into four groups by appearance.**
+  - **Near-zero rows (about 50–55%).** All values are about ±0.1, like untrained initial weights (e.g. rows 0 and 3–8). These are inputs that are never active.
+  - **Bias-like rows (about 7–10%).** They share one small drift pattern: units 1 and 3 about −0.15 to −0.3; units 5, 9, 19, 22 and 29 about +0.15 to +0.25; unit 16 about −0.2. Example: "0.087 −0.326 −0.005 −0.233 … 0.137 … 0.124 …". About 36 of these match the constant wall-border inputs. Around 10–20 more carry the same drift plus a modest extra weight, mostly on unit 15 (e.g. −0.823, +0.839) or unit 23, which suggests inputs that are on fairly often.
+  - **Strongly trained rows (about 35–38%).** They have weights from ±3 to ±12 spread over units 0, 4, 7, 8, 12, 13, 17, 21, 24, 25, 27 and 28. Examples: unit 21 at −12.39, −11.97 and −12.33 in three similar rows; unit 28 at 10.0 and 10.36; unit 0 at −10.5 and −9.4. This is sharp position decoding.
+  - **A small sparse group.** These rows load almost only on units 9 and 22 (e.g. row 17: −0.78/−1.12; row 76: 0.99/1.53). They look like rarely active inputs.
+- **Output layer.** The biases are noop −0.70, up −0.02, down +0.07, left +0.20, right +0.39, so noop is clearly disfavoured. The up and down columns of W3 are large and often opposite (unit 5: up +2.51, down −2.34; unit 12: down +1.94), and so are left and right (unit 18: left +2.78; unit 31: right +2.05). Vertical movement therefore matters as much as horizontal, so this is free 2-D movement.
+
+**Reasoning:**
+- About 53% inactive inputs fits a layout with only agent, reward and previous-frame channels active over the 64 inner cells, plus the 36 walls. That layout predicts 272 inactive inputs, or 54%.
+- A game with a moving-object channel (enemies, cars, balls, aliens) would leave only about 42% inactive and would add many more strong rows. So Pac-Man-with-ghosts, Frogger, dodge games, Pong, Breakout and Space Invaders are unlikely.
+- Paddle and shooter games are also ruled out because up and down are clearly used and distinct.
+- No interior obstacles seem to be present: only about 36 constant wall-like rows. That rules out mazes and Sokoban.
+- What remains is an agent moving freely in 4 directions to reach a reward target, with walls ending the episode or blocking. Snake and a plain "go to the food" task both fit. The disfavoured noop and the strong encoding of target position fit this too.
+- I could not tell Snake's growing body apart from a single-cell agent. If the body were marked as an obstacle, there would be fewer inactive inputs than I counted.
+
+**Game:** A Snake-style food-collection game on an 8×8 walled arena: Snake, or a simplified version where the agent chases a single food item.
+
+**Description:** The agent moves up, down, left or right around the walled 8×8 area to reach the food or target cell, which gives reward and then reappears somewhere else. Running into the wall is avoided because it blocks the agent or ends the episode.
+
+**Confidence:** 30%

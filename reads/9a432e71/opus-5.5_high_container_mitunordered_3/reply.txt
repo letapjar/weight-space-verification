@@ -1,0 +1,39 @@
+Observations:
+
+**Input layout**
+- The inputs are not in an obvious cell or channel order. For example, the 2nd input row (`1.346 -1.390 1.307 … 3.992 3.047`) is large, which rules out both the "channel-major" and the "cell-major" layouts. In those layouts it would be a wall corner that can never hold anything movable. So I sorted the 500 rows by behaviour instead.
+
+**Three kinds of input rows**
+- **Untouched rows (about 320).** All weights are within ±0.2, which looks like the initial values. These inputs are never 1.
+- **Bias-copy rows (about 43–44).** They all have nearly the same profile: about +0.25 in unit 0, about −0.2 in unit 1, about +0.4 in unit 10 and about +0.2 in unit 21. Examples:
+  - `0.233 -0.227 … 0.411 … 0.114`
+  - `0.260 -0.161 … 0.588 … 0.194`
+  - `0.389 -0.239 … 0.477 … 0.290`
+
+  These are almost exactly b1 (`0.252 -0.182 … 0.384 … 0.202`). An input that is always 1 gets the same gradient as the bias, so these are constant inputs. 36 of them are the wall ring in channel 3. That leaves about 8 extra constant cells, which is one full row of 8 playable cells that never changes, such as a fixed goal or reward row.
+- **Large rows (about 130–140).** Weights reach ±3 to 9. These are the cells that change during play.
+
+**Output layer**
+- Left, right and no-op have small and very similar output weights. The left–right differences are at most about 0.55 (unit 7: −0.194 vs −0.748). The biases are also nearly equal: no-op 0.359, left 0.364, right 0.306.
+- Up and down carry nearly all of the decision:
+  - Unit 19: up −3.055, while no-op, left and right are +1.078, +0.713 and +0.831.
+  - Unit 23: up −2.237, while the others are about +0.8 to +0.9.
+  - Unit 16: up −1.734, down +2.380.
+  - Down also has strong weights of both signs: +1.360 (unit 18), +1.299 (unit 7), −1.610 (unit 26), −0.946 (unit 31).
+  - Both vertical biases are negative: up −0.200, down −0.566.
+- So the policy decides whether to step up, wait, or step back down. Moving sideways is about the same as standing still.
+
+Reasoning:
+- **Ruled out: horizontally controlled games** (Breakout, Pong, Catch, Space Invaders-style). There, left and right would be the important actions and up/down would just copy no-op. Here it is the reverse.
+- **Ruled out: free-roaming games** (Snake, coin collecting, mazes, Asterix or Seaquest-like). Those need many cells across the agent, reward and previous-frame channels. They also need all four directions to be distinct, and they would not have a fixed constant row.
+- **Freeway-style road crossing fits all of the evidence:**
+  - The agent sits in a fixed column, so left and right do nothing.
+  - Cars move sideways in lanes, filling channel 1 and the previous-frame channel. That accounts for most of the roughly 130 changing inputs.
+  - The goal row is a static band of reward cells, which explains the 8 extra constant inputs.
+  - The learned behaviour matches crossing traffic. "Danger" units (19 and 23) strongly veto stepping up. Unit 16 triggers a retreat (down up, up down). Otherwise the agent waits or advances.
+
+Game: Freeway (a chicken-crossing-the-road game, like Atari or MinAtar Freeway).
+
+Description: The agent moves only up and down in a fixed column, crossing lanes of cars that move sideways. It waits or steps back to avoid being hit, and it earns reward each time it reaches the goal row at the far side.
+
+Confidence: 55%

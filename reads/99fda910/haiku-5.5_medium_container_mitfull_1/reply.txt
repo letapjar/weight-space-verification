@@ -1,0 +1,14 @@
+**Observations:**
+- Input indexing: input `i` = (row·10 + col)·5 + channel. The channel-4 (previous frame) rows are `i mod 5 = 4`. I could not map the large W1 rows to specific cells reliably by hand, so I won't claim a specific cell layout from them.
+- Scale: most W1 entries are around ±0.1–0.5. A block of rows near the middle of W1 has much larger entries (roughly ±2 to ±11), which suggests a cluster of cells with strong, sign-varying influence. Their pattern repeats across several consecutive cells, which is consistent with a band of structured cells, but I could not confirm which channels they belong to.
+- Output layer: `b3 = [0.017, 1.491, -1.931, 0.147, -0.422]`. The bias favours action 1 (up) and disfavours action 2 (down). Action 4 (right) and action 0 (no-op) are near zero. One hidden unit (row 16 of W3, `0.980 1.783 0.136 -5.826 0.105`) has a very large negative weight to action 3 (left), so it acts as a strong left-suppressor.
+- W2 has entries up to about ±4, so the second layer does substantial nonlinear mixing. I cannot trace its function by hand.
+
+**Reasoning:**
+The observation contains four kinds of object (agent, moving objects, reward, obstacles) plus a previous-frame channel. That points to a grid game with moving hazards and a goal, where motion has to be inferred from the previous frame. Ruled out, as far as I can tell: pure maze/path games with no moving objects, and games whose agent grows (Snake), since no channel encodes a body. Pac-Man-style and Frogger-style games both fit the channel set, but the weights don't let me tell them apart.
+
+**Game:** Unclear. The closest well-known shape is a Frogger-like game: the agent crosses an 8×8 field of moving hazards toward a goal, with obstacles that end the episode. This is a guess from the channel structure, not a conclusion from the weights.
+
+**Description:** The agent moves one cell per step (up/down/left/right/no-op) through a field of moving objects and static obstacles, and receives reward for reaching targets. The weights don't establish the exact reward rule.
+
+**Confidence:** 15%

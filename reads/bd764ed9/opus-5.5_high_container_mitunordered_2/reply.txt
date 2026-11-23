@@ -1,0 +1,47 @@
+**Observations:**
+
+- **Three kinds of input rows in W1.** The rows of W1 fall into three groups.
+  - **Small rows (about 328).** These have all weights near 0.1, e.g. row 0 (`0.044 -0.043 0.029 …`). They look untouched from initialisation, so these inputs are almost never active.
+  - **Bias-copy rows (about 44).** These match b1 plus small noise. The signature is about -0.4 in unit 17, about -0.2 in units 14 and 23, and about +0.2 in unit 27. Examples:
+    - row 11: `… -0.248 … -0.455 … -0.178 … 0.180`
+    - row 385: `… -0.489 … 0.364`
+    - b1 itself: `… -0.236 … -0.400 … -0.201 … 0.210`
+
+    A row identical to the bias means the input is always on. That covers the 36 wall-border cells in channel 3, plus about 8 more cells that are almost always present.
+  - **Large rows (128).** These have weights of 2 to 10, e.g.:
+    - row 173: `-2.419 … -8.368 …`
+    - row 363: `… 9.762`
+    - row 290: `… -7.179 … -6.777`
+
+    128 is exactly 2 × 64. One way to get this is 8 + 56 + 64:
+    - 8 agent cells in one row,
+    - a single moving object over 56 cells (rows 1–7),
+    - the previous-frame channel over all 64 cells.
+
+    That leaves no other channel varying. Note that inputs are shuffled, so which cell each row belongs to is not given and this split is inferred.
+- **Output layer.**
+  - Biases are `-0.084 -0.819 -0.271 0.916 0.132` (no-op, up, down, left, right).
+  - h2 unit 6 has b2 = −2.54, so it is usually off. Its W3 row is `-1.048 4.727 -0.121 -1.257 -1.371`. While it is off, "up" is held down by about −4.7. It acts as a rare "press up now" trigger.
+  - h2 unit 30 has b2 = +1.714, so it is usually on. Its W3 row is `0.574 -0.840 -2.691 1.006 1.142`. It pushes "down" further down and lifts left and right.
+  - Adding up the typical case gives roughly: no-op ≈ 1.7, left ≈ 1.5, right ≈ 1.6, down ≈ −1.6, up ≈ −3.4.
+  - So the policy mostly chooses between left, right and staying put. Up and down are almost unused, except for one gated "up" event.
+
+**Reasoning:**
+
+- **A horizontal paddle in the bottom row fits best.** The action pattern (left/right/stay, with up/down suppressed) and the 8 + 56 + 64 input count both point to this:
+  - the paddle moves along one row (8 cells);
+  - a ball moves through rows 1–7 and never sits in row 8 while the agent acts, because missing it ends the episode;
+  - the previous-frame channel supplies the ball's velocity.
+- **The 8 extra always-on cells look like a row of bricks.** These would be reward targets that are present most of the time. The ball can still reach row 1 once bricks are broken, which is what makes the ball cover 56 cells and the total come to 128.
+- **The rare "up" trigger** could be a serve or launch action, or simply a learned habit for a near-useless action.
+- **Ruled out:**
+  - Snake, coverage games and gridworlds with collectibles: these need agent, reward and previous-frame channels all varying over the whole interior, which is about 192 large rows or more, and would use up/down freely.
+  - Frogger and Flappy-style games: "up" would dominate, and the moving obstacles would add channel-3 inputs.
+  - Catch: the falling fruit would show up in both the moving-object and reward channels, giving too many inputs.
+- **Pong/squash vs. Breakout.** A one-player Pong or squash game is the close alternative. The roughly 8 extra persistent target cells favour Breakout.
+
+**Game:** Breakout-style paddle-and-ball game (a simplified Breakout, closely related to single-player Pong or squash).
+
+**Description:** The agent moves a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball breaking a row of bricks (reward targets) near the top, and missing the ball ends the episode.
+
+**Confidence:** 35%

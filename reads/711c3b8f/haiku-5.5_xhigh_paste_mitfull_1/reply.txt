@@ -1,0 +1,25 @@
+**Observations:**
+
+- **Walls (channel 3, border cells):** Every border cell has the same strong signature. Row 3 (cell (0,0), channel 3) is `0.007 0.192 -0.104 -0.200 -0.294 ... 0.181 -0.504 0.306`, and the other border cells look similar. Interior channel-3 rows are near zero, e.g. row 58 (cell (1,1)) is `0.038 -0.025 -0.059 0.028 ...`. So the only obstacles are the border.
+- **Agent (channel 0):** Large weights appear only on the top playable row, cells (1,1)–(1,8). Row 55 (cell (1,1)) is `-0.666 -2.968 -0.840 ... 1.761 ... -2.941 -3.670 ...`, and row 90 (cell (1,8)) is `7.720 -0.225 1.358 ...`. Channel-0 rows for cells in rows 2–8 are near initialisation scale, e.g. row 110 is `-0.042 -0.013 0.043 0.043 ...`. The network reads the agent's position only on row 1, so the agent stays on that row and moves horizontally.
+- **Moving objects (channel 1) and previous frame (channel 4):** Channels 1 and 4 have large weights across rows 2–7 and most of row 8, for every column. Row 111 (cell (2,2), channel 1) is `3.555 4.292 1.284 ...`. Channel 1 on row 1 is small, e.g. row 56 is `-0.069 0.045 0.034 ...`, so objects never occupy the agent's row. Channels 1 and 4 at the same cell have similar weights (e.g. cell (4,1): row 206 `0.316 -3.991 1.243 ...` vs row 209 `-0.569 -2.084 -0.267 ...`), which suggests occupancy-style detection of a small number of moving objects that roam the field.
+- **Reward targets (channel 2):** Weights are near zero on rows 1–5 (row 107 `-0.048 -0.047 0.079 ...`, row 257 `0.022 0.066 0.122 ...`). They are medium to large on rows 6–8 across all eight columns: row 307 `-0.249 -0.139 0.540 0.257 -0.337 0.721 ...`, row 357 `0.684 -0.004 0.820 0.010 -4.619 ...`, row 407 `-2.710 -0.223 0.777 ... -4.812 ...`. This looks like a static block of three full rows of reward objects along the far edge.
+- **Output layer:** The bias favours left (b3 = 0.388 on action 3). Hidden unit 4 has W3 = 4.194 for right, and units 26 (3.506), 17 (2.259) and 28 (2.038) push left. Up and down columns are mostly negative or small, so vertical movement is rarely chosen.
+
+**Reasoning:**
+
+The observations describe a horizontally sliding agent on one edge row, a ball-like object roaming the playfield, a solid block of reward targets on the opposite side, and walls only at the border. That fits a brick-breaker: the paddle slides along one edge, the ball bounces off walls and paddle, and bricks give reward. The reward block occupying three full rows far from the paddle matches the usual three-row brick wall, here flipped vertically so the paddle is on row 1 and the bricks are on rows 6–8. The fact that the ball never occupies the paddle row fits the ball bouncing off the paddle. Only left/right movement is used, which matches a paddle with no vertical motion.
+
+Alternatives I considered:
+- **Space Invaders** (flipped) has a similar layout, but the invaders would normally be moving objects, not reward targets, and the game needs a fire action that is absent here.
+- **Pong** is ruled out because its paddle moves along a column.
+- **Freeway/Frogger** are ruled out because the agent would need to move vertically, which would show up as channel-0 weights on many rows.
+- **Pac-Man/Snake/maze games** are ruled out because they would need interior obstacle weights, which are near zero.
+
+The reading is tentative, since the hidden units are heavily saturated by the large wall and object weights and I could not run the forward pass.
+
+**Game:** Breakout (brick-breaker), with the paddle on the top playable row and the bricks on the bottom three playable rows (a vertically flipped layout).
+
+**Description:** A paddle on the top row slides left and right to bounce a ball that moves up through the field. Hitting the bricks in the bottom rows gives reward, and the episode ends if the ball gets past the paddle.
+
+**Confidence:** 40%

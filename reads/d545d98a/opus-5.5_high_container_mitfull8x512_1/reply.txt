@@ -1,0 +1,60 @@
+**Observations:**
+
+To read W1, I used input index i = (row·10 + col)·5 + channel, so W1 row i belongs to cell i // 5 and channel i % 5.
+
+- **Channel 0 (agent):** The weights are near zero everywhere except **row 8, the bottom playable row**. There they are large and form a left-to-right gradient, which encodes horizontal position:
+  - Unit 1: (8,1) i=405 0.393, (8,2) i=410 0.657, (8,3) i=415 0.503, then (8,6) i=430 −0.334, (8,7) i=435 −0.565, (8,8) i=440 −0.205.
+  - Unit 3: 0.061, 0.409, 0.442 on the left, and −0.293, −0.782, −0.299 on the right.
+  - Unit 4: −0.522 at (8,1), but +0.588 at (8,7) and +0.570 at (8,8).
+  - So the agent is a single-row object on the bottom row that only needs its column tracked.
+- **Channel 1 (moving objects):** The weights are large across **rows 1–7 of the whole field**. Examples:
+  - i=171 (3,4): −1.322, −1.454, 1.020
+  - i=281 (5,6): −1.661
+  - i=311 (6,2): 1.410
+  - i=361 (7,2): 1.146, −1.483
+  - i=391 (7,8): −2.019, 1.168
+  - In row 8 they are nearly zero (i=406, 411, 416: about ±0.1).
+  - So there is one moving object, a ball, that travels around the field above the paddle.
+- **Channel 4 (previous frame):** This channel is equally large over rows 1–7, for example:
+  - i=174: 1.837
+  - i=314: 1.533
+  - i=344: −2.213
+  - i=374: 1.462
+  - i=279: 1.154
+  - Together with channel 1, this gives the ball's direction of motion, which a paddle needs in order to intercept it.
+- **Channel 2 (reward targets):** The weights are moderate to large **only in rows 1–3**, for example:
+  - i=67 (1,3): 0.470
+  - i=77 (1,5): 0.555
+  - i=117 (2,3): 0.593, 0.489
+  - i=137 (2,7): 0.566
+  - i=167 (3,3): −0.751, 0.746
+  - i=187 (3,7): −0.482
+  - From row 4 down they are noise (about ±0.1).
+  - So the rewards are static targets packed into the top rows, like a brick wall.
+- **Channel 3 (obstacles):** The weights are small everywhere (about ±0.15). This channel is only the constant wall.
+- **Output layer:**
+  - The W3 columns for no-op, up and down are almost identical in every row. Examples:
+    - Row 12: −0.122, −0.126, −0.144 | left 0.514 | right −0.010
+    - Row 31: −0.115, −0.115, −0.117 | 0.690 | −0.057
+    - Row 47: −0.156, −0.118, −0.140 | 0.035 | 0.648
+    - Row 207: −0.107, −0.099, −0.110 | 1.030 | −0.055
+  - Only the left and right columns carry independent, large weights, often in opposition.
+  - b3 = [0.070, 0.061, 0.113, −0.123, −0.110]: the three "stay" actions together act as a default.
+  - So the policy effectively chooses among {stay, left, right}, and up/down do nothing useful.
+
+**Reasoning:**
+
+- **Fits Breakout:** A paddle confined to the bottom row moving left and right, a ball whose position and velocity are tracked through the field, and reward targets fixed in the top three rows.
+- **Pong is ruled out:** It would not have stationary reward targets packed in the top rows.
+- **Catch / fruit-catcher games are ruled out:** There the reward target falls, so channel 2 would carry weight in every row, not just rows 1–3.
+- **Snake, maze navigation, Frogger-like crossing and Space-Invaders-style shooters are ruled out:**
+  - The agent channel matters only in the bottom row.
+  - Up and down are interchangeable with no-op.
+  - The obstacle channel is uninformative.
+  - There is no shoot action, so a Space-Invaders-style shooter does not fit.
+
+**Game:** Breakout (a mini-Breakout/Arkanoid: a paddle on the bottom row, a bouncing ball, and a brick wall in the top rows).
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball breaking bricks in the top rows, and missing the ball ends the episode.
+
+**Confidence:** 85%

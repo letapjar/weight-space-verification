@@ -1,0 +1,22 @@
+**Observations:**
+
+- **Channel 0 (agent):** the weights are large only in row 8, the bottom playable row, across columns 1–8. Examples: input 405 (row 8, col 1) starts `-3.904 -0.629 -0.898 … 6.017`; input 415 (row 8, col 3) starts `-3.855 …`; input 440 (row 8, col 8) starts `-2.480 2.027 … 5.938 … 6.467`. In rows 1–7 the agent-channel rows are at noise level (|w| ≲ 0.15), e.g. input 55 (row 1, col 1) `-0.050 0.068 -0.043 …`. The agent is therefore confined to the bottom row and can only vary in column.
+- **Channel 1 (moving objects):** the weights are large over rows 1–7 across the full width, and largest in the middle and lower rows. Examples: input 171 (row 3, col 4) `-4.770 -6.186 … 5.342 5.872`; input 236 (row 4, col 7) `-7.641 …`; input 306 (row 6, col 1) `1.077 3.952 … -6.043`; input 361 (row 7, col 2) `3.915 3.644 3.828 …`. They are at noise level in row 8 (inputs 406, 411, …), so the moving object roams the whole field above the agent but is never seen in the agent's row.
+- **Channel 2 (reward targets):** the weights are large only in rows 1–3, columns 1–8. Examples: input 57 (row 1, col 1) `0.360 … 2.748 -2.002 … 3.943 -2.631 … -3.847`; input 72 (row 1, col 4) `… 4.597 …`; input 107 (row 2, col 1) `… 3.534 …`; input 157 (row 3, col 1) `… 2.203 …`. From row 4 downward they are noise, e.g. input 207 `0.031 0.071 -0.040 …`. The targets are a fixed block of three rows at the top.
+- **Channel 3 (obstacles):** only the border cells carry weight, and every border cell has almost the same vector as the bias (`≈0.1 0.0 0.15 0.3 0.2 … 0.5 0.25 …` against b1 `0.135 0.037 0.152 0.317 0.172 … 0.534 0.241`). These are always-on inputs acting as extra bias. No interior obstacle weights were learned, so there are no interior hazards or walls.
+- **Channel 4 (previous frame):** the weights are large in rows 1–7, matching where the moving object goes (e.g. input 119 `-5.183 …`, input 224 `0.885 6.185 …`), and moderate in row 8 where the agent's own trail falls. The network compares this with channel 1 to read the object's direction of travel.
+- **Output layer:** the left and right columns of W3 carry the big, opposite-signed weights. Examples: unit 6 `0.991 0.648 0.854 0.529 -2.778`; unit 12 `… -0.737 2.531`; unit 19 `… 2.119 -0.786`; unit 29 `… 2.138 -0.118`; unit 2 `… -0.222 2.393`. The no-op, up and down columns are smaller and move together: unit 18 `1.009 0.778 0.720`; unit 21 `0.924 0.603 0.643`; unit 2 `-0.686 -0.637 -0.606`; unit 29 `-0.691 -0.768 -0.793`. So up and down are treated as equivalent to "stay", and the real decision is left, right or stay. Biases are `0.538 -0.025 -0.121 0.405 -0.648`.
+
+**Reasoning:**
+
+A paddle-like agent restricted to the bottom row, a static band of reward targets in the top three rows, and a moving object tracked with its previous position across the field between them is the layout of Breakout.
+
+- **Space Invaders** is ruled out: the targets would descend into lower rows, bullets would be needed, and a fire action would matter.
+- **Catch or dodge games** with falling items are ruled out: the reward or hazard objects would appear in every row, not a fixed three-row block.
+- **Maze, Snake, Seaquest, Freeway or Asterix-style games** are ruled out: the agent would occupy many rows and up/down would matter.
+
+**Game:** Breakout (MinAtar-style Breakout on a 10 x 10 grid).
+
+**Description:** The agent slides a paddle left and right along the bottom row to bounce a ball up into three rows of bricks at the top. Each brick the ball breaks gives reward, and missing the ball ends the episode.
+
+**Confidence:** 92%

@@ -1,0 +1,101 @@
+I read all 500 rows of W1 plus W2, W3 and the biases, with no tool calls. My best reading is that this is a small MLP (500→32→32→5) choosing one of 5 actions in a 10×10 walled gridworld of the collect-the-pellets kind. The grid layout is close to certain; the exact game is an inference.
+
+## 1. What the weights show
+
+**The rows of W1 fall into six sharply distinct types.**
+
+| Type | Signature | Count | Reading |
+|---|---|---|---|
+| Dead | noise, sd ≈ 0.06, never larger | 195 | input never active; weight still at initialisation |
+| K | row ≈ b1 (e.g. row 3 starts 0.372, −0.095, 0.152… vs b1 0.452, −0.069, 0.134…) | 36 | input always 1, so it received the same updates as the bias |
+| A | 8 identical rows (≈ −0.9, −1.5, −0.2, 0.1, −0.7, −1.6…) | 8 | 8 inputs that always switch on and off together |
+| B | 16 identical rows (≈ 0.2, −1.8, −0.7, 0.3, 0.2, −1.2…) | 16 | 16 inputs that always switch together, on a different schedule from A |
+| Large | entries up to ±29 | most of ~190 | informative inputs, one at a time |
+| Moderate | entries about ±1–3, shared structure | ~50 | inputs active many at a time |
+
+**Training fingerprint.**
+- Dead rows keep sd ≈ 0.06 ≈ √(2/500), and values such as −0.238 and 0.293 exceed PyTorch's default uniform bound of 0.045. That fits He-normal or orthogonal(√2) initialisation.
+- K rows equal b1 plus that same noise, so biases started at zero and there was little or no weight decay.
+- The 36 always-on inputs act as 36 extra copies of the bias, so the effective first-layer bias is about 37·b1.
+
+**Index structure: i = 50·r + 5·c + k, a 10×10 grid with 5 channels per cell.**
+- Channel 3 is K at every border cell: all of rows 0 and 9, and columns 0 and 9 of rows 1–8. It is dead at 48 interior cells and equals B at the other 16.
+- Channel 2 equals A at column 9, rows 1–8, in the same cells where channel 3 is always on.
+- Channels 0, 1 and 4 are live at all 64 interior cells and dead on the border.
+
+```
+c:   0 1 2 3 4 5 6 7 8 9
+r=0  # # # # # # # # # #      # border, ch3 always on
+r=1  # . . . . . . . . A      A ch3 always on + ch2 group A
+r=2  # . P P . . P P . A      P group-B wall cell, ch2 also live
+r=3  # . P . . . . P . A      p group-B wall cell, ch2 dead
+r=4  # . . . p p . . . A      * ch2 with unusually large weights
+r=5  # . . . p p * . . A      S ch2 and ch3 both dead; ch0 has one of
+r=6  # . p . . * * p . A        the largest rows in W1 (±21)
+r=7  # . p p . . p p . A
+r=8  # . . . S . . . . A
+r=9  # # # # # # # # # #
+```
+
+The B cells form four L-shaped corner blocks and a 2×2 centre. The pattern is symmetric under rotation, reflection and transposition, so I cannot tell rows from columns.
+
+**Channel behaviour.**
+- **Channel 0** has the largest weights (10–29) and acts as a per-cell lookup table.
+  - In column 8, rows 1–7, hidden unit 2 gets −11.2 to −13.4 and unit 16 gets −10 to −14.
+  - It is nearly silent at 8 of the 16 B cells.
+  - About ten units (5, 9, 11, 12, 25, 26, 28…) ignore it at most positions.
+- **Channel 1** has large weights (up to 25) and is spatially smooth. In the top row, unit 19 reads +1.0, +1.2, +3.3, +2.1 for columns 1–4 and −12.2, −12.0, −6.5, −9.7 for columns 5–8.
+- **Channel 2** has small, pooled weights that behave like region counters.
+  - Unit 12 gets −3.3, −2.8, −3.0, −3.1, −3.1, −3.0, −3.3, −4.8 from the eight top-row cells and about 0 from other rows.
+  - Unit 17 gets +5 to +9 from six of the seven bottom-row cells.
+  - Units 7, 10 and 18 pool column 1.
+- **Channel 3** is the wall: K, B or dead.
+- **Channel 4** has medium weights (2–10), position-specific, live everywhere in the interior.
+
+**A and B act as global switches.** Summed over their cells they shift hidden units by tens, often in opposite directions:
+
+| Hidden unit | 8 × A | 16 × B |
+|---|---|---|
+| 26 | −16 | +46 |
+| 27 | +18 | −37 |
+| 28 | +16 | −33 |
+| 1, 5, 24, 25 | −12 to −17 | −20 to −33 |
+
+Units 1, 5, 24 and 25 are suppressed by both yet have trained weights, so states with neither A nor B on probably exist.
+
+**Output layer.** There are 5 outputs with b3 = (1.08, 0.00, 0.41, 0.90, −0.65). The column sums of W3 are about (+5, −5, −11, +25, −19), and outputs 3 and 4 are anti-correlated (cosine ≈ −0.4). There is no shared component across outputs.
+
+## 2. Hypotheses
+
+| Hypothesis | Verdict | Why |
+|---|---|---|
+| Random or untrained network | Out | Weights up to ±29 against 0.06 initialisation; exact duplicate rows |
+| Tabular data with 500 unrelated features | Out | Strict period-5 and period-50 structure |
+| One-hot sequence (100 tokens × 5, or 10 × 50) | Out | Always-on inputs form a closed ring, and B is symmetric in two dimensions |
+| Strict one-hot cell types | Out, at least on the border | Column 9 has channel 3 always on while channel 2 (A) is sometimes on |
+| Image classifier on 10×10 five-colour pictures | Unlikely | One channel is a single-location lookup, another is counted; 195 pixels never vary |
+| Board game move predictor | Out | 5 outputs rather than one per cell; static walls |
+| MinAtar | Out | No MinAtar game has 5 channels or a fixed wall ring |
+| Sokoban / Boxoban | Out | Only two wall configurations ever occur |
+| Snake | Unlikely | The specific channel-2 never-cells and the A strip have no Snake reading |
+| Q-values or a value head | Disfavoured | Q-values for one state share a value component; these outputs oppose each other |
+| Gridworld policy with softmax over 5 moves | In | Wall plane, single-entity lookup, counted collectibles, 5 outputs |
+| Single fixed level | Out | B walls and the A strip each switch as a block, with opposite-signed effects |
+
+## 3. Best explanation
+
+This is the first layer of a policy network (action logits, probably four moves plus stay) for a 10×10 Pac-Man-like collection game. The observation is five binary planes per cell, flattened cell by cell.
+
+- **Channel 0: the agent.** One cell at a time, largest weights. Cell (8,4) is probably the spawn: it has one of the largest rows in W1 and never holds a pellet.
+- **Channel 2: collectibles.** Many are present at once, and the network counts them by row and column.
+- **Channel 3: walls.** A permanent border plus an optional set of 16 pillars.
+- **Channels 1 and 4: two further localised objects**, such as an enemy and a goal or power-up. I cannot tell which is which.
+
+The network was trained across at least two contexts: an open room and the 16-pillar maze. Group A is a third binary signal drawn as collectibles inside the right-hand wall. It is physically impossible as a game object, so it is most likely a deliberate global flag: a mode or task indicator, or possibly a planted trigger. The weights show it is binary, global and has a large effect, but not what it means.
+
+**What I could not determine:**
+- Grid orientation and the order of the actions.
+- Whether training was reinforcement learning or imitation.
+- Whether A and B are mutually exclusive.
+- Why the upper pillar cells sometimes hold channel-2 objects while the lower and centre ones never do.
+- Why cells (5,6), (6,5) and (6,6) carry single-entity-sized channel-2 weights.

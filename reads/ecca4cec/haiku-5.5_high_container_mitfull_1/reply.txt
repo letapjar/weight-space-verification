@@ -1,0 +1,14 @@
+**Observations:**
+- **Channel 3 (obstacles) is the clearest signal.** Border cells share a fixed weight pattern. Input 3 (row 0, col 0, ch 3) is `0.221 -0.593 0.179 ...`, input 8 (row 0, col 1, ch 3) is `0.363 -0.624 0.234 ...`, input 53 (row 1, col 0, ch 3) is `0.438 -0.624 0.286 ...`, and input 498 (row 9, col 9, ch 3) is `0.419 -0.551 0.150 ...`. Each has hidden unit 1 strongly negative (about -0.6), unit 17 negative, and units 0, 2, 4, 12 and 13 positive. Since walls are always present, this pattern acts as a constant background input. The first-layer biases echo it (`b1`: unit 1 = -0.567, unit 13 = +0.334, unit 17 = -0.419).
+- **Border cells' other channels are small.** For example, input 5 (row 0, col 1, ch 0) is `-0.030 -0.004 ...`. This fits cells that never hold an agent, moving object or reward.
+- **Interior cells are dense and larger.** Some first-layer rows reach magnitudes of 5 to 9.7 (e.g. `7.482`, `9.734`), mostly in the lower half of the matrix. I could not map these reliably to a specific cell and channel by hand, so I cannot say which channel encodes the agent, the moving objects or the rewards.
+- **Output layer.** `b3 = [0.632, 2.126, -0.860, -0.518, -1.382]` gives "up" (action 1) the largest bias, and "down" and "right" the most negative. This suggests a default upward tendency. Biases alone do not determine the policy, though.
+
+**Reasoning:**
+The spec describes a grid with a border wall, an agent, moving hazards that can end the episode, reward targets, and a previous-frame trail channel. Five actions with four directions points to a movement-based grid game. Breakout-style games are ruled out because they need a paddle or fire action and have no four-direction movement. Freeway is ruled out because it has only three actions. The MinAtar Asterix game uses a 10x10 grid with the same five actions and a similar trail channel, but it has no border obstacle channel and only four channels, so it is an imperfect match. A Pac-Man-style maze (walls as obstacles, pellets as rewards, ghosts as moving hazards) fits the border-wall structure best. A Frogger-style game would also fit the upward output bias. The weights I could verify only confirm the wall channel, so the choice among these is weakly supported.
+
+**Game:** Best guess: a Pac-Man-style maze game, in which the agent collects reward targets in the playable interior while avoiding moving hazards and walls. The closest named alternative is MinAtar Asterix (the 10x10 grid with a treasure-collecting player and a trail channel). This is a low-confidence guess.
+
+**Description:** The agent moves up, down, left and right inside the 8x8 playable area, collecting reward targets while avoiding moving objects and walls, which end the episode on contact.
+
+**Confidence:** 20%

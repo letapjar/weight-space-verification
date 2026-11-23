@@ -1,0 +1,43 @@
+**Observations:**
+
+- **Indexing check.** Input 3 is cell (0,0) channel 3. Its row in W1 shows a fixed signature: unit 9 ≈ +0.45, unit 19 ≈ −0.42, unit 17 ≈ +0.14, unit 20 ≈ +0.25.
+  - The same signature repeats every 5 inputs along the border (inputs 8, 13, 18, …, 53 = (1,0) ch3, …, 448 = (8,9) ch3, 498 = (9,9) ch3).
+  - It closely mirrors b1 (unit 9 = 0.404, unit 19 = −0.255, unit 20 = 0.197).
+  - So the wall is constant and the network has folded it into a bias.
+- **Channel 3 inside the play area.** Weights are near zero, e.g. input 58 = (1,1) ch3 is "0.045 0.047 −0.092 …".
+  - So the inner 8×8 never contains obstacles. Nothing that falls or moves inside the grid is lethal.
+- **Rows 1–7 (upper area).** Channel 1 (moving objects) and channel 4 (previous frame) carry very large weights in every row:
+  - Input 61 = (1,2) ch1: −1.737, 1.760, 2.641, −2.788, …, −5.056 (unit 9), 3.573.
+  - Input 64 = (1,2) ch4: −2.469, 1.032, …, −4.663.
+  - Input 66 = (1,3) ch1: −1.797, …, −4.053, …, 3.775.
+  - Channel 2 (reward) is moderately weighted at the same cells, e.g. input 62: 1.379, 1.374, 3.249; input 67: 1.498, 1.493, 3.138.
+  - Channel 0 (agent) is tiny in these rows, e.g. input 60: −0.005, 0.027, ….
+  - So the agent never appears in rows 1–7. Moving objects that also count as reward targets do, and ch4 lets the network read their direction of motion.
+- **Row 8 (bottom playable row).** The pattern reverses. Channel 0 and channel 4 are large, while channels 1 and 2 are near zero:
+  - Input 440 = (8,8) ch0: −0.383, 1.585, 0.223, **−3.876**, …, 2.647, 2.554, 2.068.
+  - Input 435 = (8,7) ch0: −0.799, **3.316**, …, 2.945, 2.828.
+  - Input 425 = (8,5) ch0: 0.335, 2.012, ….
+  - Input 405-ish ch4: −0.901, −1.816, …, 3.206.
+  - So the agent lives only in the bottom row, like a paddle.
+- **Output layer.** Biases are flat (0.88, 0.73, 1.06, 0.70, 0.76), so up and down are never specifically driven. The large output weights sit in the left and right columns:
+  - Unit 3 → right **3.596**.
+  - Unit 28 → right **3.106**.
+  - Unit 13 → left **−3.348**.
+  - Unit 15 → left **2.789**.
+  - Unit 4 → left −2.658.
+  - Unit 29 → left 2.480.
+  - The up and down columns stay mostly around ±1–1.9. The policy is essentially a choice of left, right, or stay.
+
+**Reasoning:**
+
+- The agent is confined to one row (row 8) and acts almost only horizontally, which points to a paddle or catcher game.
+- Moving objects appear across rows 1–7. The heavy previous-frame weights there mean the policy tracks their trajectory, which matters for predicting where a falling object will land.
+- The moving objects overlap with reward-target weights and are never obstacles (interior ch3 ≈ 0). That rules out dodge or avoid games such as falling-rocks or Frogger-style games, where the hazards would be lethal.
+- Snake and maze or gridworld navigation are ruled out because the agent never occupies rows 1–7 and up/down are unused.
+- Breakout or Pong would need a ball that bounces back upward and bricks or targets in the upper rows as static reward. Here the reward is co-located with the moving objects. A plain catch game fits best.
+
+**Game:** Catch (the classic "Catch" RL benchmark, as in DeepMind bsuite or Minatar-style): a paddle at the bottom catches falling objects.
+
+**Description:** The agent is a paddle on the bottom row that moves left or right to sit under falling objects. It gets reward for each object it catches; missed objects give nothing or a penalty.
+
+**Confidence:** 72%

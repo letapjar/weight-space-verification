@@ -1,0 +1,201 @@
+# What this is: a small trained neural-network classifier
+
+The data is the complete set of parameters of a 3-layer fully connected network (an MLP). It takes a 500-dimensional input, squeezes it through an 8-unit bottleneck, expands to 512 hidden units, and outputs 5 scores (logits).
+
+Everything below comes from reading the numbers by eye, as you asked, with no computation. Treat index positions as accurate to about ±1, and correlations and magnitudes as approximate.
+
+---
+
+## 1. Architecture
+
+| Layer | Shape | Params |
+|---|---|---|
+| W1 + b1 | 500 → 8 | 4,000 + 8 |
+| W2 + b2 | 8 → 512 | 4,096 + 512 |
+| W3 + b3 | 512 → 5 | 2,560 + 5 |
+| **Total** | | **11,181** |
+
+The network is narrow, then wide, then narrow, which is unusual. The 8-unit layer is a hard information bottleneck: everything the model knows about an input must fit in 8 numbers.
+
+The 512-unit layer cannot add information. It carves the 8-D (effectively about 2–3-D, see §4) space into many piecewise-linear regions. The activation is almost certainly ReLU-like, and the 5 outputs feed a softmax for 5-way classification.
+
+---
+
+## 2. Initialization fingerprint: which weights actually trained
+
+There are two clearly distinct populations of weights:
+
+- **"Background" weights**: about ±0.00–0.15, roughly zero-mean, std ≈ 0.06. That matches Glorot/He-normal initialization for these layer sizes:
+  - 500→8 gives √(2/508) ≈ 0.063.
+  - 8→512 gives √(2/520) ≈ 0.062.
+  
+  These weights barely moved from their random starting values.
+- **"Learned" weights**: 0.3 to 2.2 in magnitude. The largest are:
+  - W1[344] ≈ −2.21
+  - W1[391] ≈ −2.02
+  - W1[174] ≈ +1.84
+  - W1[361] ≈ +1.72
+
+The biases are tiny (b1 within ±0.035, b2 within ±0.17). This suggests modest training and/or weight decay.
+
+The key consequence is that **any input whose weights still look like init noise contributed essentially nothing to learning**. Either that input is constant or zero, or it is pure noise that the model learned to ignore.
+
+---
+
+## 3. Layer 1 (500 → 8): the input has a strong hidden 2-D/3-D structure
+
+The "learned" rows are not scattered randomly. They follow two nested periodicities: **a period of 50 and a period of 5**.
+
+### Quiet vs. active zones
+
+| Index range | Status |
+|---|---|
+| 0–56 | quiet (all init noise) |
+| 57/61–81 | active |
+| 82–105 | quiet |
+| 106–142 | active |
+| 143–155 | quiet |
+| 156–194 | active |
+| 195–205 | quiet |
+| 206–244 | active |
+| 245–255 | quiet |
+| 256–294 | active |
+| 295–305 | quiet |
+| 306–344 | active |
+| 345–355 | quiet |
+| 356–394 | active |
+| 395–404 | quiet |
+| 405–444 | active (weaker) |
+| 445–499 | quiet |
+
+Each 50-block has a dead stretch of roughly 5–6 entries at its start and roughly 5 at its end.
+
+### Inside active zones
+
+Only certain positions modulo 5 matter. In the block 200–249, for example, the big rows are:
+
+206, 209, 211, 214, 216, 219, 221, 224, 226, 229, 231, 234, 236, 239, 241, 244
+
+These are exactly the positions ≡ 1 and ≡ 4 (mod 5). Positions ≡ 0, 2, 3 stay near init.
+
+### Most natural reading: a 10 × 10 grid with 5 channels
+
+This structure is what you get from a **10 × 10 grid with 5 channels per cell, flattened row-major (H, W, C)**:
+
+> index = 50·row + 5·col + channel
+
+Under this reading:
+
+- **Border cells are ignored.** Grid row 0 (0–49), row 9 (450–499), column 0 and column 9 of every row are all at init. Only the **interior 8 × 8** carries information.
+  - This looks like an 8 × 8 field with a 1-cell padding or wall border, or a sensor/image patch whose edges are uninformative.
+- **Only 2–3 of the 5 channels are used:**
+  - Channels 1 and 4 are informative in essentially every interior cell of rows 2–7.
+  - Channel 2 is informative only in the upper rows 1–3 (e.g., 62, 67, 72, 77, 112, 117 … 142).
+  - Channels 0 and 3 are dead almost everywhere.
+  - Row 8 is the odd one: there the informative channels are 0 and 4 (405, 410, … 440 and 409, 414, … 444), and that row is weaker overall.
+  - Row 1 is only partly active (columns ~2–6).
+- **Channel relevance depends on position.** That pattern is typical of one-hot categorical cell encodings, like a board or grid world with 5 cell types, where some types never occur or only occur in certain regions. A channel that is always 0 receives zero gradient and stays exactly at init, which is what we see.
+- **The strongest weights sit in rows 5–7**: 256–294, 306–344, 356–394, with values of 1–2.2. Rows 1–2 and 8 are weaker (0.3–0.9). The discriminative evidence is concentrated in the middle/lower part of the grid.
+
+**Alternative reading (same numbers, different semantics):** 10 signals × 50 time steps, where the discriminative pattern repeats every 5 samples, is absent in the first and last ~5 samples, and is phase-shifted in signal 8. The row-8 channel shift fits this reading slightly better. The symmetric dead border fits the grid reading better.
+
+I can't tell which from the weights alone. Either way, the input has a **10 × 50 = 10 × 10 × 5 structure**, and roughly **130–140 of the 500 inputs (~27%) are informative**.
+
+---
+
+## 4. Layer 2 (8 → 512): the 8-D bottleneck is really about 2 directions
+
+- **Units 1, 2, 5 are nearly unused downstream.** Their W2 rows have typical magnitude ~0.05 (≈ init level), compared with ~0.2–0.3 for the others. There are a few exceptions near ±0.2–0.3. These three units are probably mostly inactive (dead/rarely-firing ReLUs) or redundant, so the effective bottleneck is ~5 units.
+- **Units 0, 4, 6 move together, and unit 3 moves opposite to them.** For example:
+
+| W2 column | h0 | h3 | h4 | h6 |
+|---|---|---|---|---|
+| 4 | −0.28 | +0.24 | −0.20 | −0.12 |
+| 12 | +0.16 | −0.29 | +0.07 | +0.19 |
+| 24 | −0.23 | +0.23 | −0.20 | −0.13 |
+| 26 | −0.25 | +0.28 | −0.14 | −0.21 |
+| 50 | −0.26 | +0.34 | −0.30 | −0.31 |
+
+  Together they act as one signed axis, which I'll call **A ≈ h0 + h4 + h6 − h3**. Opposite-signed pairs of ReLUs like this are a common way for a network to pass a linear quantity through a ReLU layer.
+- **Unit 7 is a second, mostly independent axis.** In column 12 it is −0.25 while h0 is +0.16. In column 50 it is +0.23 while h0 is −0.26.
+
+So the 512 hidden units are mostly reading a **2-D latent space (A, h7)**.
+
+---
+
+## 5. Layer 3 (512 → 5): the network effectively has only 3 classes
+
+This is the most striking finding. **Output columns 0, 1 and 2 are nearly identical in every row:**
+
+| Row | W3 values |
+|---|---|
+| 12 | −0.122 −0.126 −0.144 \| 0.514 −0.010 |
+| 47 | −0.156 −0.118 −0.140 \| 0.035 0.648 |
+| 50 | 0.144 0.136 0.145 \| −0.783 0.028 |
+| 147 | 0.141 0.137 0.137 \| −0.027 −0.698 |
+
+The model therefore **cannot tell classes 0, 1, 2 apart**. Their logits differ almost only through the biases (0.070, 0.061, **0.113**). As a result:
+
+- It will output nearly equal probabilities for 0, 1, 2.
+- Under argmax it will **almost always pick class 2** and almost never 0 or 1.
+
+The output really lives in 3 groups: **G = {0, 1, 2}**, **class 3**, **class 4**.
+
+The useful hidden units fall into a few clean "contrast" types:
+
+| Type | W3 pattern | Examples |
+|---|---|---|
+| Class-3 detector | 0–2 ≈ −0.12, col 3 ≈ +0.5 to +1.03, col 4 ≈ 0 | rows 12, 22, 31, ~226 (1.030) |
+| Class-4 detector | 0–2 ≈ −0.13, col 3 ≈ 0, col 4 ≈ +0.6 to +0.92 | rows 47, ~160, ~214, ~412 (0.919) |
+| Anti-3 (pro-G) | 0–2 ≈ +0.14, col 3 ≈ −0.6 to −0.84 | rows 50, 53, 68, ~205 |
+| Anti-4 (pro-G) | 0–2 ≈ +0.14, col 3 ≈ 0, col 4 ≈ −0.7 to −0.95 | rows 147, ~185, ~489 (−0.953) |
+| 3-vs-4 contrast | 0–2 ≈ 0, col 3 and col 4 opposite | rows 4, 24, 26, 27 |
+
+Many of the remaining rows are near init (±0.05), so a good fraction of the 512 units appear unused or dead. My rough estimate is ~40–50%.
+
+**Biases** (0–2 ≈ +0.06 to +0.11; 3 and 4 ≈ −0.12) make G the default prediction. Class 3 or 4 has to be "triggered" by evidence, which suggests G is the majority or background class.
+
+### Approximate decision geometry
+
+Following the connections through, the latent plane splits roughly as:
+
+- **A high, h7 low** → class 3 (units 12, 22, 31)
+- **A low, h7 low** → class 4 (units 4, 24, 26, 47)
+- **A low, h7 high** → group G (units 50, 53)
+- **A high, h7 high** → "not 4", G/3 ambiguous (units 6, 18, 19)
+
+Three clusters in a 2-D latent space is exactly the minimum needed to separate 3 classes, which is consistent with §4.
+
+---
+
+## 6. Overall interpretation
+
+This is a small, trained 5-way classifier for structured input, most likely a **10 × 10 grid with 5 channels per cell (possibly one-hot cell types)**. It has learned to:
+
+1. Ignore the outer border and 2–3 of the 5 channels, using about ¼ of the inputs and mostly the middle/lower interior.
+2. Compress what it uses into about 2 meaningful latent directions.
+3. Recognize two specific "signal" classes (3 and 4) against a default background.
+4. **Fail to distinguish classes 0, 1, 2.**
+
+For point 4, there are three plausible explanations:
+
+- Those three classes are genuinely indistinguishable in the data (random or noisy labels, or duplicate classes).
+- The information that separates them lives in the channels or regions the model left at init (e.g., channels 0/3), which it never learned to use.
+- The bottleneck or training was insufficient.
+
+The weights alone can't tell these apart. Practically, if you deploy this model, expect it to predict class 2 whenever it predicts "one of 0/1/2".
+
+---
+
+## What I can't determine from weights alone
+
+- What the inputs and classes actually mean, and the exact activation function.
+- Whether the index layout is really (10, 10, 5) H×W×C rather than another layout with the same periodicity.
+- Accuracy, and whether the dead units/channels reflect the data or the training.
+
+## How this could be verified, if you allow computation later
+
+- Reshape W1 to (10, 10, 5, 8) and plot per-channel heatmaps of row norms.
+- Compute the correlation matrix of W2 rows and run an SVD of W1/W2 to measure effective rank.
+- Compute pairwise differences of W3 columns 0–2.
+- Count dead units by the magnitude of their W3 rows.

@@ -1,0 +1,36 @@
+**Observations:**
+
+- **Channel 3 (obstacles).** At every border cell, the channel-3 row has the same small, fixed pattern. Examples are input 3 (cell (0,0)) = `0.125 0.029 0.062 0.172 -0.054 -0.237 ... 0.224`, and the same shape at (1,9) and (2,0). This is just bias-like weight for an input that is always 1.
+- **Fixed interior obstacles.** The same bias-like pattern appears at some interior cells, and the agent and moving-object weights at those cells are all about ±0.1 (never visited). Those cells are always obstacles:
+  - (2,2), (2,3), (2,6), (2,7)
+  - (3,2), (3,7)
+  - (4,4), (4,5), (5,4), (5,5)
+  - (6,2), (6,7)
+  - (7,2), (7,3), (7,6), (7,7)
+
+  Example: (2,2) ch0 = `-0.091 0.041 0.022 0.035 ...`, ch3 = `0.021 0.046 -0.018 0.111 -0.202 ...`.
+  
+  This layout is mirror-symmetric left–right and top–bottom, so it is a fixed maze. Row 1, row 8, column 1 and column 8 form an open outer corridor, and the rest is a fixed block pattern.
+- **Channel 0 (agent) at open cells.** The weights are very large, up to about 10. Examples:
+  - (4,3): `-10.479 0.181 2.366 ...`
+  - (5,3): `-10.901 0.909 4.854 ... 9.007`
+  - (3,4): `4.614 -0.161 3.400 ...`
+  
+  Each hidden unit has a different sign pattern across cells, so the network reads the agent's exact position, including which corridor cell it is in.
+- **Channel 1 (moving objects) at open cells.** The weights are also large, up to about 10 at some cells. Examples: `1.278 -0.412 ... 10.120` and `-1.115 -0.749 ... 8.291 ... 5.828`. They are about 0 on the wall cells. So the network tracks exactly where the other moving things are.
+- **Channel 4 (previous frame).** The weights are moderate to large, for example `115 -0.253 0.406 ... 9.136` at (4,2) and `2.234` at (2,1). This gives the network direction of motion for the moving objects (and for itself).
+- **Channel 2 (reward targets).** The weights are much smaller, mostly 0.1–0.8 with a few around ±1–1.7. They are spread over all open cells and not concentrated anywhere. The network uses them, but much less than agent and enemy positions. This fits many small rewards spread over the maze.
+- **Outputs.** `b3 = [-0.875, 0.332, -0.072, 0.666, -0.243]`, so no-op is strongly disfavoured and the agent almost always moves. W3 rows have strong, mixed ±1–2 weights on all four moves, so the policy moves in all four directions.
+
+**Reasoning:**
+
+- **No interior obstacles at all.** This would fit Catch, Pong, Breakout, Freeway or Dodge, and the symmetric interior blocks rule all of them out. Those games also do not use 2-D agent movement in a maze.
+- **Single-axis games.** Catch, Pong and Breakout use a paddle on one axis, and the agent weights here depend on full 2-D position.
+- **Snake.** Snake has no fixed interior walls and its food does not sit in a fixed maze.
+- **What fits.** A fixed symmetric maze, an agent moving on it, other moving agents that matter a lot, and secondary reward targets all fit a Pac-Man-style maze game. The agent collects pellets and avoids ghosts, and the ghosts' positions and velocities dominate the policy. A pure pursuit or evasion game in a maze is the alternative.
+
+**Game:** A miniature Pac-Man (maze chase). The agent runs through a fixed symmetric 8x8 maze, collecting pellets while avoiding roaming ghosts.
+
+**Description:** The agent moves up, down, left or right through the open corridors and gets reward for eating pellets. Colliding with a ghost ends the episode or costs reward, which is why the ghosts' current and previous positions drive the policy.
+
+**Confidence:** 60%

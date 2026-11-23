@@ -1,0 +1,70 @@
+**Observations:**
+
+*Input layout.* The inputs are ordered cell by cell, with five channels per cell (index = 5·cell + channel). The clearest evidence is the obstacle channel. Every fifth row starting at row 3 (rows 3, 8, 13, … 48, 53, …, 98, 103, …) has nearly the same small pattern, and that pattern matches b1. For example, row 3 is `0.242 0.005 0.189 0.366 0.231 -0.242 …` and b1 is `0.135 0.037 0.152 0.317 0.172 -0.109 …`. These are the ch3 inputs of wall cells, which are always 1 and so behave like a second bias. Inside the playable area, every ch3 row is tiny (about ±0.1), so there are no obstacles inside the 8×8 area.
+
+*Agent channel (ch0).* The agent weights are near zero in rows 1–7:
+- cell 12 (row 1, col 2), input 60: `-0.005 0.019 …`
+- cell 77 (row 7, col 7), input 385: `-0.084 -0.073 …`
+
+In grid row 8 (the bottom inner row) they are large in every column:
+- cell 81, input 405: `-3.904 -0.629 -0.898 … 6.017`
+- cell 83, input 415: `-3.855 …`
+- cell 87, input 435: `-1.126 -0.021 1.073 2.155 …`
+- cell 88, input 440: `-2.480 2.027 … 6.467`
+
+So the agent only ever sits in the bottom row.
+
+*Moving-object channel (ch1).* These weights are large across rows 1–7, for example:
+- cell 12: `-0.924 -3.352 … -3.520`
+- cell 34: `-4.770 -6.186 …`
+- cell 71: `0.042 2.569 1.380 …`
+- cell 72: `3.915 3.644 3.828 …`
+- cell 77: `-3.403 …`
+
+In row 8 they are small (cell 81 ch1: `-0.064 0.063 …`).
+
+*Previous-frame channel (ch4).* It is large wherever ch0 or ch1 is large and partly tracks the ch1 pattern (cell 12 ch4: `1.292 -2.630 1.142 0.940 -2.530 …`). This gives the network the direction of motion.
+
+*Reward channel (ch2).* These weights are large only in grid rows 1–3:
+- cell 13: `… 3.818 …`
+- cell 21: `-0.389 0.106 3.534 …`
+- cell 25: `… 3.372 …`
+- cell 31: `… 2.203 …`
+
+From row 4 down they are tiny:
+- cell 41: `0.031 0.071 …`
+- cell 67: `-0.077 -0.024 …`
+- cell 78: `0.038 -0.001 …`
+
+So the rewarding things sit only in the top three rows. Because ch1 and ch2 weights differ completely, the reward things are not the same objects as the moving thing.
+
+*Output layer.* In many W3 rows the no-op, up and down columns take almost the same value while left and right differ sharply:
+
+| W3 row | no-op | up | down | left | right |
+|---|---|---|---|---|---|
+| 6 | 0.991 | 0.648 | 0.854 | 0.529 | −2.778 |
+| 18 | 1.009 | 0.778 | 0.720 | −1.886 | −0.230 |
+| 21 | 0.924 | 0.603 | 0.643 | −1.525 | −0.155 |
+| 29 | −0.691 | −0.768 | −0.793 | 2.138 | −0.118 |
+
+The output biases are b3 = [0.538, −0.025, −0.121, 0.405, −0.648]. The decision is essentially left vs. right vs. stay, and up and down act like no-ops.
+
+**Reasoning:**
+- The agent lives only in the bottom row and in effect moves only horizontally, so it is a paddle.
+- A single moving object roams rows 1–7 and never appears in row 8, which fits a ball that is either returned by the paddle or lost.
+- The reward targets are static (they are not in ch1) and confined to the top three rows, like a wall of bricks.
+
+Ruled out:
+- **Catch / fruit-falling games:** the rewards would move and would appear in lower rows.
+- **Snake and gridworld collectors:** the agent would appear across the whole grid and use up/down.
+- **Frogger-like crossing:** the agent would need vertical movement.
+- **Pong / squash:** there would be no static reward targets.
+- **Space Invaders:** there is no fire action.
+
+The combination of paddle, ball and reward bricks at the top identifies Breakout.
+
+**Game:** Breakout (a mini Breakout / brick-breaker on the 8×8 field)
+
+**Description:** The agent is a paddle on the bottom row that slides left and right to keep a bouncing ball in play. Reward comes from the ball hitting and breaking the bricks in the top three rows; missing the ball loses it.
+
+**Confidence:** 75%

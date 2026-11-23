@@ -1,0 +1,35 @@
+**Observations:**
+
+- **Input layout.** The always-on inputs are easy to spot. An input that is always 1 gets the same gradient as the bias, so its row ends up close to b1, which starts −0.122 −0.192 −0.312 0.194 0.133 …. Rows of this shape appear at inputs 3, 8, 13, …, 48, then 53, 98, 103, 148, …, and finally 498. That spacing fits cell-major order: input = cell·5 + channel. These rows are channel 3 (obstacle) of the border cells.
+  - Example, input 3: −0.015 −0.223 −0.275 0.244 0.192 …
+  - Example, input 48: −0.250 −0.246 −0.483 0.246 …
+- **A permanent reward row at the top.** Inputs 57, 62, 67, 72, 77, 82, 87 and 92 are also b1-shaped. These are channel 2 (reward) of cells (1,1) to (1,8).
+  - Input 57: −0.095 −0.255 −0.223 0.181 …
+  - Input 92: −0.163 −0.242 −0.333 0.144 …
+  - So the whole top playable row is always a reward target.
+  - The reward channel in rows 2–8 has only small weights (for example, input 107: −0.050 0.058 0.164 …). Rewards never appear anywhere else.
+- **Row 1 never holds the agent or anything moving.** Channels 0, 1 and 4 of row-1 cells have small, initialisation-sized weights (inputs 55, 56, 58, 59: about ±0.1). The agent is never seen standing on the reward row, so reaching it must end or reset the episode.
+- **Rows 2–8 carry large weights on channels 0, 1 and 4.** The pattern repeats every 5 inputs: three large channels (agent, moving objects, previous frame) and two small ones (reward, inner obstacle). For example:
+  - Input 106, cell (2,1), channel 1: 1.318 … 2.497 … 5.287 … −2.627
+  - Input 115, cell (2,3), channel 0: −1.972 −1.720 2.331 …
+  - Input 109, cell (2,1), channel 4: −0.153 −0.395 0.474 … 3.777 −3.613
+  - So moving objects appear right up to the lane next to the goal. The policy watches them closely, and also their previous-frame positions, which gives their direction of motion.
+- **Output layer.** The biases are b3 = [no-op 1.494, up 0.183, down −1.051, left −0.924, right −0.191].
+  - No-op is preferred by default, which fits waiting for a gap.
+  - Up is next; down and left are suppressed.
+  - Some second-layer units push hard on single actions, for example unit 7 → left −5.662 and unit 24 → right −6.219. These look like learned "don't step into that" vetoes.
+
+**Reasoning:**
+
+- **Collect-the-item games are ruled out** (Snake, pick-up tasks). Reward never appears in the playable interior.
+- **Catch and Breakout are ruled out.** Breakout-style bricks would disappear when hit, so they could not be always-on. In Catch, the reward moves.
+- A fixed, always-present reward line along the top edge means "get to the far side".
+- Moving objects fill the rows in between, and their previous positions are weighted heavily, so the agent must time its crossing around traffic.
+- A strong no-op bias with up as the second choice matches a "wait for a gap, then hop forward" crossing policy. Down is rarely useful.
+- This is the Frogger / Freeway road-crossing pattern. Pure dodging games and maze games do not have a permanent goal row.
+
+**Game:** A road-crossing game in the style of Frogger (Atari Freeway): cross lanes of horizontally moving traffic to reach a goal row at the top.
+
+**Description:** The agent starts low on the grid and must move upward through lanes of moving cars without being hit. It gets reward for reaching the always-present goal row along the top (row 1), after which it resets.
+
+**Confidence:** 70%

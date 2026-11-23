@@ -1,0 +1,50 @@
+**Observations:**
+
+- **Channel 3 (obstacles):** Only the border cells have structured weights, and they all look alike. Examples are input 3 (r0c0) `0.369 -0.167 … 0.319 …`, input 53 (r1c0) `0.429 … 0.416`, input 98 (r1c9) `0.259 … 0.385` and input 448 (r8c9) `0.389 … 0.477`. Each has about +0.25 in unit 0, about −0.2 in unit 1, about +0.4 in unit 10 and about +0.2 in unit 21. That is the signature of an input that is always on and acts as an extra bias. Interior cells in channel 3 stay at initialisation size (|w| < 0.2), so there are no interior obstacles.
+- **Channel 2 (reward):** It is near zero everywhere in the playfield. The exception is the left border column at rows 1–8, where it carries the same always-on wall signature:
+  - input 52 (r1c0) `0.233 -0.227 … 0.411`
+  - input 102 (r2c0) `0.319 -0.212 … 0.431`
+  - inputs 152, 202, 252, 302, 352 and 402 look the same.
+  - r0c0 and r9c0 do not have it (input 452 = `-0.045 …`).
+  
+  So the reward target is permanently the left wall: a goal line.
+- **Channel 0 (agent):** It is large only in column 8:
+  - input 90 (r1c8) `-1.495 -1.256 -1.955 -2.413 …`
+  - input 140 (r2c8) `-0.164 0.557 -2.519 -2.249 3.293 …`
+  - input 190 (r3c8) `… -2.840 …`
+  - inputs 240, 290, 340 and 390 (moderate)
+  - input 440 (r8c8) `-0.017 0.216 2.244 …`
+  
+  Agent inputs in columns 1–7 (e.g. input 55, 60, 65) are about 0.1. The agent therefore lives only in the rightmost playable column, as a vertical paddle.
+- **Channel 1 (moving objects):** Weights are very large across columns 1–7 of every row, for example:
+  - input 176 (r3c5) `2.341 -5.104 …`
+  - input 236 (r4c7) `1.678 5.646 4.250 …`
+  - input 411 (r8c2) `… 4.248 …`
+  
+  They are near zero in column 8 (e.g. input 91, input 141). There is one small moving object, a ball, that roams the field but never shares the paddle's column.
+- **Channel 4 (previous frame):** It is equally large over columns 1–7, for example:
+  - input 219 (r4c3) `-0.445 -4.784`
+  - input 389 (r7c7) `1.158 4.135`
+  
+  It is also large in column 8, for example input 94 `-0.566 -2.753` and input 444 `-0.245 -1.423`. The network compares current and previous ball positions to get the ball's velocity, and it also tracks the paddle's last position.
+- **Output layer:** The bias b3 is `0.359 -0.566 -0.200 0.306 0.364`. In W3, the no-op, left and right columns move together on nearly every hidden unit:
+  - row 19: `1.078 -0.242 -3.055 0.831 0.713`
+  - row 23: `0.903 -0.012 -2.237 0.764 0.812`
+  - row 16: `0.100 2.380 -1.734 -0.482 -0.082`
+  
+  The only actions the network treats differently are up and down, which are usually opposed. Left and right are functionally the same as no-op.
+
+**Reasoning:**
+
+- **What fits:** The agent is confined to one column and only moves vertically. There is a single moving object whose direction must be read from a two-frame difference. There are no interior obstacles and no collectible items. A goal line sits permanently on the far (left) wall. Together this is a paddle-and-ball game: the paddle sits on the right edge, and the ball bounces around the field.
+- **Ruled out:**
+  - Snake and gridworld collection games: the agent would appear across the whole grid, and reward would appear on interior cells.
+  - Frogger and lane-dodging games: the agent would move through rows, with many moving objects and left/right moves that matter.
+  - Breakout: there would be bricks or reward cells in the interior, and the paddle would be horizontal.
+- **What the reward channel suggests:** The wall marked as "reward" is the one opposite the paddle. This suggests reward comes from returning the ball and driving it to the left goal line. Missing the ball past the paddle's side is where the episode or point is lost.
+
+**Game:** Pong, a single-player Pong or squash variant. The agent controls a vertical paddle on the right edge against a ball, and the left wall is the scoring goal.
+
+**Description:** The agent moves its paddle up and down in column 8 to intercept a bouncing ball. It uses the current and previous ball positions to predict where the ball will arrive. Reward comes from returning the ball so that it reaches the left (goal) wall, and letting the ball past the paddle loses.
+
+**Confidence:** 65%

@@ -1,0 +1,58 @@
+**Observations:**
+
+- **Channel 0 (agent):** This channel holds by far the largest first-layer weights, and they sit only on certain inner cells. Examples:
+  - (1,1): −0.469 −0.594 1.590 −2.275
+  - (2,5): −0.421 3.268
+  - (3,4): 0.493 2.415
+  - (4,6): 1.869
+  - (5,2): 2.732
+  - (6,6): 2.123
+  - (8,8): 1.488 … −1.998
+
+  Other inner cells have near-zero agent weights (all |w| < 0.2): (2,2), (2,3), (2,6), (2,7), (3,2), (3,7), (4,4), (4,5), (5,4), (5,5), (6,2), (6,7), (7,2), (7,3), (7,6), (7,7). For example, (2,2) has 0.021 −0.072 −0.033 −0.073, and (4,4) has −0.029 −0.030. Plotting large (X) against near-zero (.) agent weights gives a left-right and top-bottom symmetric pattern:
+  ```
+  X X X X X X X X
+  X . . X X . . X
+  X . X X X X . X
+  X X X . . X X X
+  X X X . . X X X
+  X . X X X X . X
+  X . . X X . . X
+  X X X X X X X X
+  ```
+  This looks like a fixed maze. The agent never occupies the "." cells, so it learned nothing for them; they are presumably internal walls. Their obstacle-channel weights are small, which fits: a constant input acts only like a bias.
+- **Channel 1 (moving objects):** The large weights fall only on corridor cells, never on the "." cells. Examples:
+  - (4,7): 2.827
+  - (5,7): 1.572
+  - (4,6): 1.514
+  - (4,2): −1.291
+  - (5,3): −1.166
+  - (6,4): −1.214
+  - (7,5): −1.094 −1.351
+  - (8,7): −1.537
+
+  So there are mobile enemies roaming the same corridors.
+- **Channel 2 (rewards):** The weights are modest but consistent, about 0.35–0.5 on hidden unit 2. Examples: (6,1) 0.352, (6,3) 0.507, (6,5) 0.452, (7,1) 0.404, (8,1) 0.422, (8,2) 0.504, (8,3) 0.441. This suggests many small, scattered rewards (pellets) rather than one salient target.
+- **Channel 4 (previous frame):** There are notable weights in corridors, such as (8,7) −2.292, (8,6) −0.960, (2,8) 0.937 and (8,1) 0.858. These let the network work out which way the enemies are moving.
+- **Channel 3 (obstacles):** The weights are small everywhere, so the walls are static.
+- **Output layer:** b3 = −0.096 (no-op), 0.000, −0.059, 0.014, 0.128.
+  - All four movement columns carry big weights: left −0.767, −0.728, 0.794; down 0.630, −0.659; right 0.586, 0.568; up 0.419, −0.499.
+  - The no-op column stays small (|w| < 0.3) and has a negative bias.
+  - So the agent moves constantly in all four directions.
+
+**Reasoning:**
+- The agent's position map is a symmetric maze of corridors around internal wall blocks. The game is therefore 2D maze navigation.
+- Moving enemies live in the corridors, and the previous-frame channel is used to track their motion, so avoidance matters.
+- Rewards are weakly weighted and scattered, which looks like pellets.
+- The full use of up, down, left and right with almost no no-op rules out several alternatives:
+  - lane-crossing games (Freeway/Frogger), which are mostly up;
+  - paddle games (Breakout/Pong), which are left/right only;
+  - shooters.
+- Snake is unlikely because there is no maze structure in Snake, and its "moving objects" channel would not be corridor-restricted.
+- A maze with roaming enemies plus collectible pellets is the Pac-Man pattern.
+
+**Game:** A Pac-Man-style maze game: a fixed symmetric maze with ghosts and pellets.
+
+**Description:** The agent moves through a symmetric maze of corridors, collecting pellets/reward items for reward while avoiding the moving ghosts that patrol the same corridors; touching a ghost ends the episode.
+
+**Confidence:** 65%

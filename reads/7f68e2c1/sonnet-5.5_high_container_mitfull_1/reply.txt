@@ -1,0 +1,28 @@
+**Observations:**
+
+- **Channel 3 (obstacles):** The only structured ch3 rows are the wall-border cells, e.g. input 3 `0.314 -0.240 … 0.468 …`, input 8 `0.341 …`, input 53 `0.389 -0.239 … 0.477`. They share a small, constant pattern (~0.2–0.5 in units 0, 10 and 21, negative in unit 1). Since the border is always on, this just acts as a bias. Interior ch3 rows are near init (|w| ≲ 0.15), so there are no interior obstacles and none are used.
+- **Channel 2 (reward targets):** Every ch2 row is small and unstructured, e.g. inputs 57, 62 and 97. The network ignores reward-target cells.
+- **Channel 0 (agent):** Large weights appear only in column 1, one per row. Examples:
+  - (1,1), input 55: `-0.017 0.216 2.244 1.052 1.750 … -3.718 …`
+  - (2,1), input 105: `0.839 -1.554 -0.653 3.115 3.012 3.110 …`
+  - (3,1), input 155: `0.616 -0.177 1.068 2.140 …`
+
+  Agent cells in columns 2–8 (e.g. input 60 `0.058 -0.001 …`, input 65, input 90) are near init. So the controlled object lives only in the left column, and its row is read out precisely. "Cells" is plural, so it is probably a multi-cell paddle or bar.
+- **Channel 1 (moving objects):** Large weights in every interior cell of columns 2–8, e.g. (1,2) input 61 `-2.400 2.873 -2.575 … 5.950 … -8.763 …`, (1,6) input 81 `0.846 -4.210 …`, (2,3) input 116 `-1.567 -1.559 -4.420 …`. In column 1 the ch1 rows are small (inputs 56 and 106). So the moving object roams columns 2–8 and never sits in column 1.
+- **Channel 4 (previous frame):** Large everywhere there is ch0 or ch1 mass, e.g. input 59 `-0.245 -1.423 0.907 1.527 …`, input 64 `0.648 1.819 3.022 …`, input 84 `1.612 4.233 …`. Comparing ch1 with ch4 gives the object's velocity.
+- **Outputs:**
+  - Up and down carry the large weights. W3 row 16 is `0.100 -1.734 2.380 -0.082 -0.482`, row 19 is `1.078 -3.055 -0.242 0.713 0.831`, row 23 is `0.903 -2.237 …`, and row 7 is `-0.395 -0.552 1.299 …`.
+  - No-op, left and right are nearly interchangeable in W3. Row 19 has 1.078 / 0.713 / 0.831 for them against -3.055 for up, and the biases are 0.359 / 0.364 / 0.306 against -0.200 for up and -0.566 for down. So only up/down matter, and left/right behave like no-ops.
+
+**Reasoning:**
+- The agent is confined to a single column and moves vertically.
+- The policy depends on the exact position and velocity of a moving object that travels through the rest of the board (ch1 plus ch4).
+- There are no separate reward cells and no interior obstacles, so this is not a collect-the-targets or maze game. It is also not a multi-agent game, since there is no second set of agent cells.
+- The wall border is the only static structure. This fits a ball bouncing off walls with a paddle that tracks it vertically.
+- An alternative is a dodge game, with objects drifting toward the left column and the agent sliding up and down to avoid them. That is less likely, because ch4's velocity information and the full-board ch1 coverage look more like predicting a bouncing ball's trajectory.
+
+**Game:** Pong in single-paddle form (squash or "Pong against a wall"). A paddle on the left edge (column 1) moves up/down, and a ball bounces off the top, bottom and right walls.
+
+**Description:** The agent slides its paddle vertically in the left column to intercept the ball, using the ball's current and previous positions to predict where it will arrive. Reward comes from hitting or returning the ball, and presumably the episode ends if the ball gets past the paddle.
+
+**Confidence:** 60%

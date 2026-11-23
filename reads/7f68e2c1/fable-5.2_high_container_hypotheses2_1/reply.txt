@@ -1,0 +1,85 @@
+# What these weights are: a small policy network for a 10×10 grid game
+
+**Best explanation:** a 500→32→32→5 MLP that reads a 10×10 grid with 5 feature planes per cell and outputs 5 softmax logits, most likely actions. The agent lives on one edge lane of an 8×8 playfield and steers along it toward nearby objects. Everything below is from reading the numbers by eye; nothing was computed with tools.
+
+## 1. What the weights show
+
+**Architecture.** 500 inputs → 32 → 32 → 5, about 17k parameters.
+
+**W1 rows fall into three clean populations.**
+
+| Population | Count | Appearance | Meaning |
+|---|---|---|---|
+| Dead | 328 | Gaussian noise, σ ≈ 0.065 | Input was never non-zero, so the row is still at initialisation |
+| Constant | 44 | Each row ≈ `b1` plus noise (e.g. unit 10 ≈ 0.3–0.47 vs `b1[10]` = 0.384) | Input is always on, so it received the same gradient as the bias |
+| Live | 128 | Weights of magnitude 1–10 | Input actually varies |
+
+**The index layout is `idx = 50·r + 5·c + k`**, with r and c in 0..9 and k in 0..4: a 10×10 grid with 5 planes per cell.
+
+- **Constant rows:** k=3 on every border cell (36 cells), plus k=2 on the border cells c=9, r=1..8 (indices 97, 147, …, 447). Corners do not have k=2.
+- **Live rows:** only in the 8×8 interior, exactly two per cell:
+  - c=1: k=0 and k=4 (offsets 5 and 9 in each block of 50)
+  - c=2..8: k=1 and k=4 (offsets 11/14, 16/19, …, 41/44)
+- Plane 0 never appears outside c=1, and plane 1 never appears at c=1.
+
+**Importance falls off with distance from c=1.** For plane 1 in block r=3, the largest |weight| by column c=2..8 is 9.8, 6.2, 6.3, 5.8, 5.5, 3.9, 1.9. Other blocks show the same trend.
+
+**Plane 0 carries an ordinal position code along r.** For example, unit 3 over r=1..8 is +1.1, +3.1, +2.1, +0.2, −1.6, −2.8, −2.2, −2.4.
+
+**Several hidden units compare the plane-0 position with plane-1 objects in c=2 and c=3**, using opposite-signed codes:
+
+| Unit | Plane 0 at c=1 (r=1..8) | Plane 1 at c=2 (r=1..8) | Fires when |
+|---|---|---|---|
+| 2 | +2.2, −0.7, +1.1, +1.2, +0.2, −0.7, −2.5, −2.0 | −2.6, −3.3, −3.2, −0.6, +4.3, +6.3, +4.3, +1.9 | Entity at low r, object at high r |
+| 19 | −1.6, −1.3, −0.8, −0.2, −0.2, +0.3, +0.5, +0.7 | +0.7, +4.3, +6.0, +6.0, −0.8, −1.5, −8.2, −2.6 | Entity at high r, object at low r |
+
+Units 0, 7, 16 and 20 behave similarly. The step between r=4 and r=5 repeats for plane 1 at c=3 and fades by c=4.
+
+**Output layer.**
+
+- W3 rows sum to roughly zero (the whole matrix sums to about −0.1), which is the signature of softmax training.
+- Columns 1 and 2 are large and opposed (e.g. row 16: −1.73 / +2.38).
+- Columns 0, 3 and 4 are small and resemble each other (rows 19, 23, 29).
+- `b3` favours outputs 0, 3, 4 (about +0.3 each) over 1 (−0.20) and 2 (−0.57).
+
+**First-order trace** (multiplying through W2 and W3, ignoring layer-2 gating): unit 2 pushes output 2 up by about +12 and output 1 down by about −11. Unit 19 does the mirror image, about +17 for output 1 and −16 for output 2.
+
+## 2. Hypotheses
+
+| Hypothesis | Verdict | Why |
+|---|---|---|
+| Untrained or random network | Out | Three sharply distinct row populations; live weights 100× the init scale |
+| Dense tabular or natural-image input | Out | 66% of inputs never active; 9% exactly constant; strict period-5 and period-50 lattice |
+| 1-D sequence (10 tokens × 50 vocab, or 100 × 5) | Out | The constant inputs form a 2-D frame (whole first and last block, plus first and last cell of each middle block) |
+| Strict one-hot cell type with an "empty" class | Out | Border cells at c=9 have two planes on at once; plane 4 weights correlate positively with plane 0/1 at the same cell (cosine ≈ 0.35–0.75 in the pairs I checked), where a complementary "empty" class would anti-correlate. Empty is all zeros. |
+| Symmetric 8×8 board game (Othello, checkers) | Out | The plane used depends on the column, and importance decays from one edge |
+| Value or Q-regression head | Unlikely | No common-mode component in W3; rows are zero-sum as softmax gradients produce |
+| Grid-world with walls, 5-way softmax | In | Fits everything above |
+| Agent confined to one lane | In | Plane 0 exists only at c=1, has an ordinal code, and is compared against nearby objects |
+| RL policy vs. supervised "correct move" classifier | Open | Init scale σ ≈ √(2/500) with zero biases fits orthogonal-√2 init common in PPO/A2C code, but also He-normal |
+
+## 3. Best explanation in detail
+
+**Observation.** A 10×10 grid with multi-hot planes per cell:
+
+- **Plane 3:** wall, a fixed border.
+- **Plane 2:** a fixed marker strip on the far wall (a goal line or spawn edge). It is constant, so it carries no information.
+- **Plane 0:** the agent, confined to the lane next to the opposite wall (8 positions).
+- **Plane 1:** objects in the remaining 7×8 field. They never enter the agent's lane, so they are presumably consumed or the episode ends at that boundary.
+- **Plane 4:** a second dynamic layer, present anywhere in the interior. In the agent lane its weights closely track the agent's own (unit 27: −1.2, −0.8, −2.0, −1.2, +0.2, +1.3, +4.9, +0.9 vs −0.1, −2.8, −1.7, −0.9, +0.5, +0.8, +4.2, +0.6). That suggests something co-located with the agent, such as a trail, a previous-frame layer or the agent's projectile. I cannot pin this down.
+
+**Outputs.** Five actions, consistent with the common [stay, up, down, left, right] ordering:
+
+- Outputs 1 and 2 are the two moves along the agent's lane.
+- Outputs 0, 3 and 4 are near-equivalent "nothing happens" actions, favoured by default through the biases.
+
+**Behaviour.** The first layer computes "is a nearby object above or below me?", weighting the closest columns most. If the object is at lower r, output 1 wins; if at higher r, output 2 wins. Under that action ordering, the agent moves to align with approaching objects, as in a catch, intercept or shooter game. Above/below comparators fit pursuit better than dodging, which would need same-row detection.
+
+**Training.** No weight decay (dead rows sit at init scale), zero-initialised biases, and trained long enough to produce saturated weights.
+
+**What remains uncertain:**
+
+- **Orientation:** the layout could be transposed (a paddle moving left/right along a top or bottom row).
+- **Plane 4:** its exact meaning is unknown.
+- **Pursuit vs. avoidance:** this rests on a linearised trace and an assumed action ordering.
+- **RL vs. imitation:** whether this was trained by reinforcement learning or by imitation.

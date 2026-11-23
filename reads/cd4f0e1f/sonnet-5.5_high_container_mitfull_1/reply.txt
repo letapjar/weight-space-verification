@@ -1,0 +1,51 @@
+**Observations:**
+
+- **Input layout.**
+  - Rows of W1 follow the layout (input = cell·5 + channel). The border cells' obstacle inputs (e.g. inputs 3, 8, 13, …, 53, 98, 448) carry the same ±0.2–0.5 pattern as b1. They are always on, so they act as extra bias.
+  - Obstacle inputs inside the playable area are essentially noise (|w| < 0.15). Nothing in the interior is an obstacle.
+  - All of row 9 is small, so the bottom wall row does not matter.
+- **Agent channel (ch 0).** The only large ch 0 weights are in column 8, the right-most playable column.
+  - Input 90, cell (1,8): -1.512 -0.459 3.083 -3.250 …
+  - Input 140, cell (2,8): 0.099 -3.687 0.226 -2.986 …
+  - Input 290, cell (5,8): -1.364 3.925 0.648 1.660 …
+  - Input 340, cell (6,8): -2.741 2.337 …
+  - Input 390, cell (7,8): 0.263 2.259 3.435 2.623 …
+  - Input 440, cell (8,8): -5.593 0.178 4.349 …
+  - Rows 3 and 4 (inputs 190 and 240) are weaker, about 1. Every other column's ch 0 weights are roughly zero, so the player sits on the right edge and only its row matters. It is probably a multi-cell paddle, since many rows get weight.
+- **Moving objects (ch 1) and previous frame (ch 4).** These are the strongest inputs for columns 1–7 in every row, with magnitudes of 3–7.
+  - Input 61, cell (1,2) ch1: -3.465 -3.397 3.116 …
+  - Input 176, cell (3,5) ch1: -7.188 …
+  - Input 266, cell (5,3) ch1: -7.128 0.092 4.511 …
+  - Input 339, cell (6,7) ch4: -7.261 3.684 6.981 …
+  - Column 8 ch 1 is tiny (e.g. input 141: -0.205 -0.039 …), and column 1 is weaker than columns 2–7.
+  - Ch 4 mirrors ch 1 with similarly large weights. The network therefore compares where a moving object is now with where it was a step ago, which gives its direction of travel.
+- **Reward targets (ch 2).** These weights are moderate (1–3), at most about 3.4, and appear only in columns 1–3 of every row.
+  - Input 57, cell (1,1): -0.272 -1.301 -0.644 1.486 …
+  - Input 112, cell (2,2): 0.207 -0.282 … 1.271
+  - Input 257, cell (5,1): … -3.398 -1.962
+  - Input 207, cell (4,1): 0.673 -1.185 … -2.043
+  - Columns 4–7 are near zero.
+- **Output layer.**
+  - Up (action 1) and down (action 2) have large, opposed weights from the same hidden units. Hidden unit 16 gives +2.90 up and -1.00 down. Hidden unit 22 gives +1.35 up and -2.77 down. Hidden units 12 and 21 push down by 1.99 and 2.31.
+  - Left and right weights are small and nearly identical, mostly under 1.
+  - The biases (0.099, 0.027, -0.058, 0.276, -0.125) are modest.
+  - The policy is therefore essentially a vertical move/stay controller. Horizontal movement is irrelevant.
+
+**Reasoning:**
+
+- **Why vertical tracking.** The agent lives in one edge column and only slides up or down. Its decision depends on the position and direction of fast-moving things in the rest of the board. That points to a paddle-and-ball game.
+- **Why not Freeway, Frogger or an avoidance game.**
+  - Cars would need to cross the agent's column, so column-8 ch 1 would carry weight. It carries none.
+  - There would be no dense reward block on one side.
+- **Why not a maze or collection game.** The agent doesn't move in 2D, and there are no interior obstacles.
+- **Why not Pong.** Pong has no static reward cells. Here reward cells fill columns 1–3 across all rows, forming a wall of bricks opposite the paddle.
+- **Why not Space Invaders-style shooters.** There is no fire action. Previous-frame weights as large as the current-frame ones fit a ball whose velocity matters, not a slowly marching formation.
+- **Why not Catch.** Falling objects would be reward-bearing moving objects spread across the board, not a fixed block in columns 1–3.
+- **Fit.** A ball (ch 1) bouncing around columns 1–7 fits the large weights there. Its previous position (ch 4) gives velocity. Bricks (ch 2) sit in columns 1–3. The paddle (ch 0) is on the right edge.
+  - Column 1 ball weights are weaker, perhaps because the ball usually bounces off the bricks before reaching it.
+
+**Game:** Breakout, in a sideways variant. The paddle is a vertical bar on the right edge, the bricks are on the left (columns 1–3), and the ball bounces between them.
+
+**Description:** The agent slides a paddle up and down the right-hand column to keep a bouncing ball in play (letting it get past ends the episode). It gets reward each time the ball knocks out a brick in the left-side wall.
+
+**Confidence:** 60%

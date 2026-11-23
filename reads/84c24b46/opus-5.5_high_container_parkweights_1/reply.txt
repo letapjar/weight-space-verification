@@ -1,0 +1,49 @@
+**Observations**
+
+*How the 500 inputs are organised.* The rows fall into consecutive groups of five, so this is 100 cells × 5 channels. Each row is one of three kinds:
+
+- **Rows that never moved from initialisation.** These have |w| ≲ 0.15. Examples are row 0 (`0.029 0.031 -0.078 …`) and row 2 (`0.003 0.052 0.063 …`). These inputs were never active during training.
+- **Rows that are copies of b1.** Row 8 is `0.061 0.083 0.069 0.338 0.217 -0.081 -0.226 0.234 -0.215 … 0.498 (col 15) … -0.330 (col 25)`. Compare b1 = `0.135 0.037 0.152 0.317 0.172 -0.109 -0.190 0.276 -0.213 … 0.534 … -0.371`. Rows 23, 28, 38, 53, 83, 93, 98, 118, 128, … and 498 have the same pattern. These are inputs that are always 1.
+- **Large, varying rows.** Examples are row 1 (`-4.823 -3.698 … 4.754 …`) and row 4 (`-2.894 -2.846 …`).
+
+*The always-on rows.* They only ever occur in channel 3 of a cell (row index ≡ 3 mod 5). In those cells the other four channels never move from initialisation. That holds for 36 cells: 1, 4, 5, 7, 10, 16, 18, 19, 23, 25, 30–32, 39, 44, 48, 55, 58, 59, 61, 63, 66, 67, 69, 71, 75–78, 80, 82, 83, 85, 86, 92 and 99. These are fixed, permanent walls.
+
+36 is exactly the border of a 10×10 grid around an 8×8 interior (100 − 64). The wall cells are not at the row-major border positions (cell 0 is free), so the cell order appears to be scrambled.
+
+*Which channels can appear in which of the 64 free cells:*
+- **Channel 4:** essentially every free cell, with large weights. It is weaker in 8 cells and absent in cell 72.
+- **Channel 1:** large weights in 55 cells, never in those same 8 cells or cell 72.
+- **Channel 0:** only those 8 cells (3, 13, 14, 28, 54, 60, 74, 97). Examples are rows 15, 270 and 370 (`-3.904 … 6.017`, `-2.480 … 6.467`, `-3.855 …`).
+- **Channel 2:** only 24 cells, with medium weights. These have a fairly consistent signature: unit 2 positive, unit 24 positive, unit 25 negative. Examples are row 107 (`0.948 -0.405 4.597 … 2.065 -3.033`) and row 267 (`… 3.818 … 4.379 …`).
+
+*Channels 1 and 4 look like single objects that are always present.* Within a cell, the channel-1 and channel-4 rows are strikingly similar. Rows 11 and 14 are `-2.375 -1.571 1.482 …` versus `-0.389 -1.717 1.045 …`. Rows 41 and 44 share col 9 ≈ −5.9 and −5.5, and col 24 ≈ +3.3 and +3.9.
+
+The 36 walls act as 36 extra copies of the bias, so the effective bias of a unit is about 37·b1. That gives about +5 for unit 0, −7 for unit 6 and +7.5 for unit 26. The average channel-1 weight is about −2.3 and the average channel-4 weight about −2.0 on unit 0 (similar on 6 and 26). One channel-1 entity plus one channel-4 entity cancels this offset and leaves the units in their working range. That is what you would expect if exactly one channel-1 object and one channel-4 object are always present, like an agent and a goal. Channels 0 and 2 look like optional extra objects.
+
+*Output layer.* Each row of W3 sums to roughly 0 even though its norm is about 3:
+- unit 6: `0.991 0.648 0.854 0.529 -2.778`, sum about 0.24
+- unit 12: `-0.403 -0.405 -0.553 -0.737 2.531`, sum about 0.43
+- unit 19: `-0.453 -0.355 -0.331 2.119 -0.786`, sum about 0.19
+
+The b3 values also sum to about 0.15. A softmax gives no gradient to a shift applied equally to all outputs, so that shared part stays at its initial value. The outputs are therefore logits trained with cross-entropy over 5 classes. Outputs 3 and 4 carry most of the contrast; 0, 1 and 2 move together more.
+
+**Reasoning**
+
+The input is a one-hot (or "empty"-allowed) encoding of a 10×10 grid with 5 object types. Several things fit a gridworld:
+- static walls on a border;
+- two singleton entities that are always present;
+- two optional object types restricted to spawn zones.
+
+Per-cell weights show no smooth row/column structure. This fits either a scrambled cell order or a dependence on paths, and isolated "free" cells still carry strong weights. Plain counting tasks are ruled out:
+- channels 1 and 4 behave as singletons rather than counts;
+- per-cell weights differ in sign, which a task that ignores positions would not produce.
+
+Q-value regression is unlikely because the outputs are invariant to a shared shift, which points to softmax. Five classes match the usual gridworld action set: stay/no-op plus up/down/left/right. The most plausible reading is a policy (behaviour cloning or policy gradient) for an agent that has to reach a goal while dealing with hazards or obstacles that spawn in particular zones.
+
+Which channel is the agent cannot be determined for certain. Channel 4 is the more likely agent: it can appear almost anywhere, including the special 8-cell zone. That would make channel 1 the goal.
+
+**Task:** A MiniGrid-style gridworld navigation policy. The input is a 10×10 grid with a border of walls around an 8×8 interior, one-hot encoded with 5 cell types: wall, agent, goal, and two kinds of obstacle/object. The output is a softmax over 5 actions (no-op, up, down, left, right).
+
+**Description:** The network reads where the agent, the goal and any obstacles are on a walled 10×10 grid. It outputs logits for which of 5 moves to take.
+
+**Confidence:** 25%

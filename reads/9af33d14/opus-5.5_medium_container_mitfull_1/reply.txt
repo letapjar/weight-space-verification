@@ -1,0 +1,45 @@
+**Observations**
+
+*Spatial layout (from which cells have large weights).* Input i maps to cell i // 5 and channel i % 5. Every 5-row block with large weights starts with a large channel-0 row, so I mapped which cells carry signal.
+
+- **Border.** Rows 0–54 (all of grid row 0) are small, around ±0.15. So are all wall-border cells (19, 20, 29, 30, …) and rows 445–499 (cells 89–99). This is the expected pattern for constant wall inputs.
+- **Inner cells with no weight.** Sixteen interior cells also have only small weights on every channel: 22, 23, 26, 27, 32, 37, 44, 45, 54, 55, 62, 67, 72, 73, 76, 77.
+- **Cells with large weights.** These form a left-right and top-bottom symmetric pattern (# = no-weight cell, . = large weights):
+
+```
+row1  . . . . . . . .
+row2  . # # . . # # .
+row3  . # . . . . # .
+row4  . . . # # . . .
+row5  . . . # # . . .
+row6  . # . . . . # .
+row7  . # # . . # # .
+row8  . . . . . . . .
+```
+
+*Channel by channel.*
+
+- **Channel 0 (agent).** Weights are very large at every "." cell and absent at every "#" cell. Examples: cell 11 at row 55: 1.896, −2.711, 3.017. Cell 15 at row 75: 4.137, 6.616, −5.615. Cell 42 at row 210: −4.851, 3.697, −4.369. Cell 57 at row 285: −5.096, 4.428. Cell 86: 3.534, −5.109. So the agent only ever stands on corridor cells.
+- **Channel 1 (moving objects).** Moderately large weights (about 1–4.5) on the same corridor cells and nowhere else. Examples: cell 12: 1.846, 2.838. Cell 51: 3.559, 2.191. Cell 61: 2.145, 3.612. Cell 42: 3.423, 5.006. So there are movers that also stay in the corridors.
+- **Channel 2 (reward).** Mostly weak. One hidden unit (unit 22) has a fairly uniform negative weight on many corridor cells: −1.301, −1.015, −0.918, −1.589, −1.703, −1.790, −1.290. It acts like a "how many rewards are left" counter rather than a tracker for one target. A few cells add a unit-11 feature, e.g. 3.923 at cell 42 and 2.465 at cell 52. This fits many small rewards spread across the corridors.
+- **Channel 3 (obstacles).** Near zero everywhere, including the "#" cells. This means the obstacles never change between episodes: a constant input carries no information, so it ends up absorbed into the biases.
+- **Channel 4 (previous frame).** Moderate weights (about 0.5–2.2) on corridor cells, e.g. 1.580, 2.247, 2.031, −1.816, −1.563. This lets the network infer which way things are moving.
+
+*Output layer.*
+
+- b3 = [−0.808, 0.470, 0.810, 0.592, −0.102]. No-op is clearly disfavoured, and the four moves are all used.
+- Many W3 rows split strongly between opposing directions, e.g. [0.736 0.454 2.398 −0.778 −1.202] and [−0.124 −0.648 −1.049 2.504 −1.171]. This looks like navigation through corridors.
+
+**Reasoning**
+
+- A fixed, symmetric internal wall layout, learned purely from where the agent and movers can be, points to a maze game. Open-field games are ruled out: snake, catch, Breakout, plain collection games, or Frogger-style lanes would put agent weights on all 64 inner cells.
+- Moving objects confined to the same corridors, weighted strongly, with motion information from the previous frame, fits chasing enemies.
+- Diffuse reward weights with a "count remaining" unit fit many pellets spread through the corridors rather than one target.
+- A strong anti-no-op bias fits a game where standing still is punished, for example by being caught or by running out of time.
+- Together, these point to a Pac-Man-style game: clear the pellets in a fixed maze while ghosts roam it.
+
+**Game:** A Pac-Man-like maze game: a fixed symmetric 8×8 maze with internal wall blocks, pellets to collect, and ghost-like enemies moving through the corridors.
+
+**Description:** The agent moves through the maze corridors eating the pellets (reward targets), which pays out reward. It avoids the moving ghosts, because touching one ends the episode.
+
+**Confidence:** 65%

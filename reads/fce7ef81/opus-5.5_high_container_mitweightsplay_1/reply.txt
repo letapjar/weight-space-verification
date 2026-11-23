@@ -1,0 +1,78 @@
+**Observations:**
+
+I located rows by index: input = (row·10 + col)·5 + channel. I confirmed the alignment by checking that every border cell's channel‑3 row has the same signature as b1.
+
+**Channel 3 (obstacles)**
+- On the border, the weights are a copy of the bias pattern, because walls are always on. For example:
+  - input 3 at (0,0): "… −0.576 0.403"
+  - input 98 at (1,9): "… −0.486 0.377"
+  - input 498 at (9,9): "… −0.504 0.306"
+  - b1 ends "… −0.459 0.394"
+- Inside the playfield, channel 3 is near zero (e.g. input 58 = 0.045…, input 443 = 0.038…). So there are no interior obstacles.
+
+**Channel 0 (agent)**
+- It is near zero everywhere except row 8, the bottom playable row:
+  - (1,1) input 55: −0.028 0.081…
+  - (7,7) input 385: −0.042…
+  - (7,8) input 390: −0.080…
+- Every cell of row 8 has huge weights:
+  - (8,1) input 405: "7.720 −0.225 1.358 … −6.486 … −6.709"
+  - (8,2) input 410: "2.751 … 3.636 … −5.747 … −5.585"
+  - (8,7) input 435: "0.065 −3.620 … 3.327 … 3.491 … −4.615"
+  - (8,8) input 440: "−0.666 −2.968 … −3.670"
+- So the agent only ever occupies the bottom row. It is a paddle that moves horizontally.
+
+**Channel 1 (moving objects)**
+- Large across rows 1–7:
+  - (1,2) "−0.728 −2.557 …"
+  - (3,5) "0.754 −7.617 …"
+  - (7,7) "3.555 4.292 … 6.454"
+  - (7,8) "0.531 3.955 … 5.148"
+- Tiny in row 8:
+  - (8,7) input 436: 0.027 0.030…
+  - (8,8) input 441: −0.069 0.045…
+- So a single moving object travels the whole field but never ends up in the paddle row. It is bounced back, or the episode ends.
+
+**Channel 4 (previous frame)**
+- Equally large in rows 1–7, for example:
+  - (4,1) "4.364 −2.791"
+  - (2,2) "… −4.518"
+  - (7,8) "−0.479 −3.402"
+- Moderate in row 8 ((8,1) "2.599 −1.031…", (8,8) "… 1.642"), from the previous paddle position.
+- The network uses it to read the object's direction of travel.
+
+**Channel 2 (reward targets)**
+- Large only in rows 1–3:
+  - (1,4) "… 3.627"
+  - (1,5) "… 3.487"
+  - (1,8) "−2.710 … −4.812"
+  - (2,2) "1.879 … −4.260"
+  - (2,8) "… −4.619"
+  - (3,2) "… 5.796"
+  - (3,7) "… 3.255"
+- Near zero from row 4 down:
+  - (4,1) input 207: −0.104 −0.057…
+  - (4,2) −0.043…
+  - (7,8) −0.048…
+- So the rewards are a static block of targets in the top three rows.
+
+**Outputs**
+- b3 = [0.359, −0.200, −0.566, 0.364, 0.306]: no‑op, left and right are favoured, while up and down are depressed.
+- Several strong hidden units push "up" down hard:
+  - unit 19: "1.078 −3.055 −0.242 0.713 0.831"
+  - unit 23: "0.903 −2.237 −0.012 0.812 0.764"
+  - unit 16: "0.100 −1.734 2.380 …"
+- Left and right carry the real steering, which is consistent with a paddle confined to one row.
+
+**Reasoning:**
+- The agent is pinned to the bottom row and only moves sideways. That rules out snake, maze or navigation games, and any game where the agent goes after targets itself.
+- One moving object roams rows 1–7, its direction is encoded via the previous‑frame channel, and it never sits in row 8. That fits a ball the paddle must intercept.
+- Reward cells sit only in the top three rows, as a fixed band, so they are not falling items. That rules out a plain "catch falling fruit" catcher, where reward objects would appear in every row down to the paddle.
+- If the rewards were enemies, they would be in channel 1, which rules out Space Invaders.
+- A paddle at the bottom, a bouncing ball, and a wall of reward blocks across the top inside a walled arena is exactly the Breakout layout.
+
+**Played:** A miniature Breakout / Arkanoid‑style brick‑breaker. A one‑row paddle at the bottom of an 8×8 walled field bounces a ball up into rows of bricks occupying the top three rows.
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball hitting and destroying the bricks in the top rows, and missing the ball presumably ends the episode.
+
+**Confidence:** 75%

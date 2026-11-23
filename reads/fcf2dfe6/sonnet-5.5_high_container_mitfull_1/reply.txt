@@ -1,0 +1,38 @@
+**Observations:**
+- **Border cells (rows 0 and 9, columns 0 and 9):** every channel has tiny weights, mostly under 0.2. The wall channel is always on there, so those weights act as a constant bias. Nothing else ever occupies these cells, so the weights stay near initialization.
+- **Interior cells:** I traced the weights five lines per cell (agent, moving, reward, obstacle, previous). The pattern is consistent. The agent channel (channel 0) has huge weights, with magnitudes up to about 10. A few examples:
+  - (1,1): unit 0 = 3.93, unit 4 = -5.07.
+  - (3,4): unit 0 = -10.5.
+  - (3,5): unit 0 = -9.4.
+  - (6,3): unit 4 = +10.6.
+  - (6,5): unit 0 = -8.2.
+- **Moving objects (channel 1):** these have medium-large weights in many cells. Examples are (3,1) at 2.44, (5,1) at 2.31, (7,1) at 2.98, (6,3) at -2.33, (6,4) at -1.95, (7,5) at -1.6 and (7,8) at 4.77. So the moving things wander widely over the board.
+- **Previous-frame channel (channel 4):** weights are medium, around ±0.5 to 2.5, so the network is probably using motion direction.
+- **Reward channel (channel 2):** weights are small to moderate, mostly under 0.7. They are present in the open cells but never dominant.
+- **Obstacle channel (channel 3):** weights are small everywhere.
+- **Interior wall layout:** in several interior cells, all four of the agent, moving, reward and previous channels have near-zero, random-looking weights. These cells are never visited, so they are internal walls. Reading the 8x8 interior by hand (the agent-channel lines fall at input indices that are multiples of 5 throughout, which supports the cell assignment):
+  - Row 1: all open.
+  - Row 2: open at columns 1, 4, 5, 8. Walls at columns 2, 3, 6, 7.
+  - Row 3: open at columns 1, 3, 4, 5, 6, 8. Walls at columns 2, 7.
+  - Rows 4 and 5: open at columns 1, 2, 3, 6, 7, 8. Walls at columns 4, 5.
+  - Row 6: open at columns 1, 3, 4, 5, 6, 8. Walls at columns 2, 7.
+  - Row 7: open at columns 1, 4, 5, 8. Walls at columns 2, 3, 6, 7.
+  - Row 8: I did not trace it, so I assume open.
+- **Symmetry:** this maze is mirror-symmetric left-to-right and top-to-bottom. That is a designed, Pac-Man-style corridor maze, not a random obstacle field.
+- **Output layer:**
+  - The no-op bias is the most negative at -0.70, so the policy nearly always moves.
+  - The other biases are small: left +0.39, right +0.20, up +0.07, down -0.02.
+  - The W3 rows show units that push opposite directions against each other, for example row 5 (down +2.5, up -2.3) and row 3 (down -2.6, left/right +1.1). This fits position-dependent steering through corridors.
+
+**Reasoning:**
+- The network is mainly a map of "where is the agent", with a strong secondary dependence on moving objects and their previous positions.
+- **Ruled out:** open-field games with no internal structure (catch, dodge, shooter) and single-goal navigation. Internal walls form a symmetric maze with many walkable cells, which those games would not produce.
+- **Maze with a single goal:** a reward channel with weights spread over nearly all open cells, plus moving objects covering the whole maze, fits dot collection better than one target.
+- **Ghosts:** moving agents roaming the corridors fit enemies chasing or patrolling.
+- **Reward weights:** they are modest, which fits a policy that mostly follows learned routes and reacts to ghosts. Pellets vanish and the network leans on position and motion cues more than on individual dots.
+
+**Game:** A Pac-Man-like maze game.
+
+**Description:** The agent moves through a symmetric corridor maze, collecting the pellets (reward targets) while avoiding the roaming ghosts (moving objects), which end the episode or penalize on contact.
+
+**Confidence:** 55%

@@ -1,0 +1,30 @@
+**Observations:**
+
+- **Input layout.** The rows of W1 repeat with period 5, so input i is channel i mod 5 of cell i div 5. The cells themselves are in a scrambled order, so I worked from channel statistics rather than geometry. Indices below are counted by eye, so individual ones may be off by one.
+- **Channel 3 (obstacles).** These rows are either near zero or near-copies of the bias vector b1 (b1 = 0.254 0.044 0.342 …). For example, input 8 = 0.315 −0.025 0.411 …, input 23 = 0.304 0.034 0.366 …, input 28 = 0.210 0.031 0.343 …. Those are always-on inputs, the 36 border walls, and no channel-3 input carries varying information, so there are no interior or moving obstacles.
+- **Channel 2 (reward targets).** Almost all rows are near zero (never active), but exactly 8 cells have a bias-like row: input 12 = 0.339 0.053 0.333 …, plus inputs 77, 107, 192, 267, 342, 362 and 367. So there are 8 reward-target cells that are permanently on and never change, which is one full row of the 8-wide playfield. These 8 cells have no agent weights, so the agent is never observed standing on them.
+- **Channel 0 (agent).** These are the largest weights in the network, and they are one-per-cell with no duplicates. Examples: input 260 = −9.014 4.113 −5.189 … 11.760, input 370 = −0.249 5.230 … −10.463, input 140 = −8.928 −1.740 4.399 …. That fits a single-cell agent whose exact position matters.
+- **Channel 1 (moving objects).** About 48 cells (6 rows of 8) have large weights, and they come in near-identical pairs at different cells:
+  - input 31 (−0.264 0.019 −0.762 −0.546 0.734 1.497 …) ≈ input 46 (−0.169 0.079 −0.764 −0.485 0.731 1.456 …)
+  - input 1 (−0.250 0.628 4.826 …) ≈ input 166 (−0.207 0.477 4.789 …)
+  - input 41 (… 4.994 …) ≈ input 451 (… 5.021 …)
+
+  Two inputs end up with the same weights when they are always on together, so the moving objects travel in rigid formation, such as two per lane at fixed spacing with wrap-around.
+- **Object-free row.** Eight cells have agent and previous-frame weights but no moving-object weights (for example cells 13, 28, 60, 74, 97). That is one safe row with no traffic, presumably where the agent starts.
+- **Channel 4 (previous frame).** Weights are large on the lane cells and similar, but not identical, within the same pairs. This gives the network the objects' direction of motion.
+- **Output biases.** b3 = [0.017, 1.491, −1.931, 0.147, −0.422]. Up is strongly favoured and down strongly suppressed; left, right and no-op are close to neutral and used situationally.
+
+**Reasoning:**
+
+- A static, always-present row of 8 reward cells, a strong default of "go up", 6 lanes of moving objects and one object-free row together describe a crossing game: start on the safe row, cross the traffic lanes, reach the goal row.
+- Snake, Pac-Man-style collecting and Catch are ruled out because their reward targets appear, move or get eaten; here the targets never change.
+- Breakout and Pong are ruled out because there are no brick weights, the agent is not confined to one paddle row, and the dominant action is up rather than left/right.
+- Space Invaders and shooters are ruled out because the targets are not moving and the default action is not lateral.
+- A maze or pure navigation task is ruled out because nothing in the obstacle channel varies; the things to avoid are only in the moving-object channel.
+- The moving objects are tracked (with their previous-frame positions) but are not reward targets, so they are hazards to time around, not things to catch.
+
+**Game:** Frogger, or a Freeway-style road-crossing game.
+
+**Description:** The agent starts on a safe row at the bottom and moves up through six lanes of horizontally moving, wrapping traffic, dodging with left/right/no-op as needed. Reward comes from reaching the fixed goal row at the top; being hit by a moving object is the failure.
+
+**Confidence:** 85%

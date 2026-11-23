@@ -1,0 +1,17 @@
+**Observations**
+
+- **Walls (channel 3, border cells):** The border inputs carry the largest, most consistent weights, for example input 3 (row 0, col 0, ch3) = "0.239 0.020 0.237 … 0.669", and input 53 (row 1, col 0, ch3) = "0.315 -0.025 0.411 …". Interior channel-3 weights are small everywhere, so there seem to be no interior obstacles.
+- **Moving objects (channel 1) and previous frame (channel 4):** These are strongest in rows 1–3 and columns 2–7, and ch4 tends to mirror ch1 in the same cells. Rows repeat with period 4: input 71 (row 1, col 4, ch1) = "-0.250 0.628 4.826 …" closely matches input 271 (row 5, col 4, ch1) = "-0.207 0.477 4.789 …". Similar pairs appear for rows 2↔6, 3↔7 and 4↔8. Horizontal columns do not repeat in this way.
+- **Agent (channel 0):** Large weights sit in rows 3–6 across columns 2–8, with a shared positive push on unit 0. For example, input 210 (row 4, col 2, ch0) = "5.297 -1.539 …". Row 1–2 and column 0/1/9 agent weights are weak, so the network cares mostly about the agent's row band, not its column.
+- **Reward (channel 2):** Weights are small in almost all cells. The exception is column 1, where every row's ch2 vector (e.g. input 57 = "0.209 0.127 0.120 …", input 107 = "0.353 0.044 0.334 …") looks like the wall pattern.
+- **Output layer:** b3 = [0.017, -0.422, 0.147, 1.491, -1.931], so "left" is strongly favoured and "right" disfavoured. Up, down and no-op are near zero. Walls also drive several hidden units to saturation, so these biases are only partly informative.
+
+**Reasoning**
+
+The structure fits a game where the agent moves through rows of moving hazards, with only border walls. The lack of interior obstacle weights rules out maze games such as Pac-Man with interior walls. The weak food/reward weights and the strong moving-object weights rule out Snake and food-collection games, which would need strong ch2 weights. Catch or Breakout-style games are unlikely because the agent's weights sit across rows, not only on the bottom row, and up/down matter. The row-periodic traffic pattern and the vertical band of agent sensitivity are most consistent with a vertical lane-crossing game in the Freeway/Frogger family. Frogger's water hazards would need interior obstacle weights, which are absent, so plain Freeway fits best. The left-leaning bias and the column-1 reward pattern are unexplained, which keeps confidence low.
+
+**Game:** A Freeway-style lane-crossing game: the agent must cross rows of moving traffic to reach a reward at the far edge, with border walls only (Atari Freeway as the closest known analogue).
+
+**Description:** The agent moves up through lanes of moving objects; collisions with them end or reset the attempt, and reaching the far side gives reward.
+
+**Confidence:** 25%

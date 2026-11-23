@@ -1,0 +1,33 @@
+**Observations:**
+
+- **Agent channel (ch0).** Every open inner cell has very large first-layer weights, up to about ±10. Examples: cell (1,1) has -5.150 to hidden unit 7 and 3.662 to unit 12. Cell (2,2)... is a wall, but (2,4) has 9.376 to unit 25. Cell (1,5) has 9.657 to unit 6. The agent therefore roams the whole open area and its exact position drives the policy. Several units read out the row: unit 25 is strongly negative for row-1 cells and strongly positive for lower rows.
+- **Moving-object channel (ch1).** Weights are also large in every open cell, up to 8.4 (for example 6.566 at (1,4) and 8.425 at (2,2)), so the moving objects matter a lot.
+- **Previous-frame channel (ch4).** Weights are moderate to large (1–5), so the network uses motion and velocity information.
+- **Reward-target channel (ch2).** Weights are smaller (about 0.5–2.5) but clearly trained in every open cell, and they vary with position. In the bottom row, unit 14 gets -1.3 to -2.5. In the top row the same weight is near 0 or slightly positive. Those units feed hidden-2 units that favour "down", so a target low on the grid pushes the policy down. The policy is therefore steered toward targets.
+- **Obstacle channel (ch3), fixed layout.** Reading the weights cell by cell, 16 interior cells have almost no weight on channels 0, 1, 2 and 4, so nothing ever enters them. Their ch3 rows carry the same structured pattern as the border (for example -0.228 on unit 9 and 0.296 on unit 11 at (4,4)). So the interior has a fixed wall layout:
+  - Row 2: walls at columns 2, 3, 6, 7.
+  - Row 3: walls at columns 2, 7.
+  - Rows 4 and 5: walls at columns 4, 5.
+  - Row 6: walls at columns 2, 7.
+  - Row 7: walls at columns 2, 3, 6, 7.
+  - Rows 1 and 8, and columns 1 and 8, are fully open.
+
+  The layout is mirror-symmetric left-right and top-bottom, which also confirms the parse. It is a ring corridor with symmetric wall blocks and a central block.
+- **Output layer.**
+  - The no-op bias is -0.853, while the other actions sit between +0.07 and +0.38. The agent should almost always move.
+  - Several hidden-2 units are clean directional drivers. Examples: unit 12 (up 1.40, down -2.78, right 2.22), unit 19 (down 2.66, left -2.50), unit 24 (left 2.50, up -3.12) and unit 28 (left 2.61).
+  - Moves are used heavily, as in a navigation game.
+
+**Reasoning:**
+
+- **Ruled out.**
+  - Paddle games such as Breakout, Pong and Catch: the agent moves in 2D over all open cells, with large agent weights even in row 1.
+  - Snake: ch1 has big weights, so there are real moving objects other than the agent.
+  - Games with an empty arena: the fixed, symmetric interior wall layout points to a designed maze.
+- **What fits.** A 2D agent in a fixed symmetric maze, moving objects that matter strongly (with previous-frame velocity cues), and reward targets spread over open cells that steer the policy modestly. That combination is a pellet-collecting game with roaming enemies.
+
+**Game:** A Pac-Man-style maze game. The agent collects pellets in a symmetric walled maze while avoiding moving ghosts.
+
+**Description:** The agent moves in four directions through the fixed maze, gets reward for reaching the target cells (pellets), and must dodge the moving enemies that end the episode or cost reward.
+
+**Confidence:** 40%

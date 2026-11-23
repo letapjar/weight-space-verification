@@ -1,0 +1,33 @@
+**Observations**
+
+- **Channel 0 (agent):** Large weights appear only in the rightmost playable column (column 8) in every row. Examples: input 90 (row 1, col 8) = `-1.512 -0.459 3.083 -3.250 3.052 ...`; input 140 (row 2, col 8) = `0.099 -3.687 0.226 -2.986 ...`; input 290 (row 5, col 8) = `-1.364 3.925 0.648 1.660 ...`; input 440 (row 8, col 8) = `-5.593 0.178 4.349 1.131 4.987 ...`. Elsewhere the agent weights stay near initialisation scale (about ±0.1–0.2), e.g. input 55 (row 1, col 1) = `-0.029 -0.003 -0.039 -0.037 ...`. The controlled object seems to live on the right edge and move only up and down.
+- **Channel 4 (previous frame):** Moderate weights in column 8 as well, e.g. input 94 = `-1.047 -0.656 0.932 ...` and input 444 = `-2.453 1.692 1.313 ...`. This fits a column-8 object that moves vertically.
+- **Channel 1 (moving objects):** Strong weights (magnitudes about 2–7) across columns 1–7 in all eight rows. Examples: input 61 (row 1, col 2) = `-3.465 -3.397 3.116 1.850 ...`; input 176 (row 3, col 5) = `-7.188 0.637 4.602 ...`; input 226 (row 4, col 5) = `-2.714 -1.002 5.622 ...`. Column 8 is essentially empty: input 91 (row 1, col 8) = `0.005 -0.065 -0.099 ...`.
+- **Channel 4 vs channel 1:** For interior cells the channel-4 weights have the same signs as channel 1 at about 0.6–0.8× the magnitude (input 64 = `-2.142 -2.347 1.506 1.474 ...` against input 61). This looks like a "presence now or one step ago" feature, with a small difference that could carry motion.
+- **Channel 2 (reward):** Large weights only in columns 1–3, for every row. Examples: input 57 (row 1, col 1) = `-0.272 -1.301 -0.644 1.486 ...`; input 62 (row 1, col 2) = `-0.407 0.299 0.227 -0.976 1.430 ... 2.960 ...`; input 107 (row 2, col 1) = `-0.029 0.347 0.135 -1.160 ...`; input 207 (row 4, col 1) = `0.673 -1.185 -0.309 -2.043 ...`; input 407 (row 8, col 1) = `-0.170 -1.521 -0.513 0.020 ...`. Columns 4–7 are near initialisation: input 77 (row 1, col 5) = `0.016 0.017 0.068 -0.013 ...`.
+- **Channel 3 (obstacles):** Only border cells are strongly weighted. Units 17 and 18 sit near -0.3 to -0.5 for every border cell, e.g. input 3 (corner) = `... -0.396 -0.387 ...`, input 53 (row 1, col 0) = `... -0.368 -0.334 ...`. Interior obstacle weights are small, so there are no interior obstacles.
+- **Output layer:** The output biases are small (b3 = 0.099, 0.027, -0.058, 0.276, -0.125), so action choice is carried by the hidden units. I could not read a clean per-action mapping from the single-weight values, so the action semantics below are inferred rather than verified.
+
+**Reasoning**
+
+- The agent is confined to the right edge column. Its horizontal weights are untrained, which suggests left/right moves are unused or unavailable and play no real role. Its vertical position is encoded per row.
+- Moving objects fill the whole field except the agent's column. Something bounces around the interior and never reaches column 8 during useful play, so the agent's column is safe from it.
+- Reward targets form a block exactly three columns wide spanning all eight rows, sitting on the far side from the agent. That is the signature of a brick wall: rewards come from hitting bricks.
+- The previous-frame channel supports motion estimation for a bouncing object.
+- Walls surround a playable 8×8 field, with no interior obstacles.
+
+Ruled out:
+- Freeway, Frogger and Asterix: these need horizontal agent movement and rewards that are goals or scattered items, not a solid three-column block.
+- Pac-Man and Snake: these need interior maze walls or scattered food, which are absent.
+- Space Invaders: the agent would sit on a bottom row, not an edge column.
+- Pong: a Pong-style game has no reward block.
+
+**Game**
+
+Breakout (brick-breaking), in a 90°-rotated layout: a paddle on the right wall moves up and down, a ball bounces around the field, and the bricks form a three-column block on the left, matching MinAtar-style Breakout's three brick rows. This is an inference from the weight structure, not a certain identification.
+
+**Description**
+
+The agent is a paddle on the right edge that moves up and down to return a bouncing ball. The ball breaks the three-column brick block on the left, and each broken brick gives reward; if the ball gets past the paddle, the episode ends.
+
+**Confidence:** 40%

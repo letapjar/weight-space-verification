@@ -1,0 +1,30 @@
+## Observations:
+*Indices below are zero-based.*
+
+- **Channel 0 — agent:** Large, position-specific weights are concentrated in **row 1, columns 1–8**. For example, `W1[55,31] = 6.467` belongs to agent cell `(1,1)`, and `W1[90,31] = 6.017` to `(1,8)`. Agent inputs elsewhere look mostly initialization-sized, around hundredths or tenths. This strongly suggests a **horizontally moving paddle along the top**, not an agent navigating the whole board.
+
+- **Channel 1 — moving objects:** Strong weights cover the playing field **below that paddle, rows 2–8**, although some deepest-row positions are weaker. Examples include `W1[106,30] = 4.756` at `(2,1)` and `W1[271,6] = 9.050` at `(5,4)`. This fits a ball travelling through the arena.
+
+- **Channel 2 — reward targets:** The conspicuous learned region is **rows 6–8, columns 1–8**. For example, target cell `(6,1)` has `W1[307,5] = 2.198`, while `(8,4)` has `W1[422,11] = -4.038` and `W1[422,24] = 5.212`. Above this bottom band, target weights look small and unstructured. A **three-row brick bank opposite the paddle** is the natural interpretation.
+
+- **Channel 3 — obstacles:** Interior weights are small; the border has a repeated learned pattern. For example, `W1[3,15] = 0.510` and `W1[8,15] = 0.600`, close to `b1[15] = 0.534`. Because border inputs are always on, their common pattern can function as an additional bias. There is no comparable evidence of an internal maze or changing obstacle field.
+
+- **Channel 4 — previous frame:** Strong weights occur both on the paddle strip and throughout the moving-object region: `W1[59,2] = 3.135` at `(1,1)` and `W1[109,26] = -6.220` at `(2,1)`. The policy therefore has substantial learned dependence on motion history, consistent with estimating a ball’s direction and interception point.
+
+- **Outputs:** The strongest action contrasts concern **left versus right**. For example, hidden unit 16 connects to those actions with `-1.451, 1.810`, and unit 22 with `1.653, -1.721`. No-op/up/down often receive similar weights: output row 29 is `[-0.691, -0.793, -0.768, -0.118, 2.138]`. The biases are `[0.538, -0.121, -0.025, -0.648, 0.405]`, mildly favouring no-op/right *before* hidden-layer contributions. They do not establish overall action frequencies, but the output structure supports primarily horizontal control.
+
+## Reasoning:
+The combination is highly characteristic of **brick breaking**: a paddle restricted to one edge, a moving object throughout the arena, substantial motion-history processing, and a multi-row reward-target bank at the opposite edge.
+
+Standard Snake, Pac-Man, and maze-navigation games do not fit the agent’s confinement to one horizontal strip. Pong fits paddle-and-ball control but does not naturally explain three rows of separately encoded reward targets. A falling-object catcher would normally have moving rewards distributed along their falling paths, rather than this distinct target bank opposite the paddle.
+
+The unusual detail is the orientation: the weights indicate the paddle is **at the top**, with bricks **at the bottom**.
+
+## Game:
+**Breakout / brick breaker, vertically flipped—with the paddle on row 1 and bricks in rows 6–8.**
+
+## Description:
+The agent moves a paddle left and right to return a bouncing ball toward the bricks and prevent it from escaping past the paddle. Reward comes from the ball hitting and destroying bricks.
+
+## Confidence:
+97%

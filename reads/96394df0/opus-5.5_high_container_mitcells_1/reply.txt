@@ -1,0 +1,54 @@
+**Observations:**
+
+*Reading the layout.* Each block of 5 consecutive W1 rows is one cell, with channels 0–4 in order. Cells may be listed in a shuffled order, so I could not map every block to a grid position. I counted the rows by eye, so individual row indices may be off by one in places.
+
+*Constant-input rows.* Many rows are near-copies of b1 (0.254 0.044 0.342 −0.030 0.142 −0.225 …). Examples:
+- row 8: 0.315 −0.025 0.411 0.097 …
+- row 23: 0.304 0.034 0.366 …
+- row 28: 0.210 0.031 0.343 …
+- rows 38 and 53: same pattern.
+
+A weight on an input that is always 1 gets exactly the same gradient as the bias, so it drifts the same way. Most of these rows sit at channel 3 (offset 3 in their block), which is what the wall cells should give.
+
+A few bias-copy rows instead sit at channel 2 (rows 12 and 77, if my count is right). That means a reward target is present in the same cell on every frame. The reward is a fixed, static goal location, not an object that moves or respawns.
+
+*Channel 0 (agent).* Large weights at many cells, often 4–9 in magnitude:
+- row 40: 2.897 … −6.540
+- row 45: 4.788 −7.868 …
+- row 65: −6.977 …
+- also rows 15 and 60.
+
+The agent is not stuck in one row or one column; it travels through much of the board.
+
+*Channel 1 (moving objects).* Large weights at many cells:
+- row 1: 4.826
+- row 31: 4.725 / 3.705
+- row 41: 4.994
+- row 46: 4.713
+- row 61: 4.332
+
+Avoiding or tracking these objects is the main thing the network does.
+
+*Channel 4 (previous frame).* Also large almost everywhere:
+- row 4: 3.087 / −2.836
+- row 34: 5.459
+- row 59: 6.207
+- row 64: 3.700 / 3.446
+
+The network pairs current and previous positions to infer how objects are moving, which only matters if they move steadily, like traffic.
+
+*Channels 2 and 3, apart from the constant cells.* Uniformly tiny (about ±0.1). There are no interior obstacles and no reward items that change position.
+
+*Output biases.* b3 = [0.017, **1.491**, **−1.931**, 0.147, −0.422]. "Up" is strongly preferred and "down" strongly avoided, so the policy has a built-in drive toward row 0. W3 also has large action-specific rows (for example unit 15 gives −5.826 to "left"), meaning some hidden features veto particular moves when a hazard is adjacent.
+
+**Reasoning:**
+- **Paddle games (Pong, Breakout, catch):** ruled out. The agent would live in a single row and the up/down biases would not matter.
+- **Snake or collect-the-pellet games:** ruled out. The reward channel would carry a moving target with strong, position-specific weights, not constant bias-like rows.
+- **Pure dodge-the-falling-objects games:** fit poorly. They give no reason for a strong upward drive.
+- **Road crossing:** fits everything. The agent roams the board, many objects move in steady lanes (hence the heavy use of the previous frame), there are no interior obstacles, the reward sits in fixed goal cells, and the agent is biased to move up toward the goal while sidestepping or waiting.
+
+**Game:** A Frogger / Freeway-style road-crossing game. The agent crosses lanes of moving traffic to reach a fixed goal at the top (like MinAtar Freeway or Atari Freeway / Frogger).
+
+**Description:** The agent starts near the bottom and moves upward through lanes of horizontally moving cars, dodging or waiting to avoid being hit. Reaching the fixed goal cells at the top of the board gives the reward.
+
+**Confidence:** 45%

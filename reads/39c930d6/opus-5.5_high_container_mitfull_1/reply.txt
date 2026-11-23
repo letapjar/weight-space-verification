@@ -1,0 +1,29 @@
+**Observations:**
+
+- **Wall border, channel 3.** Every border cell's channel-3 row has almost the same pattern, for example row 3 `0.007 -0.018 -0.019 0.369 0.165 … 0.425 …` and row 98 `0.097 0.116 0.160 0.336 …`. This matches b1 (`0.135 0.037 0.152 0.317 0.172 … 0.534 …`). These inputs are always on, so they just act as extra bias.
+- **No interior obstacles.** Channel 3 inside the playable area is near zero everywhere (rows 63, 68, 108, 158 are all about ±0.1). There are no internal walls or hazards.
+- **Channel 0 (agent) only matters in column 8.** Its weights are near zero at columns 1–7, for example row 105 (cell 2,1) `0.026…` and row 120 (cell 2,4) `-0.016…`. They are large only at the rightmost playable column:
+  - row 90, cell (1,8): `-2.480 2.027 … 5.938 … 6.467`
+  - row 140, cell (2,8): `1.010 … -4.315 … 3.044`
+  - row 190, cell (3,8): `0.037 -0.170 -1.203 … 3.070 … -4.089`
+
+  So the agent always sits in column 8 and only its row position varies. It is a vertical paddle on the right.
+- **Channel 1 (moving objects) is strong across columns 1–7 and weak in column 8.** Examples: row 71 (1,4) `-4.823 -3.698 …`, row 121 (2,4) `-5.519 -5.745 …`, row 176 (3,5) `-5.470 …`. Row 91 (1,8) is about 0.0. This is a ball that travels the field and bounces off the paddle before reaching column 8.
+- **Channel 4 (previous frame) is just as strong** in the same cells, for example row 74 `-2.894 …`, row 139 `-0.191 -4.728 …`, row 189 `-5.384 …`. The network compares the ball's current and previous positions to work out its direction.
+- **Channel 2 (reward) is large only in columns 1–3.** Examples: row 57 (1,1) `-0.069 1.187 -1.612 … 2.797`, row 62 (1,2) `… 1.470`, row 157 (3,1) `… 2.078 … 5.212`, row 162 (3,2) `… 3.372`. Elsewhere it is near zero (row 172 (3,4) about 0.1). This is a block of targets along the left side, far from the agent.
+- **Output layer: only up and down matter.** The W3 up and down columns are large, for example `-0.686 2.393 …`, `-0.403 2.531 …`, `0.991 -2.778 …`, `-0.453 -0.786 2.119 …`, `-0.691 -0.118 2.138 …`. The left and right columns stay under about 0.85.
+- **Output biases:** b3 = `0.538 -0.648 0.405 -0.025 -0.121`. No-op and down are favoured by default, and left/right are neutral. This fits an agent that can only move vertically.
+
+**Reasoning:**
+
+- The agent is confined to one edge column and moves only up and down. A single moving object travels the field and is tracked through current versus previous frame. Reward targets form a wall of cells at the opposite edge. That is a paddle–ball–bricks game: Breakout rotated 90°, with the paddle on the right and the bricks in columns 1–3.
+- **Pong / squash is ruled out** because those games have no static reward cells. Here channel 2 is clearly in use, in a fixed band of columns.
+- **Snake, collect-the-coin and maze games are ruled out.** The agent never appears away from column 8, left/right are irrelevant, and there are no interior obstacles.
+- **Dodging games (Freeway- or Frogger-like) are ruled out.** In those, rewards sit at the far side and the agent must travel to them, but here the agent never leaves its column.
+- **Catch / falling-object games fit less well.** They have no persistent reward block that the ball destroys.
+
+**Game:** Breakout, rotated sideways. The paddle moves up and down in the rightmost column, and the bricks occupy the leftmost three columns.
+
+**Description:** The agent moves a vertical paddle up and down along column 8 to keep a bouncing ball in play. Reward comes when the ball hits and breaks the bricks (reward cells) packed into columns 1–3 on the far side.
+
+**Confidence:** 70%

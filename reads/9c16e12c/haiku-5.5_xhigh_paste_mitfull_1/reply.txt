@@ -1,0 +1,21 @@
+**Observations**
+
+- **Agent channel (ch0) lives only in the bottom playable row (row 8).** Row 8 has large weights, e.g. input 405 (8,1,ch0) = "2.685 1.487 -0.894 -1.311 5.102 …", input 435 (8,7,ch0) = "1.135 -0.403 1.934 -0.769 -2.085 …", and input 440 (8,8,ch0) = "1.387 -0.288 0.205 -1.647 -1.469 -2.755 …". The same channel in rows 1–7 is tiny everywhere, roughly 0.05–0.15, e.g. input 65 (1,3,ch0) = "0.017 0.011 0.028 …" and input 320 (6,4,ch0) = "-0.038 -0.026 -0.095 …". Weights that small look untrained, so the agent almost never occupied rows 1–7.
+- **Previous-frame channel (ch4) is large in row 8** (input 409 (8,1,ch4) = "1.477 0.212 -0.783 -1.018 …"), consistent with a trail of the agent's own position.
+- **Moving objects (ch1) are large in rows 1–7 and absent from row 8.** Examples: input 266 (5,3,ch1) = "1.050 2.071 0.993 0.088 -1.236 -2.782 …", input 306 (6,1,ch1) = "1.169 0.090 -2.509 -1.344 …", input 326 (6,5,ch1) = "-0.516 1.270 1.621 -2.306 …". Row 8 ch1 is uniformly small (input 406 (8,1,ch1) = "-0.005 -0.055 0.001 0.053 0.020 0.055 0.188 …", max about 0.2).
+- **Ch4 tracks ch1 cell by cell, and often with larger magnitude.** Input 64 (1,2,ch4) = "-0.189 0.365 1.317 -0.007 -2.366 …" closely mirrors input 61 (1,2,ch1) = "0.126 0.108 1.089 -0.104 -2.215 …". Input 84 (1,6,ch4) reaches -5.110 and 6.108. This is a trail of moving objects, which encodes their direction of motion.
+- **Reward channel (ch2) is large only in rows 1–3.** Row 1: input 62 (1,2,ch2) = "-0.035 1.586 1.882 …", input 77 (1,5,ch2) = "0.356 2.875 0.723 …". Row 2: input 132 (2,6,ch2) = "0.008 1.895 0.593 …", input 137 (2,7,ch2) = "0.229 2.040 1.249 …". Row 3 is moderate (input 162 (3,2,ch2) = "-0.941 0.109 -0.223 1.140 …"). Rows 4–7 are small: input 212 (4,2,ch2) = "-0.043 0.113 0.039 …", input 262 (5,2,ch2) = "0.168 0.059 0.076 …", input 357 (7,1,ch2) = "0.002 0.036 -0.031 …".
+- **Obstacle channel (ch3) interior weights are small** (about 0.1 or less), so there are no interior obstacles; only the border walls matter.
+- **Output layer:** b3 = [1.012, 1.105, 1.115, 1.498, 1.094], so "left" is slightly favoured. The left/right columns of W3 carry the largest weights (e.g. row 19 "−0.055 0.251 0.028 3.713 0.568", row 26 "0.404 1.262 0.126 0.293 2.940"). The up and down columns are more modest (max about 1.7–1.9), which fits a policy that mainly moves horizontally.
+
+**Reasoning**
+
+Only a few game types fit this pattern. Freeway, Frogger, Asterix and Seaquest would need the agent to occupy many rows, but ch0 is untrained outside row 8, so those are ruled out. Space Invaders would put enemy bullets in row 8, and its fire action is absent from the five-action set, so it is unlikely. Catch would have falling reward objects across all rows, but ch2 is concentrated in rows 1–3, so that is also unlikely.
+
+The best fit is a brick-breaker. The paddle is the agent on the bottom row, moving left and right; the ball is the moving object, which travels through rows 1–7 and bounces off walls and the paddle; the bricks are static reward targets in the top three rows; and the trail channel gives the ball's direction. The vertical actions are effectively unused because the paddle never leaves its row. The no-fire action set fits MinAtar-style Breakout, which has left, right and no-op.
+
+**Game:** Breakout (a brick-breaker, in the style of Atari Breakout / MinAtar Breakout). The paddle is on the bottom row, the ball is the moving object, and the bricks in rows 1–3 are the reward targets.
+
+**Description:** A paddle on the bottom row slides left and right to bounce a ball travelling up through the field. Hitting bricks in the top three rows gives reward, and letting the ball get past the paddle ends the episode.
+
+**Confidence:** 60%

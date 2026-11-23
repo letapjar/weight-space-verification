@@ -1,0 +1,29 @@
+**Observations:**
+
+Decoding the index as (row·10+col)·5+channel, the large first-layer weights (magnitude about 1–8, against about 0.05 noise elsewhere) fall in a very clean pattern.
+
+- **Channel 0 (agent):** large only in row 1, the top playable row (inputs 55, 60, …, 90). Examples: (1,1) = `-1.512 -0.459 3.083 -3.250 3.052 …`, (1,2) = `0.099 -3.687 0.226 -2.986 …`, (1,8) = `-5.593 0.178 4.349 1.131 4.987 …`. In rows 2–8 the agent channel is noise (e.g. input 105 = `-0.012 -0.014 -0.022 …`). So the agent never leaves one row and only slides sideways. Its weights encode its column: hidden unit 12 runs `2.902, 1.838, 0.646, -1.243, -2.420, -3.416, -3.461, -1.943` across columns 1–8.
+- **Channel 1 (moving objects):** large in every cell of rows 2–8 and absent from row 1. Examples: (2,1) input 106 = `-2.903 -2.119 1.169 …`, (2,6) input 131 = `3.764 -0.725 -3.046 …`, (5,1) input 256 = `-3.224 3.216 1.003 …`. The weights are strongest in the rows nearest the agent and weak in the far corners (8,1) and (8,8) (input 406 is about 0.3, input 441 about 0.1). Hidden unit 0 has a left-to-right gradient for this object in row 2 (`-2.903, -2.638, -2.767, -0.620, 1.344, 3.764, 4.292, 2.204`) and roughly the opposite sign for the agent on the right (`… -2.741, 0.263, -5.593`), which looks like a comparison of object column against agent column.
+- **Channel 2 (reward targets):** weights appear only in rows 6, 7 and 8, the three rows farthest from the agent. Examples: (6,4) input 322 = `-0.288 -1.689 1.300 … -3.138 2.207`, (6,8) input 342 = `… 2.553 … 4.462`, (7,3) input 367 = `… -4.933 -2.578`, (8,5) input 427 = `… -3.398 -1.962`. Rows 1–5 are noise (input 257 is about 0.05). They are more moderate than the channel 1 weights, as you would expect from a static block of many targets present at once.
+- **Channel 3 (obstacles):** only the border cells carry weight, and all with the same vector (e.g. input 3 = `0.104 0.189 … -0.298 -0.385 … 0.269 … 0.278`), which mirrors b1 (`0.147 0.202 … -0.412 -0.405 … 0.261 … 0.271`). It is a constant input acting as a bias; there are no interior obstacles or hazards.
+- **Channel 4 (previous frame):** in row 1 it is moderate (agent trail, e.g. input 59 = `-1.047 -0.656 0.932 …`). In rows 2–8 it is very large, often the largest in the network (input 134 = `-7.261 3.684 6.981 …`, input 139 = `-5.329 … 5.509 5.511 5.798`). The trail of the moving object, which gives its direction, is the most important input.
+- **Output layer:** biases are near zero (`0.099 -0.125 0.276 0.027 -0.058`), so there is no strong default action. The left and right columns of W3 carry the big weights with opposite signs (`2.493/-1.986`, `2.903/-1.002`, `1.352/-2.765`, `-0.172/2.306`, `-0.764/1.989`). The no-op, up and down columns are smaller and move together (`0.867 0.623 0.890`, `-0.779 -0.590 -0.864`, `-0.870 -0.615 -0.873`), so up and down are treated as "stay". The real decision is left, right or stay.
+
+**Reasoning:**
+
+The agent is confined to one edge row and moves only horizontally, so it is a paddle. A single object bounces through all the other rows, never appears in the paddle row, and its position plus previous-frame trail dominate the policy, so the network is tracking a ball's position and direction. A static bank of reward targets fills the three rows on the opposite side, which the ball also passes through; those are bricks.
+
+This rules out the other candidates:
+
+- **Free-roaming games (Snake, maze or collection, Frogger/Freeway-style crossing):** the agent would occupy many rows, and up/down would matter.
+- **Catch, dodge or Asterix-style games:** reward or hazard objects would appear across all rows, not in a fixed three-row block.
+- **Space Invaders or other shooters:** these need a fire action and targets that move.
+- **Pong:** it has no block of reward targets, and no opposing paddle is visible in the weights.
+
+The only unusual feature is orientation: the paddle is on the top row and the bricks are at the bottom, the reverse of the usual layout.
+
+**Game:** Breakout (MinAtar-style), vertically flipped, with the paddle on row 1 and three rows of bricks on rows 6–8.
+
+**Description:** The agent slides a paddle left and right along the top row to keep a bouncing ball in play. Reward comes from the ball breaking bricks in the three bottom rows, and missing the ball ends the episode.
+
+**Confidence:** 85%

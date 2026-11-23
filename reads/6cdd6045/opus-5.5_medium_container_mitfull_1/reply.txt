@@ -1,0 +1,51 @@
+**Observations:**
+
+*Reading the weights.* In W1, an input that is always 0 is never trained and keeps small random values (|w| < ~0.2). An input that is always 1 learns weights that copy b1. b1 is −0.355 on unit 5, −0.246 on unit 12, −0.328 on unit 23, +0.366 on unit 25 and +0.148 on unit 31. Inputs that vary carry large weights, often 2–9 in magnitude.
+
+*Channel 3 (obstacles).* The wall cells copy the bias pattern. Examples:
+- Row 3 (cell 0,0): −0.488 on unit 5, +0.341 on unit 25.
+- Row 8: −0.366 / +0.385.
+- Row 23: −0.258 / +0.459.
+
+This holds around the whole border. Inside the 8×8 area, channel‑3 rows are small, for example row 58 (cell 1,1): 0.045, 0.047, −0.092. So there are no interior obstacles; only the border is a wall.
+
+*Channel 0 (agent).* It is large only in column 1:
+- Row 55 (cell 1,1): −2.018, 2.004, 2.786, 3.466.
+- Row 105 (cell 2,1): 4.516, −4.685, −6.246.
+
+Agent rows in columns 2–8 stay small. For example, row 60 (cell 1,2) is −0.005, 0.027, −0.110. The controlled object therefore lives only in the leftmost playable column, like a vertical paddle.
+
+*Channel 1 (moving objects).* It is large across the interior columns 2–8:
+- Row 61 (cell 1,2): −4.058, 7.748, 4.007, −5.814, 5.819.
+- Row 111 (cell 2,2): −5.545, −6.571, 6.253.
+
+So there is a non‑agent object that moves around the field.
+
+*Channel 4 (previous frame).* It is large on every interior cell:
+- Row 59: 2.195, −2.348, −3.204.
+- Row 64: 3.594, 3.510.
+- Row 109: −5.171.
+
+The network needs the previous position, which means the moving object's direction or velocity matters.
+
+*Channel 2 (reward).* It is small everywhere inside, for example row 57: 0.027, −0.063. The exception is the right border column. Row 97 (cell 1,9, channel 2) has −0.340 / +0.443 on units 5 and 25, the same "always‑on" pattern as the walls. The top‑right corner, row 47, does not show it. So the reward channel looks like a constant goal strip along the right edge, not collectible items.
+
+*Output layer.*
+- b3 = [0.360, −0.915, −0.136, 0.456, 0.238].
+- The W3 columns for up and down carry nearly all of the large weights: up 1.538, 1.515, 1.323, −1.885; down −2.073, −2.075, −2.523, −1.054.
+- The left and right columns stay within about ±0.9.
+
+The policy is essentially a choice between up, down and staying put. Left and right are irrelevant, which fits a paddle that can only move vertically.
+
+**Reasoning:**
+- Snake, maze and collect‑the‑item games are ruled out. They would need the agent to occupy many columns, interior reward targets and interior obstacles, and none of these appear.
+- Frogger or dodging games would use left and right movement or rows of hazards. Here the agent is locked to one column and acts only vertically.
+- The previous‑frame channel is heavily used, so the moving object has a direction that must be inferred, which is typical of a bouncing ball.
+- Catch or Breakout would put the paddle on the bottom row with left/right control, not in a side column with up/down control.
+- The reward strip along the opposite (right) edge fits a Pong‑like court: the ball travels back toward the far side after the paddle returns it.
+
+**Game:** Pong. More exactly, a single‑player Pong/squash variant: a vertical paddle in the left column and a ball bouncing on an 8×8 court.
+
+**Description:** The agent moves a paddle up and down along the left column to intercept a bouncing ball, using the previous frame to read the ball's direction. It earns reward by returning the ball toward the right side, and missing the ball ends the rally or episode.
+
+**Confidence:** 60%

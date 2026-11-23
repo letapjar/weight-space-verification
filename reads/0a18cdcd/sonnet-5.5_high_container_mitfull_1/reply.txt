@@ -1,0 +1,36 @@
+**Observations:**
+
+I indexed the 500 rows of W1 by `(row*10+col)*5+channel`.
+
+- **Border walls (channel 3):** every border cell has the same weight signature, e.g. input 3 `-0.076 0.103 -0.123 0.076 0.073 … -0.413 … 0.242` and input 98 `-0.093 0.015 … -0.439`. Unit 17 is about -0.4 and unit 27 about +0.2. Since the border is always on, these rows act as an extra bias. They carry no game information.
+- **Reward targets (channel 2):** all interior weights are small, about ±0.1 (e.g. inputs 57, 62, 107, 112). The network ignores channel 2, so the game has no collectible targets.
+- **Interior obstacles (channel 3):** interior rows are also small, so there are no interior obstacles.
+- **Agent (channel 0):** large weights appear only in column 1.
+  - Input 55, (1,1): `-0.841 -4.414 -1.964 4.186 1.482 …`
+  - Input 105, (2,1): `0.254 -2.235 -2.502 0.826 3.227`
+  - Input 155, (3,1): `-2.629 0.634 -0.269 -2.688 1.253`
+  - Input 205, (4,1): `1.961 0.402 …`
+  - Channel 0 weights in columns 2-8 stay near 0.1. The agent therefore lives in the left column, moves only vertically, and its row matters.
+- **Moving objects (channel 1):** large weights are in columns 2-8 in every row, e.g. input 61 (1,2) `-2.335 3.077 3.096 -1.779 -4.821`, input 111 (2,2) `-5.773 …`, input 166 (3,3) `-2.419 -3.017 5.116 4.630`.
+  - Column 1 channel 1 is small, e.g. input 56 and input 106.
+  - Column 8 is noticeably weaker, e.g. input 191 `0.690 -0.684 0.430 1.583`.
+- **Previous frame (channel 4):** equally large weights at the same cells, e.g. input 64 `1.882 -2.031 2.689`, input 114, input 169 `-2.483 1.061 3.186 2.787 6.561`. The network uses the object's previous position, so it needs the object's direction of travel.
+- **Outputs:**
+  - The only strong, specific unit is unit 6, with `W3[6] = -1.048 4.727 -0.121 -1.257 -1.371`. It pushes "up" and suppresses the other actions.
+  - Unit 30 is `0.574 -0.840 -2.691 1.006 1.142`, which opposes "down".
+  - The biases are `-0.084 -0.819 -0.271 0.916 0.132`. Left has a positive bias, but with the agent already in column 1 it is probably a harmless drift.
+  - The vertical actions (1 and 2) are what carry the decision logic.
+
+**Reasoning:**
+
+- Games with collectibles (Catch, Breakout, Snake, Gold-collecting) would show large channel 2 or channel 3 weights. They don't.
+- Freeway-style or dodge-the-cars games have cars in the agent's column all the time, so channel 1 weights at column 1 would be large. Here they are tiny. Objects reach column 1 only at the moment of a hit or a miss, which is rarely a state the policy sees.
+- The agent is confined to column 1 and moves vertically, and the second channel holds only moving objects. The previous-frame channel is used heavily, which suggests a changing diagonal direction.
+- This fits a Pong-like game: a paddle on the left edge, a ball that bounces around columns 2-8, and sometimes an opponent paddle or the right wall. The weaker column 8 weights may reflect the ball bouncing there or an opponent paddle sitting there.
+- I can't fully exclude a simpler "catch horizontally moving objects" game. The heavy use of the previous-frame channel favours Pong.
+
+**Game:** Pong, or a close variant such as single-player squash/Pong against a wall. The agent controls a vertical paddle on the left, and the moving object is the ball.
+
+**Description:** The agent slides its paddle up and down column 1 to meet the incoming ball, reading the ball's position and previous position to infer its direction. Reward comes from returning or hitting the ball (and avoiding a miss).
+
+**Confidence:** 50%

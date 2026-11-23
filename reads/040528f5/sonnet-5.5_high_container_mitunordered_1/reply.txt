@@ -1,0 +1,24 @@
+**Observations:**
+- **Input layout.** The big-weight rows of W1 repeat every 5 inputs, so input = cell×5 + channel (cell = row×10 + col). Counting lines, the first big row is input 55, which is cell 11 (row 1, col 1) channel 0. Wall-cell inputs (rows 0–54 and 450–499) have small weights (about 0.05–0.2). Their obstacle channel just acts as a shared bias-like pattern.
+- **Agent channel (ch0).** The weights are the largest in the net, up to about ±8–10. Examples: input 55 has 5.198 on unit 31, −6.226 on unit 27 and −5.952 on unit 24. Input 70 has 6.847 on unit 2 and 5.881 on unit 10. Input 440 (cell 88) has 6.30 on unit 23. They are large in row 1 and row 8, in every column, and they vary irregularly with position. So the agent roams the whole 8×8 area and the policy depends strongly on exactly where it is.
+- **Moving-object channel (ch1).** It is also strongly weighted in every inner cell, including row 1. Examples: input 71 has 7.660 on unit 12, input 66 has −5.596 on unit 9, input 76 has −6.063 on unit 28. Moving things appear everywhere and matter a lot.
+- **Previous-frame channel (ch4).** It is moderate (typically 1–3). Its signs track the ch1 weights at about half the magnitude, for example cell 11 units 9, 12 and 18. The net uses it to infer motion direction of the moving objects.
+- **Reward channel (ch2).** It is trained but small, mostly 0.3–1.7. It has some smooth structure: unit 26 goes 0.746, 0.653, 0.09, −0.39, −0.78, −0.49, −1.33, −1.73 across columns 1→8 of row 1. Rewards matter, but much less than agent and moving objects.
+- **Obstacle channel (ch3) in the interior.** The weights are about 0.05–0.1, near initialisation, so there are no interior obstacles. Only the border wall exists.
+- **Output layer.** Biases are no-op −0.875, up +0.33, down −0.07, left +0.67, right −0.24. The agent essentially never idles and moves in all four directions. W3 is large and mixed in sign (±1–2.5) for all four moves, so movement is position and context dependent. I did not push a state through the 32×32 layer by hand, so I have no per-position action preferences.
+
+**Reasoning:**
+- **Ruled out:**
+  - Paddle games (Breakout, Pong, Catch, Space Invaders): the agent would stay on one row, leaving the other rows' agent weights near init. Here rows 1 and 8 are both heavily trained.
+  - Freeway: the agent would stay in one column, but all columns are trained.
+  - Maze or obstacle navigation (including Pac-Man with a maze): the interior obstacle channel is unused.
+  - Snake or pure collection with no hazards: the reward channel is too weak and moving objects too dominant.
+  - Pure survival or dodging with no reward objects: the reward channel is clearly trained.
+- **What fits:** a free-roaming agent in an open field, with many moving objects whose positions and velocities (via ch4) matter most. These are probably hazards that end the episode or are pursuers. There are also reward objects of secondary weight, so the policy is mainly "avoid moving things, drift toward reward".
+- **Closest known games:** Asterix (MinAtar-style, collect gold and avoid enemies) or an open-field Pac-Man/collect-and-evade game. I cannot separate these from the weights alone.
+
+**Game:** Asterix-like "collect rewards while dodging moving enemies" on an open grid (Pac-Man-style without a maze is the main alternative).
+
+**Description:** The agent moves in four directions across the open 8×8 field, picks up reward targets, and avoids the moving objects, which are probably fatal on contact. Moving-object positions and directions drive most of the policy.
+
+**Confidence:** 25%

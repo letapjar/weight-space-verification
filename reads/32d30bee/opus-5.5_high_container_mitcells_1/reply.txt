@@ -1,0 +1,28 @@
+**Observations:**
+
+- **Cell order is scrambled.** The cells are listed in a shuffled order, so I classified each 5-row group by its pattern rather than by its position.
+- **Always-on inputs.** An input that is always 1 is trained exactly like a bias, so its row ends up looking like b1 (b1 = -0.122 -0.192 -0.312 0.194 0.133 …).
+  - **Channel 3 (obstacles):** exactly 36 groups have a bias-like channel-3 row. Examples are row 8 (-0.196 -0.145 -0.395 0.215 0.178 …) and row 23 (-0.069 -0.234 -0.305 0.260 …). These are the 36 border wall cells. No interior cell has meaningful channel-3 weights, so there are no interior static obstacles.
+  - **Channel 2 (reward targets):** 8 interior groups have a bias-like channel-2 row. These are groups 2, 15, 21, 38, 53, 68, 72 and 73; for example row 12 (-0.207 -0.306 -0.237 0.179 …) and row 107 (-0.017 -0.192 -0.173 0.360 …). In these 8 cells channels 0, 1 and 4 are all tiny. So there are exactly 8 permanent reward cells that the agent is never observed standing in. They form one full row (or column) of the 8×8 field: a goal line where reaching it ends the episode.
+  - **Channel 2 elsewhere:** it is near zero in every other cell. There are no moving or collectible rewards.
+- **Channel 1 (moving objects):** large weights in 48 interior cells. Examples are row 1 (… 4.941 5.319 …), row 86 (… 5.086 …), row 111 (… -4.902 …) and row 326 (-3.669 …). Several pairs of cells have near-identical channel-1 rows (row 1 ≈ row 166, row 111 ≈ row 176, row 61 ≈ row 211). That fits objects travelling along lanes.
+  - Another 8 interior cells have tiny channel-1 weights but clearly active channel-0 and channel-4 weights. Examples are group 28 (row 140: 0.143 -0.278 **11.398 8.189**), group 74 (row 370: -2.339 -4.396 -5.555) and group 13 (row 65: … 5.040). This is a traffic-free row where the agent spends time: the start strip.
+  - 8 goal cells + 8 safe cells + 48 traffic cells = 64. That is one goal row, one safe start row, and six rows of traffic.
+- **Channel 4 (previous frame):** large wherever channel 1 or channel 0 is large (rows 4, 34, 139 (-6.227), 174 (-6.899), 469 (-6.321)). The network uses frame differences to tell which direction and how fast each lane is moving.
+- **Channel 0 (agent):** strong weights across the traffic and start cells, and nothing in the goal cells.
+- **Output layer:** b3 = noop 1.494, up 0.183, down -1.051, left -0.924, right -0.191.
+  - No-op is the default, which fits waiting for a gap. Up is favoured over down.
+  - Some hidden units strongly gate specific moves: unit 5 → up +3.975; unit 7 → left -5.662; unit 24 → right -6.219; unit 16 → right +2.526. This looks like timing logic: step forward when the lane ahead is clear, and stop sideways moves near walls or into traffic.
+
+**Reasoning:** A fixed line of 8 always-present reward cells that the agent never occupies means the reward is for reaching a goal line, which ends the episode. A traffic-free start strip plus six lanes of moving objects tracked through frame differences is the layout of a road-crossing game.
+- **Collect-the-pellets games (Snake, Pac-Man-like) are ruled out:** their reward positions would vary.
+- **Breakout and Pong are ruled out:** they have no permanent goal row and the paddle stays in one row.
+- **Maze games are ruled out:** there are no interior obstacles.
+- **Dodge-only games are ruled out:** they have no goal reward.
+- **A river section with deadly water is ruled out:** water would appear as interior channel-3 cells, and there are none.
+
+**Game:** A Frogger / Atari Freeway–style road-crossing game. The agent starts on a safe strip and crosses six lanes of moving cars to reach the goal row on the far side.
+
+**Description:** The agent moves from the bottom safe row across lanes of horizontally moving cars, waiting (no-op) for gaps and avoiding collisions. It is rewarded for reaching the goal row at the top.
+
+**Confidence:** 65%

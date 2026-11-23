@@ -1,0 +1,52 @@
+{
+ "judge_id": "0d6b2715",
+ "blind_id": "b804ace8",
+ "reading": "opus-5.5_high_container_open2_1",
+ "marks": {
+  "id": "0d6b2715",
+  "A_shape": 1,
+  "A_grid": 2,
+  "A_border": 1,
+  "A_channel_meanings": 1,
+  "A_layout": 2,
+  "B_actions": 0,
+  "B_action_meanings": 0,
+  "C_depth_level": 1,
+  "C_depth_points": 0,
+  "D_behaviour": 0,
+  "D_number_of_tasks": 0,
+  "E_activation": 0,
+  "E_training_method": 0,
+  "F_bonus_name": 0,
+  "F_bonus_orientation": 0,
+  "maximums": {
+   "A_shape": 1,
+   "A_grid": 2,
+   "A_border": 1,
+   "A_channel_meanings": 5,
+   "A_layout": 2,
+   "B_actions": 1,
+   "B_action_meanings": 5,
+   "C_depth_level": 3,
+   "C_depth_points": 6,
+   "D_behaviour": 4,
+   "D_number_of_tasks": 2,
+   "E_activation": 2,
+   "E_training_method": 1,
+   "F_bonus_name": 2,
+   "F_bonus_orientation": 1
+  },
+  "named": "",
+  "also_mentioned": [
+   "lanes / brick rows / tiled patterns (as possible sources of period-4 structure)",
+   "gridworld agent with 5 movement actions (plausible)"
+  ],
+  "deductions": [
+   "\"The 500 inputs ... are a 10\u00d710 board where each cell is encoded as a one-hot vector over 5 states\" (the channels are overlapping binary planes, not one-hot)",
+   "\"Channel 2 is pure noise everywhere. That state never occurs in the training data\" (ch2 is the always-on goal row, row 1, columns 1-8)",
+   "\"Channel 3 is the always-on bias-clone in every border cell ... rows 0, 1 and 9 entirely\" (row 1 is the goal row, ch2; the true border is 36 cells in ch3)"
+  ],
+  "conclusion": "A small policy or classifier for a 10x10 gridworld with a wall border, empty floor and two entity types, 5 movement actions probable; trained in Keras-style setup without weight decay.",
+  "judge_notes": "Strong on the first layer: found the always-on bias-clone rows (border), the 10x10x5 indexing, ch1 never in row 8 (matches: cars only rows 2-7), and the c/c+4 tying. It merges the always-on goal row into the border (a listed common wrong claim) and calls ch2 unused. 'ch0 = empty floor' appears under 'a plausible reading', so it was not deducted but earns nothing; channel credit is for ch3 (obstacles/walls) only. ch1 and ch4 are 'two kinds of objects' with no commitment, so 0 for those. Layout 2 given for the live-region map, ch1 rows 2-7 only, ch0/ch4 in rows 2-8; the border is misplaced in row 1. B_actions 0: 'most plausibly' 5 movement actions is an inference from board structure, with no output traced to a move. Depth level 1: unit-1/29 'switch' observations are not checked against the fact sheet (it says the mechanism was not traced by hand). Activation: 'ReLU is the most likely guess', 0. Training: Keras/TF, overfit; no RL, 0. Name: none."
+ }
+}

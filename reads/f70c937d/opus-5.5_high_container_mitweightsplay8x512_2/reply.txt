@@ -1,0 +1,60 @@
+**Observations**
+
+*How I indexed W1.* Line i of W1 is input i, with cell = ⌊i/5⌋ and channel = i mod 5. I counted forward from line 0 and backward from line 499, and the two counts agree. For example, line 61 is (row 1, col 2, ch1) and line 444 is (row 8, col 8, ch4).
+
+*Ch0, agent.* The agent channel is near zero (|w| ≲ 0.15) in rows 1–7. It is large only in row 8, the bottom playable row:
+- (8,1) −0.372 0.393 … −0.522
+- (8,2) −0.185 0.657 …
+- (8,3) −0.288 0.503 0.357 0.442 …
+- (8,7) −0.034 −0.565 −0.318 −0.782 0.588 …
+- (8,8) −0.302 −0.205 −0.700 … 0.570
+
+So the agent always sits in the bottom row and moves sideways along it, like a paddle. The weights form left-to-right gradients that encode where the paddle is:
+- Unit 1 across cols 1→8: 0.39, 0.66, 0.50, 0.08, −0.12, −0.33, −0.57, −0.21
+- Unit 3: 0.06, 0.41, 0.44, 0.16, −0.08, −0.29, −0.78, −0.30
+- Unit 6: −0.32, −0.21, −0.24, −0.23, 0.02, 0.14, 0.45, 0.02
+
+*Ch1, moving objects.* These are the largest weights in the net, spread over rows 1–7. Examples:
+- (5,1) 0.885 −0.854 … −1.569 … 1.693
+- (5,2) 1.410
+- (4,1) −0.493 1.155 0.591 0.924
+- (7,8) −2.019 1.168 1.053 1.326
+- (7,2) 1.146 −1.483 … 1.720
+
+In row 7 the gradients run the opposite way to the paddle's:
+- Unit 1 is negative for the paddle on the left but +0.886 and +1.168 for an object at cols 7–8.
+- Unit 3 rises to +0.819 and +1.326 on the right.
+- Unit 6 falls to −0.660 and −0.690 on the right.
+
+So these first-layer units compute roughly "object x minus paddle x", the signal you need to stay under a ball.
+
+*Ch4, previous frame.* Also strong in rows 1–7, for example (6,8) −2.213, (3,4) 1.837 and (5,2) 1.533. Comparing it with ch1 gives the ball's direction of motion.
+
+*Ch2, reward targets.* Moderate weights appear only in the top rows 1–3, for example (2,3) 0.593 0.489, (3,3) 0.385 −0.751 and (1,2) 0.208 0.261 0.274. From row 4 down they are near zero. That points to fixed targets packed at the top, like bricks.
+
+*Ch3, obstacles.* Tiny everywhere inside the board, so there are no interior obstacles, only the border.
+
+*Output layer.* In W3, the columns for actions 0, 3 and 4 are almost identical in every row:
+- 0.103 −0.506 0.035 0.085 0.088
+- 0.128 0.001 −0.946 0.172 0.160
+- −0.112 0.750 −0.020 −0.104 −0.127
+
+All the state-dependent choice is between actions 1 and 2. Some units strongly favour one of them: 0.750, 1.023, 0.922 and 0.913 for action 1, and 0.699, 1.004 and 0.858 for action 2. The biases are 0.225 0.113 0.142 for actions 0/3/4 and −0.292 −0.295 for actions 1/2. So the policy has two "steer" actions and treats the other three as one default.
+
+**Reasoning**
+
+- **Catch / falling-fruit:** falling rewards would show ch2 weights in every row, but here ch2 is confined to rows 1–3, while an unrewarded mover (ch1) fills the field.
+- **Frogger, Snake, maze or gridworld navigation:** in those the agent roams the board, so ch0 would be spread out. Here it is confined to row 8.
+- **Shooters:** these would need enemy-style structure, and nothing in the weights suggests firing.
+- **Breakout:** this fits.
+  - A paddle in the bottom row.
+  - A ball (ch1) moving through the whole field, with its direction read from ch4.
+  - Static reward blocks in the top three rows (ch2).
+  - Hidden units that compute the ball's horizontal offset from the paddle.
+- **Action labels:** only actions 1 and 2 matter, and they are driven by that horizontal offset. So in practice they must move the paddle sideways, even though they are labelled up/down. The labelled left/right/no-op are treated as one indistinct default. This mismatch is the main thing that lowers my confidence.
+
+**Played:** A Breakout / Arkanoid-style brick-breaker, possibly close to Pong-against-a-wall: a paddle on the bottom row keeps a bouncing ball in play while bricks sit in the top rows.
+
+**Description:** The agent controls a paddle on the bottom row and moves it sideways to stay under the bouncing ball. Reward comes from the ball hitting and clearing the bricks in the top rows, and missing the ball presumably ends the episode.
+
+**Confidence:** 55%

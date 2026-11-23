@@ -1,0 +1,20 @@
+**Observations:**
+- **Only a subset of inputs appears substantially trained.** For example, input 0 has weights `7.422` and `-8.314`, whereas input 3 has mostly small values such as `-0.091, 0.019, 0.035, -0.087`. The unknown input ordering prevents identifying these directly with particular cells.
+- **Many rows share a bias-like pattern**, suggesting inputs that are always on. For example, at hidden units 12, 20 and 27, `b1` is `0.506, -0.493, -0.423`, while W1 row 55 has `0.514, -0.525, -0.415`. By manual inspection, roughly **44 rows** belong to this constant-input group, with roughly **160 other visibly trained rows**.
+- **There are strongly matching pairs of nonconstant inputs.** W1 rows 1 and 64 have, respectively, `-5.902` and `-5.799` at unit 24, alongside matching patterns elsewhere: `-1.694/-1.664` at unit 7 and `1.647/1.543` at unit 12. This suggests objects represented simultaneously in two channels—plausibly moving objects that are also obstacles.
+- **The policy distinguishes up, left and right strongly, with waiting available and down disfavored.** The output biases are `[0.901, 0.253, -1.282, -0.415, 0.483]`: no-op has the largest bias and down the smallest. This is not merely a bias effect: W3 row 1 contrasts up `3.689` with right `-3.456`; row 5 has left `-5.209`; row 29 contrasts up `-3.427` with left `2.433` and right `1.433`. Actual action probabilities still depend on the hidden activations.
+
+**Reasoning:**
+The input-support counts fit a particularly specific road-crossing layout:
+- **44 constant inputs:** 36 border-wall cells plus eight reward cells forming a goal strip.
+- **160 varying inputs:** 56 possible agent positions below that strip, 56 previous-frame positions, and 24 traffic cells represented twice—moving-object and obstacle channels. Those 24 cells correspond to **three eight-cell traffic lanes**.
+
+That interpretation also explains the action structure: advance upward toward the goal, move sideways to find openings, and wait for traffic; moving downward is usually counterproductive. Previous-frame information helps determine traffic motion.
+
+A pure catching or paddle game would not naturally explain such a distinct upward decision. Snake and general maze navigation ordinarily require more balanced use of all four directions. A fixed maze also explains the paired moving/dangerous inputs less naturally. These are comparative clues rather than a mathematical proof, but together they strongly favor Frogger.
+
+**Game:** **Frogger**—a small grid-based road-crossing variant, likely with three traffic lanes and a goal strip across the top.
+
+**Description:** The agent moves upward across lanes of horizontally moving cars, waiting or stepping sideways to avoid collisions. Reaching the far-side goal strip gives reward; being hit by traffic is a failure.
+
+**Confidence:** 92%

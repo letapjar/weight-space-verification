@@ -1,0 +1,36 @@
+**Observations:**
+
+- **The input order is scrambled.** Inputs with the same role do not sit at regular strides in W1, so I could not map rows to cells by position. I classified the 500 rows by behaviour instead.
+- **Rows that copy the bias (inputs that are always on).** A family of rows closely reproduces b1, for example:
+  - b1 = 0.252, −0.182, …, 0.131 (unit 3), …, 0.384 (unit 10), …, 0.202 (unit 21)
+  - one such row: 0.275 −0.225 … 0.179 … 0.363 … 0.139
+  - other examples: 0.341 −0.175 … 0.464 … 0.178, and 0.429 −0.125 … 0.416 … 0.237
+  - An input that is always 1 gets exactly the same gradient as the bias, so it grows into a copy of b1. I count about 44 of these rows. The wall border is 36 cells in the obstacle channel, which leaves about 8 extra always-on inputs. That is one full row of the 8-wide playfield, most plausibly a fixed goal row in the reward channel.
+- **Rows left near their initial values (inputs that are always 0).** Most rows have magnitudes around 0.05–0.15. These are inputs that never fire, such as agent, object or reward channels on the border.
+- **Rows with large weights (inputs that vary).** Rows with weights of 2–9 make up roughly 120–130 inputs. That fits about 8 agent positions (a single column), about 50–60 moving-object cells, and about 64 previous-frame cells. It does not fit a free-roaming agent plus scattered collectibles, which would give around 200 varying inputs.
+- **Output layer: up and down carry the decision.**
+  - Up and down have large weights. For up: −3.055 (h2 unit 19), −2.237 (unit 23), −1.734 (unit 16), −0.969. For down: +2.380 (unit 16), +1.360, +1.299, +1.030, −1.610.
+  - No-op, left and right have small weights (all under 0.84) that move together. For example, unit 19 gives no-op 1.078, left 0.713, right 0.831; unit 23 gives 0.903, 0.812, 0.764.
+  - So left and right behave like no-op: horizontal moves have no useful effect, and the choice is really go up, wait, or go down.
+- **Output biases:** no-op 0.359, up −0.200, down −0.566, left 0.364, right 0.306. Down is the most suppressed action.
+
+**Reasoning:**
+
+- The agent moves only vertically, and left/right are equivalent to waiting. That points to a game where the agent sits in one column.
+- The two main candidates are a vertical-paddle Pong and a Freeway-style road crossing.
+- Pong would use up and down roughly symmetrically, and it has no reason for 8 extra always-on cells.
+- Freeway explains each piece:
+  - The chicken stays in one column, giving about 8 agent positions.
+  - Cars move horizontally across the lanes, giving many varying cells in the moving-object and previous-frame channels.
+  - A fixed goal row at the top accounts for the 8 extra always-on inputs.
+  - The policy mostly chooses between moving up and waiting for a gap, which matches no-op being favoured by default (unit 19 has b2 = 2.137 and pushes up down by −3) and down being the most suppressed action.
+- Ruled out:
+  - Snake or collector games: these would need free 2-D movement, with left/right mattering, and collectibles that change position.
+  - Catch or Breakout: these would make left/right the important actions.
+  - Maze games: these would have varying interior obstacles.
+
+**Game:** Freeway (a Frogger-like road-crossing game, as in MinAtar Freeway).
+
+**Description:** The agent is a chicken in a fixed column that moves up (or waits, or steps down) to cross lanes of horizontally moving cars. It earns reward each time it reaches the goal row at the top, and is sent back or penalised when a car hits it.
+
+**Confidence:** 45%

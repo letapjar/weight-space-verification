@@ -1,0 +1,47 @@
+**Observations**
+
+*Layout of the 500 inputs.* The inputs form 100 positions × 5 features, with input index = 5·p + c. The 100 positions form a 10×10 grid, p = 10·row + col.
+
+*Feature 3 is a constant in padding cells.* In padding cells, the rows where c = 3 are near-copies of the bias b1. Row 3 is `-0.086 -0.385 … 0.547 … -0.458 0.170 -0.321 … -0.497`, and b1 is `-0.006 -0.359 … 0.506 … -0.493 0.250 -0.317 … -0.379`. The same copy recurs at rows 8, 13, …, 98, 143, 148, 193, … In those cells every other feature has weights around ±0.1, which is initialisation size. So in these cells feature 3 is always 1, an "off-board/wall" flag, and nothing else ever appears.
+
+*The playing area is 7×8.* Only grid rows 2–8 and columns 0–7 carry large weights. In those cells features 2 and 3 stay at initialisation size. Feature 2 is never used anywhere. That leaves three live feature planes: c0, c1 and c4.
+
+*Plane c0 is a centre-weighted single object.* Its weights are largest in columns 2–5 and in the bottom row:
+- p62c0 starts `11.266`.
+- p73c0 has `-10.058`.
+- p83c0 has `-9.601`.
+- p84c0 has `-7.836`.
+
+At the edges c0 is small, e.g. p87c0 and p20c0. Some hidden units read c0 purely by height. Hidden unit 2 is positive for c0 in upper rows (p23c0 `7.138`, p54c0 `7.422`) and negative in lower rows (p73c0 `-10.06`, p84c0 `-7.84`). This looks like an agent that starts at bottom-centre and moves around.
+
+*Planes c1 and c4 repeat every 4 columns.* Their weights at column j and column j+4 are near-identical:
+- p20c1 `-0.149 0.515 0.678 … 4.370 … -3.008` ≈ p24c1 `-0.122 0.472 0.744 … 4.088 … -2.917`
+- p31c1 `5.893 0.906 -1.017` ≈ p35c1 `5.971 0.896 -0.955`
+- p32c4 `0.882 -4.419 1.506 5.991` ≈ p36c4 `0.296 -4.215 0.954 5.456`
+- p73c1 `… 2.309 … -4.266` ≈ p77c1 `… 2.322 … -4.318`
+
+c0 does not repeat: p20c0 `0.369 -0.330 0.195` versus p24c0 `2.270 -1.996 3.581`.
+
+*c4 is mostly c1 shifted by one column.* In row 2, p20c4 ≈ p21c1 and p21c4 ≈ p22c1, both starting `≈ -0.2 0.5 0.6 1.4 … -5`. Likewise p26c4 ≈ p27c1. The exceptions sit at the centre columns, where the agent usually is.
+
+*Bottom row.* Grid row 8 has no c1 weights at all, but it does have c0 and c4 weights.
+
+*Outputs look like softmax logits.* Each row of W3 sums to roughly 0:
+- row 3: `1.04 -2.58 0.47 0.59 1.11`
+- row 18: `0.06 -0.98 -0.97 2.78 -0.41`
+
+b3 sums to -0.07. This is the signature of cross-entropy or policy-gradient training over 5 mutually exclusive choices, not Q-value regression.
+
+**Reasoning**
+
+- **Not a 1-D sequence such as DNA.** The padding is 2-D: rows 0, 1 and 9 plus columns 8–9 in every row. That rules out a sequence task.
+- **Not plain one-hot cell types.** If c0 were "empty" (one minus the other channels), the 4-column periodicity of c1 and c4 would force c0 to be periodic too, and it isn't. So the planes are independent feature maps: agent, obstacles, trail, wall.
+- **Lanes of moving obstacles.** Obstacle patterns that repeat every 4 cells on an 8-wide wrap-around board are what lanes look like, as in Frogger. A second plane equal to the first shifted by one column is a motion/trail channel, as in MinAtar. The bottom row has no obstacles but does have agent and trail activity, which fits a safe start row.
+- **A 5-action policy.** Five softmax outputs fit a grid-movement action set: no-op, up, down, left, right.
+- **Weaker alternative.** A plain 5-class pattern classifier fits the softmax evidence, but explains the lane and trail structure less well.
+
+**Task:** A policy network for a small Frogger/Freeway-style grid game, likely MinAtar-like. The input is a 10×10×5 board with a 7×8 playable area. The planes appear to be: agent (c0), cars or obstacles in wrapping lanes (c1), an unused plane (c2), walls/off-board (c3), and motion trails (c4). The network was trained, by imitation or policy gradient, to output logits over 5 movement actions.
+
+**Description:** The network reads where the agent is and where the moving lane obstacles are and will be, and outputs a softmax policy over five moves (stay, up, down, left, right). The aim is to steer the agent through the traffic lanes without being hit.
+
+**Confidence:** 25%

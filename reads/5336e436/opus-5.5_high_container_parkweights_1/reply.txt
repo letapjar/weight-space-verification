@@ -1,0 +1,55 @@
+**Observations**
+
+*How the 500 inputs are organised.* They form a 10×10 grid with 5 channels per cell, flattened channel-last: input = (row·10 + col)·5 + channel.
+
+- **Period 5.** Large weights recur every 5 rows: rows 55, 60, 65, 70, 75, 80, 85, 90 all have weights of order 5–10 (e.g. row 55: 5.679, 5.923, 6.272; row 75: 9.889; row 76: 10.358).
+- **Channel-3 fingerprint.** On most cells, channels 0, 1, 2 and 4 sit at init scale (|w| < 0.2). Only channel 3 carries a recurring signed pattern, the same on every such cell: unit 1 ≈ −0.15…−0.33, unit 3 negative, unit 16 negative, and units 5, 9, 12, 18, 19, 22, 23, 29, 30 positive. Examples:
+  - row 3: −0.161, −0.195 … 0.177
+  - row 23: −0.326, −0.233 … 0.146
+  - row 113: −0.215, −0.184 … 0.258
+  - row 453: −0.150 … 0.223
+- **Two kinds of cell.**
+  - Fingerprint cells: all of grid rows 0 and 9, all of columns 0 and 9, plus interior cells 22, 23, 26, 27, 32, 37, 44, 45, 54, 55, 62, 67, 72, 73, 76, 77.
+  - Active cells: the other 48 interior cells. Here channel 3 is tiny (e.g. row 58 is about ±0.1), and the other channels are large or medium.
+- **The resulting layout.** It is a left-right and top-bottom symmetric maze:
+  - an outer ring corridor (grid rows 1 and 8, columns 1 and 8);
+  - wall blocks at (2,2–3), (2,6–7), (3,2), (3,7), (4–5,4–5), (6,2), (6,7), (7,2–3), (7,6–7).
+- **Channel roles on active cells.**
+  - **ch0 – very large and irregular from cell to cell.** Unit 4: 9.889 at cell 15, −7.070 at cell 24, 10.607 at cell 36, −8.261 at cell 28.
+  - **ch1 – very large and smoother across space.** Unit 4 is positive in the top rows (cell 21: 4.771, cell 33: 3.415) and negative in the bottom rows (cell 64: −3.405, cell 84: −3.754).
+  - **ch4 – medium, with a similar top-to-bottom trend.** Unit 4: +1.2 to 1.4 at the top, −2 to −4.5 at the bottom.
+  - **ch2 – mostly small (< 1).** A few units respond on the left side, e.g. units 9 and 22 at cells 21 and 31: 0.992/1.525 and 1.838/1.651.
+
+*Outputs.* W3 drives outputs 0, 1 and 2 almost identically, while 3 and 4 behave differently:
+
+| Hidden unit | Weights to outputs 0–4 |
+|---|---|
+| h4 | −0.777, −0.874, −0.823, **4.194**, −0.973 |
+| h26 | −0.805, −0.829, −0.826, −1.147, **3.506** |
+| h9 | 0.567, 0.610, 0.666, −1.287, −0.663 |
+
+Further units feed outputs 3 or 4 specifically: h21 → 3 (2.460), h17/h28/h29 → 4 (about 2).
+
+**Reasoning**
+
+- **Channel 3 is a fixed wall layer.** A constant input on the same cells in every sample gets exactly the same gradient on every cell. That would put the same pattern on top of different random inits, which is what the fingerprint rows show. The other channels on those cells are always zero, so their weights never left init.
+- **The maze never changes.** The open cells never have channel 3 set, so the same layout appears in every training sample.
+- **Channels 0 and 1 are single-object positions.** Only one cell is active at a time, which is why their weights grew so large.
+  - **ch0 is probably the agent.** Its irregular, topology-specific weights fit a policy or value that depends on where you are in the maze.
+  - **ch1 is probably the enemy or target.** Its smoother, row-dependent encoding fits "where the other thing is relative to me".
+- **Channels 2 and 4 are probably dense or occasional items.** These would be pellets/food, power-ups or a second enemy, each cell carrying less individual weight.
+- **The outputs look like actions.** 5 outputs over a gridworld most naturally means noop plus 4 moves. The strong sharing across outputs 0–2 looks like Q-values, which share a large state-value component, rather than cleanly separated classifier logits.
+- **What this rules out.**
+  - Natural images or 1-D signals: the structure is discrete, a fixed mask and one-hot positions.
+  - Standard MinAtar games: they have no fixed interior walls, although they are also 10×10 and multi-channel.
+- **What stays uncertain.** I cannot pin down the exact meaning of channels 2 and 4, or the order of the actions.
+
+**Task**
+
+Reinforcement learning, most likely DQN-style Q-value prediction, in a small Pac-Man-like maze gridworld. The state is a 10×10×5 one-hot/binary grid with channels for the agent, an enemy or target, items/pellets, walls and one extra object layer, and there are 5 discrete actions (noop, up, down, left, right).
+
+**Description**
+
+The network reads a channel-last 10×10 grid of a fixed, symmetric walled maze, with the agent's and another entity's positions plus item layers. It outputs a score (Q-value or logit) for each of 5 movement actions.
+
+**Confidence:** 40%

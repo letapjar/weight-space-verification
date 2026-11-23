@@ -1,0 +1,143 @@
+# Analysis of the 500 → 32 → 32 → 5 network
+
+## 0. What the shapes tell us
+
+- The network is a plain MLP: 500 inputs, two hidden layers of 32, and 5 outputs. The hidden layers are presumably ReLU, since the weights are typical of that.
+- 5 outputs with biases `[0.90, 0.25, −1.28, −0.42, 0.48]` suggests a 5-way classifier or policy, where class 2 is rare and class 0 is common.
+- Nearly all of the interesting information is in W1. Each W1 row is the "embedding" of one input feature, so that is where most of the analysis goes.
+
+## 1. Census of W1 rows: three kinds of row
+
+Going through all 500 rows, each one falls clearly into one of three types.
+
+**Type N: small noise.** Examples are row 1 `0.037 0.064 −0.024 …` and row 107 `−0.033 0.006 …`.
+- Entries look Gaussian with σ ≈ 0.06 and rarely exceed about ±0.2.
+- This matches He/Kaiming-normal initialisation for fan-in 500 (√(2/500) = 0.063).
+- These rows are essentially untouched initial weights. **The corresponding inputs were never non-zero during training**, so they never received a gradient.
+- They also show **there was no meaningful weight decay**, which would have shrunk them toward 0.
+
+**Type B: copies of the bias vector.** Examples:
+- row 3: `−0.086 −0.385 −0.001 −0.014 0.291 −0.302 −0.251 …`
+- b1: `−0.006 −0.359 −0.019 0.076 0.161 −0.227 −0.281 …`
+
+Each such row equals b1 plus about 0.06–0.1 of noise, in every one of the 32 columns. For example, the signature columns 12 (≈ +0.5), 20 (≈ −0.5) and 27 (≈ −0.42) appear in every one of them.
+
+The mechanism is simple. An input that is **always exactly 1** receives exactly the same gradient as the bias. So its weight ends up as its initial value plus the bias's total update, and the bias started at 0. **Type-B rows therefore mark inputs that are constant 1 across the training set.**
+
+**Type L: large, clearly trained rows.** Values run from about ±1 to ±11, for example row 315 `11.266 −2.405 …` and row 370 `… −10.058 …`. These are the informative inputs.
+
+## 2. The 500 inputs are 100 cells × 5 one-hot channels
+
+The three row types are not scattered. They follow index mod 5:
+
+| channel (i mod 5) | where it is Type B | where it is Type L | elsewhere |
+|---|---|---|---|
+| 0 | never | inside the "active" region | N |
+| 1 | never | inside the active region, except one row (see below) | N |
+| 2 | never | **never** | N everywhere |
+| 3 | border region | **never** | N in the interior |
+| 4 | never | inside the active region | N |
+
+So the input is 100 positions × 5 channels, and the channels behave like a one-hot cell type.
+
+## 3. The 100 positions form a 10×10 grid with a 1–2 cell border
+
+Grouping by position p = i // 5, the Type-B (always-on, channel 3) positions are:
+- 0–20
+- 29–30
+- 39–40
+- 49–50
+- 59–60
+- 69–70
+- 79–80
+- 89–99
+
+The active positions are 21–28, 31–38, 41–48, 51–58, 61–68, 71–78 and 81–88: seven runs of 8, separated by gaps of 2.
+
+The period of 10 is the giveaway. On a **10×10 grid, row-major**:
+- the always-on cells are rows 0, 1 and 9 plus columns 0 and 9;
+- the active interior is **rows 2–8 × columns 1–8, a 7×8 playfield**.
+
+Checks on this layout:
+- The layout predicts 44 border cells. That gives 21 clones before position 21 and 11 after position 88, and that is exactly what appears.
+- My manual line count closes at exactly 500 rows.
+- In rows roughly 55–95, my hand count put the clones one index early and then recovered. That is almost certainly a counting slip on my part, because the clone count in that stretch is exactly the predicted number.
+
+What the channels mean:
+- **Channel 3 is a "wall/padding/out-of-bounds" tile.** It occurs on every border cell in every example and never in the interior.
+- **Channel 2 never occurs anywhere.** It is a tile type that exists in the encoding but not in this data.
+- **Interior cells use only channels 0, 1 and 4.** Possibly "empty" is encoded as all-zeros. Weights alone can't tell whether that is the case.
+- **Grid row 8 (the bottom interior row) never contains channel 1.** Rows 406, 411, …, 441 are all noise. Every other interior row does contain channel 1.
+
+## 4. Duplicated rows reveal hard constraints in the data
+
+Several large rows are near-copies of each other, differing only by about 0.1, which is the init-noise scale. Two features get identical trained weights only if they receive identical gradients, which means **they are equal in essentially every training example.**
+
+**Channel 1 repeats exactly with period 4 horizontally, in every row from 2 to 7:**
+
+| grid row | col c vs col c+4, channel 1 (rows) | example |
+|---|---|---|
+| 2 | 106≡126, 111≡131, 116≡136, 121≡141 | `0.800 0.425 −1.210 … 3.513` vs `0.806 0.397 −1.087 … 3.517` |
+| 3 | 156≡176, 161≡181, 166≡186, 171≡191 | `5.893 0.906 −1.017 …` vs `5.971 0.896 −0.955 …` |
+| 4 | 206≡226, 211≡231, 216≡236, 221≡241 | `… 5.337` vs `… 5.296` (col 18) |
+| 5 | 256≡276, 261≡281, 266≡286, 271≡291 | |
+| 6 | 306≡326, 311≡331, 316≡336, 321≡341 | |
+| 7 | 356≡376, 361≡381, 366≡386, 371≡391 | |
+
+So channel-1 content in each row is a 4-cell motif drawn twice across the 8 columns, and it is never broken.
+
+The four phases (c mod 4) in a given row have completely different embeddings, and no grid row shares an embedding with another. So each row has its own motif and the network treats each phase of each row separately.
+
+**Channel 4 is only approximately periodic:**
+- In row 3, 159 ≈ 179 and 164 ≈ 184, but the differences are about 0.2–0.6, and 174 vs 194 do not match at all.
+- In rows 2 and 6, channel 4 at column c resembles channel 1 at column c+1, wrapping around. For example, row 2 gives 109 ≈ 111, 114 ≈ 116 and 144 ≈ 106.
+- But these matches are clearly looser than init noise. They break in the centre columns: rows 119, 124 and 129, which are channel 4 at columns 3–5 of row 2.
+
+So channel 4 is usually tied to the periodic channel-1 structure, but something occasionally overrides it, especially in the middle.
+
+**Channel 0 depends strongly on column, not on phase:**
+- In every interior row, the channel-0 rows for **columns 3–6 are huge and all different**. Examples are 120 `1.047 −1.501 7.138 …`, 315 `11.266 …`, 370 `−1.923 −2.696 −10.058 …` and 425 `… −7.836 …`.
+- The channel-0 rows for columns 1, 2, 7 and 8 are moderate (|w| ≲ 0.9) and resemble one another. Compare 105, 110, 135, 140, 155, 160 and so on: each has about −0.3 in column 1, about +0.25 in column 11, about −0.35 in column 20, and so on.
+- In row 8, channel 4 behaves like channel 0 rather than like channel 1: 410 ≈ 414, and 420 ~ 424.
+
+## 5. Other consequences visible in the weights
+
+**Large effective constant.** 44 always-on inputs plus the bias give 45 copies of the same vector. The first layer's real constant offset is therefore about 45·b1: around +23 for unit 12 and around −22 for unit 20. The interior weights have to work against this, which helps explain why interior weights grow so large (|w| up to about 11).
+
+**Redundant features.** Duplicated features carry no independent information. The network effectively sees about half as many channel-1 features as there are inputs.
+
+**Output layer:**
+- Output columns 0 and 2 point in similar directions, with cosine ≈ +0.58.
+- Columns 1 and 4 point in opposite directions, with cosine ≈ −0.42.
+- Column 3 is dominated by a single hidden unit (h2[5], weight −5.2).
+
+This looks like a set of 5 decisions containing an opposite pair and a similar pair. Examples would be {no-op, up, down, left, right}, or 5 ordinal/categorical labels. These cosines are only suggestive, because the h2 units are non-negative after ReLU.
+
+## 6. Hypotheses, and which survive
+
+| # | Hypothesis | Verdict | Reason |
+|---|---|---|---|
+| H1 | Generic tabular data (500 independent features) | **Ruled out** | Strict mod-5 channel structure, constant inputs, a never-used channel |
+| H2 | 1-D one-hot sequence, e.g. DNA A/C/G/T/N with length 100 and padding | **Ruled out** | Padding recurs as 2 positions every 10 inside the sequence. One "base" (channel 2) never occurs, and the padding symbol never occurs in the interior. Exact period-4 copies are implausible for real sequences. |
+| H3 | Image (10×10) with 5 one-hot intensity bins | **Very unlikely** | The border value never appears in the interior, one bin is unused, and the exact period-4 copying doesn't fit natural images |
+| H4 | Board game (Othello, Connect-4, checkers) | **Unlikely** | A 7×8 playable area matches no standard board. Hard period-4 copying of one piece type makes no sense for game positions. |
+| H5 | Sokoban/Boxoban (10×10 levels, 5 one-hot tile types) | **Mostly ruled out** | The size and channel count match, but Sokoban has interior walls and the wall channel never appears inside. It also wouldn't produce row-wise period-4 motifs. |
+| H6 | **Procedurally generated 10×10 grid world / game state with a wall border**, scored by a 5-way head (e.g. a policy) | **Strongly supported** | Explains the border, one-hot tiles, an unused tile type, and generator-imposed regularities. Row-specific motifs fit a level/lane generator. |
+| H6a | Within H6: a **lane-based game** (Frogger/Freeway-style). Each interior row is a lane with a periodic, wrap-around obstacle pattern. Channel 1 is the deadly obstacle, never co-located with the agent, so it stays exactly periodic. Channel 4 is a second object type the agent can share a cell with or override, so it is only approximately periodic. Channel 0 marks the agent, which is mostly near the centre columns. Row 8 is a start or safe lane with no channel-1 objects. The 5 outputs would be no-op plus 4 moves. | **Plausible, not proven** | Fits the exact vs approximate copies, the centre-column breakdown of channel-4 duplication, and the centre-heavy channel-0 weights. The one-hot channel assignments and the meaning of the outputs are inferred, not observed. |
+
+## 7. Best explanation
+
+This is a small MLP (500 → 32 → 32 → 5, He-initialised, trained without weight decay). Its input is a **10×10 grid flattened row-major, with each cell one-hot encoded over 5 tile types.**
+
+- **Tile 3 is a wall/padding tile.** It fills a fixed border (rows 0, 1, 9 and columns 0, 9) in every example. Those 44 inputs are therefore constant and their weights became copies of the bias.
+- **Tile 2 is never present in the data.** Neither is tile 3 in the interior, and neither is tile 1 in grid row 8. Those inputs kept their random initial weights.
+- **The 7×8 interior holds tiles 0, 1 and 4**, generated with strong regularities:
+  - tile 1 in each row is an exact period-4 motif, repeated twice;
+  - tile 4 is mostly periodic and often tied to tile 1 one column over;
+  - tile 0 is decisive in the central columns.
+
+These regularities strongly suggest **synthetic, procedurally generated environment states**. A lane/obstacle game with periodic, wrapping obstacles and a mostly centre-dwelling agent is the most coherent concrete reading. The 5 outputs are most likely 5 actions or 5 classes, with one opposite-signed pair and one similar pair.
+
+The robust conclusions are the 10×10 / 5-channel / border structure, which tiles are never or always present, and the exact period-4 duplication. The specific "Frogger-like policy" story is my best guess at the semantics. It rests on weaker evidence: the approximate copies, the centre-column effects and the output-weight correlations.
+
+**How to confirm:** feed a few hypothetical boards through the network and see which output changes when you move a channel-0 cell, or when you break the period-4 motif.

@@ -1,0 +1,41 @@
+# Analysis of Policy Network Weights
+
+## Observations
+
+**Channel 1 (moving objects) dominates the network.** The rows of W1 corresponding to channel 1 inputs for playable cells carry by far the largest weights in the entire network, with magnitudes reaching ±4–6. For example, cell (1,1) ch1 (row 56): `1.896, 0.467, -2.711, …, 3.017, …` (max ≈ 3.0). Cell (1,2) ch1 (row 61): `… -3.686, …, 3.316, …` (max ≈ 3.7). Cell (1,4) ch1 (row 71): `… 3.589, …, 3.866, …, -5.915, …, 3.268 …` (max ≈ 5.9). These extreme weights push hidden units to tanh saturation when an enemy occupies any of these cells. Crucially, **every playable cell I checked** in both the top rows and deep into the grid has large ch1 weights, meaning moving objects can appear at **any** position on the board, not just specific lanes.
+
+**Channel 2 (reward targets) has moderate-to-large weights.** Cell (1,1) ch2 (row 57): `… 1.037, …, 1.125, …, -2.618, 1.773 …` (max ≈ 2.6). Cell (1,2) ch2 (row 62): `… 1.846, …, 2.838 …` (max ≈ 2.8). Cell (1,4) ch2 (row 72): `… 3.005, …, -3.473 …` (max ≈ 3.5). These are significant but roughly half the magnitude of ch1 weights. Reward weights appear non-trivial across both top-row and bottom-row cells, indicating reward targets are **spread throughout** the grid, not confined to a single goal line.
+
+**Channel 3 (obstacles) feeds consistently into hidden unit 22.** Across multiple playable cells, the ch3 row of W1 has a distinctive negative spike at column 22: cell (1,1) ch3 → position 22 = **−1.301**; cell (1,2) ch3 → **−1.015**; cell (1,3) ch3 → **−0.918**. Other positions are near zero. This means the network uses one hidden unit to aggregate obstacle/wall information. Some cells (e.g., cell (1,4)) lack this spike (position 22 = +0.234), suggesting obstacles are **not uniform** — consistent with a randomly generated or varying maze layout.
+
+**Channel 0 (agent) weights are mostly small but vary by position.** Cell (1,1) ch0: max ≈ 0.19. Cell (1,2) ch0: max ≈ 0.72. Cell (1,3) ch0: max ≈ **1.58** — notably large. This means certain grid positions trigger position-specific behavior (like navigating a junction), which is characteristic of maze navigation.
+
+**Channel 4 (previous frame) weights are uniformly small** (< 0.2 for all cells checked). The network effectively ignores movement history, relying on current positions alone.
+
+**Output layer biases (b3):** `−0.808, 0.470, 0.810, 0.592, −0.102` for no-op, up, down, left, right. **No-op is strongly disfavored** (the agent should always move). Down (0.810) and left (0.592) are the default-preferred directions. All four movement directions have both strong positive and strong negative W3 weights from various h2 units, indicating the network makes complex directional decisions.
+
+## Reasoning
+
+The massive channel 1 weights spread across **all** playable cells rule out **Freeway/Frogger** — in those games, traffic is confined to horizontal lanes and ch1 weights would only be large for specific rows. Here, enemies can appear at any cell.
+
+The moderate channel 2 weights **also spread throughout the grid** rule out a single-goal navigation game — if there were only one goal cell (like a finish line), ch2 would only matter for cells near the goal, not everywhere. Instead, there are **multiple collectible reward items** scattered across the board.
+
+The channel 3 obstacle encoding with a dedicated hidden unit, **varying across cells**, points to a **maze-like wall structure** that changes between episodes (procedurally generated). Fixed mazes would have their structure absorbed into biases.
+
+The small channel 4 (previous frame) weights mean the network doesn't need motion history — enemy movements are either predictable from current positions or don't require directional prediction.
+
+The strong no-op penalty means the agent must keep moving — standing still is dangerous. The ch0 weights being position-specific for certain cells suggests maze junctions where directional decisions matter.
+
+Putting it together: **the agent navigates a grid maze, collecting scattered reward items while avoiding moving enemies that can appear anywhere.** This is the archetype of **Pac-Man** — the agent eats dots (ch2) spread throughout a maze (ch3), while ghosts (ch1) roam the maze and must be avoided. The network's priority ordering (ch1 >> ch2 >> ch0 > ch3 > ch4) matches Pac-Man strategy: ghost avoidance is paramount, then dot collection, then positional awareness.
+
+## Game
+
+**Pac-Man** (simplified grid-world version)
+
+## Description
+
+The agent navigates an 8×8 maze collecting reward items (dots) scattered throughout the grid while avoiding moving enemies (ghosts). Contact with an enemy likely ends the episode. The maze layout may vary between episodes. The agent is rewarded for collecting items and must balance collection against survival.
+
+## Confidence
+
+35%

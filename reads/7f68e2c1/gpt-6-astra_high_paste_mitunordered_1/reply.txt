@@ -1,0 +1,21 @@
+**Observations:**
+- **The inputs appear to be cell-major, with five consecutive channels per cell:** \(i=50r+5c+k\). Inputs 3, 8, 13, … have similar, moderately sized weight vectors, consistent with the constant wall border. For example, their weights into hidden unit 10 are **0.272, 0.373, 0.353**, resembling **b1[10] = 0.384**.
+- **The agent occupies a vertical strip at the left of the playable area.** Under that inferred layout, the strongly trained agent inputs are 55, 105, 155, …: column 1 at successive rows. Input 55 has weights **−3.718, 2.475, −2.678** into units 12, 13, and 31; input 105 has **5.506** into unit 25. Agent inputs elsewhere generally retain small, initialization-like weights. This suggests a left-side paddle rather than a freely roaming character.
+- **Moving-object and previous-frame inputs matter throughout the interior.** For example, input 61—moving object at (1,2)—has weights **5.950, −8.763, 6.569** into units 4, 16, and 20. Its corresponding history input, 64, has **−3.996** into unit 31. This fits tracking a ball’s position and motion.
+- **There is no strongly trained interior reward-target map.** Instead, inputs consistent with a right-border reward strip have the same constant-feature signature as the walls: **W1[97,10] = 0.399** and **W1[147,10] = 0.429**. That suggests a fixed opposite-side target rather than scattered food or disappearing bricks.
+- **The output layer chiefly distinguishes up and down.** For example:
+  - **W3[16] = (0.100, −1.734, 2.380, −0.082, −0.482)**
+  - **W3[19] = (1.078, −3.055, −0.242, 0.713, 0.831)**
+  
+  No-op, left, and right often receive similar contributions, suggesting three ways of leaving the paddle stationary. Their biases are also similar: **0.359, 0.364, 0.306**, versus **−0.200** for up and **−0.566** for down. These biases alone do not establish the actual action frequencies.
+
+**Reasoning:**  
+A vertically controlled agent confined to the left edge, a moving object crossing the interior, and substantial use of motion history are a strong **Pong** signature. The fixed right-side target suggests a wall-return or single-paddle variant.
+
+Ordinary Breakout and falling-object Catch would instead usually have a bottom paddle and strong left/right control. Snake, maze navigation, and food collection would require agent-position sensitivity across the board and more substantial four-directional control; food or brick collection would also normally produce structured, variable reward-target weights. The exact scoring rules and presence of an opponent are less securely identifiable than the paddle-and-ball game family.
+
+**Game:** **Pong — probably a single-paddle “wall Pong” variant, with the paddle on the left.**
+
+**Description:** The agent moves its paddle up and down to intercept and return a bouncing ball toward the opposite side. Successful returns or scoring-wall hits earn reward, while letting the ball pass the paddle is the failure to avoid; the precise rewarded event is uncertain from these weights.
+
+**Confidence:** 94%

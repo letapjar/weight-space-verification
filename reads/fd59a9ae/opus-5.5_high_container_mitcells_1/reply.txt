@@ -1,0 +1,74 @@
+**Observations:**
+
+*How I indexed the inputs.* I took cell = row·10 + col (input i → cell i//5, channel i%5). In every border cell, the channel‑3 row repeats the same signature, because that input is always 1 and acts as a bias. Index 3 (cell 0) is `-0.055 -0.161 -0.028 -0.195 … 0.109 0.177`, and index 18 (cell 3) is `0.020 -0.138 0.004 -0.064 … 0.219 0.166`. In those border cells every other channel stays at initialisation scale (|w| < ~0.2).
+
+*Interior walls.* Several interior cells look exactly like border cells: all five rows are tiny, and channel 3 carries the wall signature.
+- Cell (2,2), inputs 110–114: ch3 = `-0.022 -0.215 0.054 -0.184 …`
+- Cell (2,3): ch3 = `0.106 -0.031 0.062 -0.095 …`
+- Cell (4,4): ch3 = `-0.055 -0.219 -0.042 -0.072 …`
+- Cell (5,5): ch3 = `-0.060 -0.147 -0.086 -0.071 …`
+
+These cells are never occupied by the agent or by anything that moves, so they are fixed interior obstacles. Classifying all 64 inner cells this way gives this layout:
+
+```
+row1  . . . . . . . .
+row2  . # # . . # # .
+row3  . # . . . . # .
+row4  . . . # # . . .
+row5  . . . # # . . .
+row6  . # . . . . # .
+row7  . # # . . # # .
+row8  . . . . . . . .
+```
+
+This is a fixed maze with 4‑fold symmetry: corridors around the edge, L‑shaped blocks in the corners, and a central pillar.
+
+*Channel 0 (agent).* The weights are huge in every open corridor cell and only there. Examples:
+- (1,5) unit 4 = 9.889
+- (6,5) unit 0 = −10.535
+- (7,8) unit 21 = −12.391
+- (8,8) unit 21 = −11.974
+
+The agent therefore moves freely through the whole maze, and its position is encoded precisely.
+
+*Channel 1 (moving objects).* This channel is equally strong across the corridors. Examples:
+- (1,5) unit 28 = 10.358
+- (1,6) unit 28 = 10.005
+- (4,6) unit 11 = −8.085
+- (8,5) unit 12 = 7.567
+
+The network tracks other moving entities very precisely, and units such as 28 combine "object near (1,4–6)" with agent‑position terms of opposite sign. That looks like threat or proximity detection.
+
+*Channel 4 (previous frame).* This channel is moderately strong (2–4.5) in open cells. Examples:
+- (3,4) unit 23 = 4.526
+- (4,6) unit 10 = −4.147
+- (8,3) unit 4 = −4.521
+
+These weights let the network infer the direction each moving object is travelling.
+
+*Channel 2 (reward targets).* The weights are present but weak (≈0.5–2) and spread over many open cells. Examples:
+- (3,1) units 9/22 = 1.838 / 1.651
+- (4,3) unit 22 = 2.048
+- (4,2) unit 22 = 1.368
+- (5,1) unit 22 = 1.441
+
+Unit 22 behaves like a diffuse "rewards still around here" sum. That pattern fits many scattered targets, such as pellets on most corridor cells, rather than a single target that would need sharp localisation.
+
+*Channel 3 inside the maze.* Open cells carry only noise in this channel. The walls are static, so their channel‑3 inputs are constant.
+
+*Output layer.* b3 = `[-0.697, -0.024, 0.073, 0.195, 0.385]`. No‑op is clearly disfavoured, so the agent prefers to keep moving. The four directions are close to balanced, which suits 2‑D navigation rather than a game dominated by one axis. W3 rows are large and mixed for all four moves, for example row 5 `0.307 2.509 -2.341 0.346 -0.598` (up vs down) and row 18 `0.064 -0.980 -0.974 2.779 -0.414` (left).
+
+**Reasoning:**
+
+- **Ruled out: paddle games (Pong, Breakout, catch) and Freeway‑style crossers.** The agent moves in 2‑D through every corridor cell, and there are fixed interior walls.
+- **Ruled out: Snake.** There is no fixed maze in Snake, and food would be one sharply encoded target, not diffuse ch2 weights.
+- **Ruled out: a pure single‑goal maze or gridworld.** That would show strong ch2 localisation and no need for heavy ch1 and previous‑frame processing.
+- **Ruled out: a pure dodge game.** That would not use a fixed symmetric maze and spread‑out reward cells.
+
+What remains is a symmetric maze with corridors, other moving agents tracked very precisely (with their motion direction taken from the previous frame), and many small reward items spread along the corridors. That is the Pac‑Man pattern: collect the pellets while avoiding the ghosts. The strong aversion to no‑op also fits Pac‑Man.
+
+**Game:** A Pac‑Man‑style maze game (mini Pac‑Man): pellets in the corridors, ghosts as the moving objects, played on a fixed symmetric 8×8 maze.
+
+**Description:** The agent moves through a fixed maze collecting pellets (reward targets) scattered along the corridors. It must avoid the ghosts (moving objects) that roam the maze, because touching one ends the episode.
+
+**Confidence:** 70%

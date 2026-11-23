@@ -1,0 +1,35 @@
+**Observations**
+
+- **Channel 3 (obstacles).** The only structured weights are on the border ring, and every border cell carries the same vector, which is nearly a copy of b1. Input 3 is `-0.086 -0.385 -0.001 … 0.547 … -0.458`, input 53 is `0.130 -0.416 … 0.532 … -0.454`, and b1 is `-0.006 -0.359 … 0.506 … -0.493`. That is the signature of an input that is always 1. Inside the 8 x 8 area channel 3 is noise (about 0.05), so there are no interior obstacles.
+
+- **Channel 2 (reward targets).** The same always-on, bias-like vector appears on exactly eight inputs: 57, 62, 67, 72, 77, 82, 87 and 92, which are channel 2 of cells (1,1) to (1,8). For example, input 57 is `-0.051 -0.356 -0.079 0.109 … 0.505 … -0.407`. Everywhere else channel 2 is noise. So the reward target is the entire top playable row, permanently present and never consumed or moved.
+
+- **Channel 1 (moving objects).** Weights are large (1 to 6) in rows 2 to 7 and noise in rows 1 and 8. Within each of those six rows the weights repeat with period 4 across columns:
+  - Row 2: (2,1) `-0.149 0.515 0.678 … 2.492 … 4.370 … -3.008` matches (2,5) `-0.122 0.472 0.744 … 2.414 … 4.088 … -2.917`; (2,2) matches (2,6) (`… -4.451` and `… -4.449`); (2,4) matches (2,8) (`… 3.513` and `… 3.517`).
+  - Row 3: (3,2) `5.893 0.906 -1.017` matches (3,6) `5.971 0.896 -0.955`.
+  - Row 4: (4,2) and (4,6) both have about 5.3 on unit 18.
+  - Row 5: (5,1) `4.380` matches (5,5) `4.393`; (5,2) and (5,6) have `-5.799` and `-5.902`.
+  - Rows 6 and 7 show the same pairing.
+  
+  Two cells four apart are therefore always occupied together: each row is a lane with two objects spaced 4 apart, circulating with wrap-around on the 8-wide field.
+
+- **Channel 4 (previous frame).** In rows 2 and 6 the trail weights at column c copy the object weights at column c+1, with wrap from column 8 to column 1. For example, ch4(2,8) `-0.166 0.489 0.295 … 4.143 … -3.015` matches ch1(2,1); ch4(6,8) `-0.503 0.725 0.069 -0.652 1.646` matches ch1(6,1) `-0.202 0.825 0.377 -0.631 1.577`; ch4(6,1) `… 4.698 2.953` matches ch1(6,2) `… 4.742 3.544`. Those lanes move right one cell every step. In rows 3, 4, 5 and 7 the trail weights are large but are not shifted copies of the object weights, which suggests slower lanes; I could not read their direction. The trail is also active in row 8, where only the agent can be.
+
+- **Channel 0 (agent).** Weights are noise in row 1 and large through rows 2 to 8, concentrated in the central columns and fading toward the sides. The largest are in the bottom rows: (8,4) `… -9.429 … -9.601`, (8,5) `-2.618 -2.674 -7.836 …`, (7,4) `-1.923 -2.696 -10.058 …`, (6,3) `11.266 …`, (4,4) `5.170 … 8.300 … 8.386`. Side columns are small, e.g. (2,1), (3,8) and (8,8) at about 0.2. Row 8 has agent and trail weights but no object weights, so it is a safe start row, with the start near columns 4 and 5. The agent is never observed in row 1, so reaching it ends the episode or resets the agent.
+
+- **Output layer.** Many h2 units push up against down (row 5: `2.509 / -2.341`; row 3: up `-2.579`; row 22: down `-2.218`) and many push left against right (row 18: left `2.779`; row 31: right `2.045`; row 4: right `-2.059`; row 25: left `-2.174`). The no-op column is weak (largest magnitude about 1.1) and its bias is the lowest: b3 = `-0.697 -0.024 0.073 0.195 0.385`. All four moves are in use and waiting is disfavoured.
+
+**Reasoning**
+
+- A permanent reward strip along the top row, a safe bottom row where the agent starts, and six lanes of evenly spaced, wrapping, horizontally moving objects in between is a road-crossing layout.
+- Collect-the-item games (Snake, Pac-Man-like, foraging) are ruled out: targets would appear across the interior, not as a constant top row.
+- Paddle games (Breakout, Pong, catch) are ruled out: the agent occupies rows 2 to 8, not one row, and there is no single ball.
+- Shooters (Space Invaders-like) are ruled out: there is no firing action and the objects circulate in fixed lanes.
+- Mazes and Sokoban are ruled out: there are no interior obstacles.
+- It differs from MinAtar Freeway in that the agent uses left and right and is seen across several columns, so it is closer to Frogger's road section. I see no evidence of a river or rideable logs; that the moving objects are deadly rather than rideable is inferred from the layout, not read directly from the weights.
+
+**Played:** A Frogger / Freeway-style road-crossing game ("why did the chicken cross the road"). The agent starts in the bottom row (row 8), crosses six traffic lanes (rows 2 to 7), each with two cars spaced four apart that wrap around, some lanes fast (rows 2 and 6 move right one cell per step) and others slower, to reach the goal row at the top (row 1).
+
+**Description:** The agent moves up through the lanes of moving cars, sidestepping left or right and timing the gaps, and is rewarded for reaching the top row. Hitting a car presumably ends the episode or costs the crossing.
+
+**Confidence:** 88%

@@ -1,0 +1,65 @@
+**Observations:**
+
+*Border cells, channel 3 (walls).* The weights on the wall cells copy the first-layer bias. For example, input 3 (cell (0,0), channel 3) reads 0.104 0.189 … −0.298 −0.385 … 0.278. The bias b1 reads 0.147 0.202 … −0.412 −0.405 … 0.271. Inputs 8, 13, 53, 98, 148 and the other border cells show the same pattern. A wall input is always on, so it simply works as extra bias.
+
+*Interior cells, channel 3 (obstacles).* These weights are tiny everywhere (|w| ≈ 0.1). There are no obstacles inside the play area.
+
+*Channel 0 (agent).* Large weights appear only in row 1, cells (1,1) to (1,8):
+- input 55 = (1,1): −1.51 … 3.08 … −3.25
+- input 60 = (1,2): −3.69 … 5.13
+- input 75 = (1,5): 3.93, 3.12
+- input 90 = (1,8): −5.59 … 4.99
+
+In rows 2–8, channel 0 is noise (around 0.05). The agent therefore never left the top playable row, so it moves only horizontally.
+
+*Channel 1 (moving objects).* There are strong weights across rows 2–8, interior columns:
+- input 216 = (4,3): −7.19
+- input 326 = (6,5): −7.13
+- input 276 = (5,5): −7.27
+- input 131 = (2,6): 3.76
+- input 136 = (2,7): 4.29
+
+These weights fade at the bottom corners: input 406 = (8,1) has |w| ≤ 0.6, and input 441 = (8,8) is about 0.1. Some object is tracked over the whole field below the agent's row.
+
+*Channel 4 (previous frame).* This channel is equally strong:
+- in row 1: inputs 59, 64, 94 (−2.45)
+- in rows 2–8: input 134 = (2,6): −7.26; input 114 = (2,2): −4.49
+
+Together with channel 1, this gives the object's direction of motion, which the agent needs to anticipate where it will arrive.
+
+*Channel 2 (reward targets).* These weights are close to zero in rows 1–5. In rows 6–8 they are moderate:
+- input 342 = (6,8): 4.46
+- input 367 = (7,3): −4.93
+- input 427 = (8,5): −3.40
+- input 327 = (6,5): −2.67
+- input 407 = (8,1): 2.37
+
+Reward targets exist only in a fixed band of the three rows farthest from the agent.
+
+*Output layer.* Nearly all the action is in the "left" and "right" columns of W3:
+- unit 16: left 2.90, right −1.00
+- unit 8: 2.49 / −1.99
+- unit 22: 1.35 / −2.77
+- unit 21: −0.17 / 2.31
+- unit 25: 0.20 / 2.17
+- unit 12: −0.76 / 1.99
+
+The no-op, up and down columns mostly stay below 0.9 in magnitude; the one exception is unit 15 on down, at −1.87. The biases (0.099, −0.125, 0.276, 0.027, −0.058) are small, so no action is favoured by default. The policy is essentially a left/right controller.
+
+**Reasoning:**
+- The agent is a horizontal paddle confined to one edge row. It reacts strongly to a single moving object anywhere in the field, and the previous-frame channel gives it that object's velocity.
+- The reward targets form a static band of rows on the far side of the field.
+- That combination is the Breakout layout: paddle, bouncing ball, and a wall of bricks. Here it is flipped vertically, with the paddle at the top and the bricks in rows 6–8.
+
+Other candidates fit less well:
+- **Snake / gridworld collection:** ruled out because the agent never leaves row 1, and up/down are unused.
+- **Catch or dodge (falling objects):** these have no separate band of reward targets far from the agent.
+- **Pong:** the paddle would be on a side column, and there would be no reward targets.
+- **Space Invaders–like games:** less likely. The targets there advance toward the player and would appear in many rows, not a fixed band of three. The moving-object weights also look like one ball tracked with direction.
+- **Frogger / navigation:** there are no interior obstacles and no vertical movement.
+
+**Game:** Breakout (a mini Breakout / Arkanoid-style brick breaker, vertically flipped: the paddle is in the top row and the bricks are in rows 6–8).
+
+**Description:** The agent slides a paddle left and right along row 1 to keep a bouncing ball in play, using the current and previous ball position to predict where it will land. Reward comes from the ball breaking the bricks in the three rows on the far side of the field.
+
+**Confidence:** 65%

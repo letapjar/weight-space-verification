@@ -1,0 +1,18 @@
+**Observations:**
+- **Border channel 3 is clearly learned.** The top-row obstacle inputs have a consistent signature. Input 3 (row 0, col 0, ch3) has `-0.488` on hidden unit 5 and `+0.341` on unit 25. Input 8 (row 0, col 1, ch3) has `-0.366` and `+0.385` on the same units. Input 13 (row 0, col 2, ch3) has `-0.389` and `+0.354`. Unit 23 is also negative in these rows. The network clearly encodes "wall/death ahead," so it is reading the border.
+- **Agent and moving-object channels are harder to read.** Many large weights sit in the lower rows of W1, but I can't map them to specific cells reliably by eye, so I won't claim a spatial pattern for channels 0, 1, or 2.
+- **Output biases:** `b3 = [0.360, -0.915, -0.136, 0.456, 0.238]` for [no-op, up, down, left, right]. The network has a strong prior against moving up, and mild preferences for no-op and left. Without running the forward pass I can't say how much this reflects the current state versus a learned default.
+- **Output weights:** Column 1 (up) has its largest magnitudes on hidden units 18 (`+1.538`) and 19 (`-2.073` in column 2, down). These are not decisive on their own.
+
+**Reasoning:**
+- The 8×8 playable area with a full wall border, a separate moving-object channel, and a previous-frame channel all point to a grid game where the agent collects things while dodging moving hazards. The previous-frame channel is useful mainly when you need to infer motion direction, which suggests moving enemies.
+- Pure grid-navigation puzzles without moving enemies (e.g., Sokoban) would not need a previous-frame channel and would likely use different channel semantics.
+- Snake is plausible on the "agent body plus food plus walls" reading, but Snake has no separate moving-object channel, so it fits less well.
+- Frogger-like games fit the moving hazards, but they usually need horizontal lanes, which I can't confirm from the weights.
+- Pac-Man-style maze games fit best: agent, moving ghosts (channel 1), pellets as reward (channel 2), maze walls as obstacles (channel 3), and motion inference from channel 4. I can confirm only the border part of the obstacle channel, not internal maze walls.
+
+**Game:** A Pac-Man-style maze collection game, with moving enemies to avoid. This is a low-confidence guess; the Pac-Man match is inferred from the channel layout and is not verified against the weights.
+
+**Description:** The agent moves through the grid collecting reward targets while avoiding moving objects; contact with a hazard ends the episode.
+
+**Confidence:** 20%

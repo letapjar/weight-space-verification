@@ -1,0 +1,32 @@
+**Observations** (input numbers are 0-based; "unit" is the 0-based column of W1)
+
+- **Wall channel:** The border cells have large, similar channel-3 weights, e.g. input 53 (row 1, col 0) has 0.477 on unit 15 and −0.477 on unit 25. The interior obstacle channel is uniformly small: input 58 (row 1, col 1) and input 418 (row 8, col 3) have |w| ≤ 0.16. The interior appears to contain no obstacles.
+- **Agent channel:** Channel 0 is large only in the bottom interior row (row 8, inputs 405–440). Input 405 (row 8, col 1) has −3.90 on unit 0 and 6.02 on unit 31, and input 440 (row 8, col 8) has 5.94 on unit 22 and 6.47 on unit 31. Channel 0 in rows 1–7 stays within about ±0.13 (e.g. input 160, row 3 col 2). The agent appears to live only in row 8, and its column matters.
+- **Moving objects (channel 1):** Large, sign-consistent weights in rows 1–7, none in row 8 (inputs 406–441 are all |w| < 0.2). Row 3 is representative: input 171 (row 3, col 4) has −4.77 on unit 0, −6.79 on unit 4, and +5.34 and +5.87 on units 5 and 6. Columns 1–8 of row 3 show the same signs on units 0, 4, 5 and 6.
+- **Previous frame (channel 4):** Mirrors channel 1 in rows 1–7 (input 166 vs input 169, row 3 col 3: both negative on unit 0 and 4, both positive on units 5 and 6). Row 8 is moderate. Current and previous positions of moving objects are both being read.
+- **Reward (channel 2):** Large in rows 1–2, moderate in row 3, negligible in rows 4–8. Input 57 (row 1, col 1) has 3.94 on unit 19 and −3.85 on unit 25. Input 67 (row 1, col 3) has 4.38 on unit 24 and −4.35 on unit 21. Input 107 (row 2, col 1) has 3.53 on unit 2, and most of row 2 has a positive weight on unit 2.
+- **Output layer:** b3 = [noop 0.538, up −0.025, down −0.121, left 0.405, right −0.648]. Noop and left are favored, and right is the least favored. The up and down columns of W3 are not small (e.g. row 0: up 0.823, down 0.847), so the output layer does not by itself show that vertical moves are unused.
+
+**Reasoning**
+
+The strongest pattern is that the agent occupies only the bottom row. A player that can move freely needs large channel-0 weights across rows 1–7, and those are absent. Moving objects fill the whole field above the agent, and reward targets sit only in the top three rows. There are no interior obstacles.
+
+Taken together, this fits a paddle at the bottom, a ball bouncing through the open field, and a block of static bricks at the top. Channel 1 alone cannot separate a ball from cars in lanes. The paddle and the bricks are what point to Breakout.
+
+Ruled out or disfavored:
+- **Freeway, Frogger, Asterix, Seaquest:** the agent must move across rows, which would need large channel-0 weights in rows 1–7. Frogger would also need water obstacles.
+- **Space Invaders:** the cannon fits, but there is no fire action, and aliens are moving objects, not static reward targets.
+- **Pac-Man or maze games:** these need interior obstacle weights, and those are near zero.
+- **Pong:** the paddle would be in a side column, and there are no static reward targets.
+- **Catch or falling-fruit games:** reward items would show up in rows 4–7, and they don't.
+- **Snake:** the agent would appear throughout the grid.
+
+The main mismatch is the unused-looking up/down actions, which the output layer does not suppress.
+
+**Game:** Breakout (brick-breaker, in the style of Atari Breakout or MinAtar Breakout). The paddle slides along the bottom row, the ball bounces off walls, the paddle and bricks, and the bricks occupy the top three rows.
+
+**Description:** The agent is a paddle confined to the bottom playable row that moves left and right to keep a bouncing ball in play. Reward comes from destroying the brick targets in the top three rows, and the previous-frame channel gives the ball's direction of motion.
+
+**Confidence:** 60%
+
+I worked through these weights by hand and did not run anything. I checked the row and column mapping against the wall-channel lines, which all show the same border pattern, so the indexing should hold. To firm this up, I would feed the network synthetic frames with a paddle in row 8, a ball in the field, and bricks in rows 1–3, and check whether its left/right choice tracks the ball's horizontal position.

@@ -1,0 +1,23 @@
+**Observations:**
+- **Layout.** Each grid cell owns 5 consecutive rows of W1, so rows 0–49 are grid row 0, and so on. I read these by eye, so input indices may be off by a few.
+- **Border.** The wall cells (grid row 0, grid row 9, and the first and last column of each row) have small weights, mostly under about 0.2 in magnitude. That fits a constant wall channel that the network absorbs into its biases rather than reads.
+- **Interior pattern.** Across the 8×8 interior, the five lines of each cell repeat a consistent profile:
+  - Channel 0 (agent) and channel 1 (moving objects) carry the largest weights, often 1 to 6 in magnitude. Examples: `-0.624 -0.725 4.137 2.645 ... 6.616 -5.615 3.759` and `0.063 1.992 0.117 0.312 5.747 ...`.
+  - Channel 4 (previous frame) is medium, roughly 0.2 to 1.5.
+  - Channels 2 (reward targets) and 3 (obstacles) are mostly small, below about 0.2, with a few outliers such as `-1.301`.
+  - I could not read a clear spatial map of which interior cells matter most.
+- **Output.** `b3 = [-0.808, 0.470, 0.810, 0.592, -0.102]` favours down, left and up over no-op, with right near zero. These biases are modest next to the hidden-layer contribution, and the W3 entries are as large as about 2.5, so they show little on their own.
+
+**Reasoning:**
+- **No fire action.** The five actions are movement only, which rules out shooters such as Space Invaders, Seaquest with fire, and paddle games such as Pong or Breakout.
+- **Freeway.** It is ruled out because it moves only vertically.
+- **Movement and motion.** Heavy weight on the agent and moving-object channels, plus the previous-frame channel, suggests a policy that tracks moving things and their velocity, which points to dodging or crossing games. Frogger-style crossing and Asterix-style collecting while dodging fit this best.
+- **Snake.** Less likely, because classic Snake has no moving objects, yet the network leans heavily on that channel.
+- **Pac-Man.** Less likely, because pellets are static reward targets and those channels carry little weight.
+- **Caveat.** Small weights on the reward and obstacle channels are weak evidence, since reward could be encoded through agent and moving-object interactions.
+
+**Game:** Best guess is an Asterix-style collect-while-dodging game, on a 10×10 grid with five actions (no-op plus four moves). Frogger-style crossing is the runner-up. I cannot name one game with confidence from these weights.
+
+**Description:** The agent moves one cell per step in four directions or waits, dodging moving hazards that end the episode on contact. It earns reward by reaching or collecting reward targets on the 8×8 interior.
+
+**Confidence:** 15%

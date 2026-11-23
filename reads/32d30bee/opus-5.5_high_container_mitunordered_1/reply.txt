@@ -1,0 +1,36 @@
+**Observations:**
+
+- **The inputs are grouped in blocks of 5, one block per cell.** Within each block, the third input (channel 2, reward) and the fourth (channel 3, obstacle) are nearly always ≈0. The first, second and fifth (channels 0, 1, 4) carry the large weights.
+  - Example block, inputs 40–44: 40 = `0.066 3.810 -2.144 … 7.249`, 41 = `-0.175 -0.199 0.919 … -4.026 … 4.995`, 42–43 ≈ 0, 44 = `0.011 -0.258 -0.044 -1.316 …`.
+  - The same layout holds near the end: 490–499 alternate active / zero / zero / bias-like / zero.
+- **About 44 rows are copies of the bias vector b1** (b1 = `-0.122 -0.192 -0.312 0.194 0.133 …`; e.g. row 8 = `-0.196 -0.145 -0.395 0.215 0.178 …`, row 23 = `-0.069 -0.234 -0.305 0.260 …`). An input whose weights track the bias is always 1.
+  - Most of these sit in the obstacle slot of a block whose other slots are zero. That is the 36 wall-border cells.
+  - About 8 sit in the **reward slot** instead. Row 12 = `-0.207 -0.306 -0.237 0.179 …` is in a block (inputs 10–14) where agent, moving object and previous frame are all zero.
+  - So about 8 cells hold a permanent reward target the agent is never observed standing on. Reaching it ends the episode: a fixed goal row.
+- **The moving-object channel is heavily weighted in many inner cells, and some pairs of different cells have almost identical rows.** Example: input 31 (`-0.118 1.913 -0.203 -0.205 -1.868 … 4.687 1.180`) and input 46 (`-0.068 1.991 -0.123 -0.306 -1.729 … 4.710 1.127`). Objects at fixed spacing in a lane, moving deterministically, always co-occur like this.
+- **Some inner blocks have agent and previous-frame weights but no moving-object weight** (e.g. inputs 15 and 19, `0.270 0.421 …`). These are safe rows such as a start row.
+- **Output biases: no-op 1.494, up 0.183, right −0.191, left −0.924, down −1.051.** Waiting and moving up are preferred, and down is least preferred.
+- **Strong hidden-layer-2 units veto single moves:**
+  - W3 row 7 = `0.821 1.353 0.625 -5.662 0.007` (left)
+  - W3 row 24 = `1.133 0.997 0.925 0.631 -6.219` (right)
+  - W3 row 2 = `1.458 -3.007 1.723 0.123 1.182` (up)
+  - W3 row 5 = `-2.048 3.975 -0.207 -2.617 -1.443` strongly favours up.
+
+**Reasoning:**
+
+- A fixed goal row the agent never sits on, combined with many lanes of deterministically moving objects and a large "wait" bias, describes a crossing game: wait for a gap, step forward, sidestep hazards.
+- **Snake is ruled out.** Its food appears at random cells, so the reward channel would be active everywhere rather than a constant row, and there would be no moving-object channel.
+- **Catch and Breakout are ruled out.** The agent clearly moves in two dimensions, since the up weights are large.
+- **Pure dodging games are ruled out.** They have no persistent goal cells.
+- **Freeway-style games are less likely.** The agent there moves only up and down, but here left and right are strongly controlled.
+- The pattern fits Frogger:
+  - start at the bottom safe row;
+  - cross lanes of moving cars;
+  - reach the goal row at the top;
+  - prefer waiting or moving up, and rarely move down.
+
+**Game:** A Frogger-style road-crossing game (Frogger; Freeway is a close relative).
+
+**Description:** The agent starts at the bottom and must cross rows of moving cars (moving objects, which end the episode on contact), dodging and waiting for gaps. It earns reward on reaching the goal row of reward cells at the top.
+
+**Confidence:** 65%

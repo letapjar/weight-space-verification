@@ -1,0 +1,59 @@
+**Observations:**
+
+*Channel 0 (agent): position map with holes.* Agent weights are large across almost the whole inner 8×8. For example:
+- (1,1) gives `-0.469 -0.594 1.590 -2.275 0.626 1.141 …`
+- (2,5) gives `-0.421 3.268 -0.444 0.880 -1.468 …`
+- (4,1) gives `-2.018 -0.737 0.338 -0.227 1.969 …`
+- (6,6) gives `2.123 -0.206 -0.425 1.342 …`
+- (8,8) gives `1.488 0.292 -0.149 0.422 0.174 1.328 …`
+
+Sixteen inner cells have agent weights that stay at initialisation scale (|w| < ~0.15):
+- (2,2) `0.021 -0.072 …` and (2,3) `-0.025 -0.092 …`
+- (2,6) `0.100 0.164 …` and (2,7) `0.064 0.001 …`
+- (3,2) `-0.024 -0.057 …` and (3,7) `0.020 0.012 …`
+- (4,4), (4,5), (5,4), (5,5)
+- (6,2) `0.141 …` and (6,7) `0.129 …`
+- (7,2), (7,3), (7,6), (7,7)
+
+The agent never occupies these cells, so they are fixed interior walls. Together they form a symmetric maze: four L-shaped corner blocks plus a 2×2 central block. Wall-border cells (row 0, row 9, columns 0 and 9) are also near zero in every channel.
+
+*Channel 3 (obstacles):* small everywhere, as expected for a layout that never changes from episode to episode.
+
+*Channel 1 (moving objects):* clearly non-trivial, with the largest values clustered around the central block:
+- (4,7) ch1 `… 2.827`
+- (5,7) ch1 `1.572`
+- (4,6) ch1 `… 1.514`
+- (7,5) ch1 `… -1.094 -1.351`
+- (4,2) ch1 `-0.382 -1.291 0.816`
+- (6,4) ch1 `… -1.214`
+- (5,3) ch1 `-0.520 -1.166 0.975`
+
+So there are moving entities, apparently emerging near the centre, and the policy reacts strongly to them, which suggests hazards.
+
+*Channel 2 (reward targets):* only modest, spread-out weights, e.g. (8,2) `0.504`, (8,3) `0.441`, (8,1) `0.422`, (7,1) `0.404`, (1,1) `0.395`. This fits many small collectibles scattered through the maze rather than one decisive goal cell.
+
+*Channel 4 (previous frame):* moderate weights, e.g. (8,7) ch4 `-2.292`, (8,6) ch4 `-0.960`, (2,8) ch4 `0.937`. These give motion and direction information about the agent and the movers.
+
+*Output layer.* Most strong rows of W3 tie no-op, up and down together and put the action in left or right. Examples:
+- row 12 `-0.122 -0.126 -0.144 0.514 -0.010`
+- row 50 `0.144 0.136 0.145 -0.783 0.028`
+- row 222 `-0.107 -0.099 -0.110 1.030 -0.055`
+- row 491 `0.135 0.141 0.136 0.000 -0.953`
+
+The biases `0.070 0.061 0.113 -0.123 -0.110` mildly favour no-op, up and down over left and right. The policy's sharpest decisions are left versus right, with the vertical and no-op choices largely tied.
+
+**Reasoning:**
+- **Fixed-goal maze navigation is ruled out.** The reward channel would then be constant and unimportant, and moving objects would not matter; here channel 1 carries some of the biggest weights.
+- **Paddle, catcher, Breakout and Frogger-style games are ruled out.** The agent occupies all rows and almost all columns.
+- **Snake is ruled out.** It has no fixed interior walls, and the agent channel would be multi-cell.
+- **Pac-Man-style play fits best.** It has:
+  - a fixed, symmetric interior wall layout (corner L-blocks and a central "house" block);
+  - an agent that roams every corridor;
+  - several moving objects that matter most near the centre, where ghosts come from;
+  - diffuse, low-magnitude reward weights, consistent with pellets scattered throughout.
+
+**Played:** A small Pac-Man-like maze game. The agent runs through the corridors of a fixed symmetric maze, eating scattered pellets while avoiding ghost-like moving enemies that operate around a central block.
+
+**Description:** The agent moves through a fixed 8×8 maze with interior wall blocks, collecting reward items spread along the corridors. It must avoid moving enemies, which appear to come from around the central block; touching one presumably ends the episode.
+
+**Confidence:** 55%

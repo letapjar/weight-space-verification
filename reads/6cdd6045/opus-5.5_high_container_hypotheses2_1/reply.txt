@@ -1,0 +1,227 @@
+# Analysis of a 500 → 32 → 32 → 5 MLP
+
+## 0. What was given
+
+| Tensor | Shape | Notes |
+|---|---|---|
+| W1, b1 | 500×32, 32 | Rows are inputs. Most of the analysis comes from here. |
+| W2, b2 | 32×32, 32 | Hidden to hidden. |
+| W3, b3 | 32×5, 5 | Hidden to 5 outputs. |
+
+The network is a small fully connected net with two hidden layers of 32 units and 5 outputs. ReLU is assumed but cannot be verified from the weights. All indices below are 0-based.
+
+---
+
+## 1. Observations
+
+### O1. W1 rows fall into exactly three kinds
+
+Reading all 500 rows, every row is one of these:
+
+| Kind | Look | Count | Example rows |
+|---|---|---|---|
+| **N** ("noise") | All 32 values small, about ±0.15, no structure | **328** | 0, 1, 2, 4, 5, … |
+| **B** ("bias-like") | Small, but with one consistent signature: col 5 ≈ −0.3 to −0.46, col 12 ≈ −0.2 to −0.35, col 23 ≈ −0.2 to −0.46, col 25 ≈ +0.25 to +0.57, cols 19 and 31 ≈ +0.1 to +0.25, col 13 ≈ +0.1 | **44** | 3, 8, 13, …, 53, 97, 98, 103, … |
+| **L** ("large") | Big values, typically ±1 to ±8 (max ≈ 9.9 at row 116, col 11) | **128** | 55, 59, 61, 64, 66, … |
+
+### O2. The N rows look exactly like untouched initialization
+
+- Their values look Gaussian. The standard deviation is about 0.06–0.07 (one row I computed by hand gave about 0.069).
+- About a dozen of the ~10,500 entries in N rows exceed |0.2|. That matches an untruncated normal.
+- Glorot-normal (√(2/532) = 0.061) and He-normal (√(2/500) = 0.063) both fit.
+- PyTorch's default `nn.Linear` init (uniform, bound 1/√500 ≈ 0.045) is ruled out, because values reach 0.24.
+- Keras' truncated `glorot_normal` (cut at about ±0.14) is also ruled out for the same reason.
+
+A weight only stays at its initial value if it never gets a gradient. Its gradient is x_i·δ_j, so **these 328 inputs are always exactly 0** in the training data.
+
+There is also no sign of weight decay or L1: those would have shrunk these weights toward 0 over training.
+
+### O3. The B rows equal b1 plus init noise, so those inputs are constant
+
+Compare the B signature with b1:
+
+```
+b1:      col5 −0.355  col12 −0.246  col23 −0.328  col25 +0.366  col19 +0.168  col31 +0.148  col13 +0.114  col20 −0.119
+row 3:        −0.488        −0.212        −0.359        +0.341        −0.099        +0.150        +0.174        −0.062
+row 48:       −0.328        −0.419        −0.505        +0.344        −0.059        +0.164        +0.126        −0.090
+```
+
+After subtracting b1, what remains is about N(0, 0.06), the same as the N rows. The explanation is simple:
+
+- If x_i is the same positive constant c on every example, its gradient is c times the bias gradient.
+- Under SGD (with c ≈ 1), or under Adam with any positive c, the weight receives exactly the same updates as the bias.
+- So the weight ends up as init + Δb.
+- b1 also equals Δb, which implies the bias was initialized to 0.
+
+**Conclusion: these 44 inputs are always "on", with a constant positive value, probably 1.**
+
+### O4. The three kinds sit in a strict geometric pattern
+
+Listing where B and L rows occur:
+
+- **B rows:**
+  - 3, 8, 13, …, 48 (every 5th, block 0–49)
+  - 453, 458, …, 498 (every 5th, block 450–499)
+  - In each middle block of 50 (50–99, …, 400–449): offsets **3**, **47** and **48** (for example 53, 97, 98; 103, 147, 148; …; 403, 447, 448)
+- **L rows**, within each middle block of 50:
+  - offset 5
+  - offsets 9, 14, 19, 24, 29, 34, 39, 44 (≡ 4 mod 5)
+  - offsets 11, 16, 21, 26, 31, 36, 41 (≡ 1 mod 5)
+
+The pattern repeats with period 5 and period 50. It decodes perfectly as a **10×10 grid with 5 channels per cell, flattened channel-last**:
+
+> index = (row·10 + col)·5 + channel
+
+Under that decoding:
+
+```
+            col0   col1         col2 … col8        col9
+row 0       ch3    ch3          ch3                ch3
+rows 1–8    ch3    ch0*, ch4*   ch1*, ch4*         ch2, ch3
+row 9       ch3    ch3          ch3                ch3
+
+ch3, ch2 = constant-on (B rows)
+*        = varying, learned (L rows)
+everything else = always 0 (N rows)
+```
+
+Checking the counts:
+
+- The 10×10 perimeter has 36 cells, each with ch3 always on.
+- The 8 right-edge cells in rows 1–8 also have ch2 always on.
+- 36 + 8 = **44 B rows**. ✓
+- Each interior row has 1 (ch0) + 8 (ch4) + 7 (ch1) = 16 varying inputs; 16 × 8 rows = **128 L rows**. ✓
+- Everything else: 500 − 44 − 128 = **328 N rows**. ✓
+
+### O5. What each channel does
+
+| Channel | Where it is ever non-zero | Behaviour |
+|---|---|---|
+| ch3 | The whole outer frame | Always 1 there, never inside. This is the classic fixed-wall signature. |
+| ch2 | Right wall, rows 1–8 only (not the corners) | Always 1. Marks a special edge. |
+| ch0 | Only column 1, rows 1–8 | Varies. A single-line entity. |
+| ch1 | Only columns 2–8 | Varies. **Never** appears in column 1. |
+| ch4 | Columns 1–8 | Varies. **Can** appear in column 1. |
+
+### O6. How large the weights are depends on position
+
+Mean over rows 1–8 of max|w| per input (a crude salience proxy):
+
+| Column | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| ch1 | — | 6.6 | 7.1 | 5.1 | 5.1 | 5.0 | 4.2 | **2.8** |
+| ch4 | **3.0** | 4.3 | 5.2 | 5.2 | 5.1 | 4.6 | 4.5 | **3.3** |
+| ch0 | 4.7 | — | — | — | — | — | — | — |
+
+- ch1 matters most next to column 1 and fades steadily toward the right edge.
+- ch4 is roughly flat across the field and dips at both ends.
+
+### O7. One ch0 cell behaves almost like a constant
+
+Row 255 is ch0 at cell (5,1). It is the weakest ch0 row (max about 2.6, versus 3.5–8.3 for the others). It also partly reproduces the bias signature on the units where |b1| is largest:
+
+- col 5: −0.69
+- col 12: −2.56
+- col 23: −1.84
+- col 25: +1.25
+
+That is what a feature looks like when it is 1 most of the time: its gradient mostly duplicates the bias gradient. The likely reason is that the ch0 entity usually sits at (5,1), which looks like a start or rest position.
+
+### O8. Effective hidden-layer-1 offsets are huge for a few units
+
+The 44 always-on inputs plus the bias move together, so each unit gets an effective constant offset of about 45·b1:
+
+| Unit | 25 | 5 | 23 | 12 | 19 | 31 | 20 | 13 | 1 |
+|---|---|---|---|---|---|---|---|---|---|
+| Offset ≈ | **+16.5** | **−16.0** | **−14.8** | **−11.1** | +7.6 | +6.7 | −5.4 | +5.1 | −5.0 |
+
+Units 5, 23 and 25 also have noticeably **smaller** varying-input weights (about ±1–2, versus ±4–8 elsewhere). Their outgoing W2 rows are also among the smallest. So:
+
+- Units 5 and 23 are probably almost always off, likely ReLUs that died partway through training and then froze.
+- Unit 12 is probably rarely active.
+- Unit 25 is probably almost always on, so it acts as a near-linear carrier of the bias.
+
+### O9. Layers 2 and 3 are heavily trained
+
+- W2 entries reach ±5 with a typical size around 1.2, far from a Glorot init of about 0.18. Training was long, with no visible regularization.
+- b2 has several strongly positive "default-on" units: 23 (+1.81), 31 (+1.26), 7 (+1.03), 18 (+1.01).
+
+### O10. The output layer has a clear structure
+
+**Outputs 1 and 2 are an opposed pair.** Their W3 columns are mostly anticorrelated:
+
+| Hidden-2 unit | W3 col 1 | W3 col 2 |
+|---|---|---|
+| 17 | +1.54 | −2.07 |
+| 21 | +1.32 | −1.18 |
+| 24 | +1.52 | −0.67 |
+| 31 | −1.89 | +0.52 |
+| 13 | −0.87 | +0.57 |
+| 16 | −0.73 | +0.45 |
+| 20 | −0.56 | +0.70 |
+
+**Outputs 0, 3 and 4 form a loose cluster:**
+
+| Hidden-2 unit | W3 (0, 3, 4) |
+|---|---|
+| 18 | 0.89, 0.86, 0.73 |
+| 25 | 0.62, 0.74, 0.73 |
+| 31 | 0.42, 0.53, 0.46 |
+| 7 | −0.46, −0.39, −0.24 |
+
+**There is a second axis: {1, 2} versus {0, 3, 4}.**
+
+- Unit 7 is (−0.46, **+0.96, +0.70**, −0.39, −0.24): it pushes both 1 and 2 up and the rest down.
+- Unit 18 is (+0.89, **−0.90, −2.08**, +0.86, +0.73): the opposite.
+
+**The defaults favour {0, 3}.** b3 = (0.36, −0.92, −0.14, 0.46, 0.24). b2 also keeps the "anti-1/2" units 18, 23 and 31 on by default.
+
+---
+
+## 2. Hypotheses and verdicts
+
+| # | Hypothesis | Verdict | Reasoning |
+|---|---|---|---|
+| H1 | Natural images (for example 20×25 grayscale) | ❌ Ruled out | Image weights are spatially smooth with gradual, dense salience. Here, informative, constant and dead inputs alternate with period 5 and form an exact 1-pixel frame. |
+| H2 | Generic tabular data with many irrelevant noisy features | ❌ Ruled out | Irrelevant but varying features still get noisy gradients and drift away from init. The N rows sit at pristine init, so those inputs are exactly zero. The B rows equal the bias, which no noisy feature would do. |
+| H3 | Multivariate time series (100 steps × 5 sensors) | ❌ Very unlikely | It would need sensor 3 to be pinned constant for steps 0–10 and 90–99 and at steps 20, 30, … of a period-10 cycle, with sensor 0 live only at steps 11, 21, 31, …. Implausible. |
+| H4 | One-hot token sequence (10 positions × 50 vocab, or the reverse) | ❌ Ruled out | Rows 0 and 9 would need ten different tokens permanently active at one position at the same time, which contradicts one-hot. |
+| **H5** | **10×10 grid observation, 5 channels per cell, flattened channel-last** | ✅ **Strongly supported** | It explains the exact counts (44 / 128 / 328), the period-5 and period-50 structure, the perfect perimeter frame, and the special right edge. |
+| H6a | ch3 = fixed wall | ✅ Strong | Always on at all 36 perimeter cells, never inside. |
+| H6b | ch2 = a special edge marker (goal, spawn or exit line on the far wall) | ✅ Likely, exact meaning uncertain | Constant along the right wall, rows 1–8 only (corners excluded). It carries no information to the network: it ends up as bias. |
+| H6c | ch4 = an "empty floor" flag | ❌ Ruled out | An empty flag would be on almost all the time, so its weights would look like the bias (as in O3/O7). ch4 rows are large and nothing like b1. So ch4 is a sparse object channel, and empty cells are simply all-zero. |
+| H6d | ch0 = the controllable agent, confined to column 1 and moving along it | ✅ Favoured | Exactly one line of cells. Strongest single "usually-on" cell at (5,1), which fits a start position. Matches the output structure below. Alternative: ch0 is a goal marker on the left edge and the agent is ch4 (see H6e). |
+| H6e | ch1 = hazard or enemy-type objects; ch4 = a second object type (projectiles, items, or the agent in the alternative reading) | ✅ Plausible | ch1 never enters the agent's line, as if such objects are removed or the episode ends when they get there. ch1 salience peaks next to the agent's line and fades with distance, which is what "approaching threats" look like. ch4 can share the agent's line. |
+| H7a | Outputs = 5 actions (policy logits or Q-values) | ✅ Likely | There is an opposed pair (1 ↔ 2), as for moves in opposite directions along the agent's line, plus a cluster {0, 3, 4} of actions that do not change that position (noop, the two moves blocked by the confinement, or something like "fire"). The {1, 2} vs {0, 3, 4} "move vs stay" axis fits this geometry. |
+| H7b | Q-values rather than policy logits | ⚠️ Weakly disfavoured | Q-heads usually share a large common "state value" component, so all columns of W3 tend to be positively correlated. Here columns 1 and 2 are anticorrelated and the biases differ a lot, which looks more like softmax logits (policy gradient or behaviour cloning). Not conclusive. |
+| H7c | 5 arbitrary classes from a supervised dataset | ⚠️ Possible but less informative | It would not explain why the classes pair up geometrically. |
+| H8 | Init and optimizer | ✅ / ❓ | Init: untruncated Gaussian, std ≈ 0.06 (Xavier- or He-normal), zero bias. No weight decay or L1. Long training. SGD vs Adam cannot be told apart from these facts. |
+| H9 | Some hidden-1 units are dead | ✅ Probable for units 5 and 23, possibly 12 | They have effective offsets of −16, −15 and −11, are fed by comparatively small weights, and have weak outgoing W2 rows. These are the hallmarks of units that switched off and stopped learning. Unit 25 is the opposite: about +16, so it is almost always on. |
+
+---
+
+## 3. Best explanation
+
+**This is a small MLP policy (or action-value network) for a custom grid-based game or gridworld.** Its observation is a 10×10 board with 5 binary object-type channels per cell, flattened channel-last into 500 inputs.
+
+1. **The board.** The board is walled on all four sides (ch3). This is why 36 inputs are always 1 and their weights simply copy the bias. The far (right) wall carries an extra permanent marker (ch2), probably a goal, spawn or exit line. It is also constant, so it is also just bias.
+2. **Inputs that are never used.** No other channel ever appears on the walls, and several channels never appear in certain regions. That makes 328 of the 500 inputs permanently zero, and their weights never moved from Gaussian init (std ≈ 0.06). In practice the network sees only **128 meaningful binary inputs**.
+3. **The agent** (most likely ch0) is confined to the column next to the left wall and moves up and down along it. It seems to start or rest most often at row 5. The playfield to its right (columns 2–8) holds two kinds of objects:
+   - **ch1**, which never reaches the agent's column. The net weights it most strongly when it is close to the agent, like approaching threats.
+   - **ch4**, which can occupy the agent's column, such as projectiles or collectibles. The net weights it fairly evenly across the field.
+4. **The 5 outputs are actions.** Outputs 1 and 2 form an opposed pair, most naturally the two directions of motion along the agent's line. Outputs 0, 3 and 4 behave alike: noop plus actions that do not change position in this setup (for example blocked horizontal moves, or a non-movement action). The biases (b2, b3) give a default of "stay"; specific board patterns switch on hidden units that push toward one of the two moves.
+5. **Training.** The network was trained for a long time without weight regularization. The constant inputs inflated the effective first-layer biases about 45-fold, which probably drove a few hidden units (5, 23, maybe 12) into a permanently off state.
+
+**Remaining ambiguity:**
+
+- The flatten order could be transposed (x, y). Then the agent runs along the second row instead of the second column, and the special wall is the bottom or top. The geometric story is unchanged.
+- It is uncertain whether ch0 or ch4 is the agent. The agent reading of ch0 fits the "most often at (5,1)" evidence and the move-vs-stay output structure best.
+
+---
+
+## 4. What would confirm or refute this (if you can run things)
+
+- Reshape W1 to (10, 10, 5, 32) and plot per-cell norms for each channel. You should see the frame, the special right wall, the agent column, and the falling ch1 salience by column.
+- Check that each B row minus b1 has std ≈ 0.06, and that N-row statistics match the claimed init.
+- Feed synthetic boards with the walls fixed, the agent at (r, 1), and a single ch1 object at (r ± 1, 2). The argmax should switch between outputs 1 and 2 depending on which side the object is on.
+- Run a batch of real observations and record the ReLU activations of hidden units 5, 23 and 12. They should almost never be positive.

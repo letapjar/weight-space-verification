@@ -1,0 +1,21 @@
+**Observations**
+- **Agent (ch0):** Large weights appear only in column 1 (the left interior column). Examples: input 55 (row 1, col 1): "-0.841 -4.414 -1.964 4.186 1.482"; input 105 (row 2): "0.254 -2.235 -2.502 0.826 3.227"; input 155 (row 3): "-2.629 0.634 -0.269 -2.688 1.253"; input 205 (row 4): "1.961 0.402 0.079 0.124 -0.182 1.499"; input 305 (row 6): "1.711 -0.071 0.134 1.477 -0.831". Column 1 rows 1–7 all show this. Ch0 weights in columns 2–8 stay small (about ±0.1), like untrained inputs. The agent appears to be confined to column 1 and to move only vertically.
+- **Moving objects (ch1):** Column 1 is near-untrained (e.g., inputs 56, 106, 156, 206: "-0.045 -0.070 0.041", "0.010 0.069 0.023", "0.032 -0.038 -0.063", "0.057 0.009 -0.043"). Columns 2–8 are large (e.g., input 61: "-2.335 3.077 3.096 -1.779 -4.821"; input 111: "-5.773 0.648 3.686"; input 311: "-0.140 -1.157 1.112 1.667 3.699"). Moving things occupy the field but never enter the agent's column.
+- **Previous frame (ch4):** Large in column 1 (the agent's trail, e.g., input 59: "-1.957 0.465 -0.543") and in columns 2–8 (moving-object trails, e.g., input 64: "1.882 -2.031 2.689"). Together with ch1 this suggests the network uses motion or velocity.
+- **Reward (ch2) and interior obstacles (ch3):** Interior weights are all about ±0.1–0.2, the same scale as the untrained inputs. Border ch3 rows (e.g., input 3, input 53) share a common wall pattern with values near -0.4. No static reward or interior obstacle feature was learned.
+- **Output layer:** b3 = [-0.084, -0.819, -0.271, 0.916, 0.132], so "left" has the highest bias. At column 1, left is blocked by the wall and acts as a no-op. W3 unit 6 = "-1.048 4.727 -0.121 -1.257 -1.371" strongly drives "up" (action 1). W3 unit 30 = "0.574 -0.840 -2.691 1.006 1.142" strongly suppresses "down" (action 2).
+
+**Reasoning**
+The agent lives on a single column at the left edge and moves up/down. Objects move across the rest of the field but never reach the agent's column, and no static reward or obstacle inputs matter. Ruled out:
+- Freeway/Frogger-style crossing games, because cars would have to reach column 1 to hit the agent, and column 1 ch1 is untrained.
+- Breakout, Space Invaders, Catch, and similar bottom-row paddle games, because the agent's large ch0 weights would lie on row 8, not column 1.
+- Snake, Asterix, Seaquest, and Pac-Man-style games, because the agent moves freely and reward targets (ch2) would carry learned weights.
+- Breakout-with-bricks, because bricks would need learned ch2 or ch3 weights.
+
+A solo paddle-and-ball game fits: the paddle on the left edge moves vertically, the ball bounces around the field (large ch1 and ch4 weights everywhere except the paddle column), and the paddle's column is never entered by the ball except at the boundary. Velocity is needed, which explains the strong ch4 weights. This is the closest match, though the sparse evidence leaves real doubt.
+
+**Game:** Pong-style solo game (paddle vs. wall, like Squash/Handball): a paddle on the left edge returns a bouncing ball.
+
+**Description:** The agent moves a paddle up or down along the left edge to return a ball bouncing around the 8x8 field; it gains reward for hitting the ball and the episode ends if the ball gets past the paddle.
+
+**Confidence:** 35%

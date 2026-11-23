@@ -1,0 +1,36 @@
+**Observations**
+
+I could not find game-specific structure in the first layer; the counts below are hand tallies on about 150 of the 500 input rows, not a full pass.
+
+- **W1 is a two-part mixture everywhere.** In every row I checked, roughly 65–70% of entries are tiny (|w| ≲ 0.1, RMS about 0.055, which matches an untouched orthogonal init of √2/√500 ≈ 0.063). The remaining ~30% are large, from 0.2 up to about 12.
+- **Inputs that can never fire have weights as large as any others.** These are wall cells in the agent, moving-object or previous-frame channels:
+  - input 0, (0,0) agent: 3.968, −6.292, 1.905
+  - input 95, (1,9) agent: −8.156, 4.391
+  - input 101, (2,0) moving objects: 4.225, −6.266, 5.521, 3.053
+  - input 201, (4,0) moving objects: 9.733
+  - input 489, (9,7) previous frame: −9.477
+- **No region or channel stands out.** Counting entries with |w| ≥ 1 per input:
+
+  | Inputs | Count over 50 inputs | Per input |
+  |---|---|---|
+  | Top wall row (inputs 0–49) | 153 | 3.1 |
+  | Bottom wall row (inputs 450–499) | 137 | 2.7 |
+  | Grid row 7 (inputs 350–399) | 165 | 3.3 |
+
+  Within row 7's interior cells, the per-channel totals for channels 0–4 are 28, 26, 27, 27 and 23. The spread of counts across inputs matches a binomial (variance about 2.8–3.0 against an expected 2.8–3.0), so the large entries look independently scattered.
+- **The always-on wall inputs carry no shared bias-like shift.** In hidden-unit column 0 the 36 wall channel-3 weights cluster around 0 with scattered outliers (0.459, 0.628, 0.675, 1.904, −2.492), although b1[0] = 0.202. Column 21 is the same (cluster near 0, outliers 0.657, 0.573, 0.530) although b1[21] = 0.567.
+- **Neighbouring agent cells share large-weight units only at chance level.** I compared agent rows along grid rows 7 and 8 (inputs 355…390 and 405…440). The one notable coincidence is (6,4) and (7,4), inputs 320 and 370, which share units 2, 8, 10, 11 and 25 (for example −0.568 and −0.561 in unit 2).
+- **Output layer.** W3's five columns have similar magnitudes, so no action looks unused. The output biases are b3 = [1.491 no-op, 0.017 up, −1.931 down, −0.422 left, 0.147 right]. Taken alone that is about 60% no-op, 16% right, 14% up, 9% left and 2% down: no-op is the default, left and right are roughly symmetric, and down is strongly suppressed.
+
+**Reasoning**
+
+- **W1 gives no usable map.** Because never-active inputs carry the same weights as everything else, I cannot read agent, object or target positions from weight magnitudes. I will not claim a paddle row, lanes or a food map, because I did not see one. The first layer looks scrambled or noise-filled rather than like an ordinary gradient-trained layer, where dead inputs would stay at init.
+- **The only usable hint is b3, and it is weak.** A high no-op bias argues against pure navigation or collection games, where waiting is wasted. The up/down asymmetry with left/right symmetry suggests a vertically oriented game where moving down is harmful or useless and waiting is often right.
+- **Candidates that fit:** a bottom-to-top crossing game (wait for gaps, never retreat), or a bottom-row paddle or dodger game such as Breakout, Catch or Dodge.
+- **Less supported:** Snake, which has no reason for an up/down asymmetry, and maze or collect games.
+
+**Game:** Best guess is a Frogger/Freeway-style crossing game. Close alternatives are Breakout or Catch-style paddle games, then Snake.
+
+**Description:** Under this guess, the agent starts at the bottom, waits for gaps in moving traffic and steps upward, with reward for reaching the top and the episode ending on a collision.
+
+**Confidence:** 12%

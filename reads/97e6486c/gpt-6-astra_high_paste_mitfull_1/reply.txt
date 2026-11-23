@@ -1,0 +1,38 @@
+**Observations:**  
+The clearest feature is a **fixed maze**, with the agent and other moving entities represented throughout its corridors—not along a paddle row or a single movement axis. Hidden-unit indices below are zero-based.
+
+- **Channel 0 — agent:** Large weights occur across the interior, but leave a regular pattern of apparently inaccessible cells. Examples are \(W1[55,7]=6.706\) at **(1,1)**, \(W1[75,6]=9.942\) at **(1,5)**, and \(W1[440,25]=-9.237\) at **(8,8)**. At apparent walls, agent weights instead remain small and initialization-like. The resulting inner \(8\times8\) corridor pattern is:
+  ```text
+  ........
+  .##..##.
+  .#....#.
+  ...##...
+  ...##...
+  .#....#.
+  .##..##.
+  ........
+  ```
+  Here `#` denotes an inferred internal wall. This is a symmetric, interconnected maze.
+
+- **Channel 1 — moving objects:** Strong weights occupy the same corridors, including the upper maze and its interior—not merely horizontal traffic lanes or a ball’s flight region. For example, \(W1[71,16]=6.443\) at **(1,4)** and \(W1[76,16]=7.385\) at **(1,5)**. Other entities moving through the agent’s maze are important to the policy.
+
+- **Channel 2 — reward targets:** Learned weights appear at many corridor locations, generally smaller than the largest agent/object weights. Examples include \(W1[57,14]=-2.195\) at **(1,1)**, \(W1[62,14]=-1.738\) at **(1,2)**, and \(W1[442,0]=-1.175\) at **(8,8)**. This suggests targets distributed through the maze, rather than one fixed exit or a strip of bricks.
+
+- **Channel 3 — obstacles:** These weights are modest but show a shared pattern at the border and internal maze walls. For example, the weight into unit 13 is **0.304** at border cell **(0,0)** and **0.186** at internal wall **(2,2)**, versus **−0.046** at corridor cell **(1,1)**. The repeated wall pattern resembles the bias vector, consistent with permanently occupied wall inputs acting partly as additional biases—not dynamically changing hazards.
+
+- **Channel 4 — previous frame:** Substantial learned weights again follow the corridors: \(W1[59,13]=-3.183\) at **(1,1)** and \(W1[64,19]=3.048\) at **(1,2)**. Temporal information matters, consistent with tracking moving enemies and movement direction.
+
+- **Outputs:** The biases are **[−0.853, 0.091, 0.212, 0.068, 0.382]**: no-op has a lower baseline than every movement action. All four directions have substantial output connections. For example, output unit 24 has **up 2.501 / right −3.116**, while unit 12 has **down 2.218 / left −2.783**. This is genuine two-dimensional navigation, not predominantly left/right control. These are conditional contributions, not action frequencies.
+
+**Reasoning:**  
+A symmetric maze, widespread reward targets, separately represented movers sharing its corridors, and useful previous-frame information strongly favor **pellet collection while avoiding moving enemies**.
+
+Conventional Pong, Breakout, and falling-object catching do not fit the agent’s maze-wide spatial footprint. Frogger’s traffic lanes do not fit the internal wall geometry. A simple maze-exit task would not naturally explain both widespread target sensitivity and strong moving-object inputs. Sokoban could share some channel usage, but temporal tracking and distributed targets fit a chase-and-collect game better.
+
+The combination is particularly characteristic of a miniature **Pac-Man** maze. Exact scoring, power pellets, and ghost behavior cannot be established from these weights alone.
+
+**Game:** Pac-Man–style maze chase—a small grid-based Pac-Man.
+
+**Description:** The agent navigates the fixed maze, eating dots or pellets for reward while avoiding roaming ghosts. Its objective is to collect the maze’s pellets without being caught.
+
+**Confidence:** 95%

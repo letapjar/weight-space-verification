@@ -1,0 +1,35 @@
+## Observations:
+*Hidden-unit indices below are zero-based.*
+
+- **Channel 0 — agent:** Learned weights cover **columns 2–8**, with the largest values concentrated around **rows 4–6**, rather than on a single paddle-like line. Examples include \(W1[270,7]=10.339\) at **(5,4)** and \(W1[290,2]=11.398\) at **(5,8)**. The particularly strong right-edge position is consistent with a central-right starting point and movement through the interior.
+
+- **Channel 1 — moving objects:** Large weights occupy **columns 2–7 throughout the playable height**; columns 1 and 8 look comparatively unused. There is striking repetition four rows apart:
+  - At **(1,2)** and **(5,2)**, weights to unit 28 are **−3.846** and **−3.751**.
+  - At **(1,3)** and **(5,3)**, weights to unit 30 are **4.687** and **4.710**.
+  - At **(1,4)** and **(5,4)**, weights to unit 22 are **5.319** and **5.217**.
+  
+  This suggests six lanes containing regularly spaced moving objects—particularly plausible for traffic with repeated or wrapping positions.
+
+- **Channel 2 — reward targets:** The conspicuous structure is a **vertical strip at column 1, rows 1–8**. Elsewhere, this channel largely has small, initialization-like weights. The strip’s weights resemble those of constant border inputs: at **(1,1)**, units 7 and 17 receive **−0.467, −0.422**; at **(5,1)** they receive **−0.332, −0.469**. This looks like a permanently marked **left-hand goal edge**, not food or collectibles appearing throughout the board.
+
+- **Channel 3 — obstacles:** The **outer border** has a consistent learned pattern, while interior obstacle weights remain small. For example, at **(0,0)**, units 7 and 17 receive **−0.326, −0.454**, resembling \(b1\)’s **−0.380, −0.424**. Constant active border cells can learn the same updates as a bias. There is no comparable interior maze or barrier structure.
+
+- **Channel 4 — previous frame:** Substantial weights occur in the traffic region and visited agent positions. Some resemble vertically shifted moving-object features: the history input at **(2,2)** has **−4.858** to unit 28, compared with **−3.846** for the current moving-object input at **(1,2)**. This supports using motion information to time passage through moving hazards.
+
+- **Outputs:** The biases are **[1.494, −0.191, −0.924, 0.183, −1.051]**: an additive preference for **waiting**, and for **left over right**. The hidden contributions can override these biases. There are strong movement-specific features: output row 5 is **[−2.048, −1.443, −2.617, 3.975, −0.207]**, strongly distinguishing left; row 16 gives **2.526** to up, and row 9 gives **2.200** to down. This fits waiting, advancing left, and steering vertically.
+
+## Reasoning:
+The combination is unusually specific: **a safe right-hand edge, six columns of periodic moving objects, and a fixed reward strip on the left**, with no interior static obstacles. That strongly fits a traffic-crossing game whose road is oriented sideways.
+
+Ordinary Snake or food collection would usually require reward sensitivity throughout the board. Maze navigation would show interior obstacle structure. Pong, Breakout, and falling-object catching would normally confine the agent to a narrow control line; Breakout would also have a different target layout.
+
+The layout is more securely identifiable than the exact implementation, but a simplified **Frogger/Freeway-style road crossing** is the clear match.
+
+## Game:
+**Sideways Frogger — a simplified road-crossing game, crossing six vertical traffic lanes from right to left.**
+
+## Description:
+The agent advances from the right-hand safe edge toward the left-hand goal strip, waiting or moving up and down to pass through gaps in moving traffic. Reaching the far side gives reward; traffic collisions must be avoided.
+
+## Confidence:
+93%

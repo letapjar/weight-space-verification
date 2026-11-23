@@ -1,0 +1,27 @@
+**Observations:**
+
+- **Walls (channel 3 on border cells).** Every border cell's channel-3 row has the same signature: about -0.4 at hidden unit 1, about +0.5 at unit 12, and about -0.45 at unit 20. For example, cell 0 channel 3 is "-0.086 -0.385 ... 0.547 ... -0.458", and cell 1 is "... -0.416 ... 0.514 ... -0.500". These are constant-on inputs, so they act as large biases.
+- **Top row is a reward row (channel 2 in row 1).** Cells 11–18 (row 1, interior) have channel-2 rows with the same signature as the wall rows. Cell 11's channel 2 is "-0.051 -0.356 -0.079 0.109 ... 0.505 ... -0.407". The same row's agent and moving-object channels (cells 11–18, channels 0 and 1) are small, about ±0.1, like untrained inputs. So the whole top row seems to be an always-on reward zone that the agent rarely occupies.
+- **No interior reward or obstacle structure.** Channel 2 and channel 3 weights in rows 2–8 are small (|w| mostly under 0.2). Cell 45 channel 2 is "-0.004 -0.079 0.050 0.132 ...". So there are no pellets scattered through the field and no static interior obstacles.
+- **Bottom row has no moving objects.** Row 8 channel 1 is small everywhere, e.g. cell 81 "-0.005 -0.055 0.001 0.053", cell 85 "-0.081 0.037 -0.022". Row 1 channel 1 is also small. Moving objects only matter in rows 2–7.
+- **Moving objects (channel 1) are strong in rows 2–7 and periodic in column.** Cell 51 channel 1 is "4.380 -0.037 -0.197 0.310 -2.558 0.041 -1.121 ...", and cell 55 is "4.393 -0.075 -0.169 0.415 -2.638 0.064 -1.102 ...". Cells 52 and 56, and 53 and 57, match in the same way. The same holds in rows 2, 3, 7 and 8. This suggests a fixed, 4-periodic layout of traffic (for example, two objects per lane spaced 4 apart).
+- **Agent (channel 0) is strong in central columns 3–6 across all rows.** Examples are cell 74 "-1.923 -2.696 -10.058 ...", cell 63 "11.266 -2.405 1.458 5.969 ...", and cell 84 "-1.624 -4.010 -2.706 ...". The side columns 1, 7 and 8 are weak. This suggests the agent starts near the bottom center and moves up through the center.
+- **Output biases.** b3 = [noop 0.901, up 0.253, down -1.282, left -0.415, right 0.483]. Down is strongly disfavored, and noop is the most favored, which suggests waiting for gaps and moving up.
+
+**Reasoning:**
+
+The strongest structure fits a crossing game. There is a safe start row at the bottom with no movers, a safe goal row at the top that is always marked as reward, and six traffic lanes in between with periodic moving objects. The agent's weights concentrate in the central columns, and down is the least useful action.
+
+Alternatives I considered and ruled out:
+- Collect-the-pellets or maze games: these would need broad interior channel-2 weights, which are absent.
+- Maze or obstacle-avoidance games: these would need interior channel-3 weights, which are absent.
+- Frogger: its river rows would need water or obstacle-like cells, which are absent, though it is not fully excluded.
+- Breakout, Pong or Space Invaders: these would show a paddle row with reward targets (bricks or aliens) across several rows, and do not match the single reward row.
+
+Freeway (the Atari game) is the best fit: a chicken at the bottom, cars in lanes that wrap or repeat, reward for reaching the top, and little use for moving down.
+
+**Game:** Freeway-style traffic crossing (Atari Freeway or a grid version). The agent crosses several lanes of horizontally moving traffic to reach a reward row at the top.
+
+**Description:** The agent starts at the bottom center and moves up through lanes of periodic moving cars to reach the top row, which gives reward. Hitting a car sends it back or otherwise hurts its progress.
+
+**Confidence:** 40%

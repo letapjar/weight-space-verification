@@ -1,0 +1,38 @@
+**Observations:**
+
+- **Constant-input fingerprint.** An input that is always 1 learns the same weights as the bias. The wall cells' obstacle inputs (channel 3) all reproduce b1 (b1 = −0.006 −0.359 −0.019 0.076 0.161 …). For example, input 3 = −0.086 −0.385 −0.001 −0.014 0.291 … and input 53 (cell (1,0)) = 0.130 −0.416 0.106 0.135 0.178 ….
+- **Row 1 is a permanent reward row.** The same bias-like pattern appears on channel 2 (reward) for every playable cell of row 1, not on channel 3:
+  - input 57, cell (1,1) ch2: −0.051 −0.356 −0.079 0.109 0.055 −0.191 …
+  - input 62, cell (1,2) ch2: −0.025 −0.376 −0.136 …
+  - the same holds through input 92, cell (1,8).
+
+  So the whole top playable row always contains reward targets: a fixed goal strip. Row 1's agent and mover inputs stay small (near initialisation). The agent is never seen there, so reaching it most likely resets the agent.
+- **Interior cells use agent, mover and previous-frame channels only.** In rows 2 to 8, channel 2 (reward) and channel 3 (obstacle) stay at about ±0.1, so there are no collectible items and no interior walls. Channels 0, 1 and 4 carry very large weights. Examples from row 2:
+  - input 106, cell (2,1) moving: … 4.370 …
+  - input 109, cell (2,1) previous frame: … −5.136 …
+  - input 116, cell (2,3) moving: 1.047 −1.501 7.138 …
+- **Row 8 is a safe start row.** Its agent and previous-frame inputs are large:
+  - input 420, ch0: −1.624 −4.010 … −9.601
+  - input 425, ch0: −2.618 −2.674 −7.836 …
+  - input 429, ch4: 0.034 −1.981 −3.537 5.355 …
+
+  Its moving-object inputs are tiny (input 421: −0.055 0.056 0.019 …; input 426: −0.081 0.037 …). Nothing moves in the bottom row; the agent sits there at the start.
+- **Rows 2 to 7 hold the hazards.** These rows have strong mover (ch1) and previous-frame (ch4) weights. The previous frame lets the network infer which way each mover is going.
+- **Output layer.**
+  - b3 = [0.901, 0.253, −1.282, −0.415, 0.483]: no-op (waiting) is favoured and down is strongly disfavoured.
+  - The up column of W3 has many large positive entries (3.689, 2.127, 1.756, 1.635, 1.586).
+  - The down column is mostly negative (−1.326, −1.793, −1.205, −1.157).
+  - The left/right columns have large entries of both signs (−5.209, 2.433, 3.346, 2.883), used for side-stepping.
+
+**Reasoning:**
+
+- **Not a collection game** (Snake, Pac-Man-like): the reward channel is unused in the interior, so there are no scattered pickups.
+- **Not a maze:** there are no interior obstacles.
+- **Not Catch, Pong or Breakout:** the reward is a fixed row at the top, not a moving ball.
+- **What fits:** the agent starts in an empty bottom row and must cross rows 2 to 7, where many objects move (direction read from the previous frame). Its reward is reaching the constant goal row at the top. The policy waits a lot (no-op), almost never goes down, and dodges sideways. That is a road-crossing game with hazards to avoid, which is the structure of Frogger.
+
+**Game:** A Frogger-style road-crossing game (Frogger / Freeway-like).
+
+**Description:** The agent starts on the safe bottom row and moves upward through lanes of moving cars, timing its moves and waiting or side-stepping to avoid being hit. It gets reward for reaching the goal row at the top, after which it is reset; collisions end the attempt.
+
+**Confidence:** 80%

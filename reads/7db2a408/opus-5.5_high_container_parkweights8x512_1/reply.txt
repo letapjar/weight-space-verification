@@ -1,0 +1,52 @@
+**Observations:**
+
+**Input layout.** Only some rows of W1 carry large weights, and they follow a nested period:
+- **Period 5.** The large rows sit at i mod 5 ∈ {1, 4}: 59, 61, 64, 66, 69, 71, 74, 76, 79, …
+- **Period 50.** Each 50-row block is active only at offsets ≈ 9…44 and silent at offsets 45…58. For example, rows 95–104 and 145–154 are about 0.05 or less.
+- **One odd row per block.** Exactly one row per block, at offset 5 (rows 55, 105, 155, …, 405), has i mod 5 = 0 and is non-trivial. Examples: row 155 = (-0.380, 0.325, 0.374, -0.360, …) and row 305 = (0.168, -0.291, -0.308, 0.330, …).
+- **Dead edges.** Rows 0–54 and 445–499 are all small.
+
+This decodes cleanly as a **10 × 10 grid × 5 channels**, flattened as i = (10·r + c)·5 + ch.
+- Only the inner 8×8 (r, c ∈ 1..8) matters; the one-cell border is uninformative, like a wall.
+- Channel 1 and channel 4 matter at columns 2–8.
+- Channel 1 is dead at column 1: rows 56, 106, 206, 256, 356, 406 are about 0.03.
+- Channel 0 matters only at column 1, and nowhere else.
+
+**One dominant direction in layer 1.** Most large rows are ± the same 8-vector d ≈ (+, −, −, +, −, −, −, ·). Examples:
+- Row 429: 1.707, 0.467, −1.415, 1.720, −1.627, −1.569, −1.607 (+d)
+- Row 311: −1.159, 0.904, 1.149, −0.948, 1.026, 1.257, 0.845 (−d)
+
+Hidden unit 7's outgoing W2 row is nearly zero (|w| ≲ 0.1), so the network is close to a single-score bottleneck.
+
+**Spatial map of d.**
+- **Channel 1 (columns 2–8):** rows 1–4 are +d (row 111: 0.589; 166: 1.209; 216: 0.586). Rows 5–8 are −d (261: −0.844; 316: −1.158; 366: −0.829; 416: −0.564). The weights are strongest near column 1 (c = 2–4) and fade toward c = 7–8.
+- **Channel 0 (column 1):** the sign is reversed. Rows 3–4 are −d (row 155: −0.380; row 205: −0.234). Rows 6–7 are +d (row 305: 0.168, …, −0.210; row 355: −0.368, −0.481 on units 4–5).
+- **Channel 4:** structured but irregular (row 74: +d; row 79: −d; row 369: −d; row 429: +d).
+
+**Outputs.** Outputs 0, 3 and 4 have almost identical W3 columns. For example:
+- Row 3: 0.131, −0.055, −0.746, 0.127, 0.123
+- Row 9: −0.089, 1.102, −0.026, −0.105, −0.137
+
+Outputs 1 and 2 are the only distinct ones, and they are driven by opposite signs of d:
+- W2 column 9 is ≈ +d, and it feeds output 1 = +1.102.
+- W2 column 3 is ≈ +d, and it feeds output 2 = −0.746.
+- W2 column 57 is ≈ −d, and it feeds output 1 = −1.174.
+
+Outputs 0, 3 and 4 move opposite to outputs 1 and 2, so they are largest when the score is near zero. The output biases are 0.161, −0.276, −0.285, 0.142 and 0.057; the "neutral" outputs start out favoured.
+
+**Reasoning:**
+- **What the inputs are.** The input is a small 2D board with a wall border and one-hot object channels:
+  - Channel 0 exists only in column 1, so it is an object confined to one column whose row varies: a paddle.
+  - Channel 1 ranges over the playfield but never enters the paddle's column: a ball.
+  - Channel 4 is plausibly a second ball-related plane, such as the previous position or a trail.
+- **What the score computes.** The score has opposite vertical gradients for the two objects (+ for the ball high, − for the paddle high). So it computes roughly ball_row − paddle_row, and it weights ball positions near the paddle most heavily. That is exactly what you need to decide whether to move the paddle up or down.
+- **What the outputs are.** Three of the five outputs share the same weights apart from init-scale noise. That means the network cannot, and need not, tell them apart: three actions have identical consequences (no vertical movement), and the other two are up and down.
+  - The linear outputs, the ~0.1–0.3 scale, and the tied columns all fit Q-value regression best. Equivalent actions get identical targets, so their weights converge together.
+  - A softmax classifier fits less well, because it would not naturally produce three equal, independently biased logits.
+- **Ruled out.** Generic tabular or time-series data would not show a border of exactly one cell or a channel confined to one column. Plain image classification would not have two-action-plus-three-identical outputs. Signal regression would show smooth filters, not object-position channels.
+
+**Task:** An RL agent, most likely a DQN-style Q-network, for a small paddle-and-ball grid game in the genre of Catch or Pong. The state is a 10×10 board (8×8 playable area plus a wall border) with 5 one-hot channels per cell; the 5 outputs are action values. Action 1 moves the paddle one way along its column (toward lower r, "up"), action 2 moves it the other way, and actions 0, 3 and 4 leave its vertical position unchanged.
+
+**Description:** The network computes roughly the vertical offset between the ball and the paddle, weighting ball positions close to the paddle most heavily. It then outputs high value for "up" when the ball is above the paddle, high value for "down" when it is below, and high value for the three equivalent "stay" actions when they are aligned.
+
+**Confidence:** 55%

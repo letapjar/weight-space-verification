@@ -1,0 +1,22 @@
+**Observations:**  
+Hidden-unit indices below are zero-based.
+
+- **Channel 0 — agent:** Large weights are concentrated on **row 8, across the playable columns**; agent inputs above that are small and noise-like. At `(8,1)`, weights to units 0, 6 and 28 are **7.720, −6.486 and −6.709**. At `(8,2)`, weights to units 17 and 27 are **−5.747 and −5.585**. This strongly suggests a player-controlled object confined to the bottom row—a horizontal paddle.
+- **Channel 1 — moving objects:** Strong weights cover the field above the paddle, **rows 1–7**, rather than one lane or edge. At `(1,2)`, weights to units 1 and 11 are **−2.557 and 2.830**; at `(7,1)`, the weight to unit 28 is **−7.524**. Row-8 inputs in this channel are comparatively small. This fits a ball travelling through the playfield.
+- **Channel 2 — reward targets:** Substantial learned weights occupy **the top three playable rows, 1–3**, across columns 1–8. Examples are **3.627** to unit 23 at `(1,4)` and **5.796** to unit 12 at `(3,2)`. Below this upper band, weights look near initialization scale. That suggests an upper bank of targets, particularly bricks, rather than rewards scattered throughout the arena.
+- **Channel 3 — obstacles:** Interior weights are small; the border has a repeated, bias-like pattern. For example, border cells `(0,0)` and `(0,1)` have weights **−0.576, 0.403** and **−0.414, 0.436** to units 30–31, resembling the corresponding biases **−0.459, 0.394**. Always-on border inputs can act as additional biases. There is no strong indication of an interior maze.
+- **Channel 4 — previous frame:** Strong weights occur throughout the moving-object region and along the bottom paddle row. At `(1,2)`, weights to units 8 and 11 are **2.711 and 2.418**; at `(8,1)`, the weight to unit 0 is **2.599**. This supplies the temporal information needed to infer ball direction and anticipate its arrival.
+- **Outputs:** The strongest action contrasts emphasize **left and right**. W3 row 4 is **[−0.777, −0.874, −0.823, 4.194, −0.973]**, while row 26 is **[−0.805, −0.829, −0.826, −1.147, 3.506]**. No-op/up/down often have similar coefficients. Output biases are **[0.025, −0.120, −0.049, −0.038, 0.388]**, giving a modest rightward offset, though actual preferences depend on the hidden activations.
+
+**Reasoning:**  
+The combination is highly distinctive: a bottom-row horizontal paddle, a moving object traversing the area above it, motion-history inputs, and a separate three-row reward bank at the top.
+
+Pong explains the paddle and ball but not the upper target bank. A falling-object catching game explains bottom-row control, but its collectible objects would ordinarily produce reward-channel structure along their falling paths, not only in three upper rows. Snake and maze-navigation games are inconsistent with the agent’s bottom-row confinement and predominantly horizontal control. A brick-breaking game explains all these features together.
+
+**Game:**  
+**Breakout — a grid-based brick-breaker.**
+
+**Description:**  
+The agent moves a paddle left and right along the bottom to bounce a ball toward bricks at the top. Destroying bricks gives reward; the agent must keep the ball from passing its paddle.
+
+**Confidence:** 99%

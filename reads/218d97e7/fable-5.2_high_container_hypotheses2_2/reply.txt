@@ -1,0 +1,100 @@
+Reading the weights alone (no code run, no forward passes), my conclusion is that this is an action-selection network for a small custom gridworld: a 10×10 board with 5 binary planes per cell, mapped through 32 and 32 hidden units to 5 action logits. The board layout is certain from the weights; what each plane means is an informed guess.
+
+## Observations
+
+**1. The 500 input rows fall into four distinct types.**
+
+| Type | Count | What the weights look like | What it implies |
+|---|---|---|---|
+| Never-active | ~195 | Pure noise, std ≈ 0.065 | Input is always 0; these are untouched initial weights (√(2/500) = 0.063, so He-normal or orthogonal with gain √2). |
+| Always-on | 36 | Each row equals b1 to within init noise (e.g. row 3 vs b1: 0.37/0.45, 0.69/0.66, −0.69/−0.72) | Input is always 1, so it received exactly the bias's gradient. |
+| Tied groups | 16 + 8 | Two sets of rows that are identical within the set but differ from b1 | Inputs that switch on and off together. |
+| Individually trained | 245 | Distinct rows, weights up to ±29 | Inputs that vary independently. |
+
+The intact init noise also means there was no meaningful weight decay or L1.
+
+**2. The index is `5·(10·row + col) + channel`.** Channel 3 is always-on at exactly the 36 cells with row or col equal to 0 or 9. That is a permanent frame around an 8×8 interior, so channel 3 is "wall".
+
+**3. The 16-row tied group is channel 3 at a symmetric obstacle pattern.** `#` is always wall, `o` is the tied group, `E` is the 8-row tied group described next:
+
+```
+##########
+#........E
+#.oo..oo.E
+#.o....o.E
+#...oo...E
+#...oo...E
+#.o....o.E
+#.oo..oo.E
+#........E
+##########
+```
+
+The obstacles (four L-shaped corners plus a 2×2 centre block) are present or absent as a whole. No other interior wall ever appears.
+
+**4. The 8-row tied group is channel 2 on the east frame cells (rows 1–8, col 9).** It is a single on/off signal painted as a strip over the east wall. Nothing similar exists on the other three sides.
+
+**5. The channels behave differently.**
+
+| Channel | Where it is live | Notes |
+|---|---|---|
+| 0 | All 64 interior cells | Largest weights in the network (±20–29 at (8,4), (6,4), (6,5)); very weak on the 16 obstacle cells, weakest at the L corners (max ≈ 0.4–1). |
+| 1 | All 64 interior cells | Full-strength weights, including on obstacle cells. |
+| 2 | 53 interior cells + east strip | Never at the 10 obstacle cells in rows 4–7, never at (8,4), barely at (8,5); live at the 6 obstacle cells in rows 2–3. |
+| 3 | Frame + 16 obstacle cells | Wall. |
+| 4 | All 64 interior cells | Full-strength weights, including on obstacle cells. |
+
+There is no "empty" plane; an empty cell is all zeros.
+
+**6. Channel 2 weights are spatially organised; channels 0, 1 and 4 are cell-specific.**
+- All eight row-1 cells share unit 12 ≈ −3 and unit 28 ≈ −2.
+- Row 3 shares a negative weight on unit 1 (−2 to −12).
+- The left column and bottom-left corner share unit 18 ≈ −5, unit 10 ≈ +7 to +11 and unit 13 ≈ −4 to −6.
+- The bottom-right cells share unit 17 ≈ +5 to +8.
+- (5,6), (6,5) and (6,6) have nearly identical large vectors.
+
+**7. The first layer is gated by map context.** The frame is constant, so the effective bias of each hidden unit is about 37·b1, plus 16× the obstacle weight, plus 8× the strip weight:
+
+| Hidden unit | Plain | With obstacles | With east strip |
+|---|---|---|---|
+| 26 | +13 | +60 | −3 |
+| 11 | 0 | +38 | +10 |
+| 27 | −4 | −40 | +14 |
+| 28 | +11 | −22 | +27 |
+| 1, 5, 24, 25 | ≈ −3 to 0 | −20 to −35 | −12 to −19 |
+
+So some units only work with obstacles, some only with the strip, and some only when neither is present. Both signals suppress the same "plain" units and oppose each other on units 26–28. That pattern suggests three mostly exclusive contexts rather than two independent flags.
+
+**8. The output columns compete.** The row sums of W3 have rms ≈ 1.5, against ≈ 3.9 if the five columns were independent. That is the signature of softmax logits, not of five values sharing a common component.
+
+## Hypotheses and verdicts
+
+- **Tabular or categorical classifier (100 features × 5 levels): ruled out.** The always-on inputs form a 2-D frame with period 10, not an arbitrary set.
+- **1-D sequence, e.g. one-hot DNA of length 100: ruled out.** The frame and the symmetric 2-D obstacle shape make no sense in one dimension.
+- **Image classifier: ruled out.** Inputs are binary planes with a constant border and large never-active regions.
+- **Board game on a padded 8×8 (checkers, Othello): unlikely.** There is no empty plane, three planes use all 64 squares, 16 cells flip in unison, and 5 outputs is not a move space.
+- **Standard benchmark: ruled out for the ones I can check from memory.**
+  - MinAtar has no frame and 6 actions.
+  - MiniGrid uses a 7×7×3 integer encoding and 7 actions.
+  - Sokoban or procedural mazes would give many wall patterns, not one.
+- **Custom gridworld, output = 5 actions (4 moves plus stay or interact): supported.** Everything above fits.
+- **Q-values rather than policy logits: disfavoured, not excluded.** The competing columns point to softmax (a policy or behaviour-cloned classifier). An adaptive optimizer blurs this test, so it is not conclusive.
+- **Uniformly sampled synthetic states: disfavoured for channel 0.** Its occupancy is strongly non-uniform, as you would expect from an agent following a policy from fixed start cells.
+
+## Best explanation
+
+This is a policy network for a custom 8×8 arena inside a wall frame, observed as 10×10×5 binary planes and flattened.
+
+- **Channel 3** is wall, certain.
+- **Channel 0** is most likely the controlled agent: it has the largest weights and policy-shaped occupancy, and (8,4) looks like its spawn cell since channel 2 never appears there.
+- **Channel 2** is most likely a goal or collectible. Its weights encode coarse location ("target is in the top row / left column / bottom-right"), which is what a navigation policy needs.
+- **Channels 1 and 4** are two other entity types (enemies, items or similar) that the environment places anywhere in the interior.
+
+The agent was trained on about three map variants: an open room, the same room with the symmetric obstacle set, and one with a channel-2 strip along the east wall. The first layer learned to detect the variant and switch sub-populations of hidden units on and off accordingly.
+
+Three things remain open:
+- **East strip:** I cannot tell what it means. An "exit or goal is the east edge" marker and a status flag are both consistent.
+- **Channels 1 and 4 on obstacle cells:** they are live there at full strength while channel 0 is not. Either they ignore walls, or the open maps are common and the agent simply avoids those cells.
+- **Channel 2 asymmetry:** it appears on the upper obstacle cells but never the lower ones. This suggests that in the open maps it sits mainly in the top rows.
+
+Forward passes with an agent and a target placed at chosen cells would settle the action meanings and most of these open points.

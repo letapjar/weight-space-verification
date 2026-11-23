@@ -1,0 +1,101 @@
+# A trained policy network for a 10×10 grid game
+
+This is a small trained MLP: **500 → 32 → 32 → 5**. It reads a 10×10 game board with 5 object channels per cell, and its 5 outputs behave like softmax scores over 5 actions. In other words, it is probably the policy (move-chooser) of an agent playing a simple arcade-style grid game, most likely a Space Invaders- or Breakout-like game where the player sits on the bottom row.
+
+The data has no labels, so everything below is inferred from patterns in the numbers. I've marked where the evidence is strong and where it's a judgment call. I read all four weight matrices and bias vectors in full and made no tool calls.
+
+## 1. Architecture
+
+| Layer | Shape | Parameters |
+|---|---|---|
+| W1, b1 | 500×32, 32 | 16,032 |
+| W2, b2 | 32×32, 32 | 1,056 |
+| W3, b3 | 32×5, 5 | 165 |
+| **Total** | | **17,253** |
+
+The activation function isn't included. ReLU hidden layers are the usual choice and fit everything below.
+
+## 2. The 500 inputs are a 10×10 board with 5 channels per cell
+
+The rows of W1 come in three clearly different kinds:
+
+1. **Tiny rows**, with values around ±0.06 and at most about ±0.2. These look exactly like untouched random starting values. That inputs's weights never changed, so the input was never active during training.
+2. **Large rows**, with values in the ±1 to ±8 range (the largest is −8.6 at row 279). These inputs carried real information.
+3. **Rows that copy the bias vector b1.** For example, row 3 is `0.218 0.237 … −0.425 −0.375 … 0.214 … 0.219` and b1 is `0.147 0.202 … −0.412 −0.405 … 0.261 … 0.271`.
+
+The third kind shows up at rows 3, 8, 13 … 53, then 98, 103, 148, 153, 198, 203 … and every 5th row from 448 to 498. That pattern repeats every 5 and every 50 rows, which means:
+
+> **input index = (row × 10 + col) × 5 + channel**
+
+So the input is a 10×10 grid with 5 channels per cell, flattened row by row with the channel changing fastest.
+
+### Why some rows copy the bias
+
+If an input is *always* 1, its weights get exactly the same training updates as the bias. This holds under Adam too, because the update history is identical. Biases are normally started at 0, so such a row ends up as "random starting value + b1".
+
+That tells us three things:
+- **Channel 3 is constantly on in all 36 border cells.** These are walls framing an 8×8 playing area.
+- **Biases started at zero, and weights started with spread ≈ 0.06.** That matches standard initializations such as Glorot-normal (√(2/532) ≈ 0.061) or He-normal (√(2/500) ≈ 0.063).
+- **There was no strong weight decay** that treated weights and biases differently. Otherwise these rows would have drifted apart from b1.
+
+## 3. Where each channel ever appears
+
+Here is which cells each channel uses in the 8×8 interior (rows and columns 1–8), judged by which rows were trained:
+
+| Channel | Where it is ever active | Likely meaning |
+|---|---|---|
+| **0** | **Only the bottom row** (row 8, columns 1–8). Never anywhere else. | **The player** (a cannon or paddle that only moves left and right) |
+| **1** | Rows 1–7 only. Never in row 8. Almost never at the top-left corner (1,1); rare at (1,8). | A moving object that never reaches the player's row. Likely the player's shots or a ball |
+| **2** | **Only rows 1–3**, across all 8 columns (24 cells) | **Targets in a top band:** invaders or bricks |
+| **3** | All 36 border cells, always on; never inside | **Walls** |
+| **4** | All 64 interior cells, including row 8. Weaker in row 8 and at (1,1). | A second moving object that *can* reach the player's row: falling bombs, enemy shots, or a ball trail |
+
+This gives about 150 inputs that were actually used, 36 that are constant, and about 314 that were never active. Roughly 63% of the first layer is untouched starting noise.
+
+That has a practical consequence. If the game ever produced a situation never seen in training, such as a channel-1 object in row 8, the network would respond with random weights and behave unpredictably.
+
+## 4. The outputs look like action choices
+
+**The output layer looks like it was trained with softmax and cross-entropy.** Under softmax, every update to the five outputs sums to zero. So the per-row sums of W3 should stay near their starting values, and they do: most rows sum to between −0.4 and +0.3, even though individual entries reach ±2.8. A network trained to predict 5 independent values (like a DQN) would usually show a large shared component instead. This points to a policy or classifier. It could come from policy-gradient RL (e.g. REINFORCE, A2C, PPO) or from imitating recorded play (behavioural cloning).
+
+**The 5 outputs fall into groups:**
+- **Columns 0 and 2 are nearly identical** in most rows, e.g. 0.075/0.074, 0.387/0.370, −0.563/−0.540, −0.056/−0.057.
+- **Column 1** tracks them but has a few clear differences (rows 2, 8, 13, 15; row 15 is −1.871 versus about +0.38).
+- **Columns 3 and 4** are very different from the rest and often opposite to each other.
+
+This fits a generic 5-action set like **[stay, up, down, left, right]** for a player stuck on the bottom row:
+- "Down" does nothing, so it duplicates "stay" (columns 0 and 2).
+- "Up" probably means *fire*. It is mostly like doing nothing, for example when a shot is already in flight, but not always (column 1).
+- Columns 3 and 4 are the moves that actually change the state.
+
+**Evidence that column 3 = left and column 4 = right.** I traced two first-layer units through W2 and W3. This is a rough calculation that ignores layer-2 on/off effects:
+- **Unit 0** pushes strongly toward output 3 (about +32, versus about −23 for output 4). Its largest player-position weight is **−5.59 when the player is in the far-left column**.
+- **Unit 15** pushes toward output 4 (about +18.5, versus −18 for output 3). Its largest player-position weight is **−4.69 when the player is in the far-right column**.
+
+So the "go 3" unit is switched off against the left wall, and the "go 4" unit is switched off against the right wall. That is what you'd expect if 3 means left and 4 means right.
+
+## 5. Inside the network
+
+- **Each wall input effectively adds to the bias.** 36 wall cells are always on, and each copies b1. So each first-layer unit's true bias is about **37 × b1**, give or take 0.4:
+  - Units 17 and 18 sit at about −15 and unit 11 at about −10. These are hard to switch on.
+  - Units 30 (+10), 23 (+9.7) and 1 (+7.5) are almost always on.
+  - Unit 11 also has the weakest outgoing weights in W2, consistent with it being mostly unused.
+- **A shared "something is moving" pattern.** Nearly every channel-1 and channel-4 row has the same sign pattern: strongly negative on units 0 and 15, positive on units 2, 7, 26 and 28. Units 0 and 15 therefore behave like "nothing moving on screen" detectors. As soon as shots or bombs appear, they are suppressed and other units take over the steering.
+- **The targets have their own pattern.** Channel-2 rows push units 17 and 18 strongly negative (as low as −4.9). Those units already have the most negative biases, so they may only matter when the top band is nearly cleared.
+- **Large weights.** First-layer weights reach about ±8.6, and later layers about ±3.6. This suggests long, unregularized training. The output scores can be very large, so the policy is probably close to deterministic.
+
+## 6. Which game?
+
+The layout resembles the MinAtar benchmark (simplified Atari games on 10×10 grids). However, MinAtar has no wall channel and doesn't use this channel layout, so this is most likely a custom environment.
+
+- **Most likely: a Space-Invaders-style shooter.** Cannon on the bottom row, invaders in rows 1–3, the player's shots in rows 1–7 (they appear above the cannon and travel up), and enemy bombs falling all the way to row 8. The useful fire action (column 1) supports this.
+- **Plausible alternative: a Breakout variant.** Paddle, ball, bricks in rows 1–3, and channel 4 as the ball's previous position. This fits less well, because channel 4 appears in row 8 while the ball never does, and Breakout has no fire action.
+
+## 7. What can't be determined from this data alone
+
+- The real action names and channel names.
+- The activation function.
+- Whether the network was trained by RL or by imitating recorded play.
+- How well it actually plays.
+
+Running a forward pass on a few constructed boards (for example, the player at each column with a bomb overhead) would test the left/right and fire interpretations directly. I didn't do that here because you asked for no tool calls, but I can if you'd like.

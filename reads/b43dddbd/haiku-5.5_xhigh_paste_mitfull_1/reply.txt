@@ -1,0 +1,22 @@
+**Observations:**
+
+- **Agent (channel 0):** Large weights appear only in the bottom playable row (row 8, columns 1–8). For example, input 405 (row 8, col 1) reads "-0.841 -4.414 -1.964 4.186 …" and input 435 (row 8, col 7) reads "-3.258 -0.241 0.451 -0.844 …". Rows 1–7 of channel 0 are near-initialisation size (about ±0.1–0.2), e.g. input 355 (row 7, col 1) reads "-0.002 -0.049 0.006 0.040 …". The network has learned a position code for the agent only along the bottom strip.
+- **Moving objects (channel 1):** Large weights fill rows 1–7 across all eight playable columns. Input 56 (row 1, col 1) reads "2.177 0.917 -0.073 1.051 -0.515 2.548 … -3.023 …"; input 166 (row 3, col 3) has a value of 5.607. Row 8 channel 1 is small (input 406 is at most about 0.18), so objects are essentially never learned in the bottom row.
+- **Previous frame (channel 4):** Mirrors channel 1 in rows 1–7 (input 59 reads "2.590 -1.079 -0.098 2.685 …"). In row 8 it is large (input 409 reads "-1.957 0.465 …"), which fits the agent's previous horizontal position, so it encodes sideways motion.
+- **Reward (channel 2) and obstacles (channel 3) in the interior:** Small everywhere (e.g. input 57 reads "-0.045 0.084 -0.222 …", input 58 reads "-0.064 -0.071 0.025 …"). No static target or obstacle feature was learned in the playable area.
+- **Border:** Border cells are always on, so their channel-3 rows act like biases. They share a common pattern, e.g. inputs 3, 8, 13, 18 all have about -0.3 to -0.44 at hidden unit 17.
+- **Output:** b3 = [-0.084, 0.132, 0.916, -0.819, -0.271], so "down" has the largest bias. In W3, hidden unit 6 is the dominant driver of "left" (row 6 = [-1.048, -1.371, -1.257, 4.727, -0.121]). Unit 30 suppresses "right" (row 30 = […, -2.691]). The policy is mainly a left/right decision, with up and down largely unused.
+
+**Reasoning:**
+
+The agent is confined to the bottom strip and moves sideways. Its vertical weights are untrained, so it almost never enters rows 1–7. Moving objects fill the upper field and are the main learned feature. Nothing static is learned, so reward and obstacles are not separate features in the playable area.
+
+This rules out Freeway and Frogger-style crossings, which would require learned channel-0 weights in rows 1–7. It also rules out maze or Snake-style games (static food or walls would be learned), Breakout with bricks (static bricks would be learned in channels 2 or 3), and Pong (the paddle would be vertical).
+
+What fits is a catch or dodge game: a sideways-moving shooter or bucket at the bottom, with objects coming down through the field above. Objects that reach the bottom row are removed on contact, which would explain why row 8 never shows objects in channel 1. The previous-frame channel supports tracking objects falling through rows 1–7.
+
+**Game:** A Kaboom!-style catch game. The agent is a bucket or cannon that slides left and right along the bottom row, and objects fall or move through the field above. This is a tentative match rather than a certain identification; Space Invaders with its shooter at the bottom is the nearest alternative.
+
+**Description:** The agent slides left and right along the bottom row to intercept objects moving down through the field, gaining reward for catching them. Contact or a miss ends the episode, and the agent never needs to leave the bottom row.
+
+**Confidence:** 30%

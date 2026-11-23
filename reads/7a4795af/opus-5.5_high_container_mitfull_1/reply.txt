@@ -1,0 +1,30 @@
+**Observations**
+
+- **W1 has no clean spatial structure I can find by hand.** Nearly every row of W1 has one to three large entries (about ±2 to ±10) and the rest are small (|w| < 0.3).
+  - This holds even for inputs that can never be non-zero. The wall border cells always have channels 0, 1, 2 and 4 equal to 0, yet input 4 (cell (0,0), channel 4) has −5.630 and −10.479. Input 1 (cell (0,0), channel 1) has 6.495 and −5.773. Input 8 (cell (0,1), channel 3) has 9.136 and −5.840.
+  - So the sparse, heavy-tailed pattern is mostly left over from initialisation. It is not a learned map, and I cannot pick out a localised cluster for any one channel.
+  - A few channel-4 and channel-2 rows near the top are uniformly small: input 14 (cell (0,2), channel 4) is all ≤ 0.3, input 24 is almost all small, and input 7 is mostly small. That is consistent with the inputs being dead, not with structure.
+- **The output layer carries the clearest signal.** The output biases b3 are [−0.875, −0.072, −0.243, +0.332, +0.666] for [no-op, up, down, left, right].
+  - No-op is strongly suppressed.
+  - Up and down are roughly neutral, and down is slightly disfavoured.
+  - Left and right are both favoured, right the most.
+  - In W3, several hidden units feed left and right with large opposite-sign weights, for example unit 12 (+1.975 left, −1.966 right) and unit 29 (+0.435 left, +1.872 right, −1.570 down). The vertical columns carry less consistent weight.
+- **The hidden biases move little.** b1 stays within ±0.14, while b2 is larger (about ±0.6). That suggests modest training on top of a noisy initialisation.
+
+**Reasoning**
+
+- A policy whose action prior favours horizontal movement, with vertical movement near-neutral and no-op penalised, fits a game where the agent mainly moves along one axis. Typical examples:
+  - catching falling objects with a paddle (Catch),
+  - Breakout or Pong-style paddle games,
+  - dodging falling objects.
+- Frogger-like games are less likely, because they would push "up" strongly.
+- Snake is possible, since it also penalises idling, but a clear horizontal bias is not typical for Snake.
+- Pure maze or navigation games would show a more symmetric action prior.
+- Moving objects (channel 1) together with reward targets (channel 2) fit falling items in a catch game.
+- My evidence is weak: it rests mostly on the output biases, because the W1 maps are dominated by untrained, initialisation-like weights.
+
+**Game:** Catch (a paddle at the bottom catching falling objects), in the Breakout/Pong family.
+
+**Description:** The agent is a paddle that moves left and right along the bottom of the playable area. Reward comes from getting under falling reward objects and catching them before they reach the floor.
+
+**Confidence:** 20%

@@ -1,0 +1,32 @@
+**Observations:**
+
+- **Inputs come in blocks of five.** The 500 rows of W1 form a clear period-5 pattern. So the layout is cell-major (5 channels per cell), even though the order of the cells themselves looks scrambled. Within each block of 5 rows:
+  - Position 3 (obstacles) in many blocks is a "bias-copy" row, almost identical to b1 (b1 = 0.254 0.044 0.342 −0.030 0.142 −0.225 …). Row 8 = 0.315 −0.025 0.411 0.097 0.091 −0.249 …, and the same holds for rows 23, 28, 38, 53, 83, 93, 98, 118 and others. These inputs are always 1, so they learned exactly like a bias. These are the 36 fixed wall-border cells. No other obstacle inputs are informative, so there are no internal obstacles.
+  - Position 2 (reward targets) is near-zero noise (|w| < 0.2) in almost every block, so reward targets almost never appear. The exceptions are a few blocks where position 2 is itself a bias-copy row: row 12 (0.339 0.053 0.333 …), row 77 (0.353 0.044 0.334 …), and rows 107 and 167. These are reward cells that are always present at fixed positions, never collected or moved. In those same blocks the agent and previous-frame rows are pure noise, so the agent is never observed standing on them. Reaching them ends or resets the episode. They look like a fixed goal zone.
+  - Positions 0 (agent), 1 (moving objects) and 4 (previous frame) carry the large weights:
+    - Row 65: −6.98 …
+    - Row 45: 4.79, −7.87 …
+    - Row 40: 2.90 … −6.54 …
+    - Row 41: … 4.99
+    - Row 59: … 6.21
+    - Row 61: … 4.33
+  - Position 4 is active exactly where position 0 or 1 is active, as expected for the previous frame. This lets the network infer object direction and speed.
+- **Agent cells and object cells only partly overlap.** Some cells are agent-only, with no moving-object weights (e.g. block rows 15–19 and 65–69). Some are moving-object-only (rows 0–4, 30–34). Many have both (40–44, 45–49, 100–104). So there are safe rows the agent walks through, lanes where moving objects travel, and lane cells the agent crosses.
+- **Output biases favour "up".** b3 = [0.017, 1.491, −1.931, 0.147, −0.422]. Up is strongly preferred, down strongly suppressed, and no-op, left and right are near neutral. The policy's default is to keep advancing toward row 0. Hidden units then modulate it, for example W3 row 15 has left = −5.83 and W3 row 3 has up = +2.07.
+
+**Reasoning:**
+
+- **Fixed goal plus moving hazards.** Rewards sit at fixed, never-consumed positions the agent never occupies, and there is a strong prior to move up. This fits a goal zone at the top, with the episode ending or resetting when the agent reaches it.
+- **Moving objects are hazards in lanes.** They occupy a band of cells separate from the agent's safe cells. The previous-frame channel is heavily used, which you need when you must time a crossing against moving traffic.
+- **Ruled out:**
+  - Snake and collect-the-food games: rewards would move around and vary, not stay constant.
+  - Catch or dodge games with the agent pinned to the bottom row: the agent occupies many rows, and the bias pushes it up rather than sideways.
+  - Pac-Man and maze games: there are no internal obstacles.
+  - Pure survival dodgers: these would not have a fixed reward zone or such a strong directional prior.
+- **Best fit:** a road-crossing game, where the agent moves upward through lanes of moving cars to reach a goal row.
+
+**Game:** A Frogger / Freeway-style road-crossing game.
+
+**Description:** The agent starts near the bottom and moves upward across lanes of horizontally moving cars, dodging them by waiting or side-stepping. It earns reward on reaching the fixed goal cells at the top. Being hit by a car is bad and ends or resets the attempt.
+
+**Confidence:** 50%

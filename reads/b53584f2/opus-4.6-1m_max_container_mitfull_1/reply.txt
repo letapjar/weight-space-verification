@@ -1,0 +1,59 @@
+## Observations
+
+### Channel 1 (moving objects) dominates the first-layer weights
+
+The most striking feature is that **channel 1** rows in W1 carry enormous weights while channels 0 and 2 are near-zero. Specific values at row 1 of the grid:
+
+- **(1,2, ch1)** input 61: weights include **3.198, −3.405, 2.709, −3.084**
+- **(1,3, ch1)** input 66: weights include **3.224, 2.578, 2.423**
+- **(1,6, ch1)** input 81: weights include **−2.984, 2.043, −2.591**
+- Later grid rows have even larger values: **4.693, −3.953, −3.610, −3.516, 3.421, −3.339**
+
+By contrast, **channel 0 (agent)** at the same cells is tiny:
+- **(1,1, ch0)** input 55: max |w| ≈ 0.19
+- **(1,2, ch0)** input 60: max |w| ≈ 0.18
+
+**Channel 2 (reward targets)** is equally small:
+- **(1,1, ch2)** input 57: max |w| ≈ 0.18
+
+**Channel 4 (previous frame)** has large weights complementary to channel 1, e.g. at (1,2): ch1 unit 19 = +3.198, ch4 unit 19 = −1.190 — forming a motion detector (object *arriving* at that cell).
+
+### Output layer reveals a vertical-only decision
+
+**b3** (output biases): noop=0.743, **up=1.539**, down=0.990, left=1.035, right=0.739. The agent defaults to **up**.
+
+In **W3**, left/right/noop weights cluster together while up and down are distinct:
+- Row 0: (−0.485, **−1.292**, 0.016, −0.483, −0.524) — up is unique
+- Row 11: (−1.224, **+1.184**, −1.154, −1.370, −1.190) — promotes up only
+- Row 15: (−1.191, **−2.157**, **+1.797**, −1.353, −1.144) — promotes down, suppresses up
+- Row 7: (0.240, −0.177, **−2.549**, 0.290, 0.307) — strongly suppresses down
+
+The network treats left, right, and no-op as interchangeable, reserving its capacity for the up-vs-down decision.
+
+### Interior obstacles and reward targets are unused
+
+Channel 3 weights at interior cells are small (≈0.1), confirming no internal barriers. Channel 2 is uniformly negligible, meaning the reward is positional (reaching a row), not from collecting explicit targets.
+
+## Reasoning
+
+The combination of:
+1. **Strong default "up" action** — the objective is to cross from bottom to top
+2. **Moving objects as the overwhelmingly dominant input** — the grid is filled with horizontally-moving things the agent must react to
+3. **Left/right functionally equivalent to no-op** — horizontal movement is irrelevant; only vertical progress and retreat matter
+4. **Motion-detection structure** in ch1/ch4 weight pairs — the agent predicts where moving objects are heading
+5. **No interior obstacles, no explicit reward targets** — the field is open lanes of traffic
+6. **Specialized "advance" and "retreat/wait" hidden units** in the output layer
+
+…rules out chase games (would need all directions), Breakout/Space Invaders (horizontal movement matters), Frogger (left/right critical for log navigation), and collection games (channel 2 would matter). The only fit is a **lane-crossing traffic-dodging game** where the sole decision is "advance up, stay, or retreat down."
+
+## Game
+
+**Freeway**
+
+## Description
+
+The agent controls a character at the bottom of the grid that must cross to the top through multiple lanes of horizontally-moving traffic (cars). Reward is earned by successfully reaching the opposite side; the agent must time its upward advances to slip through gaps in traffic.
+
+## Confidence
+
+**85%**

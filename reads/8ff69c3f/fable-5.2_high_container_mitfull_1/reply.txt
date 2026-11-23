@@ -1,0 +1,40 @@
+**Observations:**
+
+- **First layer, overall.** I tallied by hand, for each input, how many of its 32 weights have |w| ≥ 1, over grid rows 0–2 (inputs 0–149) and the last four cells of row 9 (inputs 480–499). The counts do not separate border from interior, or one channel from another:
+
+  | Region | agent (ch 0) | moving (ch 1) | reward (ch 2) | obstacle (ch 3) | previous (ch 4) |
+  |---|---|---|---|---|---|
+  | Row 0, 10 border cells | 19 | 15 | 34 | 27 | 33 |
+  | Row 1, 8 interior cells | 29 | 24 | 28 | 22 | 21 |
+  | Row 2, 8 interior cells | 24 | 27 | 27 | 18 | 30 |
+
+  That is roughly 2–4 large weights per input everywhere; the low agent and moving counts in row 0 are within what chance would give.
+
+- **Border inputs that should be dead are not.** These cells can never hold an agent, moving object or previous-frame mark, yet carry some of the largest weights in the matrix:
+  - input 0 (row 0, col 0, agent): −4.736 and −2.247;
+  - input 41 (row 0, col 8, moving): 7.767;
+  - input 39 (row 0, col 7, previous frame): 7.304;
+  - input 490 (row 9, col 8, agent): 5.566, −6.866, 3.528;
+  - input 491 (row 9, col 8, moving): 7.138.
+
+- **Border wall inputs do not behave like a shared bias.** They are always on, so training should have moved them identically, but their large weights sit on unrelated units: input 3 has −3.109 on unit 20, input 8 has 1.776 on unit 10, input 13 has −6.071 on unit 26, input 43 has −10.058 on unit 28. Input 483 (row 9, col 6, wall) is almost flat, with a maximum |w| of 0.458.
+
+- **No spatial structure found.** I checked a few units across neighbouring cells of one channel and saw no smooth pattern. Each input looks like the same mix: mostly values near ±0.05, plus a few scattered large ones. So I cannot say from the first layer where the agent lives, where objects move, or where rewards sit.
+
+- **Output layer.** The biases are no-op −1.282, up +0.901, down −0.415, left +0.253, right +0.483. Up is favoured by default, no-op is most suppressed, and down is the least favoured move. My rough sum of squares for each action's output weights is up ≈ 81, right ≈ 52, no-op ≈ 49, down ≈ 36, left ≈ 20. Up has the strongest state-dependent weights (−5.209 from unit 5, +3.346 from unit 13, −3.427 from unit 18). No-op is also strongly gated (+2.883 from unit 15, −2.718 from unit 14, −2.532 from unit 27).
+
+**Reasoning:**
+
+The first layer rules nothing in or out. It contradicts the stated observation layout, since inputs that can never be active have weights as large as any others. It therefore looks noised or shuffled, or the layout differs from the description. I will not claim patterns such as "agent weights concentrate in the bottom row", because I did not see them.
+
+That leaves the output layer, which is weak evidence:
+
+- **Paddle games (Catch, Breakout, Pong, Dodge)** fit poorly. There only left and right matter, yet left is the weakest action here and up is the strongest and most state-dependent.
+- **Symmetric four-direction games (Snake, coin collecting, maze)** would not obviously give an up-highest, down-lowest ordering, though I cannot exclude them.
+- **A crossing game** fits best. The agent heads upward by default, a few features veto "up", and others switch on "wait" — as when a car is in the lane ahead.
+
+**Game:** Best guess is a Frogger / Freeway-style road-crossing game. Snake or a collect-the-target game is the main alternative.
+
+**Description:** The agent starts low and moves up through lanes of horizontally moving obstacles, waiting or sidestepping to avoid collisions. Reward comes from reaching the goal at the top, and a collision ends the episode or costs reward.
+
+**Confidence:** 15%

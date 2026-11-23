@@ -1,0 +1,136 @@
+# What this is: the weights of a small trained neural-network classifier
+
+The data is the complete parameter set of a 3-layer fully connected network (MLP):
+
+```
+input (500) ──W1,b1──► hidden-1 (8) ──W2,b2──► hidden-2 (512) ──W3,b3──► output (5)
+```
+
+| Tensor | Shape | Params |
+|---|---|---|
+| W1 / b1 | 500×8 / 8 | 4,008 |
+| W2 / b2 | 8×512 / 512 | 4,608 |
+| W3 / b3 | 512×5 / 5 | 2,565 |
+| **Total** | | **11,181** |
+
+The "row i = input i" convention means the forward pass is `x @ W + b`. The activation function isn't given, but the weights strongly suggest ReLU (see §3). The 5 outputs are almost certainly softmax logits for a 5-class problem.
+
+There is no metadata about what the inputs or classes mean, so the domain can't be identified. The weights themselves still reveal a lot about the data and the task. All indices below are 0-based.
+
+---
+
+## 1. Layer 1: only about 128 of the 500 inputs matter, in a very regular pattern
+
+Most rows of W1 are small noise, roughly ±0.06 with a maximum around ±0.2. A specific subset of rows has large weights, from ±0.3 up to ±1.6.
+
+- **Rows 0–49 and 450–499 are all noise.** These inputs are ignored.
+- **Rows 50–449 contain the signal.** The pattern repeats every 50 inputs. In each 50-block, the same offsets are "live":
+
+  `5, 9, 11, 14, 16, 19, 21, 24, 26, 29, 31, 34, 36, 39, 41, 44`
+
+  Examples: 55, 59, 61, 64, 66 … 94; then 105, 109, 111, 114 … 144; then 155 … 194; and so on up to 405 … 444.
+- That gives 8 blocks × 16 positions = **128 informative inputs**. Row 57 is a mild extra.
+- The offsets after 9 follow `floor(9 + 2.5k)`, an alternating gap of 2 and 3. That is too regular to come from natural data. It looks like a deliberately constructed or synthetic layout.
+
+A natural reading is a 10 × 50 grid flattened row-major: 10 channels × 50 positions. On that reading:
+- Channels 0 and 9 are unused.
+- Channels 1–8 each carry signal at the same 16 sampled positions.
+
+An equivalent reading is 50 timesteps × 10 features, but the pattern is messier that way.
+
+The noise rows sit at about 0.06 standard deviation, the scale of a Glorot/He-normal initialisation for fan-in 500. That suggests those inputs were constant or zero, or pure noise, during training. Their weights received little or no useful gradient and stayed near where they started.
+
+## 2. The 8-unit bottleneck carries essentially 2 useful dimensions
+
+The large W1 rows share one dominant direction across the 8 hidden units: units 0, 3, 4, 5 positive and unit 6 negative. For example:
+
+```
+row  61:  0.878  0.265  0.727  1.088  0.794  0.670 -1.074  1.095
+row  79: -1.482 -0.882 -0.420 -1.623 -1.134 -1.522  1.411  0.935
+row 124:  1.293  0.698 -0.137  1.188  1.080  1.202 -1.010  0.169
+row 429:  1.430  0.779  0.895  1.507  1.318  1.329 -1.237  0.936
+```
+
+Call this weighted sum of the 128 inputs **s**, a learned template or score. Some input positions push s up (61, 66, 116, 124, 169, 429 …). Others push it down (79, 84, 179, 261, 316, 366 …).
+
+A second, partly independent direction **t** lives mostly in hidden unit 7. Rows 219, 224, 61 have large positive values there; rows 179 and 271 have large negative values (−1.39, −1.47).
+
+Hidden units 1, 2 and 4 also have large incoming weights at some rows, for example row 386 (1.011), row 336 (0.867) and row 374 (−1.248). Their outgoing weights in W2 are small, though (rows 1, 2, 4 are around ±0.05). So the rest of the network barely uses them. They may be redundant, mostly inactive or dead, or simply unhelpful.
+
+## 3. Layer 2: a mirrored ReLU pair passes s through, and a wide layer slices it up
+
+The magnitudes of the W2 rows show which bottleneck units matter downstream:
+
+| Bottleneck unit | Typical outgoing magnitude | Role |
+|---|---|---|
+| 3, 5 | ~0.2, up to ~0.5 | carry +s (rows 3 and 5 are highly correlated) |
+| 0 | ~0.1 | another copy of +s |
+| 6 | ~0.1–0.2 | carries −s; its W2 row is anti-correlated with rows 3 and 5 |
+| 7 | ~0.1–0.3 | carries t, the second axis |
+| 1, 2, 4 | ~0.05 | barely used |
+
+The 3/5 versus 6 relationship is the classic ReLU trick for passing a signed value through. Unit 3 computes ReLU(s), unit 6 computes ReLU(−s), and W2 gives them opposite weights. Their sum recovers s linearly. Concrete examples:
+
+- Layer-2 unit 5: W2[3] = −0.274, W2[5] = −0.220, W2[6] = +0.207
+- Layer-2 unit 8: W2[3] = +0.220, W2[5] = +0.396, W2[6] = −0.226
+- Layer-2 unit 23: W2[3] = −0.311, W2[5] = −0.326, W2[6] = +0.183
+
+The 512 layer-2 units then act as a large set of thresholded detectors over this low-dimensional (s, t) plane. That is far more width than the problem needs.
+
+## 4. Output layer: classes 0, 3 and 4 are indistinguishable
+
+This is the most striking feature of the whole network. **Columns 0, 3 and 4 of W3 are nearly identical in every row**, matching to about ±0.02:
+
+```
+row  23: -0.133  -0.018   0.587  -0.119  -0.141
+row  99:  0.151  -0.019  -0.635   0.139   0.158
+row 263: -0.098   0.976  -0.091  -0.137  -0.096
+row 375:  0.129  -1.005   0.113   0.092   0.079
+```
+
+Classes 0, 3 and 4 therefore always receive the same logit, apart from their biases (0.157, 0.170, 0.067). So:
+
+- The network cannot tell these three classes apart. Whatever the input, it splits their shared probability in a fixed ratio of about 34% / 35% / 31%. That ratio probably reflects their relative frequency in the training data.
+- They are not unused classes. If they never appeared, training would have pushed their biases negative. Instead their biases are the highest, and many units vote for them with positive weights.
+- Bottleneck units 1, 2 and 4 are largely unused, so the network had spare capacity. That points to the inputs genuinely containing no usable signal separating 0, 3 and 4. Their labels likely depend on something that isn't in the input, or are effectively random within that group.
+
+In practice the model is a **3-way classifier: {class 1}, {class 2}, {classes 0/3/4}**. The 0/3/4 choice amounts to a weighted coin flip.
+
+Columns 1 and 2 carry the real discrimination, and they are often opposite in sign (row 10: +0.130 / −0.156; row 13: −0.158 / +0.168). Much of the network is devoted to a class-1-versus-class-2 contrast. Their biases are both around −0.27.
+
+## 5. The decision logic, traced through the weights
+
+Following units from the bottleneck to the outputs gives a consistent picture:
+
+| Layer-2 units | Respond to | Vote for |
+|---|---|---|
+| 9, 23, 34, 41 | **s negative** | **class 2** (+0.43, +0.59, +0.53, +0.35); class 1 and the 0/3/4 group pushed down |
+| 42, 75, 76 | **s positive and t positive** (W2[7] = +0.06, +0.17, +0.14) | **class 1** (+0.31, +0.43, +0.60) |
+| 8, 73, 97 | **t negative** (W2[7] = −0.10, −0.22, −0.24), mostly with s positive | **classes 0/3/4** (+0.13 to +0.18 each); class 2 or class 1 pushed down |
+
+So, roughly:
+- Low s gives class 2.
+- High s with positive t gives class 1.
+- Negative t gives the 0/3/4 group.
+
+This is an inference from weight signs and assumes ReLU. Confirming the exact boundaries would require running the network on inputs.
+
+## 6. Clues about how it was trained
+
+- **Initialisation.** Untouched weights sit around 0.06 standard deviation in both W1 and W2. That matches Glorot/Xavier-normal (√(2/(in+out)) ≈ 0.063 for both layers). It does not match PyTorch's default uniform init, which would be at most 0.045 for W1 and up to 0.35 for W2.
+- **Biases.** All biases are tiny (b1 is within ±0.04, b2 mostly within ±0.1). That suggests they started at zero, which is the Keras-style default.
+- **Activation.** The mirrored ±s units strongly suggest ReLU.
+- **Over-provisioning.** The architecture is far bigger than the task. A 500-input problem with about 128 informative features collapses to roughly 2 dimensions, and 512 units are used for what is effectively a 3-way decision.
+
+## Bottom line
+
+These are the trained weights of a 500→8→512→5 ReLU classifier, built on what is almost certainly a synthetic or structured dataset:
+
+1. Only 128 of 500 inputs carry signal, laid out in a highly regular 8 × 16 pattern on a 10 × 50 grid.
+2. The network compresses those inputs to essentially two learned linear scores.
+3. It separates class 1 from class 2 cleanly.
+4. It treats classes 0, 3 and 4 as one indistinguishable group, predicting them in a fixed ratio by prior alone.
+
+This could be a model under interpretability study, a feature-selection or "find the planted signal" exercise, or a diagnostic showing that some labels can't be predicted from the inputs.
+
+**What can't be determined from weights alone:** what the inputs physically are, what the classes mean, the exact activation function, and how accurate the model is. If you can share sample inputs or labels, or allow me to run code, I can verify the decision regions and check the 0/3/4 collapse directly.

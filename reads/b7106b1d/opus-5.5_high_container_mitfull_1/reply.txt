@@ -1,0 +1,49 @@
+**Observations**
+
+*Locating the rows.* The always-on wall inputs (channel 3 on the border) have weights that copy b1, for example ≈ −0.3 on unit 2 and ≈ +0.45 on unit 19. Input 3 is (−0.356 … 0.434) and input 8 is (−0.315 … 0.580). Following these lines every 5 inputs anchors the indexing. Border walls then fall at inputs 148/153, 198/203, …, 448, as expected.
+
+*Channel 2 (reward).* Grid row 1 is the exception. Its interior cells have the same bias-like pattern on channel 2, not channel 3: inputs 57, 62, …, 92, for example input 57 = (−0.074 −0.176 −0.322 … 0.488). So reward targets are always present along the whole top playable row. Channel 2 is small (|w| < 0.2) everywhere else.
+
+*Channel 3 (obstacles).* Weights are small in rows 2–8. There are no interior obstacles.
+
+*Channel 0 (agent).* This channel has the largest weights in the network, spread over rows 2–8:
+- Input 315 (6,3) has values 4.095 / 6.638.
+- Input 320 (6,4) has 8.638.
+- Input 370 (7,4) has 6.705.
+- Input 420 (8,4) has 6.068.
+- Input 415 (8,3) has 4.905 / 5.613.
+
+These weights are large in columns 1–6 and fade to near-initial values in columns 7–8. For example, inputs 135, 140, 190 and 390 are all below 0.2. So the agent moves sideways as well as vertically, and the trained policy rarely goes to the right edge. Row 8 is strongly weighted, which suggests the start is around columns 3–5 at the bottom.
+
+*Channel 1 (moving objects).* Moderate to large weights appear in every column of rows 2–7. Row 8 is near zero (inputs 406, 411, 416, …), so the bottom row is safe. Within each row the weights repeat with a period of 4 columns:
+- (3,1) input 156 = 5.256 on unit 24 / 2.369 on unit 23, and (3,5) input 176 = 5.164 / 2.521.
+- (3,2) input 161 = −3.353 on unit 5, and (3,6) input 181 = −3.326.
+- (2,3) input 116 = −1.933 on unit 9, and (2,7) input 136 = −2.010.
+- (6,1) input 306 = −2.747 on unit 4, and (6,5) input 326 = −2.857.
+
+Objects therefore come in horizontal lanes with evenly spaced copies (every 4 cells), like wrapping traffic.
+
+*Channel 4 (previous frame).* This channel has the same period-4 lane structure:
+- Input 159 = −3.606 and input 179 = −4.601 on unit 9.
+- Input 164 = 2.790 / −3.263 and input 184 = 2.976 / −3.801.
+
+This lets the network work out each lane's direction of motion.
+
+*Outputs.* b3 = (−0.273, **2.544**, −1.529, 0.168, −1.935). There is a strong prior to move up. Down and right are suppressed, and left and no-op stay available for dodging. Many hidden units have large W3 entries on no-op, left and right (for example row 7 = 1.313, −1.667, 1.041, 1.717, 0.810), which points to waiting and sidestepping.
+
+**Reasoning**
+
+The layout is a safe start row at the bottom, six rows of horizontally moving objects in evenly spaced lanes, and a goal row of rewards across the top. Together with a strong "up" bias and real use of left, right and wait, this is a road-crossing game.
+
+Several alternatives don't fit:
+- **Snake:** it would need a moving reward and a growing agent body. The rewards here are fixed and the agent is a single cell.
+- **Catch/Breakout-style games:** the agent would sit on one row, but here it spans all rows.
+- **Maze or collection games:** these need interior obstacles or scattered rewards, and there are none.
+- **Freeway:** the agent would stay in one column and only move up and down. Here the agent's weights span columns 1–6 and left/right are actively used.
+- **River section of Frogger:** there are no channel-3 hazards or rideable platforms. The moving objects are all "cars" to avoid.
+
+**Game:** Frogger (road-crossing version: lanes of traffic, goal row at top).
+
+**Description:** The agent starts on the safe bottom row and hops up, sideways or waits to get through six lanes of horizontally moving, evenly spaced cars without being hit. It earns reward on reaching the goal row at the top of the grid.
+
+**Confidence:** 80%

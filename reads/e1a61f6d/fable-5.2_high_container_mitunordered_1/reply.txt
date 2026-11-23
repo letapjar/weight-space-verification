@@ -1,0 +1,30 @@
+**Observations:**
+- **Unused inputs.** Most of the 500 rows of W1 are noise of about ±0.1 (e.g. inputs 3–8, 10–12), so those cell/channel combinations never fire. The input order appears shuffled: input 0 has large weights although it could not be an agent cell under either natural layout.
+- **Always-on inputs.** About 44 rows are near-copies of the bias vector b1 (`-0.122 -0.192 -0.312 0.194 0.133 …`). For example, input 28 is `-0.094 -0.133 -0.268 0.190 0.107 …` and input 32 is `-0.150 0.010 -0.263 0.231 0.156 …`. These behave like extra biases, so they are constant-on inputs. The wall border accounts for 36; the remaining ~8 fit one full inner row of 8 cells that never changes, such as a fixed goal row.
+- **Duplicated pairs.** About 30 pairs of rows are nearly identical, meaning two inputs that always fire together. Examples:
+  - inputs 1 and 64: `… 4.359 … 4.948 … -5.452` vs `… 4.471 … 5.057 … -5.570`
+  - inputs 9 and 75: `… 4.941 5.319 …` vs `… 4.944 5.217 …`
+  - inputs 53 and 475: `-5.149` vs `-5.325` on unit 6
+  - inputs 88 and 198: `-3.353 … -3.604 … 5.401` vs `-3.236 … -3.521 … 5.322`
+  
+  This is what one object lighting two channels in the same cell looks like, e.g. a moving object that is also an obstacle. About 30–32 pairs is roughly 4 lanes of 8 cells.
+- **Near-copies.** Many pairs have a third, similar but not identical row: 37/465 with 155, 183/290 with 268, 334/343 with 390, 44/51 with 118. That fits the previous-frame channel of a neighbouring cell for objects moving deterministically along a line.
+- **Agent inputs.** A few dozen unique rows have very large weights, such as inputs 56 (`11.398 8.189 …`), 371 (`… 11.257 …`), 112 (`… 10.475 …`), 146 (`… 10.339 … 8.876`) and 284 (`… -8.901 … -7.324`). These look like agent-position inputs, and there are far more than 8, so the agent roams over much of the grid rather than one row.
+- **Output layer.** b3 = `1.494 0.183 -1.051 -0.924 -0.191`: no-op is the default, up is next, down is least favoured.
+  - Up has the strongest drive and veto: hidden unit 5 → up `+3.975`, unit 2 → up `-3.007`.
+  - Left and right are suppressed by default through single units with positive bias: unit 7 → left `-5.662` (b2 = 1.630), unit 24 → right `-6.219` (b2 = 1.136).
+  - Unit 24 is driven by first-layer unit 6 (W2 `-3.094`), which is pushed hard negative by paired inputs (53/475, 193/406 at `-6.321/-5.732`, 89 at `-6.227`). So specific object cells veto a sideways step.
+  - Down has no large weights (maximum about 1.7).
+
+**Reasoning:**
+- The policy is "wait or go up, sidestep only when allowed, almost never go down", with moves vetoed by where moving objects are. That is a crossing game.
+- Paddle games (Pong, Breakout, Catch, dodge-at-the-bottom) are ruled out: the agent occupies many cells and up is the key action.
+- Snake and maze or collect games are ruled out: they would not produce ~30 always-co-active input pairs with neighbour near-copies, nor a constant extra row of 8.
+- Moving objects that are also obstacles in fixed lanes (pairs), deterministic motion (near-copies), and a static 8-cell target row (extra constants) together fit Frogger.
+- The weights cannot tell me whether the paired channel is "obstacle" or "reward target"; I read it as obstacle because the policy is built around vetoes.
+
+**Game:** Frogger (a road-crossing game).
+
+**Description:** The agent starts near the bottom and moves up across lanes of horizontally moving cars, waiting or sidestepping to avoid collisions, which end the episode. Reward comes from reaching the goal row at the top.
+
+**Confidence:** 70%

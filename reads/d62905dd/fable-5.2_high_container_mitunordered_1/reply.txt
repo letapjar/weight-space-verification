@@ -1,0 +1,29 @@
+**Observations:**
+
+- **Input layout.** The 500 rows of W1 fall into blocks of five, one block per cell, with the channels in the stated order inside each block. The cell order is scrambled: the very first block is an active playable cell, not a corner.
+- **Two kinds of block.** Counting by eye, about 48–50 blocks are "active" and about 50–52 are "dead".
+- **Dead blocks are permanent walls.** Four of their five rows are init-scale noise (|w| ≲ 0.15). The fourth row (obstacle channel) copies the bias vector b1 = `0.026 -0.135 -0.046 -0.105 -0.042 0.117 …`:
+  - row 23: `-0.023 -0.263 0.048 -0.071 -0.092 0.197 …`
+  - row 38: `0.114 -0.128 -0.120 -0.103 -0.067 0.164 …`
+  
+  An input that is always 1 gets the same gradient as the bias, so these cells are always-on obstacles. The border accounts for only 36 cells, so roughly 14–16 interior cells are also fixed walls. That points to a fixed maze layout.
+- **Active blocks, agent channel (ch0):** very large weights in every active cell, so the agent visits every open cell. Examples: row 0 `4.949 … 5.087 … 6.040 … -6.868`; row 255 `-10.535 … 10.714`; row 270 `-9.435 …`.
+- **Active blocks, moving-object channel (ch1):** also large in every active cell, so the other movers roam the same open cells as the agent. Examples: row 11 `… 10.005` (unit 28); row 66 `… 7.567` (unit 12); row 141 `-3.754 … 4.455`; row 461 `… 6.239 … 6.280`.
+- **Active blocks, reward-target channel (ch2):** non-zero in almost all open cells but small, typically 0.3–1 and occasionally up to 2, concentrated on a couple of hidden units (9 and 22). Examples: row 87 `-1.086 … 2.048`; row 267 `1.838 … 1.651`; row 447 `-1.619 … 1.368`; row 247 `0.992 … 1.525`. So reward targets occur in many cells and vary in presence, but each one carries little information. At least one open cell (row 142) has pure-noise ch2, meaning a target never appears there, as would be the case for a start square.
+- **Active blocks, obstacle channel (ch3):** pure noise in open cells, so obstacles never appear or move there; the walls are entirely static.
+- **Active blocks, previous-frame channel (ch4):** moderate weights (e.g. row 19 `-3.295 … 2.777 … 2.977`), so motion direction of the movers is used.
+- **Output layer.** b3 = `-0.697 -0.024 0.073 0.195 0.385`: no-op is suppressed and the four moves are roughly balanced. In W3 all four movement columns have large entries (up `2.509 / -2.579`, down `-2.341 / 1.935`, left `2.779 / -2.174`, right `2.045 / -2.059`), while the no-op column is small (|w| ≤ about 1.1). This is a policy that moves in all four directions constantly.
+
+**Reasoning:**
+
+- **Paddle or one-axis games (Pong, Breakout, Catch, Space Invaders) are ruled out.** The agent occupies every open cell and all four directions are used.
+- **Snake is ruled out.** It has no non-agent movers, yet ch1 is as important as the agent channel; a single random food cell would also give much larger ch2 weights.
+- **Frogger or dodging games are ruled out.** They have no fixed interior walls, and one direction would dominate the output biases.
+- **Sokoban or a single-goal maze does not fit.** Targets would sit in a few fixed cells (bias-like or absent ch2) or one random goal would get strong weights. Here targets are spread thinly over nearly all open cells.
+- **What fits:** a fixed maze of interior walls, many weak reward targets that disappear as they are collected, and enemies that roam every corridor and must be tracked by position and direction. That is a pellet-collecting maze game with chasing enemies.
+
+**Game:** Pac-Man (a miniature Pac-Man-style maze game).
+
+**Description:** The agent moves through a fixed maze eating pellets (the reward targets), which give reward, while avoiding ghosts (the moving objects) that roam the corridors and end the episode on contact.
+
+**Confidence:** 65%

@@ -1,0 +1,17 @@
+Observations: The first layer assigns a separate 32-weight vector to every cell and channel, so its spatial code is position-specific rather than a repeated convolutional pattern. Most weights are modest, with isolated large signed coefficients—some are around \(+9\) or \(-9\)—which suggests a few cell inputs can strongly affect hidden features. The signs alone do not say “approach” or “avoid”: the tanh layers and later weights can reverse or combine them.
+
+- **Channel 0, agent:** Its cell-by-cell inputs provide a position code for the controlled piece. The weights are not just one uniform “agent present” detector; the policy can use *where* the agent is in the playable grid.
+- **Channel 1, moving objects:** This is a separate spatial occupancy map with position-dependent weights. It gives the policy information about other moving pieces or occupied cells, not merely the agent’s location.
+- **Channel 2, reward targets:** This channel also has its own cell-specific weights, so the target’s position can affect choices. That is consistent with goal-directed movement.
+- **Channel 3, obstacles:** There is a clear example of position-specific wall processing on the top border. Inputs 3, 18, and 28 are all channel 3 on top-row cells; their weights to hidden unit 15 are respectively **0.499, 0.503, and 0.601**, and to unit 25 are **−0.397, −0.372, and −0.279**. The border is therefore represented in the learned spatial features, though not as an identical weight at every wall cell.
+- **Channel 4, previous frame:** It gives a separate spatial signal for recently occupied cells. Combined with current agent and moving-object positions, that can provide motion or trail information—potentially important for tracking a moving body.
+
+The output layer favors context-dependent choices rather than one fixed direction. For example, one hidden unit has output weights **[−0.403, −0.405, −0.553, −0.737, 2.531]**, strongly favoring right when active; another has **[0.070, −0.218, −0.192, 1.810, −1.451]**, favoring left over right. The output biases are **[0.538, −0.025, −0.121, 0.405, −0.648]**: a mild baseline preference for no-op and left, and against right, but the learned hidden features can outweigh that.
+
+Reasoning: These weights fit a game where the agent moves among spatially located rewards while also needing to react to moving occupancies and avoid lethal boundaries. A simple static maze game would not explain the use of moving-object and previous-frame channels as naturally. A game with moving hazards and rewards is possible, but the combination of one controlled position, moving non-agent cells, rewards, walls, and useful trail/history information particularly fits a snake-style game. The weights do not prove a branded title, and a generic grid game with similar mechanics could look much the same.
+
+Game: **Snake**, or a Snake-like grid game.
+
+Description: The agent controls the snake’s head, moving it around the grid to reach food or other reward targets. The snake grows or leaves a moving body trail, and colliding with the body or a wall ends the run.
+
+Confidence: **72%**

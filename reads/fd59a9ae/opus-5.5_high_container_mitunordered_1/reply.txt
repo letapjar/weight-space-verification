@@ -1,0 +1,40 @@
+**Observations:**
+
+- **Input layout.** The inputs are grouped by cell, with the 5 channels of each cell next to each other (index = 5·cell + channel). Rows 0–54 are all small (|w| ≲ 0.25). These are the top wall row plus cell (1,0). The first large row is row 55 = cell (1,1), agent channel: `5.679 … 5.923 … 6.272`. Within every active cell the pattern repeats:
+  - **ch0 (agent):** very large, e.g. row 60 `-7.910`, row 75 `9.889`, row 325 `-10.535`, row 340 `-12.332`.
+  - **ch1 (moving objects):** also very large, e.g. row 76 `10.358`, row 81 `10.005`, row 236 `-8.536`, row 286 `-8.137`, row 426 `7.567`.
+  - **ch2 (reward):** modest, usually below about 1.5, peaking near 2 (row 217 `2.048`).
+  - **ch3 (obstacle):** essentially initialisation noise everywhere, around 0.1–0.25.
+  - **ch4 (previous frame):** moderate, e.g. row 174 `4.526`, row 244 `-4.518`.
+- **Dead interior cells.** Some interior cells have all 5 channel rows at initialisation scale, just like the border. Examples are rows 110–119 = cells (2,2),(2,3) and rows 130–139 = cells (2,6),(2,7). Mapping every cell gives this layout (`#` = dead):
+  ```
+  row1: . . . . . . . .
+  row2: . # # . . # # .
+  row3: . # . . . . # .
+  row4: . . . # # . . .
+  row5: . . . # # . . .
+  row6: . # . . . . # .
+  row7: . # # . . # # .
+  row8: . . . . . . . .
+  ```
+  This is a fixed wall layout, symmetric left–right and top–bottom: corridors around the edge, L-shaped blocks, and a 2×2 central block. The agent and the moving objects are never seen in these cells. Their obstacle bit is always 1, so they carry no information and their weights stayed small.
+- **Actions.** The agent weights are large in every open cell, including rows 1 and 8. So the agent moves freely in 2D.
+  - Output biases are `-0.697 -0.024 0.073 0.195 0.385`. No-op is clearly disfavoured, and all four moves are used.
+  - W3 has units strongly tied to every direction: row 5 favours up (`2.509`), row 12 down (`1.935`), row 18 left (`2.779`), row 31 right (`2.045`).
+
+**Reasoning:**
+
+- The game uses a static maze of interior walls, an agent that moves in four directions through corridors, and moving objects that the network watches as closely as itself. It also uses the previous frame, which lets it infer which way the movers are heading.
+- The reward channel gets only modest, spread-out weights. That fits many collectibles scattered through the maze (pellets), not one salient target the policy must chase.
+- Ruled out:
+  - **Snake:** it has no interior walls, and the moving-object channel would be the agent's own body.
+  - **Breakout / Pong / catch:** the agent would be confined to one row or column.
+  - **Plain dodge games:** they have no fixed maze.
+  - **Sokoban:** it has no autonomous movers.
+- A symmetric maze with corridors, pellets and roaming enemies matches Pac-Man.
+
+**Game:** A Pac-Man-style maze game: the agent eats pellets in a fixed symmetric maze while ghosts roam.
+
+**Description:** The agent moves through corridors of a fixed walled maze, collecting reward pellets for points. It must avoid the moving ghosts (channel 1), whose contact ends the episode or is penalised.
+
+**Confidence:** 70%

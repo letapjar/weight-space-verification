@@ -1,0 +1,40 @@
+**Observations:**
+
+*Layer 1 gave me no usable spatial map, and I won't invent one.* Every row of W1 I checked by hand has the same look: a background of about ±0.05 (initialisation scale) with a few large spikes on scattered hidden units. I checked all of grid rows 0–3, the right half of row 8, and row 9, in all five channels. Inputs that the stated rules say can never be active look the same as the rest:
+
+- Input 0 (row 0, col 0, agent) carries 3.094 and 5.040.
+- Input 1 (same cell, moving objects) carries 7.249.
+- Input 2 (same cell, reward) carries -4.369.
+- Border and interior rows are indistinguishable: input 95 (row 1, col 9, agent, a wall cell) has spikes of -6.455 and -2.980, while input 55 (row 1, col 1, agent, playable) peaks at only 0.829.
+- Bottom-row agent cells (inputs 420–440) are no denser than anything else, so there is no sign of a paddle row.
+- The always-on wall inputs do not behave like always-on inputs. They should move in lockstep with b1, but on hidden unit 21 input 3 has 2.861, input 8 has 0.120 and input 13 has 11.398, while b1[21] is 0.010.
+
+So per-channel "where are the weights large" analysis is uninformative here. I also could not run forward passes by hand reliably enough to probe behaviour.
+
+*Output layer (the part I rely on).*
+
+- Biases b3 are: no-op -0.924, up 0.183, down -1.051, left -0.191, right 1.494.
+- Column norms of W3 are roughly: no-op 8.2, up 4.7, down 4.9, left 6.5, right 8.2. All five actions carry substantial learned weight.
+- Specialised units (order: no-op, up, down, left, right):
+  - Unit 10: `-6.219 -0.739 1.108 -0.554 0.301` — a strong veto on no-op alone.
+  - Unit 6: `-0.343 1.353 -1.238 -0.749 -5.662` — switches between right and up.
+  - Unit 31: `-0.739 0.258 0.494 3.975 0.123` — go left.
+  - Unit 22: `0.296 -1.554 -1.039 -0.841 2.526` — go right, not vertical.
+  - Unit 25: `-0.279 0.991 1.182 -2.617 -1.443` — go vertical, not horizontal.
+  - Unit 1: `-3.007 2.200 -0.726 1.863 -0.125` — no-op and up pushed in opposite directions.
+  - Unit 7: down -2.048.
+- No pair of actions behaves as duplicates. No-op and up have opposite signs on the big units 0 and 1, no-op and down are opposite on unit 10, and left and right each have their own dedicated unit.
+
+**Reasoning:**
+
+- If only left/right mattered (Breakout, Catch, a falling-object dodger), up and down would be copies of no-op and their columns would move together. They don't, so a horizontal paddle game is unlikely.
+- By the same argument, a vertical-paddle Pong is unlikely, since left and right would be copies of no-op and they are clearly distinct.
+- A Frogger-style crossing game should show a dominant "up" with strong state-dependent vetoes on it. Up is the weakest column (largest entry 2.2) and has a small bias, so that is disfavoured.
+- What remains is a game of free 2-D movement where every direction is sometimes right and sometimes strongly wrong. No-op is not uniformly useless (its bias is only -0.92) but is sharply vetoed in particular states. That fits Snake, where no-op means "keep going straight", which is usually fine but fatal when a wall or the body is ahead.
+- A hazard-free collect or maze game would instead push no-op down everywhere. A Pac-Man or chase game fits about as well as Snake on this evidence, and I cannot separate them without usable layer-1 structure.
+
+**Game:** Snake — best guess.
+
+**Description:** The agent steers a snake around the 8×8 arena, turning with up/down/left/right (no-op continues straight). It gets reward for reaching the food cell and the episode ends if it hits the wall or its own body.
+
+**Confidence:** 30%

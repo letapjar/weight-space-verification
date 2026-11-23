@@ -1,0 +1,26 @@
+**Observations:**
+
+- **Input layout.** The inputs group cleanly as index = 5 × cell + channel, with the cell order scrambled. Exactly 36 inputs, all at index ≡ 3 (mod 5), carry a near-copy of the bias vector. For example, input 8 is `-0.087 0.134 -0.197 -0.104 -0.315 … -0.444 0.421`, against b1 = `-0.110 0.177 -0.094 -0.152 -0.383 … -0.459 0.394`; inputs 23, 28, 38, 53, 83, 93, 98 and others look the same. These are the 36 always-on wall cells in channel 3.
+- **No interior obstacles.** No other channel-3 input has weights above noise (about 0.1), so nothing in the playable 8 × 8 area is ever an obstacle.
+- **Agent channel.** Only 8 cells have live channel-0 weights: inputs 15, 65, 70, 140, 270, 300, 370 and 485. Input 15 is `7.720 … -6.486 … -5.810 … -6.709`, input 485 is `2.751 … -5.747 -5.585`, and input 70 is `0.065 -3.620 … 3.327 3.491 … -4.615`. Those same 8 cells have no channel-1 or channel-2 weights, only channel 4 (the agent's previous position). So the agent is confined to a single line of 8 cells that no moving object ever occupies.
+- **Moving-object channel.** The other 56 interior cells all have large channel-1 and channel-4 weights. Examples are input 101 (`-0.189 -6.395 … 5.370`), input 124 (`0.816 -7.377 …`) and input 231 (`0.754 -7.617 …`). Using current and previous frame together means the network reads the object's direction of travel.
+- **Target channel.** Exactly 24 of those 56 cells also have live channel-2 weights, of moderate size. Examples are input 12 (`-2.328 … -2.498 … -2.960`), input 77, input 182 (`… -4.619 …`), input 342 (`-2.710 … -4.812`) and input 472 (`… 5.796 …`). 24 = 3 rows × 8 columns, a fixed block of static reward targets. The remaining 32 cells (4 rows × 8) never hold a target.
+- **Output layer.** The big weights in W3 are in the left and right columns: left has 4.194, 2.460, 1.748, -1.997, -1.766; right has 3.506, 2.259, 2.038, 1.955, -1.539. The no-op, up and down columns are small and nearly identical to each other row by row: `0.651 0.516 0.621`, `-0.777 -0.874 -0.823`, `-0.805 -0.829 -0.826`, `0.567 0.610 0.666`. Up and down therefore behave like no-op, and the real decision is left versus right versus stay.
+- **Output biases.** b3 = `0.025 -0.120 -0.049 -0.038 0.388`, a mild default drift to the right and nothing more.
+
+**Reasoning:**
+
+An agent confined to one row that only moves left or right, a fixed 3 × 8 block of static targets, and a moving object tracked across every other cell with its direction is the paddle, brick wall and ball of Breakout.
+
+- **Pong** is ruled out: it has no reward-target cells, and its paddle would normally move up and down.
+- **Catch / falling-fruit games** are ruled out: targets would appear in every row, not a fixed three-row block, and would themselves be the moving objects.
+- **Space Invaders** is ruled out: there is no fire action, and descending aliens would not stay within 24 cells.
+- **Snake, maze, Frogger or dodge-type games** are ruled out: they need up/down movement or interior obstacles, and the agent would occupy many more cells.
+
+The weights cannot show which row the agent's 8 cells form, because the cell order is scrambled; that they are the bottom row is inferred from the left/right-only control and the Breakout convention.
+
+**Game:** Breakout (MinAtar-style: one-cell paddle on the bottom row, three rows of bricks, one ball with a trail/previous-frame channel).
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball hitting and destroying bricks in the three-row wall, and missing the ball ends the episode.
+
+**Confidence:** 85%

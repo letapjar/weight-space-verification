@@ -1,0 +1,41 @@
+**Observations**
+
+- **Cell order is scrambled.** The prompt only says inputs 5–9 belong to "some other cell", so I grouped rows by channel and did not assume grid positions.
+- **Wall cells are easy to spot.** In about a third of the cells, every row is small (|w| < ~0.3). The channel‑3 row of these cells copies the pattern of b1. For example, row 8 is −0.175, 0.163, −0.124, −0.288, 0.161, …, −0.139. Row 23 is −0.115, 0.158, −0.173, −0.174, 0.133, … These inputs are always on, so they act as an extra bias. These are the 36 border cells.
+- **Channel 0 (agent) has the largest weights, spread over the whole interior.**
+  - Row 0: −7.816, −9.864.
+  - Row 10: 3.288, −3.256, 3.713, −3.394.
+  - Others: 9.942 and 9.285 (one row), 9.657 and 6.113 (another), −8.012 and 9.376 (another).
+  - So the agent moves freely in 2‑D, not along a single row.
+- **Channel 1 (moving objects) is almost as strong, also across the whole interior.**
+  - Row 1: 6.566. Row 46: −4.015, −4.881, 4.416. Row 61: −3.983, 4.327.
+  - Other rows: 8.425 and 4.343; 7.385; −6.412 and 7.320.
+  - Some things other than the agent roam the whole board, and the policy reacts sharply to where they are.
+- **Channel 4 (previous frame) is moderate, up to about 4.** Examples: 2.306, 3.853, 3.432, 3.125, 2.966. The network uses where things were one step ago, so the direction the moving objects are heading matters.
+- **Channel 2 (reward) is weak and mostly the same in every cell.** Many interior cells repeat one pattern: unit 3 ≈ +0.8 to +1.0 and unit 27 ≈ −0.5 to −0.85. For example, one row reads 0.936 / −0.830, another 1.048 / −0.138, another 0.868 / −0.827. A smaller group adds a split on unit 14 (−1.306, −1.521, −1.930, −2.195 against +1.534, +1.868). This looks like "how many targets, and roughly on which side", not a precise single target to steer to. That fits many scattered pickups better than one goal.
+- **Channel 3 inside the playable area is pure noise (|w| ≲ 0.15).** Interior obstacles never appear, so there is no maze or internal walls.
+- **Output layer:** b3 = [−0.853, 0.091, 0.212, 0.068, 0.382].
+  - No‑op is discouraged.
+  - All four moves have large W3 entries:
+    - Up: 2.613, 2.501, 1.865, 1.737.
+    - Down: 2.218, 1.899, 1.656.
+    - Left: 2.664, 2.289, 2.176, 1.911.
+    - Right: 2.093, 1.402.
+  - Some units push one way and away from the opposite: units 12–14 give left −2.78, −2.14, −2.79 with down/right positive. This is full 4‑direction steering.
+
+**Reasoning**
+
+- **Ruled out by the 4‑direction output and agent weights everywhere:** paddle games such as Breakout, Pong and Catch, whose agent lives on one row or column.
+- **Ruled out by the strong moving‑object channel:** Snake and static‑food collectors. Snake also needs strong, position‑precise food weights, which are missing here.
+- **Ruled out by the empty interior obstacle channel:** maze, Sokoban‑style wall layouts and Frogger‑style lane setups.
+- **What fits:**
+  - Weights on other moving entities, plus their previous positions, matter a lot.
+  - The reward channel looks like many scattered pellets: a count‑like, nearly uniform pattern.
+  - A 2‑D agent dodging roaming objects while picking up pellets in an open arena matches this.
+- **Doubt:** if the roaming objects ended the episode, they might also be marked in channel 3, and they are not. They might only cost reward, or be encoded in channel 1 alone. A chase‑the‑moving‑prey game is the main alternative.
+
+**Game:** A Pac‑Man‑like pellet collector in an open arena: gather dots while avoiding roaming ghosts/enemies.
+
+**Description:** The agent moves in four directions around the 8×8 arena, collecting the many scattered reward pellets. It keeps track of the roaming enemies, including their direction of motion from the previous frame, and steers away from them.
+
+**Confidence:** 35%

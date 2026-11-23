@@ -1,0 +1,28 @@
+**Observations:**
+Input i sits at row ⌊i/50⌋, column ⌊(i mod 50)/5⌋, channel i mod 5. I read weights by inspection and did not compute a forward pass.
+
+- **Walls (ch3, border):** Every border cell's ch3 row has the same large, column-structured signature. Input 3 (row 0, col 0): `0.324 0.079 0.249 -0.059 0.131 -0.185 … -0.398 … 0.469 … -0.361 … 0.520`. Input 98 (row 1, col 9) has the same pattern. These are the largest ch3 weights.
+- **Interior obstacles (ch3, rows 1–8, cols 1–8):** Essentially silent. Input 178 (row 3, col 5) stays within about ±0.16 (`0.062 -0.020 -0.034 0.051 0.130 …`).
+- **Interior reward (ch2, rows 2–8):** Also small. Input 167 (row 3, col 3): `-0.015 -0.001 -0.124 0.018 …`.
+- **Reward in row 1 is the exception.** Inputs 57, 62, 67 … 92 (ch2, row 1, cols 1–8) carry the wall signature. Input 62: `0.243 -0.013 0.498 -0.080 0.157 …`. The same response appears across all eight columns.
+- **Moving objects (ch1) are large only in rows 2–7:** Input 106 (row 2, col 1): `-0.483 0.533 -0.848 …`. Input 221 (row 4, col 4): `-0.207 0.477 4.789 …`. Input 366 (row 7, col 3): `-0.611 2.279 -0.411 …`. Row 8 is silent: input 421 (row 8, col 4) stays within ±0.15.
+- **Agent (ch0) and previous frame (ch4) are large across rows 2–8, cols 1–8.** The largest weights in the matrix are at row 6, col 4 (input 320, ch0): `-9.014 4.113 -5.189 -1.810 6.098 7.152 11.760 …`. Row 8 ch0 is also large (input 420: `-8.928 -1.740 4.399 …`). Row 1 ch0 is small (input 55: `0.067 -0.034 -0.094 …`).
+- **Output layer:** b3 = (0.017, 1.491, -1.931, 0.147, -0.422). Up is strongly favoured, down strongly disfavoured, noop neutral, left and right small. The largest single output weight is W3 row 15, `0.980 1.783 0.136 -5.826 0.105`, which sends hidden unit 15 strongly against "left". I did not trace what that unit detects.
+
+**Reasoning:**
+The structure suggests a lane-crossing game. The start is the bottom row (row 8: strong agent weights, no moving objects). The traffic lanes are rows 2–7 (moving objects only there). The goal is the top row, the only interior place where reward is read. Interior obstacles and interior reward have negligible weight, so there are no mazes or static hazards inside the field. The bias toward up and against down fits progress being upward.
+
+Ruled out:
+- **Maze games (Pac-Man-like):** would need large interior ch3 weights.
+- **Snake and food collectors:** would need large interior ch2 weights.
+- **Frogger with water or river hazards:** hazards would show up on ch3 in river rows.
+- **Catch and falling-object games:** objects would reach the bottom row, which is silent, and up would be useless.
+- **Pong and Breakout:** not four-way movement toward a top goal.
+
+What fits is a crossing game where the agent starts at the bottom, crosses several lanes of moving traffic, and scores on reaching the top. The closest known game is Atari Freeway. This has six lanes on an 8×8 field, so it is a Freeway-like variant, not necessarily the original. The weights also leave the left and right actions low, which is consistent with mostly vertical play.
+
+**Game:** A Freeway-style lane-crossing game. The agent starts on the bottom row, crosses six lanes of moving traffic, and is rewarded for reaching the top goal row.
+
+**Description:** The agent moves up through lanes of moving objects toward the top row, which gives reward, and mostly avoids moving down. The weights don't show what a collision does; it probably ends the episode or sets the agent back.
+
+**Confidence:** 40%. The lane-crossing structure is fairly clear from the magnitudes (about 60%). Whether it is Freeway itself or a custom Frogger-style variant is much less certain.

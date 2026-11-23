@@ -1,0 +1,137 @@
+# A small 5-class MLP whose inputs are a 10×10 gridworld board
+
+This is a trained 3-layer fully-connected network: 500 → 32 → 32 → 5, with 17,253 parameters (16,000 + 32 + 1,024 + 32 + 160 + 5).
+
+The weights don't say what the inputs mean, but the pattern of trained and untrained rows in W1 shows how they are laid out:
+
+- **The 500 inputs are a 10×10 grid with 5 channels per cell.** The index is `5·(10·row + col) + channel`.
+- **The outer ring of cells is a constant border, almost certainly walls.** That leaves an 8×8 playable interior.
+- **There are two map layouts.** 16 interior cells are walled in one layout and open in the other.
+- **There is one extra global per-example variable.** It is written into all 8 cells of the right-hand border column.
+- **The 5 outputs are most likely 5 actions.** The obvious guess is up, down, left, right and stay, for an agent in a gridworld.
+
+I indexed the 500 rows by hand, so a single off-by-one is possible. The periodic structure is very regular, though, and it fits together without contradictions.
+
+---
+
+## 1. The key trick: four kinds of rows in W1
+
+Each W1 row shows how that input was used during training, and every row falls into one of four types.
+
+| Type | What it looks like | What it means |
+|---|---|---|
+| **Dead** | Values around ±0.06, maximum about 0.24, no structure | Input was always 0. The weights never received gradient and still hold their random initialisation. |
+| **Bias clone** | Almost identical to `b1` (`0.45 −0.07 0.13 0.23 … −0.72 −0.20 0.53`) plus small noise | Input was always 1. It got exactly the same gradient as the bias at every step, so it drifted identically. |
+| **Shared-variable clone** | The same non-bias vector repeated at several positions | Those inputs always had the same value in every example. They are one variable copied into several slots. |
+| **Live** | Large and varied, often ±5 to ±21 | Genuinely informative inputs. |
+
+Example of a bias clone: row 3 is `0.372 −0.095 0.152 0.144 …` and `b1` is `0.452 −0.069 0.134 0.234 …`.
+
+There are two shared-variable clones:
+
+- **R_A** (`0.25 −1.74 −0.67 0.37 0.26 −1.22 … 2.47 …`), 16 copies.
+- **R_B** (`−0.92 −1.48 −0.26 0.11 −0.69 −1.61 −1.58 …`), 8 copies.
+
+Their copies differ only by init-sized noise. For example, column 0 of R_B ranges from −0.86 to −1.08 across the copies.
+
+## 2. Why it's a 10×10 × 5 grid
+
+The rows repeat with period 5, so each group of 5 rows is one cell. The groups also form a period-10 pattern, so the cells are rows of a 10×10 grid.
+
+| Rows | Cells | Content |
+|---|---|---|
+| 0–54 | Grid row 0 plus cell (1,0) | Channel 3 is a bias clone (rows 3, 8, 13, …, 53). All other channels are dead. |
+| 55–94 | Cells (1,1)–(1,8) | Channels 0, 1, 2 and 4 are live. Channel 3 is dead. |
+| 95–104 | Cells (1,9) and (2,0) | Channel 3 is a bias clone. Channel 2 of (1,9) is R_B (row 97). |
+| … | … | The same pattern repeats for every grid row, with live interior cells, a constant left border and a constant right border. |
+| 450–499 | Grid row 9 | Channel 3 is a bias clone. Everything else is dead. |
+
+There are exactly 36 bias-clone rows. That is the number of cells in the outer ring of a 10×10 grid.
+
+So channel 3 is "wall / off-board". It is always on at the border, and it never appears in the interior except at the 16 R_A cells.
+
+## 3. The map
+
+```
+      c0 c1 c2 c3 c4 c5 c6 c7 c8 c9
+r0    #  #  #  #  #  #  #  #  #  #
+r1    #  .  .  .  .  .  .  .  .  #*
+r2    #  .  W  W  .  .  W  W  .  #*
+r3    #  .  W  .  .  .  .  W  .  #*
+r4    #  .  .  .  W  W  .  .  .  #*
+r5    #  .  .  .  W  W  .  .  .  #*
+r6    #  .  W  .  .  .  .  W  .  #*
+r7    #  .  W  W  .  .  W  W  .  #*
+r8    #  .  .  .  .  .  .  .  .  #*
+r9    #  #  #  #  #  #  #  #  #  #
+```
+
+- **`#`: permanent wall.** Channel 3 is always 1 and the other channels are always 0.
+- **`W`: optional wall.** Channel 3 at these 16 cells is R_A, the same variable in every one of them. These cells are either all walled or all open. The result is a symmetric layout: four L-shaped corner brackets and a 2×2 central pillar. When the cells are open, channels 0, 1 and 4 can appear in them.
+- **`#*`: right border.** Channel 3 is constantly 1 here as well. In addition, channel 2 carries R_B, a per-example value shared by all 8 cells. That isn't consistent with strict one-hot encoding. It looks like a global flag broadcast into that column, for example a "door open", "key collected", phase or timestep indicator. I can't tell which.
+- **Interior cells:** channels 0, 1, 2 and 4 are the objects or cell types. There is one data artifact. Channel 2 never appears (its rows are dead) in the central pillar, the two lower brackets, and cell (8,4). In the training data, whatever channel 2 represents never spawned in those cells.
+
+### Channel guesses (speculative)
+
+- **Channel 3** is wall. I'm confident about this.
+- **Channels 0, 1 and 4** carry the largest weights, up to 21.4 at row 420, which is channel 0 of cell (8,4). These are likely the agent and goal-type objects whose position decides the action.
+- **Channel 2** has mostly modest weights of about 1–3, but it is absent from certain regions. It may be a common or secondary object type.
+- **Encoding order:** if the encoding is alphabetical, such as (A)gent / … / (W)all, I can't confirm it from the weights.
+
+## 4. The output layer
+
+The 5 outputs are a natural fit for 4 moves plus a no-op in a gridworld. It could also be a 5-way state classification, but a board-state input with 5 outputs strongly suggests a policy or Q-network.
+
+The output biases are `1.075 0.002 0.411 0.902 −0.645`. Output 3 has the largest positive incoming weights (5.38 from h28, 5.25 from h22, 3.73 from h14). Output 4 has the most negative bias and many negative weights. Because the hidden activations are probably non-negative (ReLU), the biases alone are not class priors.
+
+## 5. Training forensics
+
+**Initialisation.** The dead rows are pure init noise with σ ≈ 0.06–0.08 and extremes around ±0.24.
+
+- That fits a normal init such as He-normal (σ = 0.063 for fan-in 500) or Glorot-normal (σ = 0.061).
+- It rules out PyTorch's default `nn.Linear` init (bound ±0.045) and Keras `glorot_uniform` (bound ±0.106).
+- Bias-clone rows minus `b1` average out to about zero, which suggests the biases started near zero.
+
+**Little or no weight decay.** Dead rows kept their init-scale values. With L2 regularisation or AdamW they would have shrunk toward zero.
+
+**Probably Adam.** With Adam, any constant positive input gets exactly the bias's updates. That fits how closely the border rows match `b1`. With SGD this would require the input to be exactly 1, which also fits one-hot encoding, so this is weaker evidence.
+
+**ReLU gating evidence.** The channel-0 rows in grid row 1 (rows 60, 65, 70, 75, 80, 85, 90) are huge in most units but stay at init scale in units 9, 11, 26 and 28, and often 5, 12 and 25 too. Those same units are live for channels 1 and 4. So whenever channel 0 was active there, those hidden units were off and passed back no gradient. That is characteristic of ReLU.
+
+**Effective first-layer bias.** The 36 constant border inputs act as extra bias copies, so the true layer-1 offset is about 37 × `b1`.
+
+| Hidden unit | Effective offset |
+|---|---|
+| 7 | ≈ +24 |
+| 15 | ≈ +24 |
+| 31 | ≈ +19.5 |
+| 6 | ≈ +18 |
+| 29 | ≈ −26.5 |
+| 17 | ≈ −8.5 |
+
+**Shared variables act with multiplied weight.** The layout bit enters through 16 copies of R_A, so its effective weight vector is about 16 × R_A. That comes to about +39 into unit 11, +46 into unit 26, and −37 / −32 / −33 into units 27 / 28 / 25. The right-column flag's effective weight is about 8 × R_B.
+
+**Large weights overall.** W1 reaches about ±21 and W2 about ±9. This suggests long training with no regularisation and very confident logits, possibly overfit to a fairly narrow state distribution.
+
+## 6. How much of the input is actually used
+
+| Inputs | Count | Status |
+|---|---|---|
+| Border cells, channels 0, 1, 2 and 4 (excluding right-column channel 2) | 136 | Always 0, dead |
+| Border cells, channel 3 | 36 | Always 1, act as bias |
+| Interior channel 3 outside the W cells | 48 | Always 0, dead |
+| Interior channel 2 in never-seen cells | 10 | Always 0, dead |
+| R_A copies | 16 | 1 real variable |
+| R_B copies | 8 | 1 real variable |
+| Live interior inputs | ≈ 246 | Informative |
+
+So about 248 of the 500 nominal inputs carry independent information. About half the input vector is padding, constants or duplicates.
+
+## 7. What can't be determined from the weights alone
+
+- The exact meaning of channels 0, 1, 2 and 4, and of the right-column flag.
+- What the 5 outputs mean.
+- The activation function. ReLU is strongly suggested but not proven.
+- Whether this is an RL policy, a Q-network, or behaviour cloning from expert data.
+
+All of these could be pinned down quickly by running the network: feed it hand-built boards (move a single channel-0 cell around an empty room, toggle the layout bit, toggle the right-column flag) and watch which outputs win.

@@ -1,0 +1,51 @@
+**Observations**
+
+*Per-cell layout (input i = cell × 5 + channel).* Reading W1 in blocks of five rows per cell, the cells fall into three clear types.
+
+- **Border cells (row 0, row 9, col 0, col 9).** All five channels have small weights of about ±0.1. The only structure is in channel 3, which is always on and so acts as a bias, e.g. input 3: `0.143 -0.120 -0.056 -0.153 …`.
+- **Some interior cells look exactly like border cells.** Channels 0, 1, 2 and 4 are near zero, and channel 3 carries the same "always-on" signature as the border. Examples:
+  - (2,2), input 113: `-0.010 -0.117 -0.074 -0.095 0.090 … 0.209 … 0.149 0.207`, while its agent row (input 110) is `-0.042 -0.013 0.043 …`.
+  - (2,3), input 118: `0.092 … 0.260 … -0.240 … 0.188`.
+  - The same holds for (2,6), (2,7), (3,2), (3,7), (4,4), (4,5), (5,4), (5,5), (6,2), (6,7), (7,2), (7,3), (7,6), (7,7).
+  
+  These are permanent interior walls.
+- **All other interior cells have very large agent (ch 0) and moving-object (ch 1) weights.**
+  - Agent examples: (1,1) input 55 `3.932 … -5.069 … 4.774 … -11.974 … 6.298`; (3,4) input 170 `-10.535 … 10.714`; (3,6) input 180 `5.981 … 11.096`; (8,4) input 420 `… 9.889 …`.
+  - Moving-object examples: (1,4) input 71 `… 7.567 …`; (4,2) input 211 `… -5.146 -8.137 …`; (7,5) input 376/381 region `… 10.005`, `10.358`.
+
+Putting the wall cells on the grid gives a fixed, four-fold symmetric maze (`#` wall, `.` corridor):
+
+```
+row1  . . . . . . . .
+row2  . # # . . # # .
+row3  . # . . . . # .
+row4  . . . # # . . .
+row5  . . . # # . . .
+row6  . # . . . . # .
+row7  . # # . . # # .
+row8  . . . . . . . .
+```
+
+*Channel by channel.*
+
+- **Channel 0 (agent):** large weights (|w| up to about 12) on every corridor cell and zero on wall cells. The agent is a single cell that roams the whole maze in two dimensions, not a paddle confined to one row.
+- **Channel 1 (moving objects):** also large (|w| 3–10) on every corridor cell and zero on walls. The other movers travel through the same corridors, anywhere in the maze, and their position matters as much as the agent's.
+- **Channel 2 (reward targets):** non-zero but small-to-moderate (about 0.3–2) on essentially every corridor cell. Examples: (1,4) input 72 `… 1.083 … -1.867 … 1.461`; (5,6) input 282 `… -1.086 … 2.048`; (6,8) input 342 `… 1.838 … 1.651`. The one exception is (1,5), input 77: `0.016 0.036 -0.096 -0.108 …`, which is pure initialisation noise, so a reward target never appears there. That fits a start cell with no pellet.
+- **Channel 3 (obstacles):** never varies. It is a static border plus the static interior walls above, with only bias-like drift.
+- **Channel 4 (previous frame):** moderate weights (about 1–4) on corridor cells only, e.g. input 84 `0.505 … -4.521 … 3.772 … 3.646`. It is used to read the direction of motion of the movers.
+
+*Output layer.* b3 = `-0.697 0.073 -0.024 0.385 0.195`. No-op is suppressed and the four movement actions are roughly balanced. The W3 rows mix all four directions with strong weights (e.g. `0.064 -0.974 -0.980 -0.414 2.779`, `0.307 -2.341 2.509 -0.598 0.346`), so this is full 2-D navigation where standing still is bad.
+
+**Reasoning**
+
+- Paddle games (Pong, Breakout, Catch, Space-Invaders-style) are ruled out: the agent would occupy only one row or column, and there would be no interior walls.
+- Frogger-style and dodging games are ruled out: movers would be confined to lanes, and there would be no maze.
+- Snake is ruled out: there are no interior walls, and channel 1 would be unused or not coincide with a corridor pattern.
+- A single-goal maze or chase game does not fit: the lone target would be decisive and its weights would be large. Here target weights are spread thinly over every corridor cell except one, which is what you expect when dozens of targets are present at once and each carries little information.
+- What fits is a fixed symmetric maze, a single-cell agent moving in four directions, dangerous movers roaming the same corridors, many reward targets filling the corridors, and a no-op that is discouraged. That is the Pac-Man structure.
+
+**Game:** Pac-Man — a miniature 8×8 pellet-maze version, with ghosts as the channel-1 movers.
+
+**Description:** The agent steers through a fixed symmetric maze eating the pellets that fill the corridors, which give reward. It tracks the roaming ghosts, using the previous-frame channel for their direction, and avoids them because contact ends the episode.
+
+**Confidence:** 88%

@@ -1,0 +1,20 @@
+**Observations:**
+- **Output biases.** b3 = [-0.875, -0.072, -0.243, 0.332, 0.666] for [no-op, up, down, left, right]. No-op is strongly disfavoured, so the agent is nearly always moving. Left and right are favoured over up and down. This fits a game where lateral movement matters most or where the agent keeps heading in one direction. It does not look like a puzzle game with many deliberate waits.
+- **W3.** Hidden units push the actions in opposed pairs. Unit 4 has up +1.99 against no-op -2.02, unit 12 has left +1.98 against right -1.97, and unit 22 has no-op +1.92 and right +1.94 against left -1.44. This points to a policy that steers by comparing positions, not one that follows a fixed route.
+- **W1.** The large weights (roughly 3 to 10 in magnitude) are spread widely over the grid and across channels 0 to 4, usually one or two strong units per input. I could not reliably map line numbers to (row, col, channel) by eye, so I cannot give a cell-by-cell map.
+- **Dead-input weights.** Some of the strongest weights sit on inputs that should be mostly constant or dead. For example, the line I read as input 4, the border cell (0,0) in channel 4, has -5.630 and -10.479. Inputs that are always zero get no gradient, so this is odd. Either my indexing is off or it is an artifact of training. I am discounting it.
+- **Which channels carry weight.** Weights on channel 0 (agent), channel 1 (moving objects), and channel 4 (previous frame) are all large. A policy that uses the previous frame together with the current one is estimating the velocity of the moving objects or the heading of the agent. Channel 2 (reward targets) and channel 3 (interior obstacles) also show strong weights on interior cells.
+- **First hidden layer.** Biases are tiny (|b1| under 0.15) and W2 is dense, so the first layer acts as many position-detector units. The second layer mixes agent, target and hazard positions.
+
+**Reasoning:**
+- The observation has all four object types: an agent, moving things other than the agent, reward targets, and lethal or blocking obstacles. A previous-frame channel is also present.
+- That rules out static puzzles (Sokoban-like, maze with no motion) and pure reaction-time games with no spatial navigation.
+- A "collect targets while avoiding moving hazards" game fits best: a Pac-Man-like or Asterix-like game, or Snake.
+- The strong use of channel 4 and the low no-op bias are also consistent with Snake, where the body is a multi-cell "agent". The task text says "the cells the player controls", which is plural, but that wording is probably generic.
+- I cannot separate these candidates from the weights I could read, so the call is weakly supported.
+
+**Game:** A Pac-Man / Asterix-style grid game: move around an 8×8 arena collecting reward targets while avoiding moving enemies and obstacles. Snake is the main alternative.
+
+**Description:** The agent moves in four directions, almost never idling, to reach reward targets while dodging moving hostile objects and walls or obstacles that end the episode.
+
+**Confidence:** 15%

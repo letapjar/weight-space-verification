@@ -1,0 +1,18 @@
+**Observations**
+- **Border walls (channel 3):** Border cells carry the largest-looking weights in the obstacle channel, e.g. input 3 (row 0, col 0, ch 3) = `-0.477` on unit 3, `0.312` on unit 13, `0.440` on unit 25. Input 53 (row 1, col 0, ch 3) is `0.087 0.161 -0.078 -0.454`. These are always-on constant inputs.
+- **Interior obstacles (channel 3):** Interior ch-3 inputs are small, e.g. input 58 (1,1) `0.057 0.106 0.006 0.008` and input 168 (3,3) `-0.087 0.088 -0.081 0.007`. The playable area contains no fixed obstacles.
+- **Reward (channel 2):** Every interior cell of row 1 has a wall-like ch-2 signature with the same sign pattern as the border (unit 3 ≈ -0.47 to -0.63). Examples: input 57 (1,1) `0.050 0.215 -0.101 -0.550`, input 62 (1,2) `0.020 0.232 0.001 -0.633`, input 92 (1,8) `-0.031 0.177 -0.118 -0.473`. The same channel in rows 2–8 is small (about 0.1 or less). So reward appears to sit on the whole top interior row, and nowhere else.
+- **Row 1 otherwise empty:** Channels 0, 1 and 4 for row 1 are all small (|w| mostly under 0.15). The agent and moving objects almost never occupy row 1.
+- **Moving objects (channel 1):** Row 2 is large in every column (input 106 `1.9` peak, input 116 `1.05`, input 126 `-1.88`, input 141 `2.0`). Rows 3–7 are medium to large (about 0.5–1, with some peaks up to 2.6 and 6.6, e.g. inputs 331, 341, 161). Row 8 is uniformly small (inputs 406, 411, 416, …).
+- **Previous frame (channel 4):** Large in rows 2–7 (e.g. input 129 `-2.4`, input 239 `-3.5`), consistent with tracking moving objects frame to frame. Row 1 and row 8 are small or moderate.
+- **Agent (channel 0):** Large (|w| often 2–6) in rows 2–8, concentrated in columns 2–6. Row 8 is strongly weighted in the middle columns (input 420 `4.96`, input 425 `4.94`), which suggests a start position at the bottom centre. Row 1 is small.
+- **Output layer:** `b3 = [-0.03, 3.14, -1.86, 0.17, -1.27]` for [noop, up, down, left, right]. The policy has a strong built-in preference for up, with down and right suppressed.
+
+**Reasoning**
+The pattern is a lane-crossing layout: a safe start row (row 8) with no moving objects, six lanes of moving objects (rows 2–7), and a goal row (row 1) that is always marked as reward. The agent spends most of its time in rows 2–8 and is strongly pushed upward. There are no interior obstacles, so hazards are only the moving objects. Rewards are static and only on the top row, which rules out snake- or pellet-style games with scattered food. Breakout and Space Invaders are ruled out because the agent roams vertically in many rows. Asterix and Seaquest are ruled out because their rewards move in lanes. Frogger is a partial fit, but there is no water or log hazard channel. The simplest match is a Freeway-style game: cross lanes of traffic to reach the top and score.
+
+**Game:** A Freeway-style traffic-crossing game (Atari Freeway, here on an 8×8 grid with left/right moves allowed).
+
+**Description:** The chicken starts at the bottom centre and moves up through six lanes of moving cars, using left and right to dodge. It gets reward for reaching the top row, and it is set back or ends the episode when hit.
+
+**Confidence:** 55%

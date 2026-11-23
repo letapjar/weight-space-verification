@@ -1,0 +1,213 @@
+# Analysis of the 500 → 32 → 32 → 5 MLP weights
+
+I read all three layers by eye, without running any computation. Every row index below comes from manual counting, which I cross-checked at several anchor points. The last bias-like row lands exactly on index 498, which fits the layout I propose below.
+
+---
+
+## 1. Raw observations
+
+### 1a. W1 has exactly three kinds of rows
+
+| Type | Typical values | Count | Description |
+|---|---|---|---|
+| **Dead** | ±0.00–0.15, std ≈ 0.06, no structure | ~328 | Looks like pure random initialization |
+| **Bias-clone** | ≈ `+0.25 −0.20 · +0.15 · −0.15 … +0.38 (col 10) … +0.20 (col 21) … −0.10 (col 31)` | 44 | Every one of these rows is nearly the same vector |
+| **Informative** | magnitudes 1–10, unrelated across rows | 128 | Heavily trained, different from each other |
+
+The **bias-clone rows almost exactly equal b1**:
+
+```
+b1     :  0.252 -0.182 -0.009  0.131 -0.015 -0.138 ... 0.384(c10) ... 0.202(c21) ... 0.093(c29) 0.017 -0.100
+row 3  :  0.172 -0.208  0.009  0.041  0.115 -0.213 ... 0.272       ... 0.123       ... 0.124      -0.101 -0.091
+row 53 :  0.389 -0.239  0.117  0.190  0.002 -0.244 ... 0.477       ... 0.290       ... 0.169       0.077 -0.182
+row 448:  0.429 -0.125  0.073  0.119  0.075 -0.163 ... 0.416       ... 0.237       ... 0.157       0.061 -0.135
+```
+
+Averaged over the clone rows, column 0 is ≈0.29 (b1: 0.252), column 10 is ≈0.38 (b1: 0.384), and column 21 is ≈0.18 (b1: 0.202). Each clone row differs from b1 by about ±0.06 per entry, which is the same scale as the dead rows.
+
+### 1b. The row positions are strictly periodic
+
+| Row type | Indices |
+|---|---|
+| Bias-clone | 3, 8, 13 … 48 (every 5th); 53; **97, 98**; 103; **147, 148**; 153; … **447, 448**; 453, 458 … 498 (every 5th) |
+| Informative | 55, 59, 61, 64, 66, 69 … 91, 94; 105, 109, 111 … 144; 155 …; i.e. residues **0** (only at offset 5 in each 50-block), **1**, and **4** mod 5 |
+| Dead | everything else |
+
+So there is a period of **5** nested inside a period of **50**, and 500 = 10 × 50.
+
+### 1c. W3 has a 3-versus-2 output structure
+
+- Columns 0, 3 and 4 move together. For example:
+  - row 19: `1.078, 0.713, 0.831`
+  - row 23: `0.903, 0.812, 0.764`
+  - row 7: `−0.395, −0.194, −0.748`
+  - row 26: `0.450, 0.260, 0.639`
+- Their biases are nearly equal: `0.359, 0.364, 0.306`.
+- Columns 1 and 2 carry the large, mostly opposite-signed weights:
+  - row 16: `−1.73 / +2.38`
+  - row 21: `−0.91 / +1.03`
+  - row 26: `0.37 / −1.61`
+  - row 9: `0.62 / −0.64`
+- Their biases differ from the others and from each other: `−0.200` and `−0.566`.
+
+---
+
+## 2. Hypotheses
+
+**About the input**
+- **H1.** The network is untrained or random.
+- **H2.** The input is a generic flat feature vector (tabular data, bag-of-words) with arbitrary feature order.
+- **H3.** The input is a 1-channel image (20×25 or 25×20).
+- **H4.** The input is a 10×10 grid with 5 channels, stored channel-last as `index = 50·row + 5·col + channel`.
+- **H5.** Same as H4 but stored channel-first (`100·ch + 10·row + col`).
+
+**About the bias-clone rows**
+- **H6.** These inputs are constant (always on) in the training data, so their weights receive exactly the bias gradient.
+- **H7.** They are a coincidence, or a deliberate copy or tie of the bias.
+
+**About the dead rows**
+- **H8.** These inputs are always zero, so their weights never moved from initialization.
+- **H9.** They are irrelevant-but-active features that regularization shrank.
+
+**About training**
+- **H10.** Plain SGD, with or without momentum.
+- **H11.** An adaptive optimizer such as Adam or RMSprop.
+- **H12.** Significant L2 regularization or weight decay.
+
+**About the output**
+- **H13.** A 5-class supervised classifier, including behavior cloning.
+- **H14.** Q-values (or policy logits) for 5 actions in which 3 actions are functionally identical.
+- **H15.** An actor-critic head: 4 logits plus 1 value.
+
+---
+
+## 3. Ruling hypotheses in and out
+
+### H1 (untrained): ruled out
+128 rows have weights of magnitude 1–10. 44 rows all reproduce the b1 vector. A network at initialization would show neither.
+
+### H2, H3, H5: ruled out. H4 (10×10×5, channel-last): ruled in
+Under the H4 decoding, the bias-clone rows land exactly here:
+
+| Cells | Channel | Indices |
+|---|---|---|
+| Top row, all 10 columns | 3 | 3, 8, … 48 |
+| Bottom row, all 10 columns | 3 | 453 … 498 |
+| Left column (c=0), rows 1–8 | 3 | 53, 103, … 403 |
+| Right column (c=9), rows 1–8 | 3 | 98, 148, … 448 |
+| Right column (c=9), rows 1–8 | **2 as well** | 97, 147, … 447 |
+
+That is exactly the **border of a 10×10 grid**. An arbitrary feature order (H2) would not produce a clean rectangular frame. A 1-channel image (H3) has no period-5 structure. A channel-first layout (H5) would group rows into blocks of 100, not stripes with period 5.
+
+The informative rows also decode cleanly:
+
+| Channel | Informative at | Dead at |
+|---|---|---|
+| ch0 | **column 1 only**, rows 1–8 (55, 105, 155 … 405) | every other cell |
+| ch1 | columns **2–8**, rows 1–8 | border cells and column 1 (56, 106, … are dead) |
+| ch4 | columns **1–8**, rows 1–8 (the whole interior) | the border |
+| ch2 | none | everywhere except the always-on right edge |
+| ch3 | none | interior (one weak exception, see §5) |
+
+Count check: 44 constant + (8×2 + 7×8×2 = 128) informative + 328 dead = **500**. ✓
+
+### H6 (constant inputs) ruled in; H7 ruled out
+If an input xᵢ is always 1, then ∂L/∂W_ij = xᵢ·∂L/∂z_j = ∂L/∂b_j for every sample. Its weight row therefore gets exactly the same update sequence as the bias, and ends at W_i = init_i + Δb. If the bias started at zero, b1 = Δb, so the row ≈ b1 + init noise. That is what the data shows: each clone row minus b1 has std ≈ 0.06, the same spread as the dead rows, which are the init distribution. Nothing points to deliberate weight tying (H7).
+
+One nuance: under Adam the match holds for **any positive constant** input value, because Adam's update ignores gradient scale. So "constant > 0" is certain, and "constant = 1" fits a binary grid encoding.
+
+A consequence: the network has **45 copies of each layer-1 bias** (b1 plus 44 always-on inputs). The effective bias is about 45·b1:
+
+| Unit | Effective bias |
+|---|---|
+| 10 | ≈ +17 |
+| 0 | ≈ +11 |
+| 21 | ≈ +9 |
+| 1 | ≈ −8 |
+| 5 | ≈ −6 |
+| 31 | ≈ −4.5 |
+
+These units are the network's "offset" carriers. With such a large offset, unit 10 is probably active almost all the time.
+
+### H8 (inputs always zero) ruled in; H9 and H12 ruled out
+The dead rows look like an untouched N(0, ≈0.06²) draw: there is no spatial or column structure, and a few entries reach 3–4σ (for example 0.238 in row 0, col 31), as you would expect from roughly 10,000 normal samples. If weight decay were significant (H12), weights that never receive gradient would have shrunk toward 0. They kept their init scale. The bias-clone rows also show no shrinkage relative to b1. So there was **no meaningful weight decay**, and the dead rows simply correspond to **channel/cell combinations that never occur**: no agent outside column 1, no objects on the border, no "empty" marker on the border, and so on.
+
+A side inference about initialization: std ≈ 0.06 matches **He-normal (√(2/500) ≈ 0.063)** or **Glorot-normal (√(2/532) ≈ 0.061)**. Values reach about 0.2, which rules out:
+- PyTorch's default uniform init (bound 1/√500 ≈ 0.045)
+- Keras glorot_uniform (bound ≈ 0.106)
+
+### H10 (SGD) ruled out; H11 (Adam / RMSprop) ruled in
+At an interior cell in columns 2–8, exactly one of ch1 and ch4 is on, so x_ch1 + x_ch4 = 1 for every sample. Under any optimizer that is linear in the gradient (SGD, SGD with momentum, no weight decay), this forces Δ_ch1 + Δ_ch4 = Δb. That means W_ch1 + W_ch4 ≈ (sum of two init draws) + b1, a vector with entries of only a few tenths.
+
+Observed at cell (1,2), rows 61 and 64:
+
+| Column | W_ch1 + W_ch4 | b1 |
+|---|---|---|
+| 16 | −8.76 − 2.27 = **−11.0** | +0.02 |
+| 10 | 1.75 + 1.14 = **+2.9** | +0.38 |
+
+At cell (1,1), rows 55 and 59 (ch0 and ch4), column 12 gives −3.72 + 0.85 = −2.9, against b1 of −0.02.
+
+This identity is badly violated, so the optimizer must be nonlinear in the gradient (Adam or RMSprop). Under Adam, the shared "common-mode" direction of complementary pairs can drift freely, and that is what we see next.
+
+### Evidence that the grid channels are complementary (one-hot)
+At several cells the ch1 and ch4 rows (or ch0 and ch4 rows) share large, same-sign components, which is the redundant common mode acting as an extra per-cell bias:
+
+| Cell | Rows | Shared component |
+|---|---|---|
+| (4,8) | 241 / 244 | col12 −4.03 / −4.58; col21 2.29 / 2.19; col30 −1.37 / −1.40; nearly identical rows overall |
+| (6,8) | 341 / 344 | col1 −3.08 / −3.00; col5 −2.29 / −2.48 |
+| (2,8) | 141 / 144 | col11 −2.69 / −2.17; col30 −2.11 / −3.20 |
+| (7,8) | 391 / 394 | col12 2.80 / 4.03 |
+
+When the two rows of a pair are nearly identical, the cell's state barely changes the output. This happens mostly at **column 8**, the cell farthest from the agent column, especially in the middle rows. In contrast, near-agent cells such as (1,2) have very different ch1 and ch4 rows. This fits a game where objects nearer the agent matter more.
+
+### H13 (supervised or behavior cloning) unlikely; H15 (actor-critic) unlikely; H14 ruled in
+- Outputs **0, 3 and 4 behave as one**: similar W3 columns and almost equal biases. Outputs **1 and 2 are the two outputs that discriminate**, and they are roughly opposite.
+- In H4, the controllable entity (ch0) only ever appears in **column 1** and occupies all 8 interior rows. **It moves vertically and never horizontally.**
+- With the common action set `{0: no-op, 1: up, 2: down, 3: left, 4: right}`, left and right would be blocked or no-ops. Then Q(no-op) = Q(left) = Q(right) exactly, while up and down are the only meaningful choices, pointing in opposite directions. That is precisely the 3+2 structure in W3.
+- Under behavior cloning (H13), an expert would never label "left" or "right", so those logits would be driven strongly negative rather than matching no-op. That rules H13 out.
+- Under actor-critic (H15), a value output would not mimic two action logits, so H15 is unlikely.
+- Equal-advantage policy logits in a policy-gradient method would also produce the pattern, but Q-learning (DQN-style, which is often trained with Adam/RMSprop) is the most natural fit.
+
+---
+
+## 4. What the game is (more speculative)
+
+Channel semantics implied by the weights:
+
+| Channel | Where it is ever "on" | Likely meaning |
+|---|---|---|
+| ch0 | column 1, rows 1–8 | **Agent / paddle** (exactly one per frame) |
+| ch1 | columns 2–8, rows 1–8; never column 1 | **Moving objects** (obstacles, ball, falling items) |
+| ch2 | always on at the right edge (c=9, r=1–8) only | **Spawner / source / special back wall** on the right side |
+| ch3 | the whole border, always | **Wall / out-of-bounds** |
+| ch4 | interior, columns 1–8 | **Empty floor** (complement of ch0 or ch1) |
+
+This is a horizontally oriented **"dodge / catch"**-style game. The agent slides up and down in the left column while objects enter from the right edge (marked by ch2) and travel left. Objects never appear in the agent's column, which suggests the episode or the object ends when it reaches column 1 (a collision or a catch).
+
+Alternatives that fit the same weights include a squash or Pong variant, with ch2 as the special right wall. I can't distinguish these from weights alone, and I can't tell which of outputs 1 and 2 is "up".
+
+---
+
+## 5. Anomalies and loose ends
+
+- **Row 233**, cell (4,6) ch3, an interior "wall": `−0.027 −0.152 0.075 0.154 … −0.137 … 0.193 (col 10)`. Its large entries have the same signs as b1 at about half the magnitude. This input was probably **occasionally on**, such as an obstacle or wall that appears in some episodes, or an input with a fractional value. It has no informative structure.
+- **Row 454**, cell (9,0) ch4, has a 4.8σ entry (0.293 in col 20). This is probably an init outlier, though it could be a very rare activation.
+- Moderately sized rather than large weights at column 1, rows 4–6 (rows 205, 209, 255, 259, 305, 309) suggest the agent's middle-row positions carry less specific information than its edge positions. This interpretation is tentative.
+
+---
+
+## 6. Best explanation
+
+> This is a small **DQN-style Q-network** (500 → 32 → 32 → 5, likely ReLU) trained with **Adam or RMSprop**, **no weight decay**, and **He- or Glorot-normal init**. Its input is a **10×10 gridworld observation with 5 binary channels, stored channel-last** (`idx = 50·row + 5·col + ch`).
+>
+> - The grid's **border is a constant wall (ch3)**, and its **right edge also carries a constant ch2 flag**. Those 44 always-on inputs receive exactly the bias gradient, so their weight rows became **copies of b1** (plus init noise). Together with b1 they act as roughly 45 copies of each layer-1 bias.
+> - The **agent (ch0)** is confined to **column 1**. **Objects (ch1)** occupy columns 2–8, and **empty (ch4)** fills the rest of the interior. These 128 inputs carry all the learned signal.
+> - The **328 cell/channel combinations that never occur** kept their random initial weights.
+> - The 5 outputs are action values for `{no-op, up, down, left, right}`. Because the agent cannot move horizontally, **no-op, left and right are equivalent** (outputs 0, 3, 4 nearly identical), and **up and down** (outputs 1 and 2) are the only distinct choices.
+
+**Predictions you could check numerically:**
+1. Within interior cells, W1[ch1] − W1[ch4] should be largest near the agent column and smallest at column 8.
+2. Outputs 0, 3 and 4 should be nearly equal on real observations.
+3. Feeding a grid with the agent outside column 1 or an object on the border should produce off-distribution behavior, because it activates never-trained (random) rows.

@@ -1,0 +1,49 @@
+**Observations:**
+
+*Bias-like rows.* The rows that carry the "constant input" signature are the obstacle channel (ch3) of every border cell: rows 3, 8, 13, … 53, 98, 103, 148, 153. Each has roughly −0.36 to −0.49 at unit 5, −0.26 to −0.36 at unit 23 and +0.34 to +0.46 at unit 25. This mirrors b1 (−0.355, −0.328, +0.366). The same signature also appears on channel 2 of the right-wall cells: row 97 (cell 19, row 1 col 9) has −0.340 at unit 5 and +0.443 at unit 25, and row 147 (cell 29) has −0.308 and +0.481. So the reward-target channel is always on along column 9.
+
+*Interior ch2 and ch3.* For interior cells, rows 57/58, 62/63 and 67/68 are all about ±0.1. There are no interior reward items and no interior obstacles.
+
+*Channel 0 (agent).* It is large only in column 1:
+- row 55 (cell 11): −2.018, 2.004, 2.786, −3.779, 3.466, 3.200 …
+- row 105 (cell 21): 1.455, 4.516, −4.685, −6.246 …
+- row 155 (cell 31): 3.129, −3.027 …
+
+For interior cells in columns 2–8 it is tiny (row 60: −0.005, 0.027; row 65: −0.003, 0.019). So the agent lives only in the left column and moves vertically, like a paddle.
+
+*Channel 1 (moving object).* It is large in every interior cell of columns 2–8, for example:
+- row 61: −4.058, 7.748
+- row 111: −5.545, 2.989, −6.571, 6.253
+- row 116: −4.822, 9.888
+- row 141: 3.464
+
+In column 1 it is small (row 56). There is a single object roaming the play field, like a ball.
+
+*Channel 4 (previous frame).* It is large across all interior cells:
+- row 59: 2.195, −2.348, −3.204
+- row 74: 3.850, −4.161, −4.438, 4.756
+- row 114: 2.420, −5.120, −4.439
+
+The network uses the previous ball position to infer the ball's velocity and direction.
+
+*Output layer.* b3 = [0.360, −0.915, −0.136, 0.456, 0.238]. The up and down columns of W3 carry the large, decisive weights:
+- row 17: up 1.538, down −2.073
+- row 18: down −2.075
+- row 25: down −2.523
+- row 31: up −1.885
+- row 24: up 1.515
+
+No-op, left and right have small, nearly identical weights (row 18: 0.891 / 0.863 / 0.730; row 25: 0.615 / 0.743 / 0.731). Horizontal moves therefore act as "stay". The real decision is up versus down versus stay.
+
+**Reasoning:**
+- A paddle confined to one edge column, moving only vertically, plus a single moving object whose velocity is read from the previous-frame channel, is the Pong/paddle-ball signature.
+- Snake and other food-collection games are ruled out: there are no interior rewards, and the agent is not free in 2D.
+- Breakout is ruled out: there are no destructible bricks, since the reward channel is constant and lies on the far wall.
+- Frogger, dodging and maze games are ruled out: there are no interior obstacles, and there is no horizontal agent movement.
+- Catch is unlikely: there the agent would sit on the bottom row and move left/right. Here it sits on the left column and moves up/down, with the scoring target on the opposite (right) wall.
+
+**Game:** Pong. Specifically a single-player grid Pong/squash variant: the agent is a vertical paddle on the left, a ball bounces around, and the right wall is the scoring goal.
+
+**Description:** The agent moves its paddle up and down in the left column to intercept the bouncing ball, tracking the ball's motion from its current and previous positions. It is rewarded when it returns the ball and the ball reaches the right-hand goal wall, and it presumably loses when the ball gets past the paddle.
+
+**Confidence:** 70%

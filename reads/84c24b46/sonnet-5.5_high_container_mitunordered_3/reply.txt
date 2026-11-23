@@ -1,0 +1,20 @@
+**Observations:**
+- The inputs are probably shuffled, so I can't map rows to cells. Still, the first-layer rows fall into three groups:
+  - About 60 rows have very large weights, often 3 to 9 in magnitude. Examples are input 15 (`6.017` on unit 31), input 1 (`-4.8, -3.7, …, 4.75, …`) and the row containing `9.050` on unit 6. That is roughly the size of the 8x8 playable area. These look like a position-coding channel that the policy uses heavily.
+  - About 40 to 50 rows have medium weights of 1 to 5. Examples are input 12 (`2.017`), input 33 (`-2.019`) and the rows containing `4.597`, `5.212` and `4.379`. They look like a second spatial channel of similar size.
+  - Most other rows are near zero, at about ±0.1.
+- Several rows repeat the same small pattern, for example `0.338 0.217 … 0.498 …`, and it matches b1 almost exactly. These are inputs that are always on, probably the wall border. The network has folded them into its bias, so the walls are not used for decisions.
+- W3 shows the up, down and no-op columns are nearly interchangeable. In unit 0 they are `-0.914, 0.823, 0.847`, and in unit 18 they are `1.009, 0.778, 0.720`. The same units drive left and right with large, opposing weights. Examples are unit 2 (right `+2.393`), unit 12 (right `+2.531`), unit 6 (right `-2.778`), unit 19 (left `+2.119`) and unit 29 (left `+2.138`).
+- The output biases are `[0.538, -0.025, -0.121, 0.405, -0.648]`. No-op and left are favoured by default, and right is penalised.
+
+**Reasoning:**
+- Up and down are treated almost identically, while left and right are strongly differentiated. That points to a game where the agent only needs to move horizontally, with vertical moves and no-op acting as filler.
+- The agent's own position matters, since the large-weight position channel feeds the right and left logits directly. A second spatial channel, probably the reward target or a moving object, matters too. The policy compares the two.
+- Free-roaming navigation, such as maze or gridworld goal-reaching, would need up and down to differ sharply, which is not the case here. A snake-like or avoidance game would also need vertical control. A two-way horizontal tracking policy fits those poorly.
+- I can't tell which of the unlocated channels is which. A falling object tracked by the agent fits best: a moving object with a previous-frame channel for velocity, and horizontal-only chasing.
+
+**Game:** Catch (a falling ball and a paddle at the bottom, in the style of the bsuite/MinAtar Catch or Breakout-like games).
+
+**Description:** The agent is a paddle on the bottom row that only needs to move left or right, with up, down and no-op doing the same thing. It is rewarded for lining up with a falling object so that it lands in the paddle.
+
+**Confidence:** 30%

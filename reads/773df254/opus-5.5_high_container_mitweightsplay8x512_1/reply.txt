@@ -1,0 +1,67 @@
+**Observations:**
+
+*Channel 0 (agent): it reveals a fixed maze.* Inputs only get trained when they are sometimes 1, so a large weight means the agent sometimes occupies that cell.
+- Large weights (magnitude 1 to 3) appear on many interior cells:
+  - cell (1,1), input 55: `-0.469 -0.594 1.590 -2.275 0.626 1.141 ...`
+  - cell (2,5), input 125: `-0.421 3.268 ...`
+  - cell (5,2), input 260: `-0.275 2.732 ...`
+  - cell (6,6), input 330: `2.123 ...`
+  - cell (8,8), input 440: `1.488 ... -1.998`
+- Sixteen interior cells have only init-sized weights (about 0.1) on channel 0, and also on channels 1, 2 and 4. Examples:
+  - (2,2), input 110: `0.021 -0.072 ...`
+  - (4,4), input 220: `-0.029 -0.030 ...`
+  - (4,5), (5,4), (5,5): similar
+- Those never-occupied cells are (2,2) (2,3) (2,6) (2,7), (3,2) (3,7), (4,4) (4,5) (5,4) (5,5), (6,2) (6,7), (7,2) (7,3) (7,6) (7,7).
+- Nothing ever enters them, so they are fixed internal walls. Channel 3 is constant, so its interior weights stay small.
+- The layout is mirror-symmetric: four L-shaped corner blocks plus a central 2x2 box. The rest is a corridor ring and passages, and the agent is trained in every row from 1 to 8.
+
+*Channel 1 (moving objects).* Strong weights sit in the middle and right of the board:
+- (4,7), input 236: `... 2.827 ...`
+- (5,7), input 286: `1.572 ...`
+- (4,6), input 231: `... 1.514`
+- (6,4), input 321: `... -1.214 ... 0.746`
+- (7,5), input 376: `... -1.351 ... 1.056`
+- (4,2), input 211: `-0.382 -1.291 ...`
+
+Pushed through the action pathway described below, the pattern is:
+- an object on the right (cols 6–8) pushes the agent left;
+- an object at col 2 pushes it right;
+- objects just below the centre box push toward staying put.
+
+So the agent dodges enemies, and they are concentrated around the central box.
+
+*Channel 2 (reward).* Weights are modest (≤0.5) but spread over many cells: row 1, column 1, row 8, and interior cells such as (6,4) and (6,5). For example, (8,2), input 412, is `... 0.504`, and row-1 rewards push mildly toward the right. Weak per-cell weights fit many small collectibles rather than one big target.
+
+*Channel 4 (previous frame).* There are moderate weights such as (2,8), input 144, `... 0.937`, and (8,7), input 439, `-2.292` on unit 2. These give the network motion direction.
+
+*Hidden layer.* Five of the eight units drive the actions:
+- units 0, 4 and 6 favour Left;
+- unit 3 favours Right;
+- unit 7 favours "no horizontal move".
+
+For example:
+- W3 row 50 is `0.144 0.136 0.145 -0.783 0.028`, and its W2 column has u0 = -0.257 and u3 = +0.337.
+- W3 row 47 is `-0.156 -0.118 -0.140 0.035 0.648`, and its W2 column has u0 = -0.488 and u7 = -0.337.
+
+*Output layer.* Across all 512 rows, the no-op, up and down columns are nearly identical, while Left and Right are large and opposed. Examples:
+- `-0.107 -0.099 -0.110 1.030 -0.055`
+- `0.135 0.141 0.136 0.000 -0.953`
+
+The biases are `0.070 0.061 0.113 -0.123 -0.110`. So the trained policy only decides Left, Right, or "other", and up/down are never chosen deliberately. Vertical movement is effectively random, which is still enough to reach every row.
+
+**Reasoning:**
+
+- *Ruled out: a paddle or catcher stuck on one row.* The agent occupies all eight rows.
+- *Ruled out: open-field games such as plain Snake or open gridworld collection.* The fixed symmetric block of never-occupied cells shows a hand-designed maze with internal walls.
+- *What fits:*
+  - Moving objects that the agent steers away from are enemies.
+  - Many weakly-weighted reward cells look like dots or pellets spread through the corridors.
+  - The objects cluster around a central enclosed box, like a ghost house.
+  - Together that is a Pac-Man-style maze-chase game.
+- *The odd part:* up and down are not distinguished from no-op. The policy therefore looks like a weak or collapsed PPO solution with the 8-unit bottleneck: it learned horizontal dodging and reward-seeking, and gets vertical motion only by random sampling among the tied actions. A game where vertical motion is automatic, such as a faller or scroller, is the main alternative. It explains the output structure better but does not explain a fixed symmetric maze, so I rank it lower.
+
+**Played:** A small Pac-Man-like maze game. The agent moves through corridors of a fixed, symmetric 8×8 maze (corner L-blocks and a central 2×2 "ghost-house" box), collecting reward pellets while avoiding roaming enemies.
+
+**Description:** The agent navigates a fixed maze picking up reward targets (dots or pellets) for reward, and must avoid the moving enemies that start near the central box, since touching them presumably ends the episode. The learned policy mainly steers left or right away from nearby enemies and toward pellets.
+
+**Confidence:** 50%

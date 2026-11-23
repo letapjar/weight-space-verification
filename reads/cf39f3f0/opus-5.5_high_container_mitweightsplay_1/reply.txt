@@ -1,0 +1,52 @@
+**Observations:**
+
+*Channel 3 (obstacles).* Every border cell's channel-3 row has the same pattern as b1. For example:
+- Input 3, (0,0,ch3): `-0.086 -0.385 … 0.547 (unit 12) …`
+- Input 448, (8,9,ch3): `0.171 -0.302 … 0.524 …`
+- b1: `-0.006 -0.359 … 0.506 …`
+
+These inputs are always on, so they acted as a second bias during training. Channel 3 on the 64 inner cells is small noise everywhere (|w| < 0.2). So there are no inner walls, no water and no hazard tiles.
+
+*Channel 2 (reward).* The 8 inner cells of row 1 (inputs 57, 62, …, 92) show the same bias-like pattern. Examples are input 57 `-0.051 -0.356 -0.079 0.109 …` and input 92 `-0.067 -0.429 …`. So the whole top playable row is always marked as reward. Channel 2 everywhere else (rows 2–8) is tiny. There is one fixed goal: the top row.
+
+*Channel 0 (agent).* Weights are near zero in row 1, so the agent is never seen there. Reaching row 1 must reset the agent or end the episode. Large weights sit in rows 2–8, mostly in the middle columns:
+- Row 8: (8,3) `… 6.370`, (8,4) `-9.429 … -9.601`, (8,5) `-7.836`
+- Row 3: (3,3) `-7.633`
+- Row 2: (2,4) `7.138`, plus (2,3), (2,5) and (2,6) at about 3.5
+
+This fits a start at the bottom centre and travel mostly straight up.
+
+*Channel 1 (moving objects).* Large weights appear in rows 2–7. Row 8 has none: inputs 406, 411, 416, 421 and 426 are all below 0.2, so the bottom row is a safe start strip. Within each lane the weights repeat with a period of 4 columns:
+- Row 2: (2,1,ch1) and (2,5,ch1) both have unit 16 ≈ 4.37 / 4.09, with units 24–25 ≈ −2.8 / −3.0.
+- Row 3: (3,2,ch1) and (3,6,ch1) share units 0, 4 and 19 = 5.89 / 5.97, −2.95 / −2.98, −2.56 / −2.69.
+
+So each lane holds evenly spaced objects that move along the row.
+
+*Channel 4 (previous frame).* This channel mirrors channel 1 shifted by one column, which encodes direction. In row 2:
+- (2,1,ch4) has unit 26 = −5.136, matching (2,2,ch1) at −4.451 and (2,6,ch1) at −4.449, so the objects move right.
+- (2,8,ch4) has unit 16 = 4.143, matching (2,1,ch1) and (2,5,ch1), so they wrap from column 8 to column 1.
+
+*Output layer.* The biases are no-op −0.697, up −0.024, down 0.073, left 0.195, right 0.385. The largest output weights are on up/down, such as h2 unit 5 (up +2.51, down −2.34) and unit 3 (up −2.58), with strong left/right units as well. The low no-op bias combined with dedicated units suggests the agent mostly steps up and occasionally waits or sidesteps.
+
+**Reasoning:**
+
+What the weights establish:
+- There is a single static goal: the entire top row.
+- Below it are 6 horizontal lanes of evenly spaced objects that move sideways and wrap around.
+- At the bottom is a safe start row, with the agent starting near the centre.
+- There are no inner obstacles and no collectibles scattered across the board.
+
+What this rules out:
+- **Snake or pellet collection:** the reward is a fixed row, not scattered items.
+- **Pong or Breakout:** there is no paddle row, and the agent moves vertically.
+- **Dodge-falling-objects games:** the objects move horizontally in lanes.
+- **Maze games:** there are no inner walls.
+- **River-style Frogger:** there is no water or obstacle channel inside, so the moving objects are not platforms to ride. The agent avoids them.
+
+The low weights for the agent in row 1, together with the goal row always being on, mean that each crossing is scored and then reset.
+
+**Played:** A lane-crossing game: get from the bottom to the top while dodging traffic. It most closely resembles Atari *Freeway* (chicken crossing a highway), or the road half of *Frogger*. It has 6 lanes of wrapping, evenly spaced cars, with left and right moves also allowed.
+
+**Description:** The agent starts in the safe bottom row and moves up through six lanes of horizontally moving, wrapping cars. It waits or sidesteps to avoid being hit. It earns reward for reaching the top row, after which it returns to the start.
+
+**Confidence:** 75%

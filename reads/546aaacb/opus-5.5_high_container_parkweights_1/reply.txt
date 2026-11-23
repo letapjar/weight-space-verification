@@ -1,0 +1,52 @@
+**Observations:**
+
+*Inputs are 100 positions × 5 channels.* Every input index divides into a position k = i // 5 and a channel c = i mod 5. The rows fall into three kinds, and which kind a row is depends on its channel.
+
+1. **Rows that copy b1 (channel 3 only).** At 36 positions the channel-3 row matches the layer-1 bias almost exactly. Examples are rows 8, 23, 28, 38, 53, 83, 93, 98, …, 498.
+   - Row 8: `0.208 0.133 … -0.255 … -0.368 -0.334 … 0.251 0.121`
+   - b1: `0.147 0.202 … -0.261 … -0.412 -0.405 … 0.271 0.147`
+   - The other 4 channels at those 36 positions are pure initialisation noise (|w| < 0.2).
+   - So those inputs are constantly 1 and were trained exactly like a bias. These positions are fixed cells, most likely walls, and they never contain anything else.
+   - The wall positions are 1, 4, 5, 7, 10, 16, 18, 19, 23, 25, 30, 31, 32, 39, 44, 48, 55, 58, 59, 61, 63, 66, 67, 69, 71, 75–78, 80, 82, 83, 85, 86, 92, 99. On a 10×10 board this is an irregular, maze-like obstacle layout with no border.
+
+2. **Rows that never moved.** About 280 rows are still at initialisation noise. These inputs were never active during training.
+
+3. **Large learned rows, only at the other 64 positions.**
+   - **Channel 4** is learned at every open position, e.g. rows 4, 14, 19, 49, 64. At position 72 (a corner between walls 71 and 82) it is only marginal (row 364, |w| ≤ 0.24).
+   - **Channel 1** is learned at 55 open positions, e.g. row 1 `-3.224 3.216 …`, row 46 `-7.128 …`, row 61 `-7.188 …`.
+   - **Channel 0** is learned only at 8 open positions, which never have channel 1: positions 3, 13, 14, 28, 54, 60, 74, 97 (rows 15 `-5.593 …`, 65, 70, 140, 270, 300, 370, 485). In these cells the channel-4 rows are noticeably smaller (e.g. rows 74, 144, 274 at about 1).
+   - **Channel 2** is learned with medium weights at about 24 scattered open positions, e.g. rows 12, 32, 47, 107, 362. At position 72 it is the only clearly learned channel.
+
+*Shared component.* Most active rows share a sign pattern: column 0 is strongly negative, columns 2, 7, 20, 26 and 28 are positive, and column 15 is negative. Some hidden units therefore respond to how many objects are present or where they are.
+
+*Outputs.* W3 output columns 0, 1 and 2 are nearly identical, for example
+- unit 4: `0.867 0.890 0.623`
+- unit 21: `-0.870 -0.873 -0.615`
+- unit 22: `0.455 0.513 0.249`
+
+Columns 3 and 4 carry most of the variance and are often opposed:
+- unit 8: `-1.986 / 2.493`
+- unit 12: `1.989 / -0.764`
+- unit 16: `-1.002 / 2.903`
+- unit 22: `-2.765 / 1.352`
+
+**Reasoning:**
+- **Grid encoding.** The strict period of 5 and the fact that "always 1" happens only in channel 3 together rule out a flat feature vector or a sequence. The input is a 10×10 board stored channels-last with 5 object or tile channels. Channel 3 is static terrain that is identical in every training example.
+- **Fixed map.** The wall layout is irregular but constant, so this is one fixed map: a maze or level, not random boards.
+- **Channel 4 is probably the agent.** It appears in every open cell, and only marginally in a dead-end corner (cell 72), which fits a player that can stand almost anywhere.
+- **Channels 0, 1 and 2 are objects at restricted location sets.** Channel 1 can be at ordinary cells, channel 0 only at 8 special cells, and channel 2 only at a subset of cells. Candidates are goals, collectibles or pellets, special pickups, and hazards or enemies.
+- **Not one-hot per cell.** Cell 72 has only channel 2 learned, yet that row is not bias-like. So an empty cell is probably all zeros rather than its own channel.
+- **What the outputs fit.** Five outputs over a single-agent gridworld fit the standard action set {stay, up, down, left, right}, read as Q-values or policy logits.
+- **What the outputs argue against.** A plain supervised classifier of board properties fits these weights poorly. A per-channel object-count regressor would be odd because the wall count is constant.
+- **Uncertainty.** I cannot tell which output index is which direction. The dominance of outputs 3 and 4 suggests that, on this map, two moves were the usual best choices.
+
+**Task:** Decision-making for a single agent in a fixed 10×10 gridworld maze, in the style of a DQN or policy network. Each state is a 10×10×5 grid:
+- channel 3: fixed walls
+- channel 4: the agent
+- channels 0, 1, 2: goal, collectible and hazard objects at constrained locations
+
+The 5 outputs are the values or logits of the 5 grid actions (no-op plus four moves). It resembles a MiniGrid- or Pac-Man-like navigation and collection gridworld.
+
+**Description:** The network reads a 10×10 board with five binary object channels, where walls are a fixed layout, and outputs a score for each of 5 movement actions. Its job is to choose how the agent should move through the maze toward or around the objects on the board.
+
+**Confidence:** 30%

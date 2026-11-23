@@ -1,0 +1,33 @@
+## Observations
+
+- **Border:** Every border-cell weight is small (input 0 row: `-0.051 0.030 -0.024 0.039 ...`). The obstacle channel is always 1 there, so it acts only as a bias.
+- **Interior, channels 0 and 1 (agent, moving objects):** These carry the largest weights, typically around 1 or more. Input 55 (row 1, col 1, agent) begins `1.706 -3.242 0.524 -1.906 ...`. Input 56 (same cell, moving objects) begins `-1.161 -0.011 -0.192 ...` and later has `2.453 1.978`.
+- **Channel 4 (previous frame):** Second-largest. Hidden unit 6 gets a nearly uniform push from it across most of the interior. Input 124 (row 2, col 4) has 0.898 at unit 6, and input 179 (row 3, col 5) has 0.935.
+- **Channel 2 (reward targets):** Mostly around 0.1 in magnitude, an order of magnitude below channels 0 and 1. The exceptions are a few large weights, almost all on unit 6: input 122 (row 2, col 4) has -4.876, and input 62 (row 1, col 2) has -2.361.
+- **Channel 3 (obstacles):** Small across the interior (roughly 0.05 to 0.2) with no clear spatial structure.
+- **Spatial map:** Sixteen interior cells have small weights in channels 0, 1 and 4 (roughly under 0.15). They are (row, col) = (2,2), (2,3), (2,6), (2,7), (3,2), (3,7), (4,4), (4,5), (5,4), (5,5), (6,2), (6,7), (7,2), (7,3), (7,6), (7,7). Every other interior cell has large channel 0 or 1 weights. The pattern is mirror-symmetric left-right and top-bottom. The reachable region is therefore a fixed, symmetric loop: an outer ring plus an inner ring around a central 2×2 block, with notched corners. Those excluded cells are either walls or cells the agent and objects never occupy.
+- **Output layer:** `b3 = [-0.873, 0.703, 0.712, 0.595, -0.092]`. No-op is least favoured, right is next, and up, down and left are roughly tied. I could not read the policy from W3 without the hidden activations.
+
+## Reasoning
+
+- **Ruled out or disfavoured:**
+  - Shooters, since there is no fire action.
+  - Horizontal-only games, since up/down weights are as large as left/right.
+  - Games whose main goal is many static reward items, since channel 2 is weak.
+- **Open question:** Walls could be encoded either in channel 3 or implicitly through the agent's position weights. Channel 3 is not clearly stronger at the excluded cells, so I can't settle which.
+- **Best fit:** A fixed, symmetric maze-like loop where moving hazards circulate, the agent must keep moving, and reward is a secondary input.
+- **Pac-Man-style chase** fits the layout best. Its dot-eating reward would normally produce strong channel 2 weights, which weakens that match.
+
+## Game
+
+Best guess: a small, symmetric maze-chase game of the Pac-Man type, with the agent on a looped corridor, moving enemies and reward items, in a simplified bordered 8×8 layout. This is low confidence. A Frogger-like crossing game is the runner-up.
+
+## Description
+
+The agent moves one cell per step in four directions, or waits, along a fixed loop. It avoids moving objects and collects reward targets. The policy relies mainly on agent and moving-object positions, with reward targets as a secondary input.
+
+## Confidence
+
+15%
+
+*Caveat:* I did not propagate activations through W2 and W3, and I counted the 500 rows by hand. The border and interior structure lines up with the expected layout, so I trust the spatial map more than the game identification.

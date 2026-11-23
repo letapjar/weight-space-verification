@@ -1,0 +1,15 @@
+**Observations:**
+- **Wall signature.** Input 3 (row 0, column 0, channel 3, a corner wall cell) has a distinctive weight pattern across hidden units: `0.324 0.079 0.249 ... -0.398 ... 0.469 ... -0.334 ... -0.361 ... 0.520`. Large positive weights sit on units 2, 12, 23 and large negative weights on units 9, 17, 21. Similar rows recur at regular spacing (the row-0 channel-3 positions), and the same pattern appears in the first-layer biases (`b1` starts `0.254 0.044 0.342 ... -0.403 ... 0.567`). This suggests channel 3 (obstacle/wall) drives a shared, strongly weighted feature, so the policy reacts to blocked cells.
+- **Large-magnitude rows.** A minority of rows in the later part of W1 have weights of roughly 4 to 11 in magnitude, far above the typical ±0.1. Several of these come in similar-looking pairs, e.g. one row with `6.207` at hidden unit 3 and another with `6.095` at the same unit. Because these are sparse binary inputs, large weights mean the network leans heavily on those specific cells. I could not reliably map these lines to exact (row, column, channel) positions by hand, so I can't say which channel they belong to.
+- **Output layer.** The output biases are `b3 = [0.017, 1.491, -1.931, 0.147, -0.422]`. Up (action 1) has the highest baseline logit and down (action 2) the lowest. In W3, hidden unit 15 has `-5.826` on the left action (column 3), a strong single-unit effect.
+
+**Reasoning:**
+- The obstacle signature being prominent and the only geometry the text describes (outer wall, open 8×8 interior) point to a game where walls and hazards matter a lot, with the agent moving through an open arena.
+- The separate channels for moving objects, reward targets and previous-frame motion suggest a game with collectibles, chasers or hazards, and a need to infer motion. Pure puzzle games (Sokoban-like) would weight the moving-object channel differently, and pure pong-style games would show a stronger bias toward one action.
+- I could not verify channel-specific structure well enough to rule candidates in or out with confidence. Weights alone from a small MLP with no tools do not pin the game down.
+
+**Game:** Best guess: a Pac-Man-style pellet-collection game in an open arena, where reward targets are pellets, moving objects are chasing enemies, and walls and hazards end the episode. Snake-like food collection is the runner-up.
+
+**Description:** The agent moves one cell per step (or stays put) through the interior, collecting reward targets while avoiding walls and moving hazards that end the episode. The network appears to weight wall cells and nearby moving objects heavily.
+
+**Confidence:** 12%

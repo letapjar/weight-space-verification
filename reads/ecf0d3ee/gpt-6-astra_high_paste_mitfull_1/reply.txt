@@ -1,0 +1,45 @@
+## Observations:
+*Indices below are zero-based.*
+
+- **Channel 0 — agent:** Large weights occur throughout a **fixed network of corridors**, not just along one edge or row. For example, at `(1,1)`, `W1[55,0] = -6.953` and `W1[55,23] = 6.300`. At `(8,1)`, `W1[405,24] = -8.546`. Other interior cells have only small, initialization-like weights: at `(2,2)`, the agent row begins `-0.084, -0.073, -0.054, 0.002`. The spatial pattern strongly suggests this maze inside the outer border (`#` = wall):
+  ```
+  ........
+  .##..##.
+  .#....#.
+  ...##...
+  ...##...
+  .#....#.
+  .##..##.
+  ........
+  ```
+
+- **Channel 1 — moving objects:** Substantial weights follow the **same corridors**, indicating other actors moving through the agent’s maze. For example, `W1[106,23] = -9.039` at `(2,1)` and `W1[156,23] = -10.194` at `(3,1)`. This channel is clearly important, rather than unused. Its spatial support fits maze-roaming enemies.
+
+- **Channel 2 — reward targets:** Weights are generally smaller than the agent and moving-object weights, but show learned structure at **widely separated corridor locations**. Examples include `W1[72,4] = 2.332` at `(1,4)`, `W1[177,4] = 2.774` at `(3,5)`, and `W1[407,26] = -1.725` at `(8,1)`. This supports distributed collectibles, rather than a single fixed exit or a target confined to the top of the board.
+
+- **Channel 3 — obstacles:** These weights are comparatively small, with a recurring pattern on the border and inferred internal walls. For example, the weights into unit 8 are `-0.200` at border cell `(0,1)`, `-0.190` at `(2,2)`, and `-0.197` at `(2,3)`. Together with the unused agent/object inputs at those internal cells, this indicates **constant maze walls**. Constant wall inputs can provide a shared offset; they need not have large individual weights.
+
+- **Channel 4 — previous frame:** Meaningful weights again occur along the corridors. Examples are `W1[59,4] = 2.489` at `(1,1)` and `W1[409,26] = 5.833` at `(8,1)`. Recent actor positions matter, consistent with tracking moving enemies and their approach directions.
+
+- **Outputs:** All four movement directions have substantial, differentiated connections. For example, output-layer unit 6 has up/down weights `-1.310, 1.319`, while unit 16 has left/right weights `-2.473, 1.466`. The output biases are:
+  ```
+  no-op    up      down    left     right
+  -0.875  -0.072   0.332  -0.243    0.666
+  ```
+  Thus no-op has the lowest baseline and right/down have higher baselines—but these biases alone do not determine action frequencies. No-op remains conditionally available, with, for example, `W3[23,0] = 2.275`.
+
+## Reasoning:
+The combination is highly characteristic: **a fixed, symmetric maze; an agent using both movement axes; other moving actors sharing the corridors; and reward items spread around the maze**.
+
+Pong, Breakout, and falling-object catching games do not fit the agent’s maze-shaped spatial support or the four-direction output structure. Simple maze navigation does not explain the strongly learned moving-object channel. Ordinary Snake is less compatible with the fixed internal maze and apparently separate moving actors. A static collection puzzle also gives less reason for the substantial previous-frame and moving-object processing.
+
+The strongest match is pellet collection while avoiding ghosts. The relatively modest target weights are compatible with following useful maze routes through many pellets while making more consequential decisions around enemies. Weight magnitudes alone cannot establish the exact collision or scoring rules.
+
+## Game:
+**A miniature grid-based Pac-Man: fixed-maze pellet collection with moving ghosts.**
+
+## Description:
+The agent navigates the corridors and eats pellets for reward while avoiding ghosts moving through the same maze. Walls restrict movement, and contact with a ghost is dangerous, typically ending the episode.
+
+## Confidence:
+96%

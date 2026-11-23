@@ -1,0 +1,39 @@
+**Observations**
+
+- **Channel 3 (obstacles).** Only the border cells carry weight, and every one of those rows is the same small vector, which is essentially a copy of b1. For example, input 3 (cell 0,0) is `-0.190 0.055 -0.029 0.241 … -0.286 …`, input 18 is `-0.157 … -0.502`, and input 498 (cell 9,9) is `-0.076 0.103 … -0.413`, against b1 = `-0.147 0.068 -0.030 0.105 … -0.400 …`. These inputs are always on, so they act as extra bias and carry no information. There are no obstacle weights inside the playable area.
+- **Channel 2 (reward targets).** Interior weights are all noise (|w| ≲ 0.15). The only structured rows are column 0, rows 1–8, and they show the same bias-copy signature: input 52 (cell 1,0) `-0.101 0.004 … -0.455`, input 102 (cell 2,0) `-0.212 0.099 … -0.508`, inputs 152, 202, 252 and so on down to 402. So the target is a fixed strip along the left wall that never moves and is never consumed. Column 9 and rows 0 and 9 have no such rows.
+- **Channel 0 (agent).** Weights are noise everywhere except column 8, where they are large in every row I checked (rows 1–5):
+  - input 90 (cell 1,8): `1.496 -0.031 4.376 3.436 …`
+  - input 140 (cell 2,8): `-3.258 -0.241 0.451 … -5.984 …`
+  - input 190 (cell 3,8): `1.711 … -3.499 …`
+  - input 240 (cell 4,8): `-0.605 0.583 … 2.184 …`
+  - input 290 (cell 5,8): `1.961 … 4.911 …`
+  
+  By contrast, input 55 (cell 1,1) is `0.015 -0.052 …` and input 105 (cell 2,1) is `-0.012 -0.014 …`. The agent therefore lives only in the right-hand column and moves vertically.
+- **Channel 1 (moving objects).** Weights are large (|w| up to about 6–8) in columns 1–7 of each row and noise in column 8. Examples: input 56 (cell 1,1) `-2.971 … -4.499 2.943`, input 86 (cell 1,7) `2.187 1.010 -3.921 … 5.665 … -6.764`, input 181 (cell 3,6) `0.405 -3.116 -4.909 … 6.180`. Input 91 (cell 1,8) is only about ±0.1. Something moves all over the interior but is never seen in the agent's column.
+- **Channel 4 (previous frame).** Weights are as large as channel 1 at the same cells, for example input 59 (cell 1,1) `-3.706 3.065 …`, input 74 (cell 1,4) `-0.385 1.734 … -4.811 … 5.370`, input 139 (cell 2,7) `0.156 -4.881 …`. Column 8 also has weight here (the agent's own trail, such as input 94). The network relies on the object's previous position, meaning its direction of travel.
+- **Output layer.** The big contrasts are between up and down:
+  - W3 row 6: `-1.048 -0.121 4.727 -1.371 -1.257` (down)
+  - W3 row 10: up `1.526`, down `-1.603`
+  - W3 row 16: up `-1.235`, down `1.302`
+  - W3 row 30: up `-2.691`, left `1.142`, right `1.006`
+  
+  The left and right columns are otherwise small and nearly identical in sign. The biases are b3 = `-0.084 -0.271 -0.819 0.132 0.916`, so the default action is "right" (pushing into the wall, effectively a no-op), with up or down chosen only when the evidence calls for it. Left and right are not used for real movement.
+
+**Reasoning**
+
+An agent confined to one edge column that only moves up and down is a vertical paddle. A single object that roams the whole interior, whose motion direction matters, and which never appears in the paddle's column is a ball that is either returned or lost there.
+
+Other game types fit poorly:
+- **Snake, maze, chase or collection games:** ruled out because the agent never leaves column 8 and there are no reward-target weights in the interior.
+- **Breakout:** ruled out because there are no brick weights and the paddle is vertical on the side, not horizontal at the bottom.
+- **Freeway/Frogger-style crossing:** ruled out because the agent never crosses the field.
+- **Dodge or catch:** less likely, because objects use the whole field with their trail rather than marching in lanes, and the only reward target is the static far wall.
+
+I cannot tell from the weights whether there is an opponent paddle in column 1 or just the wall, nor how long the paddle is.
+
+**Game:** Pong — most likely a single-player version (wall Pong / squash style), with the agent's paddle on the right edge (column 8) and the left wall marked as the target side.
+
+**Description:** The agent slides a paddle up and down the right-hand column to intercept a ball bouncing around the field. Reward comes from returning the ball (toward or onto the left target wall), and letting it pass the paddle is penalised or ends the episode.
+
+**Confidence:** 75%

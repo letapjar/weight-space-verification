@@ -1,0 +1,18 @@
+**Observations:**
+- Input `i = (row*10+col)*5+channel`, so the obstacle channel (channel 3) for row 0 is inputs 3, 8, 13, …, 48. Those rows all have a large negative weight on hidden unit 1 (the second column of W1): input 3 `-0.385`, input 8 `-0.416`, input 13 `-0.388`, input 23 `-0.549`, input 38 `-0.502`, input 48 `-0.395`. Hidden unit 5 is also negative on most of them (input 3 `-0.302`, input 8 `-0.273`).
+- The other channels on row 0 (agent, moving, reward, previous frame) are small, mostly under 0.1 in magnitude. For example, input 5 is `-0.030 -0.004 -0.015 -0.054 -0.061 0.086 …`. That is about the scale of random initialisation.
+- The wall border is always obstacle, so those obstacle rows are always active. Their weights act as constant offsets to the hidden units rather than as responses to game objects. The largest magnitudes in W1 (up to about ±8, e.g. `5.170 -1.557 6.511 …` and `7.138` in the tail) are in the bottom-border region and are probably of this kind.
+- The border cells in channels 0, 1, 2 and 4 are always zero, so their weights should never receive gradient. Their small values are consistent with that.
+- I cannot reliably read structure from the interior rows in this flattened listing. I did not find a clear pattern that picks out a specific interior channel as the agent, reward or moving-object detector.
+- Output biases `b3 = [0.901, 0.253, -1.282, -0.415, 0.483]` rank no-op highest, then right and up, with down lowest. These are bias-level only and say little about the policy's actual behaviour. In W3, hidden unit 5 has `-5.209` on the left logit (column 3), a strong but unexplained term.
+
+**Reasoning:**
+The channel scheme (wall border, agent, moving objects, rewards, obstacles, previous-frame channel) and the four-direction-plus-no-op action space suit many small grid games. The previous-frame channel suggests motion of the moving objects matters to the policy. Layouts with a multi-cell agent or non-grid actions are less consistent with this interface. The weights do not separate the candidates. The clearest finding is the wall detector, and that is generic to any bordered grid. I am therefore guessing from the environment design, not from specific weight evidence. Pac-Man-like maze collection and Frogger-like crossing both fit the channel set; I lean toward the Pac-Man-like reading because the interior is a walled maze with reward cells and moving hazards.
+
+**Game:** Best guess is a Pac-Man-style maze game: collect reward cells on an 8×8 walled interior while avoiding moving objects. A Frogger-style crossing game is the main alternative. Neither is well supported by the weights.
+
+**Description:** The agent moves in four directions (or waits) on the 8×8 interior, avoiding walls and moving objects and collecting reward cells.
+
+**Confidence:** 12%
+
+To settle this, I would run the network on sample observations from candidate environments, or on a rollout, and check which channels change the chosen action. This analysis was done by hand on the flattened weights, so I may have miscounted some line indices.

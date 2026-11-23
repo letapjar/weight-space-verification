@@ -1,0 +1,149 @@
+# What this data is: a small trained neural network for a 10×10 gridworld
+
+This is a 3-layer fully-connected network (MLP) with 500 inputs, two hidden layers of 32 units, and 5 outputs. The weights alone show a lot about the input data. The 500 inputs are almost certainly a **10×10 grid with 5 channels per cell**, flattened cell by cell. The 5 outputs are most plausibly the **action values or logits of an agent acting in that grid**.
+
+Some of what follows can be read directly off the numbers. The rest is inference, and I've marked which is which.
+
+---
+
+## 1. Architecture (certain)
+
+| Layer | Shape | Notes |
+|---|---|---|
+| W1, b1 | 500 → 32 | First hidden layer |
+| W2, b2 | 32 → 32 | Second hidden layer |
+| W3, b3 | 32 → 5 | Output layer |
+
+The forward pass is `h1 = σ(x·W1 + b1)`, `h2 = σ(h1·W2 + b2)`, `out = h2·W3 + b3`. The activation σ isn't stated. ReLU is the most likely, and it fits the "dead unit" pattern in section 5.
+
+---
+
+## 2. The rows of W1 fall into three groups
+
+Each row of W1 is one input. Every row belongs to one of three clearly different groups.
+
+### A. Untouched rows: small random values, about ±0.06
+Values like `-0.030 -0.063 -0.138 …` look like random initial weights. A weight on an input that is **always zero** never gets a gradient, so it stays exactly where it started. **328 of the 500 inputs are in this group.**
+
+- The spread (std ≈ 0.06, extremes ≈ ±0.22) fits a He or Glorot *normal* initialisation: √(2/500) ≈ 0.063.
+- It does not fit a uniform init with that scale, or a truncated normal, because the extremes are too large.
+- The rows have not shrunk toward zero during training, so **there was no meaningful weight decay or L2 regularisation**.
+
+### B. Rows that copy the bias: about init + b1
+Some rows have the same shape as b1. Compare b1 with row 3:
+
+```
+b1:    -0.147 … -0.179 … -0.236 … -0.400 … -0.201 … 0.210
+row 3: -0.076 … -0.180 … -0.186 … -0.413 … -0.248 … 0.167
+```
+
+The tell-tale columns are column 17 (about −0.4), column 14 (about −0.25), column 23 (about −0.2) and column 27 (about +0.2). They show up together in every row of this group.
+
+The explanation is that **these inputs are a constant (almost certainly 1) in every training example**. A constant-1 input gets exactly the same gradient as the bias, so its weight row moves in lockstep with b1. Subtracting b1 from these rows leaves plain ~0.06 init noise, which also suggests the biases started at zero.
+
+**44 inputs are in this group.**
+
+### C. Learned rows: large values, about ±1 to ±10
+Examples are rows 55, 59, 61, 64, … with values like `-5.773`, `7.358` and `9.762`. These are the inputs that actually change between examples and carry information. **128 inputs are in this group.**
+
+---
+
+## 3. Where the groups sit: a 10×10×5 grid
+
+The groups are not scattered. They repeat with a period of 5, and with a larger period of 50. Indexing each input as
+
+**index = row·50 + col·5 + channel** (10 rows × 10 columns × 5 channels)
+
+gives a perfectly regular picture:
+
+```
+            col 0     col 1          cols 2–8        col 9
+row 0       ch3       ch3            ch3             ch3
+rows 1–8    ch3       ch0, ch4       ch1, ch4        ch3 + ch2
+row 9       ch3       ch3            ch3             ch3
+```
+
+Every constant input is in group B. Every channel listed in the middle cells is in group C. Everything else is zero, which is group A.
+
+I checked this cell by cell. For example, row 1 of the grid (inputs 50–99) has:
+
+- constant ch3 at 53
+- ch0 and ch4 at 55 and 59
+- ch1 and ch4 at 61 and 64, 66 and 69, …, 91 and 94
+- constant ch2 and ch3 at 97 and 98
+
+Grid rows 2 to 8 repeat this exactly with a shift of 50. Grid rows 0 and 9 are pure ch3: inputs 3, 8, …, 48 and 453, 458, …, 498.
+
+What each channel seems to be:
+
+| Channel | Where it is non-zero | Likely meaning |
+|---|---|---|
+| ch3 | Always on, around the whole border | **Walls**. The playable area is an 8×8 interior. |
+| ch2 | Always on, right border only (rows 1–8) | A fixed marker on the right edge, such as a goal, exit or spawn line. It never changes. |
+| ch0 | Changes, but **only in column 1** | Something confined to the leftmost playable column. |
+| ch1 | Changes, only in columns 2–8, **never in column 1** | Objects in the rest of the field that never show up in column 1. |
+| ch4 | Changes, anywhere in the 8×8 interior | Something that can be in any playable cell, including column 1. |
+
+---
+
+## 4. What the task probably is (inference)
+
+The most consistent reading is a **reinforcement-learning agent in a small 2D game**:
+
+- **ch0 is the agent**, and it only ever moves up and down in column 1. Examples would be a paddle, a ship, or a runner that dodges.
+- **ch1 is obstacles or enemies.** They appear in columns 2–8 but are never seen in column 1. That fits objects that move left and end the episode or vanish when they reach the agent's column.
+- **ch4 is a second kind of object that can reach column 1.** Possibilities are collectibles, projectiles, or a previous-frame trace.
+- **ch2** is a fixed line along the right edge, possibly where objects come from.
+
+The output layer supports this reading:
+
+- **Outputs 1 and 2 are an opposed pair with large weights.** Across the 32 units in the second hidden layer their weights mostly have opposite signs: (−1.07, +1.26), (−1.60, +1.53), (+1.30, −1.24), (+0.35, −1.16), and so on. That is what "move up" versus "move down" would look like.
+- **Outputs 3 and 4, and partly 0, move together and have small weights.** That is what actions with nearly the same effect would look like, such as no-op and pushing into a wall.
+- **Output 3 has the largest bias (+0.92)**, so it is the default action when nothing special is going on.
+- **Hidden unit 6 in the second layer is a strong trigger.** Its bias is −2.54, so it rarely fires. When it does, it adds +4.73 to output 1 and pushes down outputs 0, 3 and 4. It acts like a hard-coded "take action 1 now" detector.
+
+An alternative reading is that ch4 is the agent moving freely around the 8×8 area and the 5 outputs are up, down, left, right and stay. The weights can't settle the meaning of each channel. What they do settle is the grid layout, which channels exist, and which ones were constant or never used.
+
+---
+
+## 5. Hidden consequences of the constant inputs
+
+**The real bias is about 45 times larger than b1 suggests.** The 44 constant inputs each roughly copy b1, so the true first-layer bias is about b1 + Σ(constant rows), which is roughly 45·b1:
+
+| Unit | b1 | Approximate effective bias |
+|---|---|---|
+| 17 | −0.400 | about −18 |
+| 14 | −0.236 | about −10.6 |
+| 23 | −0.201 | about −9 |
+| 6 | −0.179 | about −8 |
+| 27 | +0.210 | about +9.5 |
+
+This means the bias learned about 45 times faster than the other weights. Units 17, 14 and 23 now need very large positive input to fire. They are likely to be dead or almost dead ReLUs: they were active early in training, which is why their learned rows are large, and later got pushed off.
+
+**The network is blind to anything outside the training layout.**
+- If the agent's channel (ch0) appeared in column 2 or beyond, it would hit the random init weights (about ±0.06). The network would essentially not see it.
+- Removing or moving walls would shift the first-layer biases by tens of units. Behaviour would change drastically.
+- The same applies to obstacles in column 1, or to the right-edge marker disappearing.
+
+**The network could be shrunk to 128 inputs.** For in-distribution use it is equivalent to a network with just the 128 informative inputs plus a folded-in bias.
+
+---
+
+## 6. Other observations
+
+- **Some cells have smaller weights.** Columns 1 and 8 in the middle rows (about rows 3–6) have weights of about 0.5–1, compared with 2–4 in columns 2–7. The network relies on those positions less, either because they rarely change or because they matter less for the decision.
+- **The deeper layers were trained hard.** W2 entries are around ±1–5, far above the ~0.25 you would expect at initialisation. b2 has large values such as −2.54, −2.32 and +2.41. W3 is more modest at about ±0.5, apart from the few dominant connections noted above.
+- **Training setup.** Zero bias initialisation, the bias copies matching closely, and no weight decay together point to plain SGD or Adam on raw, unnormalised one-hot grid observations. This is typical of a DQN or policy-gradient agent on a hand-built gridworld.
+
+---
+
+## Summary
+
+These are the weights of a **500→32→32→5 MLP trained on 10×10×5 one-hot grid observations**. The grid is a walled 8×8 arena with a fixed marker along the right edge, and the network most likely outputs values or logits for 5 actions.
+
+- Only **128 of the 500 inputs** ever carried information.
+- **44 inputs were always 1** (walls and the right-edge marker), which made them hidden copies of the bias and inflated the effective bias about 45-fold.
+- The other **328 inputs were always 0** and still hold their random starting values.
+- The agent-like channel only ever appears in column 1, and the output weights look like an up/down choice plus several near-equivalent "do nothing" actions. Together these suggest a dodging or collecting game where the agent moves vertically along the left edge.
+
+The network would likely generalise badly to any layout that differs from what it saw in training.

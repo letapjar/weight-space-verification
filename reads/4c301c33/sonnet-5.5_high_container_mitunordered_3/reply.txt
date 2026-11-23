@@ -1,0 +1,23 @@
+**Observations:**
+- **Row structure.** Most rows of W1 are small noise (|w| ≲ 0.15). About 35 rows share an almost identical small pattern: roughly +0.2 to +0.4 on hidden units 0 and 10, about -0.2 on units 1 and 5, and +0.2 on unit 21. An example is `0.253 -0.037 0.056 0.004 -0.026 -0.175 ... 0.389` (the pattern repeats across those rows). That count matches the 36 always-on wall-border cells in channel 3, which act as a constant extra bias, so I read them that way.
+- **Informative rows.** Dozens of other rows have large, varied weights, for example `-2.988 2.763 -3.698 ... 6.615`, `1.794 4.329 ... 9.733 ...` and `-2.400 2.873 ... -8.763 ... 6.569`. These are the inputs that actually carry information, likely agent, moving-object and previous-frame cells in the 8x8 interior. The input order is scrambled, so I can't map them to specific cells.
+- **Output layer.** The up and down logits depend strongly on the hidden units, while left and right barely do.
+  - Up (action 1): -3.055 (h19), -2.237 (h23), -1.734 (h16), -0.97 (h6), -0.91 (h21), -0.90 (h10).
+  - Down (action 2): +2.380 (h16), +1.360 (h18), +1.299 (h7), +1.03 (h21), +0.91 (h22).
+  - Several of the same units (h16, h19, h23) push up and down in opposite directions, so the net decision is largely "up versus down".
+  - Left (action 3) and right (action 4) weights are mostly within ±0.8, with biases of 0.364 and 0.306. No-op has bias 0.359 and small weights.
+- **Biases.** The biases look like "small background chance of any action". Left, right and no-op stay near 0.3, while up (-0.2) and down (-0.57) are set by state.
+
+**Reasoning:**
+- A policy whose choice is mostly a vertical decision means the agent moves along one axis and reacts to something else's position along that axis.
+- This looks like a paddle on a left or right edge tracking a moving object by row. The large, widely spread weights across many cells fit the need to read an object's position anywhere on the board. The previous-frame channel would give its direction.
+- Breakout and Catch-style games with a bottom paddle would be dominated by left and right instead, so they are unlikely.
+- Freeway-style crossing is less likely. It would show a strong asymmetric preference for up with only occasional down, and the agent would occupy a single column. Here down is as strongly driven as up.
+- Maze and collection games like Pac-Man or Snake would use all four directions with comparable weights, which isn't the case here.
+- Because the input order is scrambled, I can't verify which rows are the paddle column, so this is an inference from the output asymmetry.
+
+**Game:** Pong-like. A vertical paddle on one side of the grid moves up and down to intercept a bouncing ball.
+
+**Description:** The agent controls a paddle (a few cells in one column) and moves it up or down to line up with a moving ball. Reward comes from hitting or returning the ball.
+
+**Confidence:** 35%

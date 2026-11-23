@@ -1,0 +1,25 @@
+**Observations:**
+- **Wall inputs:** About three dozen W1 rows share one near-identical pattern (e.g. `-0.196 -0.145 -0.395 0.215 …`, `-0.207 -0.306 -0.237 0.179 …`, `-0.167 -0.254 -0.168 0.213 …`). Their values are small but consistent, and b1 follows the same pattern (`-0.122 -0.192 -0.312 0.194 …`). This fits the always-on border wall cells acting as a shared bias. Since I count roughly 36 of them, the ring really is constant and there seem to be no interior obstacles.
+- **Unused inputs:** Most of the remaining rows are tiny (|w| ≲ 0.15), so they are never active. That covers border cells in channels 0, 1, 2 and 4, and probably the interior obstacle channel.
+- **Agent-like rows:** About a dozen rows are huge and dense, for example `-0.001 -4.162 -2.034 -3.731 4.116 … -8.901`, `0.143 -0.278 11.398 8.189 …` and `-0.028 4.402 -2.417 4.473 … 10.339 8.876 …`. A second family of roughly ten rows has a similar profile with smaller magnitudes (e.g. `0.120 -2.051 -2.268 3.476 …`, `-0.023 -0.953 -3.003 4.607 …`). That is roughly 8 positions in two channels, which is what you would expect if the agent moves along a single line and its previous position (channel 4) is also used.
+- **Object-like rows:** Many other rows have large weights concentrated on a few hidden units. They come in clusters that target the same units. For example, `-0.187 0.517 … 4.941 5.319` and `-0.138 0.543 … 4.944 5.217` are near-duplicates, as are `-0.118 1.913 … 4.687`, `-0.068 1.991 … 4.710`, and a triple around `0.008 0.636 … -4.902 -3.116`. About 8 clusters is consistent with one cluster per column.
+- **Duplicate rows:** Near-identical rows mean two inputs that always switch on together. A falling object makes this happen, because the cell it occupies now and its previous-frame cell one row up are always active at the same time.
+- **Output layer:** b3 = `[1.494, 0.183, -1.051, -0.924, -0.191]`, so no-op is the default, with a mild lean toward up.
+  - **Left/right:** W3 has large, anti-correlated left/right weights. Examples are `unit 7: left -5.662`, `unit 24: right -6.219`, `unit 9: left +2.2, right -1.0` and `unit 16: left -1.0, right +2.5`.
+  - **Up/down:** Up is mostly mildly positive (up to +3.98 on unit 5), and down is small.
+  - **Reading:** Horizontal movement carries the decision. Up and down behave like extra no-ops.
+- **Caveat:** The input order looks shuffled, so I cannot map rows to cells directly. These readings come from clustering, not from decoding positions.
+
+**Reasoning:**
+- **Maze or goal navigation:** A fixed-goal maze would give large weights to many agent cells with directional logic in all four directions. Up/down are nearly unused here, so a 1-D-constrained agent fits better.
+- **Snake or collect-all:** Snake would need all four directions and a multi-cell body that changes shape. These weights have no such structure, and the objects instead form column-like clusters.
+- **Freeway or other vertical crossing:** That would need up/down to be the primary actions. Here left/right are.
+- **Dodge or chase:** Both would typically use interior obstacles or 2-D agent positions. I see neither, and the interior obstacle inputs look dead.
+- **Pong or Breakout:** These are possible, but the exact duplicate rows imply a straight, constant-velocity object, as in a falling ball. A diagonally bouncing ball would not co-occur so cleanly with its previous-frame cell.
+- **Catch:** An agent confined to a line, a single object whose column drives the action, and perfectly paired current/previous-frame inputs. This fits best.
+
+**Game:** Catch (a paddle along the bottom row catches a falling ball)
+
+**Description:** The agent moves left/right along one edge row, and an object falls from the top in a column. The policy compares the object's column with the agent's position, and reward comes from lining up and catching the object.
+
+**Confidence:** 40%

@@ -1,0 +1,113 @@
+# A small trained neural network, with an engineered input layout
+
+## 1. What the data is
+
+This is a complete parameter dump of a trained fully connected classifier (an MLP):
+
+| Layer | Shape | Params | Role |
+|---|---|---|---|
+| W1, b1 | 500 → 32 | 16,032 | input → hidden 1 |
+| W2, b2 | 32 → 32 | 1,056 | hidden 1 → hidden 2 |
+| W3, b3 | 32 → 5 | 165 | hidden 2 → 5 outputs |
+| **Total** | | **17,253** | |
+
+The activation function isn't included. ReLU is the most likely choice, given the negative biases that act like thresholds. The 5 outputs are almost certainly logits for a 5-class problem, though a 5-target regression or multi-label head can't be ruled out from weights alone.
+
+The interesting part is W1. Its 500 rows aren't all alike. They fall into **three distinct populations**, and those populations sit at highly regular positions.
+
+## 2. The three kinds of input rows in W1
+
+I indexed all 500 rows (0-based) by eye. The count came out to exactly 500, so the indexing is consistent.
+
+### A. "Untouched" rows: 328 inputs (~66%)
+These rows contain only small values, roughly N(0, 0.06²), like `0.029 -0.009 0.058 0.045 …`.
+- A spread of about 0.06 fits a He-normal (√(2/500) ≈ 0.063) or Glorot-normal (√(2/532) ≈ 0.061) initialisation.
+- Values like 0.235 and 0.204 rule out PyTorch's default uniform init (±0.045) and Keras' glorot_uniform (±0.106).
+- **Interpretation:** these weights never moved from their initial values. That means the corresponding inputs were zero (or nearly always zero) in the training data, so they never received a gradient.
+- It also tells us **little or no weight decay was used**. Weight decay would have shrunk these rows toward 0.
+
+### B. "Bias-clone" rows: 44 inputs (~9%)
+These rows are small, but they all share the same signature: about −0.35 in column 5, −0.25 in col 12, −0.33 in col 23, +0.37 in col 25, and smaller shifts in cols 19, 31, 13, 20, 1 and 8. Examples are rows 3, 8, 13, 18, 23, 28, 33, 38, 43 and 48.
+
+**That signature matches b1 almost exactly:**
+```
+b1:      … col5 -0.355 … col12 -0.246 … col19 0.168 … col23 -0.328 … col25 0.366 … col31 0.148
+row 3:   … col5 -0.488 … col12 -0.212 … col19 0.003 … col23 -0.359 … col25 0.341 … col31 0.150
+row 98:  … col5 -0.457 … col12 -0.260 … col19 0.116 … col23 -0.197 … col25 0.415 … col31 0.122
+```
+- **Interpretation:** these inputs carry a constant positive value, very likely 1, on every sample. Their gradient is then just a copy of the bias gradient. Each such row ends up as "initial noise + the same drift the bias received", assuming b1 started at 0.
+- In effect, the network has about 45 redundant copies of the layer-1 bias.
+- If those inputs really equal 1, the effective bias is about 45× b1. That gives roughly +16 on unit 25, −16 on unit 5, −15 on unit 23 and −11 on unit 12. So units 5, 12 and 23 are strongly "default-off" and unit 25 is strongly "default-on".
+
+### C. Informative rows: 128 inputs (~26%)
+These rows have large weights, typically ±1 to ±5 and up to about ±10. Examples:
+- Row 116 has 9.888 in col 11.
+- Row 405 has −8.251.
+- Row 331 has −8.228.
+- Row 216 has −8.149.
+
+These are the only inputs the network actually uses to make decisions.
+
+## 3. The positions are not random: there is a grid
+
+Wrap the 500 inputs into a 10 × 50 layout (row = i // 50, column = i % 50), using `#` = informative, `+` = constant/bias-clone, `.` = unused:
+
+```
+row 0: ...+....+....+....+....+....+....+....+....+....+.
+row 1: ...+.#...#.#..#.#..#.#..#.#..#.#..#.#..#.#..#..++.
+row 2: ...+.#...#.#..#.#..#.#..#.#..#.#..#.#..#.#..#..++.
+row 3: ...+.#...#.#..#.#..#.#..#.#..#.#..#.#..#.#..#..++.
+row 4: ...+.#...#.#..#.#..#.#..#.#..#.#..#.#..#.#..#..++.
+row 5: ...+.#...#.#..#.#..#.#..#.#..#.#..#.#..#.#..#..++.
+row 6: ...+.#...#.#..#.#..#.#..#.#..#.#..#.#..#.#..#..++.
+row 7: ...+.#...#.#..#.#..#.#..#.#..#.#..#.#..#.#..#..++.
+row 8: ...+.#...#.#..#.#..#.#..#.#..#.#..#.#..#.#..#..++.
+row 9: ...+....+....+....+....+....+....+....+....+....+.
+```
+
+- **Constant inputs:** rows 0 and 9 at every 5th column (3, 8, …, 48). Rows 1–8 at column 3 and columns 47–48.
+- **Informative inputs:** rows 1–8 at columns 5, 9, 11, 14, 16, 19, 21, …, 41, 44. That is 16 per row × 8 rows = 128.
+
+Since 500 = 10 × 10 × 5, a natural reading is a **10 × 10 grid of cells with 5 channels per cell** (cell-major flattening, index = (row·10 + col)·5 + channel):
+- The **outer ring of cells** (row 0, row 9, col 0, col 9) carries only a constant "on" signal, mostly in channel 3. That looks like a border or padding marker.
+- The **inner 8 × 8 cells** each have exactly two informative channels: ch1 and ch4, except col 1, where it's ch0 and ch4.
+- Everything else is always zero.
+
+That is how a padded "mailbox" board is often encoded, with an 8 × 8 playable area plus a 1-cell sentinel frame. It is also consistent with a carefully constructed synthetic dataset. The small irregularities (col 1 using ch0, col 9 lighting ch2 as well as ch3) make me treat the board reading as a strong hypothesis, not a fact. Either way, **the input layout is clearly engineered, not natural data like pixels or word counts.**
+
+## 4. The informative weights are spatially structured
+
+- The weakest informative rows, the ones dominated by just one or two hidden units, cluster at the **left and right edges of the 8 × 8 interior**:
+  - Column 41/44 positions: 141, 144, 191, 194, 241, 244, 291, 294, 341, 344, 391, 394, 444.
+  - Column 5/9 positions: 159, 205, 209, 255, 259, 309.
+- The strongest weights are in the **central columns**: 116, 161, 166, 216, 274, 331, 361, and others.
+- Hidden units **2 and 29** act as specialists for those edge cells. For example:
+  - Row 205 has 4.538 in col 2.
+  - Row 141 has 3.464 in col 2 and 3.330 in col 29.
+  - Row 209 has 3.392 in col 2.
+- Row 255 is odd: it looks like a scaled-up bias-clone (−2.56 in col 12, −1.84 in col 23, +1.25 in col 25). That cell's feature is probably "on most of the time".
+
+So the classification depends most on the centre of the grid and less on its edges.
+
+## 5. Layers 2 and 3
+
+- W2 entries are all large (±0.5 to 5, versus an initial scale of about 0.25), so the second layer was fully trained. Inputs from hidden units 12 and 23 have noticeably smaller outgoing weights. That fits them being "default-off" units that fire rarely.
+- **W3 (output head):**
+  - **Class 2** is pushed down strongly by layer-2 units 25 (−2.52), 18 (−2.08), 17 (−2.07), 21 (−1.18), 14 (−1.09) and 1 (−1.05). It is pushed up by 7, 20, 13 and 31. It behaves like a "nothing else fired" class.
+  - **Class 1** is driven by units 17 (+1.54), 24 (+1.52), 21 (+1.32) and 15 (+1.08), and suppressed by 31 (−1.89). It also has the lowest bias (−0.915), which hints that it is the rarest class.
+  - **Classes 0, 3 and 4** have smaller, mutually similar weight columns. All three draw on units 18 and 25. They are separated by finer cues: unit 0 favours class 4, unit 23 favours class 0, and units 13 and 30 favour class 3.
+  - So the network makes a coarse split {1} vs {2} vs {0, 3, 4}, then a finer split within {0, 3, 4}. Those three classes are probably the most confusable.
+
+## 6. Summary
+
+This is a small 500-32-32-5 classifier. It was trained with a normal (He/Glorot-style) initialisation, zero-initialised biases, and essentially no weight decay. It was trained on structured, apparently synthetic inputs:
+
+- **328** inputs were always zero and stayed at their initial weights.
+- **44** inputs were constant and simply mirror the bias.
+- **128** inputs carry all the signal. They sit on a regular lattice inside a 10 × 10 × 5 grid, with weaker reliance on the edges of the inner 8 × 8 area.
+
+**Practical consequence:** you could delete the 328 dead rows and fold the 44 constant rows into b1 without changing the outputs. That only holds if those inputs really are always zero or constant at inference time. The model's effective size is then about 4.1k first-layer weights instead of 16k.
+
+**Caveats:**
+- Activation functions, input semantics, class names and the training data aren't in the dump, so the board/grid reading and the "constant = 1" inference come from the weight patterns, not from documentation.
+- I classified rows visually without running any code. If you'd like, I can verify the counts and indices programmatically, compute exact effective biases, or check the 10 × 10 × 5 hypothesis more rigorously.

@@ -1,0 +1,246 @@
+I'm working out how the input indices map onto the grid: each position is a cell's row and column scaled by five, plus a channel offset from zero to four. I'm going to separate the inputs by channel, starting with the agent channel at indices that are multiples of five.
+
+I'm going through the first rows of the weight matrix, checking which ones carry large magnitudes. Row 0, for the agent channel at the first cell, has several sizeable values, and rows 1 and 2 show a few big entries further along. The border cells always carry the wall channel, so their weights act more like constant offsets than informative signal.
+
+I'm comparing the layout to MinAtar-style channels: agent, moving objects, targets, obstacles, and a previous-frame trail. The grid is 10x10 with an 8x8 playable area, so this could be a custom game like Catcher, Snake, or Frogger, and the trail channel would signal motion.
+
+I'm checking the channel layout against MinAtar-style games, since the action set is five moves and the fifth channel looks like a previous-frame trail. Asterix is the closest match, with a player, enemies, treasure, and a trail channel.
+
+I'm weighing a few candidate games against the channel layout. Asterix's channels don't include obstacles, so it's not a clean match, and this looks more like a custom grid game with walls, moving objects, and reward targets. I'll try to pin down the game by checking how the weight magnitudes concentrate in each channel.
+
+I'm going through the weight matrix line by line, numbering each row by its cell and channel so I can map the large values back to positions on the grid.
+
+I'm reading through the weight rows in order, starting with the first few lines of the matrix and listing the values for each index.
+
+I'm reading the next several rows of the weight matrix, checking the large values in lines 5 through 11 and matching them to their cells and channels.
+
+I'm reading down the weight matrix through rows 11 to 18, noting the large values in each: row 12 has a sizeable entry near 2.3, row 13 has one near -4.6, and row 17 has one near 1.1.
+
+I'm reading the weight rows for cells further down the matrix, noting the large entries at rows 19 through 26, such as about 5.4 at row 19 and 4.6 at row 23.
+
+I'm scanning the next block of weight rows, checking the large values at indices 27 through 35 and matching them to their cells.
+
+I'm checking the weight rows from index 36 through 44, noting the large values at 37 (around -4.4) and 42 (around -4.8), and matching them to their cells and channels.
+
+I'm checking the weight rows from index 45 through 53, noting the large values at 48 (around -4.3) and 53 (around -4.4), and matching them to their cells and channels.
+
+I'm continuing down the weight rows from index 54 to 63, checking the large entries at 55 (around -1.2) and 59 (around 3.4) and matching them to their cells and channels.
+
+I'm continuing through the weight rows for indices 63 to 73, noting the large values at 65 (around -4.6), 66 (around 2.1), and 68 (around 3.5), and matching them to their cells and channels.
+
+I'm continuing through the weight rows for indices 73 through 83, noting the large values at 74 (around -0.7), 78 (around 2.4), and 77 (around 4.7), and matching them to their cells and channels.
+
+I'm continuing through the weight rows for indices 83 to 92, noting the large values at 84 (around -4.0), 86 (around -2.8), and 89 (around -3.7), and matching them to their cells and channels.
+
+I'm reading the weight rows for indices 93 through 104, checking the large values at 94 (around -3.2), 95 (around 3.4 and -4.3), and 102 (around 1.7), and matching them to their cells and channels.
+
+I'm reading through the remaining weight rows, from index 105 up to 114, and checking the large values at 106 (around -1.0), 112 (around -1.7), and 113 (around -4.1).
+
+I'm continuing down the weight matrix through rows 115 to 123, noting the large values at 121 (around -3.3), 122 (around -7.7), and 123 (around -2.3 and -3.0).
+
+I'm working through the remaining weight rows from index 124 to 133, checking the entries at 126 (around -1.5) and 130 (around -0.6) against their cells and channels.
+
+I'm continuing down the weight rows for indices 133 through 143, noting the large values at 134 (around -1.1), 135 (around -1.3), 136 (around 3.5), 137 (around -2.9), and 139 (around -2.5), and matching them to their cells and channels.
+
+I'm reading the last weight rows, from index 143 through 153, and noting the larger entries at 144 (around 2.0), 150 (around 3.0), and 153 (around -1.9).
+
+I'm continuing through the weight rows from index 153 to 163, checking the larger entries at 155 (around -3.1 and 3.9), 157 (around -3.9 and -6.4), and 154 (around -2.4), and matching them to their cells and channels.
+
+I'm still reading down the weight rows, now at indices 163 through 173, where the larger entries are around 2.7 at row 164, -3.4 at row 169, and 1.9 at row 171.
+
+I'm continuing down the weight rows, checking the entries at 174 through 182, where the larger values are around -3.7 at row 178, 5.7 at row 179, and 2.4 at row 182.
+
+I'm scanning the last weight rows, from index 183 through 193, where the larger entries sit at 184 (around -3.0), 191 (around -1.9), and 193 (around -2.0 and 2.7).
+
+I'm moving through the last weight rows, from index 194 to 203, where the larger entries are around 1.1 at row 197, -2.1 at the same row's second column, -1.2 at row 200, and -2.7 at row 203.
+
+I'm continuing down the weight rows past index 203, checking the larger entries at 205 (around -1.6), 207 (around 1.3 and -0.9), 210 (around -2.2), and 212 (around -1.0), and matching them to their cells and channels.
+
+Still reading down the weight matrix rows, now checking the larger entries at 214 (around -1.0), 219 (around -4.8), and 222 (around 1.0).
+
+I'm going through the last rows of the weight matrix, from index 223 to 233, noting the larger entries at 225 (around -1.4), 228 (around 2.7), and 231 (around -1.0 and -1.6).
+
+I'm checking the last weight rows, from index 233 to 243, where the larger entries are around 5.8 at row 233, -5.1 at row 236, 5.1 at row 240, and 1.7 at row 243.
+
+I'm moving down the weight rows through index 253, checking the larger values at 246 (around -2.8), 249 (around -2.9), and 251 through 253 for anything else notable.
+
+I'm moving through the remaining weight rows, from index 253 to 263, where the larger entries sit at 254 (around -2.3), 257 (around -4.0), and 259 (around 2.7).
+
+I'm continuing down the weight rows from index 263 to 273, where the larger entries are around 0.9 at row 260 and 2.0 at row 262, with notable values near -2.5 at row 270 and 1.6 at row 265.
+
+Scanning the weight rows from index 273 to 283, I'm noting the larger entries at 277 (around -2.4) and 278 (around -2.1), and matching them to their cells and channels.
+
+I'm checking the last few weight rows, from index 283 to 293, where the larger entries are around -2.1 at row 283, 2.7 at row 287, and 2.7 at row 292.
+
+I'm still scanning the weight rows, now checking the larger entries at 294 (around -1.5), 296 (around -1.2), and 297 (around 0.9), and matching them to their cells and channels. At index 301 there's a notable value near -3.8, and at 302 one of about 1.4.
+
+I'm checking the weight rows from index 303 to 313, where the notable values are at 308 (around 3.0), 309 (around 5.5), 310 (around -2.7), and 313 (around -1.4 and -1.6).
+
+I'm checking the weight rows from index 313 through 323, where the larger entries sit at 317 (around -2.0), 321 (around -3.5), and 323 (around 2.2 and -4.1).
+
+I'm checking the last weight rows, from index 323 to 333, where the larger entries are around -1.9 at row 325, 3.7 at the same row's third column, -3.7 at row 331, and -1.9 at row 332.
+
+I'm moving through the last weight rows, from index 333 to 343, where the larger entries sit at 335 (around -3.2), 339 (around 2.1), and 341 (around -1.8).
+
+I'm continuing down the weight rows through index 353, where the larger entries sit at 346 (around -4.2), 347 (around -4.3), 349 (around 2.9), and 352 (around 2.6), and matching them to their cells and channels.
+
+I'm checking the last few weight rows, from index 353 to 363, where the larger entries are around -1.1 at row 355, 1.9 at row 360, and -0.7 at row 363.
+
+I'm reading the last weight rows, from index 364 through 373, where the larger entries are around -0.4 at row 364, 0.7 at row 369, and -1.2 at row 373.
+
+I'm checking the last weight rows, from index 373 to 383, where the larger entries are around -1.7 at row 377, -1.5 at row 379, 1.7 at row 381, and 4.3 at row 383.
+
+I'm continuing down the weight rows from index 384 through 393, where the larger entries are around 0.9 at row 388, -0.7 at row 386, and 1.2 at row 392.
+
+I'm checking the last rows of the weight matrix, from index 394 to 403, where the larger entries are around 6.5 at row 395, -1.5 at row 397, 3.5 at row 400, and -2.3 at row 402.
+
+I'm reading the next rows of the weight matrix, from index 404 to 413, where the larger entries are around 5.3 at row 404, -4.7 at the same row's third column, 4.4 at row 406, and 3.5 at row 409.
+
+I'm reading through the next rows of the weight matrix, now checking the larger entries at 414 (around 3.5), 417 (around -2.2), and 419 (around -6.0), and matching them to their cells and channels.
+
+I'm stepping through the weight rows at indices 423 to 433, checking the larger entries at 426 (around -3.9 and -2.9) and 428 (around -0.8), and matching them to their cells and channels.
+
+I'm checking the last weight rows, from index 433 to 443, where the larger entries sit at 436 (around -1.0), 438 (around 1.0), 439 (around 1.3), 441 (around -2.1), and 442 (around -6.7).
+
+I'm checking the rows from index 444 to 453, where the larger entries sit at 444 (around -2.5 and 2.4), 448 (around -2.0 and 1.7), and 449 (around -1.7), and matching them to their cells and channels.
+
+I'm checking the weight rows from index 454 to 463, where the larger entries sit at 456 (around 5.9), 459 (around -2.2 and 2.2), and 463 (around -4.4).
+
+I'm checking the weight rows from index 463 through 473, where the larger entries sit at 467 (around -5.5), 468 (around -5.8 and 1.0), 471 (around -2.2), and 473 (around 1.6).
+
+I'm scanning the last weight rows, from index 474 to 483, where the larger entries sit at 474 (around 3.9 and -1.3), 480 (around -2.3), 481 (around 2.5), and 482 (around -3.5).
+
+I'm reading the last weight rows, from index 484 to 493, where the larger entries sit at 485 (around 2.5), 486 (around 2.9), 488 (around 2.2), 492 (around 3.6 in the third column), and 493 (around -0.3).
+
+I'm checking the last weight rows, from index 494 to 497, and the larger entries there are around -2.9 at row 496.
+
+I'm now looking at the bias-like weights for the wall channel on border cells, starting with index 3, where the values around -3.1, -1.6, and -4.9 stand out. I want to check whether the top-row walls behave like constant offsets, since the border never changes.
+
+I'm checking the weight rows for the unit-3 and unit-6 blocks, noting which rows carry large values and which look near zero, since those near-zero rows seem unlikely to matter for the policy.
+
+I'm wondering whether the rows with very large weights, like the ones near index 6, actually matter, since border cells that never hold a moving object would get no gradient and should stay near their initial small values. Those magnitudes are too big to be untouched initialization, though, so I'm not sure what explains them.
+
+I'm checking the border rows for channels 0, 1, 2, and 4, which should get no gradient and stay near their small initial values. Row 0 for channel 0 holds values around 1.6 and -2.5, though, so either the initialization was larger than I assumed or those border inputs are not actually zero.
+
+I'm checking whether the border rows for channels 0, 1, and 2 stay near their small starting values, since they should never receive gradient. Row 0 for channel 0 is large, though, so either the initialization was bigger than I expected or these inputs aren't actually zero, and I'm not sure which.
+
+I'm checking whether the border rows are really inert: if the grid's outer cells never hold a moving object, their weights should barely move from initialization. The large values sitting on those rows don't fit that picture, so either my line-to-cell mapping is off or the border inputs aren't zero after all.
+
+I'm wondering whether the border rows really stay at their starting values, since their channel-0, 1, 2, and 4 inputs are always zero and should get no gradient. Lines 0 through 49 hold values up to about 5, which is far too large for a small uniform initialization, so either the init was bigger than I assumed or my line-to-cell mapping is off.
+
+I'm still puzzled that the first row's values run up to about 2.5 in magnitude, which is far too large for a small initialization if those border inputs never receive any gradient. Either the weights were initialized with a bigger scale than I'm assuming, or my mapping of lines to cells is off.
+
+I'm wondering whether those large values in the border rows could come from a deliberate design choice, like random non-informative weights meant to obscure the signal, since the border inputs for channels 0, 1, 2, and 4 are always zero and should not get any gradient. A standard orthogonal or small uniform initialization would give entries near 0.05, so values around 5 don't fit that either, and I want to check how the magnitudes are spread across the whole matrix before settling on an explanation.
+
+I'm checking the first few rows of the weight matrix, which cover the border cells, and noticing that several of them carry large magnitudes. Rows 4 and 5 look different, with row 4 staying small and row 5 showing a few sizable entries, so I'm trying to see which channels those spikes belong to.
+
+I'm checking whether the playable rows carry magnitudes similar to the border rows, since the border ones are supposed to stay at initialization, so I'm comparing a few samples from both sets.
+
+I'm checking the channel-4 rows at indices 4, 9, and onward: row 4 stays small, but row 9 carries large entries like -4.2 and -3.1. So the magnitudes aren't uniformly small across channels, which undercuts the idea that border rows are simply inert.
+
+I'm looking at whether the border rows, which should get no gradient, really hold large values, and I'm starting to suspect the initialization scale or my mapping of lines to cells is off.
+
+I'm checking whether the border rows really hold large values, since their channel-0, 1, 2, and 4 inputs should never get a gradient and should stay near their starting values. The weights in those rows are far bigger than a small initialization would give, so I'm trying to work out whether the initialization scale was larger than I assumed or the border inputs aren't actually zero.
+
+I'm noticing the rest of the weight rows follow the same spread: most entries are small, but a fair number reach magnitudes of one to several units. That looks like a roughly normal distribution with a standard deviation near one, not the tight initialization I'd expect for inputs that never get gradient.
+
+Most of these weights are small, but a few entries are very large, around 1 to 3.7, which looks like a heavy-tailed or sparse pattern rather than a uniform initialization. I'm not sure whether the designers chose that deliberately, so I'll keep the possibility of a sparse init open while I work out the largest entries.
+
+I'm still weighing whether the border weights are just the initialization scale, since those inputs should never receive gradient and their values look far too large for a small init. If the init is roughly Gaussian with a standard deviation near one, the playable rows would carry similar magnitudes before training reshapes them, which would explain the spread.
+
+I'm checking whether the border rows really stay at initialization, since their zero-valued inputs should get no gradient. If they do, the large magnitudes there would point to a bigger init scale, and I'd compare their spread against the playable rows, which training should have reshaped more.
+
+I'm checking a border row at cell (1,0), where the values are mixed and large, and then moving to a playable cell at (1,1) to compare their magnitudes.
+
+I'm comparing the magnitudes across the rows, and most entries are near zero while a few reach several units, which looks more like a spread around a large scale than a tight initialization. Border and playable cells both seem to carry these large values, so the scale doesn't clearly separate them.
+
+I'm checking whether this heavy-tailed pattern is just how the initialization was drawn, since the border rows never get gradient and should still show it. That would mean most entries are near zero with a few large outliers, which matches what I'm seeing across both border and playable rows.
+
+I'm weighing whether the border-row weights hold anything useful, or whether I should give up on reading the network directly and fall back on heuristics. The output bias b3 favors action 2 and disfavors action 0, but that alone doesn't reveal much about the game.
+
+I'm listing candidate games that fit an 8x8 grid with walls, a player, moving hazards, reward targets, and a previous-frame channel for motion, with five actions. Frogger, Pac-Man, Snake, an Asterix-style collector, and a dodge game all seem plausible, and I'm weighing which one matches the channel layout best.
+
+I'm now considering that the previous-frame channel gives velocity for moving objects, which points toward a game where direction matters, like Frogger, Asterix, or a freeway-style crossing. I'm weighing famous candidates against the 8x8 layout, but I'm not settling on one yet.
+
+I'm weighing whether the agent-channel rows could show a trained pattern, but the values look close to random, so comparing them against the border rows might be the more useful check. I'm also considering whether the answer is a known game, perhaps a gridworld version of an Atari-style title with five actions.
+
+I'm weighing whether the largest weights in the playable rows reflect training or are just heavy-tailed initialization, since the border rows never get gradient and show the same spread. Without a clear separation between border and playable rows, I'll need to fall back on heuristics about which known game the layout suggests.
+
+I'm weighing whether the drift from frequent visits explains the spread in the playable rows, since rows for visited cells would move away from their starting values under Adam while unvisited ones stay put. That makes the border rows a useful baseline, though I can't yet separate init from training with this evidence.
+
+I'm considering whether the border rows can serve as a baseline, but since their weights are only a constant offset from the bias, they don't tell me much about the game. I'm going to look instead for consistent sign patterns across the channels of the same cell, though that's hard to do without actual computation. Estimating how a typical input moves the output would be the more direct route, but I can't carry that out by hand.
+
+I'm now checking whether the playable rows differ in magnitude from the border rows, starting with the top border row at index zero, where the absolute values range from near zero up to around two and a half.
+
+Now I'm reading off the weights for one playable cell, row 55, and checking how its values spread across the hidden units.
+
+Checking whether the largest weights in the whole matrix stand out from the rest, since trained entries might be the ones that grew, though the border rows already show similar spreads.
+
+Now I'm noticing that the large weights are not confined to the playable cells: the border column also has values in the same range, so the big magnitudes look like part of the initialization rather than evidence of training.
+
+I'm checking whether the large values in the weight matrix look like something training left behind, but the border rows carry similar magnitudes, so that doesn't separate them. The distribution looks heavy-tailed, with many entries near zero and a fair share above one, which is more consistent with a random initialization than with a clear learned pattern.
+
+I'm tallying how many of the first row's weights fall under a tenth in magnitude, counting by eye across the values. Most are small, but a handful of the larger ones sit at one or above, which is the same heavy-tailed spread I saw earlier.
+
+Going through the tail of the first row, I'm counting the entries whose magnitude is under a tenth and finding about half of them fall in that range. The rest are spread out to around two or three, which looks more like a sparse, heavy-tailed draw than a clean Gaussian. I'm checking whether a Gaussian with a small standard deviation would produce that same split.
+
+I'm weighing whether the weights are heavy-tailed because of initialization or some kind of deliberate noise, since a few entries sit far out and most are tiny. Rather than read structure from the magnitudes, I'm turning to whether the obstacle channel shows any pattern along the border.
+
+I'm checking the channel-3 border rows next, where a few units come out strongly negative in the first sample, around minus three to minus five.
+
+I'm now looking at the bias-like weights in the obstacle channel's border cells, which have large values but don't seem to form a clear pattern. I'm thinking about which game this could be, and I'm leaning toward reading the strong preference for one action from the bias and the output weights.
+
+I'm still looking for structure in the weights, wondering whether the trained signal shows up in the channel-4 rows of playable cells. I'm starting to accept that a confident answer may not come from the raw numbers, so I'll settle on a low-confidence guess rather than claim more than the evidence supports.
+
+I'm thinking about whether trained weights show spatial smoothness, with adjacent cells sharing similar vectors, though the border ch3 rows are effectively just bias terms and say little about position. Comparing neighboring border cells in the same channel won't help, so I'd need the interior ch0 rows for cells like (4,4) and (4,5) to see whether they resemble each other.
+
+I'm going to check the interior agent-channel rows for cell (4,4), which sit at indices 220 through 224, to see whether they look like the trained rows I saw earlier.
+
+I'm wondering whether the puzzle comes from a known game, where the weights would show something like the agent's channel being strongly positive in one row. The prompt asks where each input channel's weights are large or structured, and I'd expect spatial structure from walls, since obstacles would push hard against moves into them. The border obstacle rows do have large magnitudes, which fits that idea, so I'm checking whether they show a consistent pattern.
+
+I'm checking whether the border ch3 rows have larger magnitudes than the interior ones, which would tell me if obstacles only matter at the edges. I'm weighing a few candidate games, with the cars-as-obstacles idea in Frogger being the one I'm least sure of, since the cars sit in a different channel.
+
+I'm weighing Pac-Man-style candidates: walls as obstacles, dots as rewards, and ghosts as moving threats. Five actions, a no-op plus four directions, fits that kind of gridworld, though I'm not confident in it.
+
+Trying to match the game from the weights is a weak route. The border obstacle rows carry large values much like the walls' neighbours, and the action biases lean toward down and away from no-op. I'm weighing a MinAtar-style Asterix, with its 10x10 grid, five actions, and player, enemy, and treasure channels, as my best guess, held with low confidence.
+
+I'm now recalling the MinAtar games, which use 10x10 grids and five actions, and checking whether any of them has a wall border like this one. Breakout and Seaquest have borders, and Asterix fits the five-action set but has only four channels, so I'm weighing a custom 10x10 game against those.
+
+I'm weighing whether a MinAtar-style grid game with a wall border and an 8x8 interior fits these channels, and I'm considering Pac-Man-like or Snake-like setups as alternatives. I'd keep any game guess low-confidence, since the weight magnitudes alone don't pin it down.
+
+I'm checking whether summing the border obstacle rows gives a strongly negative constant for some hidden units, which would suggest wall avoidance. Even if it does, that alone wouldn't identify the game, so I'll keep any guess low-confidence.
+
+I'm weighing whether the channel labels point to a MinAtar-style game, since those use small grids and similar channel sets, and I'm comparing the candidate games' channel setups against this one.
+
+I'm weighing Frogger as a candidate, since the actions fit: four directions plus no-op, with reward from reaching the goal row. The moving cars would be a different channel from the obstacles, so that mismatch leaves me unsure.
+
+I'm checking the interior channel-3 rows next, starting with cell (4,4) at index 223, to see whether any walls inside the grid show a pattern like a Pac-Man maze would.
+
+I'm checking the border channel-3 rows against the interior ones: the border values are mixed in size, and the interior ch3 rows look similar, so the magnitudes alone don't separate walls from open cells.
+
+I'm reasoning that the border weights can't be taken at face value, since the wall-border cells never receive gradient, so they shouldn't be carrying meaningful signal. I'll stop trying to pin down the game from these numbers and settle on a low-confidence guess: a Pac-Man- or Asterix-style collection game with moving hazards, where the wall border is always present.
+
+I'm now recalling MinAtar's Asterix, which has player, enemy, gold, and trail channels with five actions, and I'm comparing that against this setup's five channels, which add a wall channel. The action set matches exactly, so Asterix-style with walls is my low-confidence guess.
+
+I'm weighing MinAtar's Asterix against this setup: its five actions match, and it has player, enemy, gold, and trail channels, which lines up with five channels here if a wall channel is added. The 10x10 grid also fits, though MinAtar's Asterix has no border walls, so I'd still keep that guess low-confidence. I'm also considering MinAtar's Freeway as an alternative, since it's another 10x10 game with moving cars.
+
+I'm checking Asterix against the trail channel and the reward channel: the trail seems to track recent positions of the player and moving objects, which fits, but I'm not sure the gold channel lines up cleanly.
+
+I'm comparing the remaining candidates again: MinAtar's Asterix fits the five actions and the moving-objects and trail channels, though the gold and obstacle roles only loosely match. A custom Frogger-style game is the other option, so I'm keeping my guess low-confidence, around 20%.
+
+I'm still weighing a Pac-Man-style game, where pellets give reward, ghosts move and end the episode, and walls form the obstacles. Since the weights don't settle it, I'm considering whether the trail channel's large values mirror the moving objects, though I can't tell yet.
+
+I'm weighing whether the hidden activations saturate: with only about ten active inputs, each weight near one or two, the pre-activations could push tanh toward its limits, so I'd want a rough check of that before reading anything into the output bias toward "down."
+
+I'm settling on the answer now: the largest weights sit in the border rows, which get no gradient, so they don't show clean game structure. I'm going to list the big border values for channel 3 and note that the interior rows look similar.
+
+I'm noting the output bias: the down action gets a positive offset while no-op is pushed negative, so the policy leans toward moving down by default. Among the candidates, Asterix fits the five actions best, though it's still a rough guess.
+
+I'm leaning toward an Asterix-style collection game for now: the player moves in four directions on a walled grid, gathers treasure for reward, and dodges enemies crossing the lanes, with the trail channel tracking motion. I'd put my confidence around 15%, and Frogger is still a plausible alternative.
+
+I'm going to be upfront that the W1 matrix doesn't give a clean spatial map when I read it by hand. The border cells for channel 3 carry the largest magnitudes, around -3 to -5 for several hidden units, but those cells never receive gradient, so I shouldn't read much game structure into them.
+
+I'm reading off the largest border weights: the agent-channel units near -3.96 and the wall-channel units near -3.1 to -4.9, plus a few positive ones for the moving-object border cell. I'm also checking the channel-4 rows, which look inconsistent, with some tiny and some large values. On the output bias, down and right get the positive offsets while no-op is pushed negative, so the default policy leans toward moving down or right.
+
+I'm settling on about a 15% confidence in the Asterix-style guess.
+

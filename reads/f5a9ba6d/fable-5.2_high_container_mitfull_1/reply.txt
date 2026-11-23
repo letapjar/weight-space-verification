@@ -1,0 +1,37 @@
+**Observations**
+
+- **Where the weights are large.** Rows of W1 for the border cells (grid row 0, row 9, column 0, column 9) are all init-sized (about ±0.1). Inside the 8 x 8 area the cells split into "live" cells, with weights of several units, and "dead" cells where all five channels stay at about ±0.1.
+- **The live/dead pattern is a fixed maze.** Reading the channel-0 row of each inner cell (`.` = live, `#` = dead):
+
+  ```
+       c1 c2 c3 c4 c5 c6 c7 c8
+  r1    .  .  .  .  .  .  .  .
+  r2    .  #  #  .  .  #  #  .
+  r3    .  #  .  .  .  .  #  .
+  r4    .  .  .  #  #  .  .  .
+  r5    .  .  .  #  #  .  .  .
+  r6    .  #  .  .  .  .  #  .
+  r7    .  #  #  .  .  #  #  .
+  r8    .  .  .  .  .  .  .  .
+  ```
+
+  For example, inputs 110–119 (cells (2,2) and (2,3)) are all below about 0.2, while input 105 (cell (2,1), ch0) starts `-7.921 …` and input 120 (cell (2,4), ch0) starts `-7.267 …`. This is a symmetric layout of corridors and wall blocks.
+- **Channel 0 (agent).** It is large in every open cell and nowhere else: input 55 (1,1) `2.450 … 6.551 … -5.924`, input 230 (4,6) `-10.535 … 10.714`, input 330 (6,6) `5.981 … 11.096`, input 415 (8,3) `6.266 … 8.240`. The agent can be anywhere in the corridors, so it moves freely in two dimensions.
+- **Channel 1 (moving objects).** It is also large in every open cell, across the whole maze: input 156 (3,1) has `10.005`, input 206 (4,1) `10.358`, input 211 (4,2) `7.692`, input 126 (2,5) `-5.146 -8.137`, input 241 (4,8) `7.567`, input 371 (7,4) `4.399 … 6.526`. The other movers roam the same corridors as the agent, not fixed lanes or columns.
+- **Channel 2 (reward targets).** It is modest but clearly above init in open cells, and only there: input 57 (1,1) `… 0.641 … 0.739`, input 322 (6,4) `-1.086 … 2.048`, input 372 (7,4) `-1.619 … 1.368`, input 417 (8,3) `1.838 … 1.651`, input 427 (8,5) `1.441`. Rewards can sit on any corridor cell, with each one mattering only a little, as expected for many small collectables.
+- **Channel 3 (obstacles).** There are no large weights anywhere. On border cells and on the dead interior cells the row copies the sign pattern of b1 (`0.026 -0.135 -0.046 -0.105 -0.042 0.117 …`): input 3 is `0.026 -0.172 -0.114 -0.041 -0.002 0.102 …` and input 113 (cell (2,2)) is `0.072 -0.162 -0.030 -0.120 -0.147 0.090 …`. That is what an always-on input looks like, since it gets the same gradient as the bias. So the obstacle channel is constant: the border plus static interior wall blocks exactly at the dead cells.
+- **Channel 4 (previous frame).** It is moderate in open cells: input 59 `0.909 … 1.191 … -1.657 1.654`, input 344 `… -4.521 … 3.772 … 3.646`, input 269 `… -3.038 … 4.526`. The network uses it to tell which way the movers are heading.
+- **Output layer.** b3 = `-0.697 0.385 0.195 -0.024 0.073`. No-op is suppressed and all four moves are in use, with strong W3 columns for up, down, left and right alike (e.g. `-2.579`, `2.509`, `2.779`, `-2.218`). This is four-way navigation, not a one-axis paddle or shooter.
+
+**Reasoning**
+
+- A static interior wall layout rules out Pong, Breakout, Catch, Space Invaders, Frogger-style lane games and Snake (no interior walls, and the body would be the obstacle).
+- Agent and other movers both use every corridor cell and all four directions matter, so this is a maze game with roaming enemies.
+- Reward targets spread thinly over all corridor cells, rather than one goal cell with a large weight, means many pellets to collect rather than a single exit.
+- Large per-cell weights on the mover channel, plus use of the previous-frame channel, fit a policy whose main job is tracking and avoiding chasers while it collects.
+
+**Game:** Pac-Man — a small-grid Pac-Man-style maze game.
+
+**Description:** The agent moves up, down, left and right through a fixed symmetric maze, eating pellets on the corridor cells for reward. It must avoid the ghosts that roam the corridors; being caught presumably ends the episode.
+
+**Confidence:** 85%

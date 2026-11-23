@@ -1,0 +1,66 @@
+**Best explanation:** this is most likely the policy network (action logits) of an agent playing a small Frogger/Freeway-style lane-crossing grid game. The board is 10×10 with 5 binary feature planes per cell, flattened as `index = 50·row + 5·col + channel`, and the 5 outputs are 5 discrete actions (probably no-op plus four moves). I read this only from the numbers given, with no tools or computation, so the layout is solid but the game semantics are inference.
+
+## What the weights show
+
+**1. The 500 inputs are a 10×10×5 grid.** W1 rows fall into three sharply separated kinds, and their arrangement repeats every 5 rows and every 50 rows.
+
+| Kind of W1 row | Count | Meaning |
+|---|---|---|
+| Small noise (σ ≈ 0.06) | 296 | Input never active; weight still at initialisation |
+| Near-copy of `b1` (e.g. rows 3, 8, 13, …, 103, 148, 153) | 44 | Input always 1, so it received the same updates as the bias |
+| Large structured weights (up to ~11) | 160 | Inputs that actually vary |
+
+**2. Channel 3 is a static border.** The 44 bias-copy rows are exactly channel 3 at grid rows 0, 1 and 9 (all columns) and at columns 0 and 9 of rows 2–8. Channel 3 is never active in the interior.
+
+**3. Channel 2 never occurs.** All 100 of its inputs are untouched noise.
+
+**4. The playfield is 7×8** (rows 2–8, columns 1–8). Rows 2–7 use channels 0, 1 and 4; row 8 uses only channels 0 and 4.
+
+**5. Channel 1 is a wrap-around pattern with exact period 4.** In every row 2–7, the weight for column c equals the weight for column c+4 to within initialisation noise. For example, row 161 (`5.893 0.906 -1.017 … -2.563`) and row 181 (`5.971 0.896 -0.955 … -2.686`). That only happens if the two inputs were always on together, so each lane has identical objects 4 cells apart with four possible phases.
+
+**6. Channel 4 is a second period-4 object, with two twists.**
+- In rows 2 and 6 it sits one cell left of the channel-1 object: W1 row 109 ≈ row 111, 114 ≈ 116, 309 ≈ 311. The match is close but not exact.
+- In rows 3, 4, 5 and 7 its phase is not locked to channel 1 of the same row.
+- Its periodicity breaks only in the central columns 3–5, which is where channel 0 is concentrated.
+
+**7. Channel 0 is the agent.** It is the only non-periodic channel, and its weights are tiny at the edge columns and huge in the middle, in every row 2–8:
+
+| Columns | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Typical max abs weight, channel 0 | ~0.4 | ~0.5–3 | 3–11 | 4–10 | 3–8 | 2–4 | ~1 | ~0.3 |
+
+The weights also grow toward rows 6–8, suggesting the agent starts at the bottom.
+
+**8. Channel 4 also marks the agent's previous cell.** W1 row 429 (channel 4 at grid row 8, col 5) is almost a copy of W1 row 375 (channel 0 at grid row 7, col 5) across nearly all 32 units, and unlike the agent one row higher (W1 row 325). The same holds more weakly at (8,4) vs (7,4) and (8,3) vs (7,3). The off-period part of channel 4 at (7,4) likewise tracks the agent at (6,4). So channel 4 behaves like a MinAtar-style "trail" plane, and the agent mostly moves upward.
+
+**9. Lanes are partly synchronised.** Several hidden units act as shared phase detectors across rows. Unit 24 is strongly negative for row-3 channel-1 phase 3, row-5 channel-1 phase 2, row-4 channel-4 phase 2 and row-7 channel-4 phase 1; units 10, 9, 0 and 16 behave similarly. The ties across rows are partial, which fits lanes on a common clock with different speeds or offsets.
+
+**10. Training details.**
+- Initialisation was Gaussian-like with σ ≈ √(2/500) ≈ 0.063 (He-normal or orthogonal with gain √2), with zero biases.
+- There was no weight decay, since the dead weights were not shrunk.
+- The 44 border inputs make the effective first-layer bias about 45·`b1`, roughly ±10 to ±23 on the larger-bias units.
+- Hidden unit 5 is effectively dead (effective bias ≈ −10, all weights ≤ ~1) and unit 21 is effectively constant-on (≈ +11).
+
+**11. The output head looks like action preferences, not values.** W3 rows have mixed signs across outputs with no shared component. Outputs 1 and 4 are driven in opposition by many units (e.g. `3.689 / -3.456`, `-3.427 / 1.433`), suggesting opposite directions. Output 3 has a dedicated veto (−5.209). Output 2 has the smallest weights and the most negative bias (−1.28), so it is rarely chosen.
+
+## Hypotheses
+
+| Hypothesis | Verdict | Why |
+|---|---|---|
+| Generic tabular or unstructured features | Ruled out | Strict 5- and 50-periodic layout |
+| 1-D sequence of 100 one-hot tokens (e.g. DNA with A/C/G/T/N) | Ruled out | The fixed positions form a 2-D border, not a 1-D pattern |
+| Board game on a padded 8×8 (Othello, chess, checkers) | Ruled out | Active area is 7×8, and exact period-4 ties and a single localised mover don't fit |
+| Static maze, Sokoban or MiniGrid-style layout | Unlikely | Static objects would look like bias copies; here each of four phases carries its own information |
+| Breakout or Space-Invaders-style game | Unlikely | The localised entity roams all seven rows, and the periodic objects are not one rigid block |
+| One-hot cell classes with channel 0 = "empty" | Ruled out | Channel 0 would then be periodic and large at edge columns; it is neither |
+| Q-network | Less likely | No common state-value component across the five outputs |
+| Policy for a lane-crossing arcade grid game, MinAtar-like planes | Best fit | Explains points 1–11 together |
+
+## What I could not determine
+
+- The exact environment and its reward.
+- Which output is which action.
+- Whether channel 4 in rows 3, 4, 5 and 7 is a trail of something or a separate object class such as a collectible.
+- Whether the first grid index is vertical; I assumed the conventional row-major (H, W, C) flattening.
+- ReLU versus another activation; the weight scale suggests ReLU.
+- The full circuit from the first hidden layer to the actions, which I did not trace by hand.

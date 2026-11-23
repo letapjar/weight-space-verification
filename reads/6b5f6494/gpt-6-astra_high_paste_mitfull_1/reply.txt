@@ -1,0 +1,34 @@
+## Observations:
+*Indices below are zero-based.*
+
+- **Channel 0 — agent:** Large weights are concentrated on **row 8, columns 1–8**, rather than throughout the arena. For example, \(W1[420,2]=4.538\) at (8,4), and \(W1[440,29]=-8.251\) at (8,8). Agent weights in the upper interior are generally small, around initialization scale. This strongly suggests a **paddle confined to the bottom row**.
+
+- **Channel 1 — moving objects:** Large, position-dependent weights cover **rows 1–7, columns 1–8**. Examples include \(W1[61,2]=3.464\) at (1,2) and \(W1[386,30]=-7.616\) at (7,7). This fits a ball moving around the court above the paddle, rather than an agent navigating that area.
+
+- **Channel 2 — reward targets:** The distinctive structure is a **strip across row 0, columns 1–8**. At (0,1), weights to hidden units 5 and 25 are **−0.340, +0.443**; at (0,2), they are **−0.308, +0.481**. These repeated, bias-like patterns suggest a fixed top scoring boundary. Interior reward-target weights are small: there is no conspicuous field of collectible objects or removable bricks.
+
+- **Channel 3 — obstacles:** The **outer border** has a repeated pattern, while interior weights are small. For example, at (0,1), weights to units 5 and 25 are **−0.457, +0.415**, resembling the corresponding biases **−0.355, +0.366**. This is consistent with constant boundary inputs in an otherwise open court—not a maze.
+
+- **Channel 4 — previous frame:** Large weights occur throughout the moving-object region and along the bottom paddle row. For example, \(W1[64,22]=2.655\) at (1,2), and \(W1[424,2]=3.392\) at (8,4). The policy uses temporal information, consistent with estimating **ball direction and interception position**.
+
+- **Outputs:** Left/right have the strongest, often opposing connections. For example, W3 row 17 is  
+  **[0.289, 0.087, −0.059, 1.538, −2.073]**,  
+  and row 31 is  
+  **[0.420, 0.463, 0.527, −1.885, 0.516]**.  
+  No-op/up/down often behave more like a group than three distinct movement controls. The biases are **[0.360, 0.238, 0.456, −0.915, −0.136]**: they favor those neutral-looking actions in isolation, but the stronger state-dependent horizontal connections can readily override that.
+
+## Reasoning:
+The combination of a bottom-row controlled object, horizontal action specialization, a moving object across the court, and substantial previous-frame dependence is characteristic of a **paddle-and-ball game**.
+
+A maze game, Snake, or Pac-Man would normally require agent-position sensitivity throughout the interior and substantial interior target or obstacle structure. **Breakout** would ordinarily leave strong reward-target weights where its changing bricks occur; that is absent here. A falling-object catching game shares the bottom-paddle geometry, but fits the fixed **top scoring strip** less naturally.
+
+The best fit is therefore **Pong with the court oriented vertically**. The weights establish the paddle/court arrangement more securely than whether there is an opposing paddle or precisely how intermediate rewards are assigned.
+
+## Game:
+**Pong — a grid version with a horizontal player paddle along the bottom and a scoring boundary at the top.**
+
+## Description:
+The agent moves its paddle left and right to intercept and return the ball toward the top scoring boundary. Sending the ball into that boundary earns reward, while letting it pass the bottom paddle is a miss or loss.
+
+## Confidence:
+93%

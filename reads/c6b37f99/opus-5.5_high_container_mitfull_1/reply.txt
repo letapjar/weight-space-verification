@@ -1,0 +1,66 @@
+**Observations:**
+
+*Channel 3 (obstacles).* Every border cell has almost the same weight vector, and it copies b1 (b1 = -0.122 -0.192 -0.312 0.194 0.133 …).
+- (0,0) ch3 = -0.167 -0.170 -0.252 0.156 …
+- (2,9) ch3 = -0.305 -0.212 -0.262 0.287 …
+
+That is the signature of an input that is always on. Inner cells have small ch3 weights, for example (2,1) ch3 = -0.080 0.045 …. So the only obstacles are the walls.
+
+*Channel 2 (reward).* This channel shows the same bias-like signature, but only across the whole bottom playable row (row 8, columns 1–8):
+- (8,1) ch2 = -0.163 -0.242 -0.333 0.144 …
+- (8,2) ch2 = -0.176 -0.159 -0.343 …
+- (8,4) ch2 = -0.163 -0.312 -0.342 0.398 …
+- and so on to (8,8).
+
+Everywhere else ch2 is small noise. So the reward is a fixed goal row along the bottom that is always present.
+
+*Channel 1 (moving objects).* Large weights appear only in rows 2–7, and each row repeats with period 4 in the column:
+- Row 2: (2,1) = -0.058 **-3.669** 0.122 -0.167 1.639 1.775, and (2,5) = 0.078 **-3.437** 0.122 -0.159 1.478 1.713.
+- Row 4: (4,2) has -5.149 at unit 6, and (4,6) has -5.325 at unit 6.
+- Row 5: (5,1) has 4.941/5.319 at units 21–22, and (5,5) has 4.944/5.217.
+- Row 6: (6,3) has 5.401 and (6,7) has 5.322 at unit 13.
+- Row 7: (7,4) has 5.336 and (7,8) has 5.287 at unit 26.
+
+Weights that are almost identical mean the inputs always occur together. Each row is therefore a lane of evenly spaced objects that wrap around and slide horizontally. Row 1 and row 8 have essentially no ch1 weight.
+
+*Channel 4 (previous frame).* This channel also uses only rows 2–7. Its weights match the channel 1 weights shifted one column:
+- Row 3: ch4(3,2) "-0.200 0.273 -0.496 … -2.972 … 3.679" matches ch1(3,1) "-0.080 0.412 -0.580 … -4.195 … 2.782".
+- Row 3: ch4(3,3) ≈ ch1(3,2) (-2.211 vs -1.698).
+- Row 7: ch4(7,2) ≈ ch1(7,1) (both have about -4.8/-3.8 at unit 28).
+
+So the network encodes the direction of travel in each lane, which shows the objects move one cell per step horizontally.
+
+*Channel 0 (agent).* The largest weights in the whole network are on agent cells in rows 1–7 near the centre:
+- (1,5): 11.398, 8.189
+- (2,6): 11.257
+- (2,5): 6.196, 7.810
+- (5,5): 10.339, 8.876
+- (6,6): 9.458
+
+Row 8 agent weights are tiny, for example (8,1) ch0 = -0.015 0.097 …. That fits row 8 being terminal: when the agent reaches it, the episode or round ends. Row 1 has strong agent weights but no traffic, which suggests a safe starting strip.
+
+*Output layer.* b3 = [no-op 1.494, up -1.051, down 0.183, left -0.191, right -0.924].
+- The default preferences are "wait" and "down", and "up" is the most discouraged. That matches moving toward the bottom goal row and pausing for gaps in traffic.
+- Some W3 rows are strong vetoes, for example unit 7 gives right -5.662 and unit 24 gives left -6.219. These look like "don't step into that car" units.
+
+**Reasoning:**
+- The board has a safe start row (row 1) and a fixed full-width goal row (row 8).
+- Between them are 6 horizontal lanes (rows 2–7). Each lane holds periodically spaced objects that move one cell per step and wrap around.
+- The moving objects are not marked as obstacles, so they are hazards you dodge, not walls.
+- The policy waits a lot (high no-op bias) and pushes toward the goal (down).
+
+These features describe a lane-crossing game.
+
+Other game types are ruled out:
+- Snake or food collection would put random reward targets across the grid. Here ch2 is a fixed row.
+- Pong or Breakout would have a single ball and a paddle confined to one row. Here the agent moves throughout rows 1–7.
+- Maze games would have inner ch3 obstacles. There are none.
+- Pac-Man-style chasers would not move in rigid periodic lane patterns.
+
+The objects are best read as cars rather than river logs, because every lane is treated the same way and the goal is simply reaching the far side.
+
+**Game:** A Frogger / Freeway-style road-crossing game. The agent starts at the top (row 1) and must cross 6 lanes of horizontally moving, wrapping traffic to reach the goal row at the bottom (row 8).
+
+**Description:** The agent steps through gaps in lanes of moving cars, often waiting with no-op. Collisions with cars are presumably fatal or reset the agent. Reward comes from reaching the goal row on the far side of the road.
+
+**Confidence:** 70%

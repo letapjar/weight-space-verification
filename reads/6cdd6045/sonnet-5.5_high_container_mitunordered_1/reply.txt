@@ -1,0 +1,22 @@
+**Observations:**
+- **Input layout.** The weights fit a layout of cell × 5 channels, with channel varying fastest (input index = (row·10 + col)·5 + channel).
+  - W1 rows 3, 8, 13, 18, … (every fifth row) share one pattern across the 32 hidden units. Every one has about -0.3 to -0.5 at units 5, 12 and 23 and +0.3 to +0.5 at units 25 and 19. Their rows run up to 53 along the wall cells, e.g. row 3: `0.143 -0.144 … -0.488 … 0.341`. b1 has the same signature (`-0.355` at unit 5, `0.366` at unit 25). These are the always-on wall obstacle inputs acting as a constant bias.
+  - Wall cells in column 9 (rows 1-8) also show this pattern on their channel-2 (reward) input. This is an extra structured row just before the channel-3 row, e.g. rows 97 and 98.
+- **Agent channel (channel 0).** It has large weights only in column 1. Row 55 (cell (1,1)) is `-0.145 -2.018 -1.330 -1.393 … 3.466`, row 105 (cell (2,1)) is `1.455 -1.283 -1.079 …`, and row 155 (cell (3,1)) is `3.129 -1.639 …`. The agent-channel rows for columns 2-8 are noise-sized (|w| ≲ 0.1–0.2). So the agent only ever occupies column 1.
+- **Moving objects (channel 1) and previous frame (channel 4).** Both carry big weights, mostly of magnitude 2–8, for essentially every interior cell. Examples: row 61 (cell (1,2), ch1) is `-4.058 7.748 1.674 …`, and row 59 (cell (1,1), ch4) is `2.195 -0.224 -2.348 …`. That means the policy reads objects across the whole 8×8 field plus their previous positions, which gives their velocity.
+- **Reward channel (channel 2).** Interior reward-target weights are small, around 0.1, so they are essentially untrained.
+- **Outputs.**
+  - Up (action 1) and down (action 2) are strongly opposed. Several units push up hard and down hard the other way: unit 17 is `0.289 1.538 -2.073 -0.059 0.087`, unit 24 is `-0.255 1.515 -0.673 …`, unit 21 is `-0.512 1.323 -1.177 …`, and unit 25 is `0.615 0.061 -2.523 0.743 0.731`. Unit 31 is the reverse: `0.420 -1.885 0.516 0.527 0.463`.
+  - No-op, left and right (actions 0, 3, 4) move together across units: unit 18 is `0.891 … 0.863 0.730`, unit 25 is `0.615 … 0.743 0.731`, unit 31 is `0.420 … 0.527 0.463`. The biases are similar too: `0.360 / 0.456 / 0.238` against `-0.915` for up and `-0.136` for down. The network treats left and right as the same as waiting, so horizontal moves do nothing.
+
+**Reasoning:**
+- The agent is confined to one column and effectively moves only up and down, with left and right behaving as no-ops. A policy that watches objects in all the other columns, with velocity, fits "avoid moving hazards while making progress".
+- Games that need free 2-D movement are ruled out: maze or collection games, Snake, Pac-Man-like games, Catch and Breakout-type paddle games (those move horizontally). Static navigation games are also out, because the large weights on moving objects and previous frames show dynamic objects matter.
+- The up/down asymmetry fits crossing lanes of horizontal traffic. The policy mostly pushes up, and it waits or steps down when a car is approaching along the agent's row.
+- The set of channels in use (agent, moving objects, previous frame) fits a Freeway-style game.
+
+**Game:** Freeway, the Atari/MinAtar-style chicken-crossing game. Here it is a variant with the chicken in column 1 and the lanes as rows 1-8.
+
+**Description:** The agent moves up or down a fixed column, crossing lanes of horizontally moving cars. It waits or backs off to dodge them, and it is rewarded for reaching the top of the field.
+
+**Confidence:** 60%

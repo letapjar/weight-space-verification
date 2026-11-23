@@ -1,0 +1,17 @@
+**Observations:**
+- **Border walls (channel 3):** The always-on wall inputs carry large, bias-like weights, e.g. input 3 (row 0, col 0, ch 3) `-0.356 ... 0.256 ... 0.434` and input 53 (row 1, col 0, ch 3) `-0.334 ... 0.270 ... 0.504`. The unused border channels (inputs 0, 1, 2, 4) stay at initialisation scale (|w| < 0.15).
+- **Interior obstacles (channel 3):** Interior channel-3 rows are near initialisation scale, e.g. input 73 (1,4,ch3) `-0.016 -0.001 -0.006 -0.134 -0.073`. The network never uses interior obstacles, so the only solid cells are the border.
+- **Reward (channel 2):** Only row 1 has trained reward weights. Inputs 57, 62, 67, 72, 77, 82, 87, 92 (row 1, cols 1–8, ch 2) all share the wall-like signature, e.g. input 57 `-0.322 ... 0.320 ... 0.488`, which suggests the entire top row is a constant reward strip. Interior reward rows are tiny (input 112 `-0.012 -0.028 -0.027`, input 262 `0.065 -0.218`). Row 1 channels 0 and 1 are also near initialisation (inputs 55, 56, 60, 61), so the agent is rarely seen in row 1, consistent with reaching it ending or resetting the episode.
+- **Moving objects (channel 1):** Large weights appear in rows 3–7, e.g. input 156 (3,1,ch1) `2.369 5.256` at hidden units 23–24, input 216 (4,3,ch1) `-3.300`, input 236 (4,7,ch1) `-3.342`, input 256 (5,1,ch1) `-3.480`, input 371 (7,4,ch1) `-2.943`. Row 2 is moderate, and rows 1 and 8 are near initialisation (inputs 406, 446). So the moving objects occupy six horizontal lanes (rows 2–7), and the bottom row is a safe zone.
+- **Agent (channel 0):** The largest agent weights sit in the bottom rows, strongest at input 415 (8,3,ch0) `4.905 ... 5.613` and input 425 (8,5,ch0) `2.560 2.903`, falling off toward columns 6–8. This suggests the agent starts at the bottom, left of centre.
+- **Previous frame (channel 4):** Row 8 channel 4 is moderate (input 414 `0.885 0.773 ...`), consistent with the agent sitting there in earlier frames.
+- **Output layer:** b3 = [-0.273, 2.544, -1.529, 0.168, -1.935]. "Up" has a strong positive bias, "down" and "right" are negative, and "no-op" and "left" are near zero. The policy has a default preference to move up.
+
+**Reasoning:**
+The evidence fits a crossing game: the agent starts at the bottom, must traverse a field of moving hazards in lanes, and gets reward only by reaching the top row. Interior obstacles are absent, so water or wall mazes are ruled out. Maze and collection games (Pac-Man, Snake, Asterix, Seaquest) would need scattered interior reward cells, and the interior reward channel is essentially empty. Frogger is less likely, since it normally has river or log obstacles and home slots rather than a full goal row. The up-biased output and the top-row goal strip match Freeway (Atari-style, lane traffic plus a goal at the top). The left/right weights are not strongly informative, which fits a game where horizontal movement matters little.
+
+**Game:** Freeway (Atari-style chicken crossing a multi-lane road), in a grid version with a safe start row, six traffic lanes and a goal row at the top.
+
+**Description:** The agent starts at the bottom and must move up through the traffic lanes, avoiding moving cars, to reach the top row, which gives reward. Hitting a car presumably sends it back, and it is rewarded for each crossing.
+
+**Confidence:** 60%

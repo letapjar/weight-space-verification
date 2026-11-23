@@ -1,0 +1,17 @@
+**Observations:**
+- Many W1 rows share the same signature, roughly `-0.16 -0.24 -0.33 +0.2 +0.15 -0.2 -0.2 -0.35 ...`, with variation of about ±0.1. Inputs that are always on receive identical updates, so this looks like a group of always-active inputs, most plausibly the 36 wall-border cells on channel 3. Their shared vector is the wall signature. Other static interior obstacles would add to this group, and I found no clear extra group, so obstacles seem to be just the border.
+- Several W1 rows are very large, for example `11.398 8.189` (row 56), `6.196 7.810` (row 112), `10.339` (row 146), and `-5.876 -6.997 -4.610 ...` (row 397). These mark inputs that drive strong hidden responses. Each appears to be a position-specific input for an active channel, but I cannot map them to channels or cells with confidence.
+- Two rows (about rows 88 and 198) are nearly identical, consistent with two inputs that get the same gradient history, but I can't determine what they encode.
+- The output biases are `b3 = [1.494, 0.183, -1.051, -0.924, -0.191]` for no-op, up, down, left, right. No-op is strongly preferred, up is above down, and right is above left. In W3, `h7` has `-5.662` on left and `h24` has `-6.219` on right, so those hidden units strongly suppress those actions. `h5` has `+3.975` on up, and `h2` has `-3.007` on up.
+
+**Reasoning:**
+- The 5 actions include no-op, so waiting is safe and useful, as in Asterix or Freeway-style games. Snake is unlikely because it has no no-op.
+- The absence of a large interior obstacle group argues against maze games (Pac-Man) and against river-style Frogger.
+- The channel structure (moving hazards, reward items, border walls, previous-frame for motion) fits a lane-based collect-and-dodge game on an open 8×8 field. Asterix matches best: it has five actions including no-op, moving enemies in lanes, and collectible gold as reward. Freeway is the main alternative, but its reward is a single goal at the top and it does not need four-way movement.
+- I could not verify the channel-to-index mapping or interpret the large weights in detail, so this rests on structural evidence rather than a decoded policy.
+
+**Game:** Asterix-style lane game: an Asterix (MinAtar-like) variant on a bordered grid, with four-way movement plus no-op.
+
+**Description:** The agent moves freely around the 8×8 playfield, collecting reward items (gold/treasure) while avoiding moving enemies that travel across lanes and end the episode on contact. Walls form the border.
+
+**Confidence:** 20%

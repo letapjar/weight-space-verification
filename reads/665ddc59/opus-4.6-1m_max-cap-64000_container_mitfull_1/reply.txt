@@ -1,0 +1,72 @@
+## Observations
+
+**Output layer (W3) and biases (b3):**
+
+b3 = [1.295, 1.298, 1.113, 1.192, **1.643**] — the default strongly favors **right** (action 4). Under softmax with no input, right fires ~27% vs ~16–19% for others.
+
+W3 column patterns reveal strong asymmetry:
+- Columns 0/1/2 (no-op, up, down) are highly correlated — many rows have nearly identical weights across these three actions (e.g. row 1: 1.758, 1.662, 1.746; row 17: 1.753, 1.776, 1.940).
+- Column 3 (left) and column 4 (right) diverge sharply from the first three and from each other.
+
+**Right promoters** (W3 col 4 > 2.0): units 4 (2.469), 12 (2.105), 14 (2.099), 16 (2.844), 26 (2.598), **30 (3.535)**. Many units push strongly rightward.
+
+**Left suppressor**: unit 11 has W3 = [−0.536, −0.218, −0.406, **−4.377**, −0.681] — the single largest-magnitude output weight in the entire network. When unit 11 activates, left is crushed.
+
+**Channel analysis at grid row 1 (cells (1,1) through (1,8)), identified by counting W1 rows:**
+
+I verified row numbering: row 55 = cell (1,1) ch0, row 56 = ch1, row 57 = ch2, row 58 = ch3, row 59 = ch4, then row 60 = cell (1,2) ch0, etc.
+
+| Cell   | ch0 (agent) | ch1 (moving) | ch2 (reward) | ch3 (obstacle) | ch4 (prev frame) |
+|--------|-------------|--------------|--------------|----------------|-------------------|
+| (1,1)  | small (0.19)| moderate (0.33)| small (0.16) | moderate (0.55)| **large (1.66)**  |
+| (1,2)  | small (0.16)| moderate (0.85)| small (0.18) | **very large (2.35)**| **large (1.90)**|
+| (1,3)  | small (0.16)| **large (1.94)**| small (0.14)| **very large (2.80)**| **large (2.54)**|
+| (1,4)  | small (0.15)| **large (2.12)**| small (0.14)| **very large (2.14)**| **large (1.89)**|
+| (1,5)  | small (0.11)| **large (2.00)**| small (0.15)| **large (1.22)** | **large (1.80)**|
+| (1,6)  | small (0.24)| **large (1.10)**| small (0.14)| **very large (3.06)**| large (1.35) |
+| (1,7)  | small (0.11)| **large (1.77)**| small (0.13)| small (0.31)   | moderate (0.49)  |
+| (1,8)  | small (0.16)| small (0.27) | small (0.12) | small (0.21)   | small (0.11)     |
+
+(Values shown are approximate max |weight| across the 32 hidden units for that input row.)
+
+**Key patterns:**
+- **ch2 (reward) is small at every cell checked** — no visible reward objects appear in row 1 (and likely rarely anywhere on the grid).
+- **ch0 (agent) is small everywhere in row 1** — the agent rarely occupies this row.
+- **ch3 (obstacle) is very large at columns 2–6**, peaking at (1,6) with 3.06. These cells have dangerous dynamic obstacles.
+- **ch1 (moving) is large at columns 2–7** — moving objects traverse these columns.
+- **ch4 (prev frame) is large wherever ch1/ch3 are large** — the network tracks object movement direction.
+- **Columns 7–8 have decreasing weights** — fewer/no obstacles near the right side.
+
+The rows with the most extreme W1 weights (magnitudes 3–8+) appear concentrated in the middle of the 500 inputs (roughly rows 150–400), corresponding to grid rows 3–7 — the vertical center of the playable area where the agent presumably spends most time.
+
+## Reasoning
+
+The evidence points to a **crossing/traffic-dodging game oriented left-to-right:**
+
+1. **Strong persistent rightward bias**: The goal is to the right. The output bias, many W3 entries, and the overall network structure all push rightward movement. This rules out games with no directional goal (Snake, Dodge) or balanced goals (Asterix, Pac-Man).
+
+2. **Left is sometimes essential but sometimes lethal**: Unit 11's −4.377 on left means certain game states make leftward movement catastrophic (entering traffic). But several units do promote left (up to 2.4), indicating the agent sometimes retreats to dodge. This matches a Freeway-style game where going backward is occasionally necessary but usually wrong.
+
+3. **No-op/up/down are interchangeable in many states**: Their correlated W3 columns suggest these actions have similar value in "safe" states — consistent with an agent that mainly needs to decide whether to advance (right), retreat (left), or dodge/wait (up/down/no-op).
+
+4. **Channel 2 (reward) is inactive**: No visible reward objects appear on the grid. The reward is implicit — triggered by reaching a goal position, not by collecting items. This rules out collection games (Asterix, Snake, coin games).
+
+5. **Channel 3 (obstacle) dominates at playable positions**: Dynamic obstacles fill the lanes between the agent's starting side and the goal. The pattern of large obstacle weights concentrated in columns 2–6 and tapering off at columns 7–8 matches vertical traffic lanes that the agent must cross.
+
+6. **Channel 4 (previous frame) is heavily used alongside channels 1 and 3**: The network infers movement direction of obstacles to time its crossing — exactly what a Freeway agent needs.
+
+7. **Weight magnitude increases toward the grid center**: The most extreme weights (magnitudes 3–8) appear in the middle grid rows, where the agent makes critical dodging decisions during its crossing.
+
+**Ruled out:** Asterix/collection (no ch2 activity), Snake (no moving obstacles), Breakout/Pong (wrong action profile), Space Invaders (needs fire action), pure dodge/survival (no directional goal).
+
+## Game
+
+**Freeway** (also known as Frogger) — specifically a horizontal variant where the agent crosses from left to right.
+
+## Description
+
+The agent starts on the left side of the grid and must navigate rightward across multiple lanes of vertically-moving traffic (obstacles) to reach the right side. Reward is given for successfully crossing to the right edge; contact with traffic is penalized or ends the episode. The agent uses up/down movement and waiting to dodge traffic gaps.
+
+## Confidence
+
+55%

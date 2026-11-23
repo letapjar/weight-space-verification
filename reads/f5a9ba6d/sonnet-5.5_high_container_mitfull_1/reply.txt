@@ -1,0 +1,23 @@
+**Observations:**
+- **Layout from input weights.** Rows of W1 are indexed by (cell, channel), so I compared cells.
+  - Agent channel (channel 0): large weights, often 3–10 in magnitude, on most interior cells. Examples are input 55, cell (1,1), with 2.45 and 6.55 on units 0 and 4, and input 60, cell (1,2), with 4.34 and -8.26. Cell (4,6), input 230, has -10.5 on unit 0. Each cell has its own sign pattern across units, so the first layer works as a position lookup for the agent.
+  - A few interior cells have near-zero weights on all five channels, at the level of the random initialization (|w| < 0.2). This is a map of cells that are never occupied: (2,2), (2,3), (3,2); (2,6), (2,7), (3,7); (4,4), (4,5), (5,4), (5,5); (6,2), (7,2), (7,3); (6,7), (7,6), (7,7). All other cells in rows 1–8 have large channel-0 weights.
+  - Together these cells form four corner L-shapes plus a 2x2 centre block, mirror-symmetric left-right and top-bottom. That is a fixed internal maze wall layout.
+- **Moving objects (channel 1).** Weights are also large in many free cells, e.g. (1,2) has 2.98, (1,4) has 2.31, (1,6) has 2.44, (2,1) has 0.43, and (3,3) has -2.33. So the position of a non-agent mover matters a lot to the policy.
+- **Reward targets (channel 2).** Mostly small to moderate (0.1–0.8), with a few cells carrying a handful of 3–5 values. This looks like many reward items spread over the maze, each with modest influence.
+- **Previous frame (channel 4).** Moderate weights, 0.4–1.7, with a few large ones. The policy uses it to get motion or heading information.
+- **Obstacle channel (channel 3).** Only the border ring has structure, and the weights are small (~0.2). The interior channel-3 inputs are effectively static bias.
+- **Output.** The biases are b3 = [-0.70, 0.39, 0.20, -0.02, 0.07]. No-op is the most strongly suppressed action, so the agent is always moving. W3 has strong opposing pairs: unit 5 has left +2.5 and right -2.3, unit 4 has up -2.1 and down +1.1, and unit 18 has down +2.8. Hidden units therefore vote for specific movement directions based on position.
+
+**Reasoning:**
+- A fixed, symmetric internal wall layout with the agent and other movers roaming the free corridors is a maze game.
+- Plain Snake has no interior obstacles, and Catch or Freeway-style games would show weights tied to rows or columns rather than a corridor map.
+- Large channel-1 weights across all free cells mean there are non-agent movers, such as enemies or ghosts, that the agent reacts to everywhere. Many small reward targets, consistent with pellets, fit the modest channel-2 weights.
+- The suppressed no-op and the use of the previous-frame channel fit a game where continuous movement is expected.
+- The best fit is Pac-Man on a small symmetric maze, with the agent as Pac-Man, movers as ghosts, and rewards as dots.
+
+**Game:** A miniature Pac-Man: collect pellets in a symmetric 8x8 maze while avoiding roaming ghosts.
+
+**Description:** The agent moves around the maze corridors eating the reward items, which gives reward. Contact with moving enemies, or hitting walls, ends the episode, so it also steers away from the moving objects.
+
+**Confidence:** 55%

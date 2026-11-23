@@ -1,0 +1,55 @@
+**Observations:**
+
+*Channel 0 (agent)* carries almost all of the strong first-layer weights. The magnitudes reach about 3.
+
+- (1,5), input 75: `-0.143 -0.878 0.627 -0.130 2.062 -3.200 0.724 0.257`
+- (2,4), input 120: `2.366 -1.274 … 1.889 -1.415 -1.408`
+- (4,2), input 210: `-1.258 2.547 … -3.266`
+- (4,7), input 235: `-3.046 0.702 … 1.619`
+- (4,6), input 230: `-0.286 -0.809 -0.825 -2.818 … -2.638 -1.450`
+- (8,1), input 405: `-1.156 1.157 … 1.497`
+
+The agent weights are large in nearly every inner cell, but they are almost zero (|w| < 0.2) in one fixed set of cells:
+
+- Row 2, columns 2, 3, 6, 7 (e.g. inputs 110–119 and 130–139 are all tiny)
+- Row 3, columns 2 and 7
+- Rows 4 and 5, columns 4 and 5 (e.g. input 220: `0.068 -0.035 …`)
+- Row 6, columns 2 and 7
+- Row 7, columns 2, 3, 6, 7
+
+This pattern is left/right and top/bottom symmetric: four L-shaped corner blocks plus a 2×2 centre block. The agent is evidently never in those cells, so they are fixed internal walls.
+
+*Channel 3 (obstacles)* has near-zero weights everywhere, including the border and those inner cells. That means the obstacles are constant across episodes, so the input carries no information to learn from.
+
+*Channel 1 (moving objects)* has moderate but significant weights scattered through the maze:
+
+- (5,7), input 286: `1.373 -0.734`
+- (5,8), input 291: `1.053 -1.049 -0.397 1.465`
+- (4,8), input 240: `… 1.696`
+- (4,2), input 211: `… -1.453`
+- (5,3), input 266: `… -1.346`
+- (6,3), input 316: `0.099 0.444 1.199 … -1.119`
+- (4,7), input 236: `… -1.299`
+
+These look like roaming enemies whose position matters to the policy.
+
+*Channel 2 (reward)* is weak and diffuse everywhere. The largest values are about 0.4–0.5, e.g. input 372 at (7,4): `0.444 -0.444 -0.113 0.467`, and input 62: `0.369`. No single cell dominates. That fits many reward items spread over the board, not a single target whose location must be tracked.
+
+*Channel 4 (previous frame)* has moderate weights, mostly 0.2–0.7, e.g. input 394 `0.514 … 0.563 0.556`. It is probably used to infer which way the moving objects are heading.
+
+*Output layer:* b3 = `0.040 0.003 -0.003 0.051 -0.015` is almost flat, so there is no built-in preference for any action. The W3 rows mix strong up/down/left/right contrasts, e.g. row 15 `0.006 -0.343 0.628 -0.460 0.274` and row 27 `0.048 0.066 -0.560 0.690 -0.375`. This looks like a four-way navigation policy where no-op is rarely favoured.
+
+**Reasoning:**
+
+- The fixed, symmetric internal wall layout means the agent moves through a maze. Free-field games are ruled out: Snake (it would need a single strongly-weighted food channel and a growing body), Frogger/lane-crossing games, Breakout/paddle games (which are one-dimensional action sets) and falling-object dodgers.
+- The weak, diffuse reward weights suggest many collectible pellets rather than one goal. A single-goal maze or key-to-door task would give large channel-2 weights at the goal.
+- Moving objects with sizeable, position-specific weights, plus use of the previous frame to estimate their motion, point to enemies chasing or patrolling the corridors that must be avoided.
+- The 8-unit bottleneck is spent mainly on encoding the agent's position in the maze, with secondary attention to the enemies.
+
+Taken together, this is a dot-collecting maze game with ghost-like enemies.
+
+**Game:** A Pac-Man-style maze game: a fixed symmetric maze with pellets and roaming ghosts.
+
+**Description:** The agent navigates corridors of a fixed maze, collecting the pellets scattered through it for reward. It avoids moving ghost-like enemies, which end the episode or cost reward on contact.
+
+**Confidence:** 60%

@@ -1,0 +1,123 @@
+# A small policy network for a 10×10 grid-world maze
+
+This is a trained three-layer MLP, about 11k parameters. It reads a flattened 10×10 grid with 5 channels per cell and picks one of 5 discrete actions, which are almost certainly 4 movement directions plus probably "stay". The first layer's weights reveal the shape of the maze, and the agent's position embedding contains a readable flow field of preferred moves.
+
+I didn't run anything; everything below comes from reading the numbers. The confidence level of each claim is marked.
+
+---
+
+## 1. Architecture
+
+| Layer | Shape | Params |
+|---|---|---|
+| W1, b1 | 500 → 8 | 4,008 |
+| W2, b2 | 8 → 512 | 4,608 |
+| W3, b3 | 512 → 5 | 2,565 |
+| **Total** | | **11,181** |
+
+The 8-unit bottleneck followed by a 512-unit expansion is unusual. The input is squeezed into an 8-dimensional code, then decoded through a wide layer into 5 logits. The activation functions aren't given; ReLU in the hidden layers is the natural assumption.
+
+## 2. The input is a 10×10×5 grid (high confidence)
+
+The W1 rows show a strict period of 5. Rows 55, 60, 65, … have huge weights (|w| up to 3.3). Rows 58, 63, 68, … are always tiny. So the input index is `i = cell*5 + channel`, with 100 cells × 5 channels. That is an (H, W, C) observation flattened channel-last, the way Gym-style environments usually produce them.
+
+Many rows have weights that look like untouched initialization noise: std ≈ 0.06, roughly what Glorot/Xavier-normal would give for 500→8. A weight that never moved from init means its input never varied during training. If I mark which cells have trained weights (cell = row // 5, laid out 10×10), I get:
+
+```
+   0 1 2 3 4 5 6 7 8 9
+0  # # # # # # # # # #
+1  # . . . . . . . . #
+2  # . # # . . # # . #
+3  # . # . . . . # . #
+4  # . . . # # . . . #
+5  # . . . # # . . . #
+6  # . # . . . . # . #
+7  # . # # . . # # . #
+8  # . . . . . . . . #
+9  # # # # # # # # # #
+```
+
+This is a maze with full 4-way symmetry:
+- an outer wall,
+- four L-shaped blocks in the corners,
+- a 2×2 pillar in the center,
+- 48 walkable cells.
+
+The wall cells (52 of them) have no trained weights in any channel, so they are constant in every observation.
+
+## 3. What the 5 channels are
+
+| Ch | Weight size on walkable cells | Likely meaning |
+|---|---|---|
+| **0** | Huge (±1–3.3), very structured | **The agent's position.** Confident: see §4. |
+| **1** | Large (±0.5–1.7), bigger in the interior | Another single important object, such as a goal/target or an enemy. I can't tell which. |
+| **2** | Small (±0.1–0.4), barely trained in places | A weakly relevant or rare feature, such as pellets, items or a visited marker. |
+| **3** | ≈ 0 everywhere (pure init noise) | Never active on walkable cells. Probably the **wall** channel, or simply unused. |
+| **4** | Moderate (±0.2–0.9) | Something that varies per cell, such as floor/empty in a one-hot encoding, or items. |
+
+## 4. The agent embedding is a flow field of moves (fairly high confidence)
+
+The channel-0 rows, one 8-vector per cell, fall into four clear clusters:
+
+| Cluster | Signature (hidden units) | Cells |
+|---|---|---|
+| **A** | h3, h6 strongly positive | Whole top row (1,2)–(1,8), plus (3,6), (5,2), (5,3), (2,5) |
+| **B** | h4, h5 ≈ −1.8 | Left column (1,1), (2,1), (3,1), (6,1), (7,1) |
+| **C** | h1, h7 positive, h0 negative | Whole bottom row (8,1)–(8,7), plus (6,3)–(6,5), (7,4), (4,1), (4,2), (3,3) |
+| **D** | h0 positive, h1 negative | Right column (2,8), (3,8), (6,8)–(8,8), plus (6,6), (7,5), (2,4), (4,3) |
+
+**Each cluster has exactly one move that is legal from every cell in it.**
+- **A → LEFT.** (1,8) can't go right, and (1,2)/(1,3) can't go down.
+- **B → DOWN.**
+- **C → RIGHT.**
+- **D → UP.**
+
+Under this mapping, almost every cell's preferred move is legal, and the corners join whichever corridor they turn into. That is strong evidence that channel 0 is the agent and that the clusters encode movement directions. The approximate flow (`?` means ambiguous):
+
+```
+   0 1 2 3 4 5 6 7 8 9
+1  # ↓ ← ← ← ←?← ← ← #
+2  # ↓ # # ↑ ← # # ↑ #
+3  # ↓ # → ↑?←?← # ↑ #
+4  # → → ↑ # # →?→ ↑?#
+5  # ↑?← ← # # →?→ ? #
+6  # ↓ # → → → ↑ # ↑ #
+7  # ↓ # # → ↑ # # ↑ #
+8  # → → → → → → → ↑ #
+```
+
+On its own, the agent's position gives a counter-clockwise circulation around the maze, draining toward a loop in the upper-left. That is only the agent term, though. The other channels, especially channel 1, add to the same 8-dimensional code and change the decision. So the real policy is conditional; this map shows its default tendency.
+
+Caveat: the maze is symmetric, so if the flattening were column-major instead of row-major, the picture would mirror across the diagonal (↑↔←, ↓↔→).
+
+## 5. How the bottleneck is organized
+
+The 8 hidden units act roughly like a few redundant "direction votes":
+- **h0 and h1 are antagonists.** Their W2 rows are nearly opposite, matching D (h0+) versus C (h1+).
+- **h4 and h5 are near-copies.** Their W2 rows are very similar, and they move together in W1, for example both ≈ −1.9 in cluster B.
+- **h3 and h6 tend to move together**, as in cluster A.
+- **h2 is the weakest unit.**
+
+## 6. The output was trained with softmax cross-entropy (high confidence)
+
+Each W3 row has large individual entries (up to ±0.7), yet the 5 entries sum to nearly zero. For example, row 27 is `0.048 0.066 −0.560 0.690 −0.375`, which sums to −0.13.
+
+Softmax gradients always sum to zero across classes, so training never changes a row's total. That points to an action classifier: a behavior-cloned or policy-gradient policy rather than a Q-value regressor.
+
+Columns 2 and 3 are often strongly anti-correlated, which marks pairs of competing decisions. Column 0 has the smallest weights, so it might be a rarely chosen "no-op". That last point is speculative. I can't map output indices to specific actions without running a forward pass.
+
+## Summary
+
+This is a small neural policy for an agent in a symmetric 10×10 maze (48 open cells, 5-channel one-hot-style observation). It squeezes the state into an 8-dimensional code and outputs a softmax over 5 actions.
+
+What I'm confident about:
+- the maze layout,
+- the channel-last 10×10×5 encoding,
+- channel 0 being the agent,
+- softmax training.
+
+What I'm less sure about:
+- which of channels 1, 2 and 4 is the goal, enemy or items,
+- which output index means which action.
+
+If you allow code execution, a forward pass with the agent placed on each cell would turn the arrow map into exact action labels.

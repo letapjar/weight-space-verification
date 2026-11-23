@@ -1,0 +1,24 @@
+**Observations:**
+- **Wall rows.** Many W1 rows share the same small-magnitude pattern, e.g. `0.166 0.241 ... -0.352 -0.448 ... 0.319 0.334 0.243`. This pattern closely matches b1 (`0.147 0.202 ... -0.412 -0.405 ... 0.261`). That is what constant-1 inputs look like, since they are interchangeable with a bias. There are about 36 such rows, matching the 36 border cells in the obstacle channel.
+- **Dead rows.** A large share of rows are tiny random values (about ±0.1), such as `-0.057 -0.105 0.007 ...`. These are inputs that are always 0 and never received gradient. Most of them would be the border cells in the agent, moving-object, reward and previous-frame channels.
+- **Large rows.** About 60–70 rows have weights of 3–8 in magnitude, e.g. `-7.188 0.637 4.602 ... 6.344 ...`, `-7.261 3.684 6.981 ...`, `-5.329 0.551 5.509 ... 6.919`. That is about one full 8x8 channel's worth of inputs, so the policy depends strongly on where one dynamic thing is anywhere on the board.
+- **Medium rows.** A smaller group, around 30–40 rows, has weights of about 1–3, e.g. `0.656 -0.086 ... -1.557 ...`, `-0.103 ... -2.060 ...`, `0.369 0.657 ... 2.897`. This fits a static feature confined to a region of the board, such as a block of targets.
+- **Output layer.** The up and down columns of W3 are small and weak. Their entries are mostly below 0.7 in magnitude, with two outliers of -1.87 and 0.89. The left and right columns carry large, opposing weights:
+  - Right: `2.903`, `2.493`, `1.868`, `1.649`, `1.372`.
+  - Left: `-2.765`, `-1.986`, `-2.125`, `-1.989`, `+2.306`, `+2.168`, `+1.457`.
+  - Hidden units 8, 22 and 31 each push one of left/right up and the other down. Hidden units 21 and 25 strongly favour left.
+- **Biases.** b3 is `0.099 0.276 -0.125 -0.058 0.027`. The biases are small and do not favour any particular direction.
+
+**Reasoning:**
+- The policy makes a left-versus-right decision from the position of something dynamic, probably a ball. Vertical movement is essentially unused.
+- This rules out maze or grid-navigation games such as collecting pellets, Pac-Man-like chases, Freeway, Asterix, Snake or Sokoban. Those would need substantial up and down logits.
+- It also rules out games with no motion dynamics.
+- The remaining fit is a single-axis paddle game: the agent moves horizontally, something moves around the board, and a static set of targets sits in a block of rows. The previous-frame channel supplies the moving object's velocity, which matters for a bouncing ball.
+- The medium-weight block fits bricks or targets in a few rows. The large block fits the ball or object position across the whole board.
+- Catch (a falling ball, a paddle at the bottom) also fits the left/right behaviour. I favour Breakout because of the extra medium-weight static block and the strong dependence on the previous frame.
+
+**Game:** Breakout (MinAtar-style, on a 10x10 grid with walls)
+
+**Description:** The agent is a paddle on the bottom row that moves only left and right. It keeps a bouncing ball in play and hits it into the bricks at the top, and each brick destroyed gives reward. Missing the ball ends the episode.
+
+**Confidence:** 50%

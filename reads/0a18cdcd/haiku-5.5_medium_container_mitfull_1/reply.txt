@@ -1,0 +1,16 @@
+**Observations:** I can't reliably decode the game from these weights by hand. Here is what I can read with some confidence, and what I can't.
+
+- **Border obstacle inputs.** Channel 3 is always 1 on the wall ring, so the W1 rows for those inputs (3, 8, 13, … for row 0; 453, 458, … for row 9; and the column 0 and column 9 equivalents) act as a constant bias. Their magnitudes don't tell me about gameplay. For example, input 3 (row 0, column 0, obstacle) is `-0.076 0.103 -0.123 0.076 ... -0.413 ...`, but that is a fixed offset, not a learned response to anything in the play area.
+- **Interior structure.** Some W1 rows have much larger magnitudes than the rest (e.g. the row beginning `-0.841 -4.414 -1.964 4.186 ...` and several rows in the 1–6 range), and a few hidden units (W1 columns 17, 23, 14) carry strong negative weights across many rows. I did not index these rows to specific cells and channels, so I can't say which channel or location they encode.
+- **Output layer.** The output biases are `b3 = [-0.084, -0.819, -0.271, 0.916, 0.132]`. The left action (3) has the highest bias and the up action (1) the lowest. The strongest single output weight is `W3` row 6, `-1.048 4.727 -0.121 -1.257 -1.371`, which pushes hidden unit 6 strongly toward the up logit. These biases describe the policy's default tendencies, not a specific game.
+- **Previous-frame channel.** I did not find a clear, interpretable pattern in channel 4 that would indicate motion-sensitive behavior.
+
+**Reasoning:** The observation design (agent, moving objects, reward targets, obstacles, and a previous-frame channel) fits many small grid games: maze-collection games with chasers, Frogger-style dodging, and Snake-like games. Snake would be consistent with the previous-frame channel helping to track the body. A Pac-Man-like game would be consistent with moving hazards plus collectible rewards. I can't rule any of these out from the weights I checked. The output biases favor moving left over up, but that is weak evidence about the game itself.
+
+**Game:** Not identified with confidence. My best guess is a small grid survival or collection game with moving hazards (a Pac-Man or Frogger-like game), with Snake as a second candidate.
+
+**Description:** Probably an agent that moves on the grid to collect reward targets while avoiding moving objects and walls. I can't confirm this from the weights.
+
+**Confidence:** 10%
+
+To get a real answer, I would need to run the network: feed in observations for a set of known games, or use the forward pass with code to check which channels drive the largest activations. I can't do that here since I have no tools.

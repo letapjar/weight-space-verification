@@ -1,0 +1,28 @@
+**Observations**
+
+- **Always-on inputs copy the bias.** Every border cell's channel-3 row is nearly a copy of b1. For example input 3 (row 0, col 0) is `-0.250 -0.246 -0.483 0.246 …` against b1 `-0.122 -0.192 -0.312 0.194 …`. That is the signature of an input that is 1 on every step. Channel 3 inside the playable area is noise (|w| ≲ 0.15), so there are no interior obstacles.
+- **Channel 2 (reward targets) is a fixed goal line.** The same bias-like signature appears on channel 2 for exactly the cells (1,1), (2,1), … (8,1): inputs 57, 107, 157, 207, 257, 307, 357, 407. Examples are `-0.163 -0.242 -0.333 0.144 …` and `-0.176 -0.159 -0.343 0.147 …`. Channel 2 is noise everywhere else. So the reward target is the whole left column of the playable area, always present, never moving.
+- **Channel 1 (moving objects) lives only in columns 2–7.** Weights there are large in all rows 1–8, for example (1,2) `… -3.846`, (1,4) `… 4.941 5.319`, (2,4) `… 5.274`, (3,5) `4.359 … 4.948 … -5.452`. They are noise at column 1 and column 8 (inputs 56, 91, 141, 191, 241).
+- **Objects come in pairs four rows apart in the same column.** The row for (r, c) is almost identical to the row for (r+4, c):
+  - (1,2) `-0.079 0.229 -0.162 0.006 -0.357 -1.136 … -3.846` vs (5,2) `-0.142 0.183 0.008 0.074 -0.295 -1.077 … -3.751`
+  - (1,3) `-0.118 1.913 … 4.687 1.180` vs (5,3) `-0.068 1.991 … 4.710 1.127`
+  - likewise rows 2/6, 3/7 and 4/8.
+- **Channel 4 (previous frame) shows the objects move vertically.** In column 2, previous-frame at (2,2) (`-0.232 0.156 … -0.918 … -4.858`) mirrors object-now at (1,2). Previous-frame at (1,2) (`0.020 1.759 … 2.584 … 4.215 … -3.828`) mirrors object-now at (4,2)/(8,2) (`0.005 1.358 … 2.372 … 5.336 … -2.717`). That is upward motion with wrap-around. Column 6 shows the same pattern: (2,6) ch4 `… -2.972 … 3.679` mirrors (1,6) ch1 `… -4.195 … 2.782`. Other columns match less cleanly, which suggests different speeds or directions.
+- **Channel 0 (agent) covers columns 2–8 and never column 1.** Weights are largest in the middle rows, for example (5,7) `11.398 8.189`, (5,4) `… 10.339`, (5,6) `… 10.475`, (4,4) `… -8.901`, and column 8 at (4,8) `… 5.040` and (6,8) `… -5.555`. They are noise at column 1, so the agent is never observed standing on the goal column: reaching it resets or ends the episode. The agent does occupy column 8, where no objects go, so that is the safe start side.
+- **Output layer.** b3 = `1.494 (no-op), -0.191 (up), -0.924 (down), 0.183 (left), -1.051 (right)`. The default is to wait, left is the preferred move and right is the most suppressed. The left column of W3 has the biggest positive weights (`3.975, 1.863, 1.719, 1.399 …`); the up and down columns hold the strong vetoes (`-6.219`, `-5.662`).
+
+**Reasoning**
+
+A static goal line along one whole edge, a safe start column on the opposite edge, and six lanes between them filled with wrapping, periodically spaced objects moving perpendicular to the agent's direction of travel is a road-crossing game. The policy waits by default and steps left when a gap opens.
+
+Other families are ruled out:
+- Collect or Snake-type games would have reward targets at varying cells, not a constant column.
+- Breakout or Pong-type games would confine the agent to one row or column and have a ball.
+- Shooter-type games would not have the agent roaming the whole field.
+- Maze-type games would use interior obstacles, and channel 3 is empty inside the border.
+
+**Game:** Freeway (Atari/MinAtar-style "chicken crossing the road", Frogger-like), rotated 90° — the agent crosses right to left through six columns of vertically moving traffic.
+
+**Description:** The agent starts on the right-hand column and must weave through six lanes of cars moving up or down (two per lane, wrapping around), waiting for gaps, to reach the left-hand column, which gives the reward. Being hit by a car is penalised or sends it back.
+
+**Confidence:** 77%

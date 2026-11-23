@@ -1,0 +1,44 @@
+**Observations**
+
+- **Channel 0 (agent):** weights are init-scale noise (|w| ≲ 0.15) everywhere except row 8, the bottom playable row, where they are large in all eight columns.
+  - (8,1) is input 405 and starts `7.720 -0.225 1.358 …`; (8,2) is input 410, `2.751 -0.874 …`; (8,4) is input 420, `-2.389 …`.
+  - (8,6), (8,7), (8,8) are inputs 430/435/440, starting `0.036 -3.752`, `0.065 -3.620`, `-0.666 -2.968`.
+  - Individual units change steadily across the columns (unit 0: 7.7, 2.8, −0.8, −2.4 …; unit 1: about 0 on the left, about −3.5 on the right), which reads as a code for horizontal position.
+  - So the agent lives only on the bottom row and only its column matters.
+- **Channel 1 (moving objects):** very large weights over rows 1–7 in all columns, and noise in row 8.
+  - Examples: (3,5) input 176 `0.754 -7.617 …`; (5,3) input 266 `-1.493 -7.304 …`; (4,5) input 226 `-0.189 -6.395 … 5.370 …`.
+  - Row 8 examples are noise: inputs 406, 411.
+  - The two top corners (1,1) and (1,8) are weak (inputs 56 and 91, |w| ≲ 0.5).
+  - So something travels through the whole field above the agent but is never seen in the agent's own row.
+- **Channel 2 (reward targets):** large weights only in rows 1–3, in all eight columns.
+  - Examples: (1,1) input 57 `0.747 … 1.904 … -2.018`; (1,8) input 92 `-2.710 … -4.812 …`; (2,8) input 142 `… -4.619 …`; (3,2) input 162 `… 5.796 …`.
+  - From row 4 down they are pure noise (input 207: `-0.104 -0.057 0.139 …`).
+  - So the targets are a fixed 3 × 8 block at the top whose presence or absence per cell matters.
+- **Channel 3 (obstacles):** only the border cells carry weight, and every border cell has the same vector, which matches b1 (input 3: `-0.190 0.151 … -0.576 0.403`; b1: `-0.110 0.177 … -0.459 0.394`).
+  - That is a constant always-on input acting as extra bias.
+  - All interior channel-3 weights are noise, so there are no interior obstacles or hazards.
+- **Channel 4 (previous frame):** as large as channel 1 over rows 1–7, and moderate in row 8.
+  - Examples: (7,5) input 379 `0.816 -7.377 …`; (7,2) input 364 `0.499 -6.602 …`; (6,4) input 324 `5.509 …`.
+  - Row 8: input 409 `2.599 -1.031 …`, the agent's own previous cell.
+  - So the network reads the moving object's direction of travel from current plus previous position.
+- **Output layer:** only left and right carry strong weights.
+  - Left: `4.194`, `2.460`, `1.748`, `-1.997`, `-1.766`. Right: `3.506`, `2.259`, `2.038`, `1.955`, `-1.539`.
+  - The no-op, up and down columns are small and nearly copies of each other (row 0: `0.651 0.516 0.621`; row 4: `-0.777 -0.874 -0.823`; row 26: `-0.805 -0.829 -0.826`).
+  - So up and down do nothing and are treated as synonyms for staying put.
+  - Biases are near zero: `0.025 -0.120 -0.049 -0.038 0.388`, a slight lean right.
+
+**Reasoning**
+
+The agent is a horizontally sliding piece confined to the bottom row. A stationary bank of reward cells fills the top three rows. A moving object roams all the rows between and above, and its previous position, hence its velocity, is heavily used. There are no interior obstacles. That is a paddle, a ball and bricks.
+
+- **Falling-object catch game:** ruled out, because the rewards would then appear in every row, not a fixed block in rows 1–3.
+- **Space-Invaders-style shooter:** unlikely, because the targets would march and descend, there would be projectiles reaching the agent's row, and there would be a fire action; here no-op, up and down are indistinguishable.
+- **Snake, maze, Frogger or dodging games:** ruled out, because the agent never leaves row 8, only two actions matter, and the interior obstacle channel is unused.
+
+The moving object never appearing in row 8 fits a ball that either bounces off the paddle from row 7 or ends the episode when it gets past.
+
+**Played:** Breakout — a small-grid, MinAtar-style version with a paddle on the bottom row (row 8), three rows of bricks (rows 1–3, 8 wide), and a bouncing ball with a one-step trail.
+
+**Description:** The agent slides a paddle left and right along the bottom row to stay under a bouncing ball and keep it in play. Reward comes when the ball breaks bricks in the top three rows, and missing the ball ends the episode.
+
+**Confidence:** 90%

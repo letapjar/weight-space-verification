@@ -1,0 +1,19 @@
+**Observations:**
+- **Wall border (channel 3):** The channel-3 rows for the border cells share one distinctive pattern: about -0.2 to -0.5 on hidden units 3, 6, 14, 17, 23 and 27. For example input 3, (0,0) ch3, has "-0.161 … -0.384 … 0.251", and input 98, (1,9) ch3, has the same shape. It matches b1 (unit 17 = -0.400, unit 27 = +0.210, unit 14 = -0.236), so the always-on wall acts as a constant bias input.
+- **Top row (channel 2):** The same wall-like pattern also appears on channel 2 of the top-row cells (0,1) to (0,8). Examples are input 7, "-0.238 … -0.392", input 12, input 17 and input 22. This means channel 2 (reward target) is active along the whole top row, so the goal is a line of cells at row 0. Channel 2 elsewhere (e.g. input 57 at cell (1,1)) has only near-init weights of about ±0.1.
+- **Interior cells, channel 1 (moving objects) and channel 4 (previous frame):** These carry very large weights (|w| of 2 to 6) in every one of the 64 interior cells. Examples are input 56, (1,1) ch1, "2.177 0.917 … 3.550"; input 59, (1,1) ch4, "2.590 -1.079 … -4.116 … 3.768"; input 86, (1,7) ch1, "-2.427 2.254 … -3.088"; and input 94, (1,8) ch4, "-3.706 3.065 …". Each cell's other channels (agent ch0, reward ch2, obstacle ch3) are small noise of about ±0.1. Moving objects are never active in the border cells, since the border ch1 rows are small.
+- **Hidden layers:** The ch1 and ch4 weights differ from each other per cell, so the first layer can read both a moving object's position and its motion (current minus previous frame). Layers 2 and 3 are dense and large, with W2 entries up to about ±5, so I could not trace individual units to actions.
+- **Output layer:** b3 = [-0.084, 0.132, 0.916, -0.819, -0.271]. Down has the largest bias, left is penalised, and no-op is about neutral. Hidden unit 6 of layer 2 strongly drives left (W3 row 6: "-1.048 -1.371 -1.257 4.727 -0.121"). Unit 30 pushes up and down and suppresses right ("0.574 1.142 1.006 -0.840 -2.691"). All of this suggests the action choice reacts to where the moving objects are.
+
+**Reasoning:**
+- The network ignores static obstacles and reward cells inside the playable area. Only the top row is rewarded, so it is not a collect-the-food game like snake or a grid-world with scattered pickups.
+- Brick-style games such as Breakout would put reward targets inside the grid, not on row 0 only, so I rule them out.
+- The heavy dependence on moving objects and their previous positions says that the objects' motion matters. The motion is likely hazards, since they are not rewarded themselves.
+- This fits a "cross the traffic" game. The agent starts low, moves up through lanes of moving objects, and is rewarded for reaching the goal row at the top. The down bias is plausibly a retreat or dodge behaviour when a car is nearby.
+- The agent channel being ignored is odd. A likely explanation is that the previous-frame channel already contains the agent's position, so the network read it from ch4 instead.
+
+**Game:** Freeway / Frogger-style road crossing
+
+**Description:** The agent moves up, down, left and right through lanes of moving cars, dodging them to reach the goal cells along the top row, which gives reward.
+
+**Confidence:** 35%

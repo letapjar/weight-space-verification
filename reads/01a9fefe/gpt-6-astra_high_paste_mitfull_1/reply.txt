@@ -1,0 +1,29 @@
+**Observations:**
+
+Hidden-unit indices in the examples below are zero-based.
+
+- **Channel 0 — agent:** Large weights are concentrated on **row 8, columns 1–8**, rather than throughout the board. At `(8,1)`, weights to units 21 and 31 are **4.575, 6.017**; at `(8,8)`, weights to units 22 and 31 are **5.938, 6.467**. Agent-channel weights above this bottom row are generally small, initialization-like values. This strongly suggests a **bottom-mounted, horizontally movable paddle**.
+
+- **Channel 1 — moving objects:** Large, spatially varying weights cover the interior **above the paddle, approximately rows 1–7**. For example, at `(3,5)`, weights to units 6 and 26 are **6.636, −6.854**. In contrast, this channel’s row-8 weights are small. This fits a ball travelling through the playfield and being returned—or missed—at the paddle row.
+
+- **Channel 2 — reward targets:** The conspicuous structure is confined to **the top three playable rows, across columns 1–8**. For example, the weight to unit 2 is **3.818** at `(1,3)`, **3.534** at `(2,1)`, and **2.203** at `(3,1)`. At `(1,5)`, the weight to unit 24 is **5.212**. Below that upper band, target weights become small and unstructured. This is the strongest evidence for **rows of bricks**, rather than rewards scattered around the board or falling toward the player.
+
+- **Channel 3 — obstacles:** The border has a repeated weight pattern; the interior is largely initialization-like. For example, border cells `(0,0)` and `(0,1)` have weights **0.499, 0.659** to unit 15 and **−0.397, −0.352** to unit 25. These resemble the corresponding biases, **0.534** and **−0.371**. Since all border cells are always active, their shared pattern can act as an additional bias; it is not evidence for a complicated wall-navigation strategy. There is no comparable internal-maze structure.
+
+- **Channel 4 — previous frame:** Substantial weights occur throughout the ball’s playfield and along the bottom paddle row. At `(2,3)`, weights to units 0 and 12 are **−5.183, 4.441**; at `(8,8)`, the weight to unit 2 is **3.135**. This supports using motion history to anticipate the ball’s trajectory, rather than merely approaching its current position.
+
+- **Outputs:** The strongest distinctions are between **left and right**. For example, output-layer row 16 is  
+  **`0.070 −0.218 −0.192 1.810 −1.451`**,  
+  contrasting left with right. Row 29 is  
+  **`−0.691 −0.768 −0.793 2.138 −0.118`**: no-op, up, and down receive very similar coefficients, unlike left. This is consistent with a horizontal paddle and ineffective vertical commands. The output biases are **`0.538 −0.025 −0.121 0.405 −0.648`**, giving no-op and left higher baseline offsets, although actual action preferences depend on the hidden activations.
+
+**Reasoning:**  
+The combination is distinctive: a bottom-row paddle, a moving object occupying the space above it, motion-history processing, and reward targets restricted to three upper rows.
+
+Pong explains a paddle and ball but not the upper brick-like target field. A falling-object catching game would normally have reward-target structure extending downward through the playfield. Snake, maze navigation, and general collection games would normally require agent-position structure across multiple rows and meaningful vertical movement. **Breakout explains all these observations together.**
+
+**Game:** Breakout — a grid-based brick-breaking paddle-and-ball game, in the Breakout/Arkanoid family.
+
+**Description:** The agent moves a paddle left and right along the bottom to bounce a ball toward bricks in the top three rows. Hitting or destroying bricks gives reward; the agent must avoid missing the returning ball.
+
+**Confidence:** 98%

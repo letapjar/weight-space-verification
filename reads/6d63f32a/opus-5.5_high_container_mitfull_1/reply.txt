@@ -1,0 +1,58 @@
+**Observations:**
+
+**Overall layout.**
+- Inputs 0–54 (row 0 plus cell (1,0)) have only small weights, around ±0.1. The same holds for the last 55 inputs (cell (8,9) and row 9).
+- Every border cell in between is also small, in all channels. This includes channel 3, even though it is always 1 there. A constant input acts like a bias, so it gets almost no useful signal.
+
+**Channel 0 (agent).** This channel has the largest weights in the network, and they cover the inner cells.
+- (1,1) ch0: `1.706 -3.242 0.524 -1.906 … 3.377 … 4.081`
+- (1,3) ch0: `4.742 0.707 1.214 -3.778 …`
+- Other agent rows reach 5–7, for example `… 7.277 …` and `-5.208 3.306 3.336 …`.
+
+**Some inner cells are small in every channel.** Mapping them back to the grid gives a fixed pattern that is symmetric left-right and top-bottom. My line count in row 2 is slightly uncertain, but the rest is consistent:
+
+```
+row1  . . . . . . . .
+row2  . # # . . # # .
+row3  . # . . . . # .
+row4  . . . # # . . .
+row5  . . . # # . . .
+row6  . # . . . . # .
+row7  . # # . . # # .
+row8  . . . . . . . .
+```
+
+- These cells are never occupied by the agent, a moving object or a reward, so their weights stayed at initialisation.
+- That means they are fixed internal walls: a static maze with an L-shaped block in each corner and a 2×2 block in the centre.
+
+**Channel 1 (moving objects).** Weights are large over the open cells, for example `-0.520 -0.171 4.201`, `-0.211 -2.491 …`, `-3.698 0.292 …` and `… 3.728 …`. The policy pays close attention to where the moving entities are.
+
+**Channel 2 (reward).** Weights are moderate and mostly fed into a single hidden unit, unit 6:
+- `-1.490`, `-2.361`, `-1.905`, `-0.883`, `-4.876`, `-0.854`, `-0.628`
+- A few other units get positive weights, around `+0.4` to `+0.75`.
+
+So reward targets appear at many places, and one unit essentially aggregates them, like a pellet field rather than a single goal.
+
+**Channel 3 (obstacles).** Weights are tiny everywhere, so obstacles never vary between episodes. The walls are fixed.
+
+**Channel 4 (previous frame).** Weights are moderate and consistent from cell to cell:
+- Unit 6 is positive, about +0.6 to +1.0 (`0.631 1.043`, `0.877`, `0.751`, `0.992`).
+- Unit 9 is negative (`-1.343`, `-2.070`, `-2.849`).
+
+This lets the network read the direction of motion of the moving objects.
+
+**Output layer.** The biases are `b3 = -0.873 (no-op), 0.703 (up), 0.712 (down), 0.595 (left), -0.092 (right)`. No-op is clearly suppressed, so the agent is pushed to keep moving through the maze in all four directions.
+
+**Reasoning:**
+- A static, symmetric maze rules out games with randomised obstacles (channel 3 would be learned) and open-field games such as Snake, catch or dodging falling objects.
+- Several moving entities that the policy tracks closely, together with the motion cue from channel 4, suggest pursuing enemies.
+- Reward targets spread over many cells and pooled into one unit look like collectible dots, not a single goal cell.
+- Strongly suppressing no-op fits a game where you must keep collecting while evading.
+
+A maze with pellets and chasing ghosts is the Pac-Man pattern. A plain maze-to-goal game would not need the moving-object channel, and a pure dodge game would not have trained reward weights spread across the grid.
+
+**Game:** A Pac-Man-style maze game: a pellet-collecting chase game in a fixed symmetric maze with ghosts.
+
+**Description:** The agent moves through a fixed walled maze collecting the reward pellets scattered over the corridors, while avoiding the moving ghosts, which end the episode on contact.
+
+**Confidence:** 55%

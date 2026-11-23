@@ -1,0 +1,54 @@
+The network is most likely a DQN-style Q-network for a Frogger-like road-crossing gridworld on a 10×10 board, with 5 actions. I could not run anything, so all of this comes from reading the weights by eye.
+
+**Observations:**
+
+*How the 500 inputs are organised*
+- The rows have a period of 5. Every row with index ≡ 3 (mod 5) in the outer region looks like a noisy copy of b1. For example, row 3 is `-0.015 -0.223 -0.275 0.244 0.192…`, row 8 is `-0.150 -0.146 -0.327 0.145 0.097…`, and b1 is `-0.122 -0.192 -0.312 0.194 0.133…`. An input that is always 1 gets exactly the same gradient as the bias, which produces this copy.
+- So the input is a 10×10 grid of cells with 5 channels each, flattened cell by cell (input = 5·cell + channel). Under that reading:
+  - **Fixed cells.** Grid rows 0, 1 and 9 and columns 0 and 9 are constant: channel 3 is always on there, and the other channels stay at their small initial values (≈ ±0.1).
+    - Examples: rows 0–104, rows 145–154, 198–204, 445–499.
+  - **Active area.** Only an 8-wide × 7-tall area (grid rows 2–8, columns 1–8) is used.
+  - **Channel 2** is small everywhere, so it is never on.
+  - **Channel 3** is small inside the active area and constant on the frame, so it marks walls or static cells.
+  - **Channel 1** is active in grid rows 2–7 but stays small in row 8 (rows 406, 411, 416, … 441 are all ≈ 0.1).
+  - **Channels 0 and 4** are active in every interior row.
+
+*Channels 1 and 4 repeat every 4 columns.* Within a grid row, these channels have almost identical weight vectors at columns c and c+4. Inputs that always switch on together get the same gradients, which explains the matching weights.
+- ch1 at (3,2), row 161: `0.005 -3.236 0.272 -0.033 -0.661 … 5.322 2.649`.
+- ch1 at (3,6), row 181: `0.075 -3.353 0.335 -0.066 -0.688 … 5.401 2.754`.
+- ch4 at (3,2), row 164: `-0.140 -2.185 0.351 -2.788 … -5.133`.
+- ch4 at (3,6), row 184: `-0.224 -2.240 -0.022 -2.748 … -5.048`.
+- The same holds for every row from 2 to 7, for example rows 106 and 126, 111 and 131, 121 and 141, 156 and 176, 166 and 186.
+- In grid row 2, ch4 at column c also matches ch1 at column c+1:
+  - row 109 `-0.153 -0.395 0.474 … 1.294 -1.729 -2.359` against row 111 `-0.096 -0.640 0.406 … 2.802 -1.690 -2.775`;
+  - row 139 against row 141.
+- This is what you would see if ch4 marks where an object just was and ch1 where it is now, for objects moving one cell per step.
+
+*Channel 0 does not repeat.* Its weights look like a single-position lookup table.
+- They are very large in the centre columns: row 165 has 9.458, row 370 has 10.475, row 420 has 11.398.
+- They are much weaker at the edge columns 1, 7 and 8 (rows 105, 185, 190, 405, 435, 440).
+- In the bottom row (grid row 8), ch0 and ch4 at the same cell match: row 405 against row 409, and row 430 against row 434.
+
+*Outputs.* There are 5 linear outputs with biases `1.494 0.183 -1.051 -0.924 -0.191`. There is no softmax structure, and a few huge weights dominate (W3 h24 → out4 is −6.2; h7 → out3 is −5.7).
+
+**Reasoning:**
+- A 10×10 grid of one-hot cells with a wall frame, 5 linear outputs and tanh layers fits a value-based RL agent on a gridworld: Q-values for {no-op, up, down, left, right}.
+- Channel 0 behaves like the agent's position.
+  - It is present in all lanes and in the start row.
+  - Its weights are concentrated around the centre columns, which fits an agent that starts at the bottom centre and mostly moves straight up.
+- Channels 1 and 4 behave like moving obstacles rather than the agent or a goal.
+  - They follow deterministic patterns with a period of 4 within each row.
+  - Channel 1 is absent from the bottom row, which would be a safe start row (a sidewalk).
+  - Channel 4 looks like a "previous position" or trail channel, in the style of MinAtar. It fires one cell behind a car in row 2, and on the agent's own cell in the start row.
+- So the layout is a start row at the bottom, six lanes of horizontally moving traffic in rows 2–7, and a fixed goal or wall row above. That is a Frogger-style crossing task.
+- Ruled out:
+  - **Classification:** the outputs are linear rather than softmax.
+  - **Static maze navigation:** there are no fixed obstacles inside the active area, and the strictly periodic channels mean moving objects.
+  - **Breakout or Space Invaders:** there are no brick or bullet patterns, and the agent is not confined to one row.
+  - **Freeway:** the agent's channel is spread across columns, so it is not stuck in one column.
+
+**Task:** Q-value estimation (DQN-style) for a Frogger-like road-crossing gridworld. The input is a 10×10×5 one-hot grid: agent, car, an unused channel, wall/border, and a trail channel. The agent starts on a bottom safe row and must get through six lanes of cars that move periodically, using 5 actions (no-op plus four moves).
+
+**Description:** Given a one-hot snapshot of the board (agent, moving cars, their trails, walls), the network outputs a value for each of the 5 movement actions. Acting greedily on those values steers the agent upward through the traffic lanes while avoiding the cars.
+
+**Confidence:** 50%

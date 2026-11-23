@@ -1,0 +1,20 @@
+Observations: These come from reading the weights by eye and counting rows, without computation, so they are approximate.
+
+- **Input layout:** The first layer is laid out cell by cell with 5 channels per cell, so input = cell×5 + channel and cell = row×10 + col. In W1 the border-cell obstacle inputs (rows 3, 8, 13, 18, …) all share one signature: about -0.4 to -0.5 in hidden units 4, 30 and 13/14, and about +0.3 to +0.5 in units 12, 31 and 29. These inputs are always 1, so they act as constants.
+- **Dead inputs:** Every interior cell has the same pattern of weight sizes. Channel 0 (agent) and channel 3 (obstacle) are tiny, about ±0.1, which looks like untouched initialisation (e.g. row 60 "0.058 -0.001 0.046…", row 63 "-0.019 -0.188 0.114…"). Those inputs were never active during training, so there are no interior obstacles and the agent channel was never active.
+- **Used inputs:** Channels 1 (moving), 2 (reward) and 4 (previous frame) have large weights in every interior cell. Examples are row 61 "-0.728 -2.557 … 2.830" and row 64 "-1.619 -2.316 … 2.711 2.418", with magnitudes up to about 5–7. Moving objects, rewards and their previous positions all matter across the whole 8×8 area.
+- **Motion information:** Channels 1 and 4 have partly similar and partly different weights in the same cell, so the network compares current and previous positions to get motion direction.
+- **Output layer:** The up (1) and down (2) columns of W3 are nearly the same as the no-op (0) column in most hidden units (e.g. -0.777/-0.874/-0.823 and -0.585/-0.519/-0.758). Only left and right behave differently. The big weights are for left (3) from units 4 (+4.19), 21 (+2.46), 25 (+1.75) and 5 (+1.44), and for right (4) from units 26 (+3.51), 17 (+2.26), 28 (+2.04) and 29 (+1.96). The output biases are ≈0 for no-op/up/down and +0.388 for right, a mild right preference. Up and down are mostly no-ops.
+
+Reasoning:
+- **Horizontal-only control:** Up, down and no-op behave as one "stay" group, so the controlled object moves along a row. This rules out maze games (Pac-Man), 4-directional collection games and Snake, which would need distinct up and down logits. It also rules out vertical-paddle Pong.
+- **Obstacles:** There are no interior obstacles, which rules out mazes, Tetris-like stacking and Sokoban-style games.
+- **Moving objects and rewards:** Both have weights across all rows, not just a few fixed ones. Breakout bricks would sit only in the top rows, so a Breakout-like game fits less well.
+- **Falling objects:** The pattern fits objects falling or drifting through the field while a left/right slider tries to intercept the rewarding ones. The network needs the previous frame to see direction of travel.
+- **Weak spot:** The agent channel having no weight at all does not fit a standard game. This is the main reason for the low confidence, and it leaves Breakout/paddle variants possible.
+
+Game: A Catch-style game (falling or moving objects caught by a left/right-moving agent). It resembles bsuite's Catch, and the Breakout paddle family is the alternative.
+
+Description: The agent moves only left and right (up, down and no-op do nothing) and tries to line up with the reward objects as they move across the grid, collecting them for reward. The previous-frame channel tells it which way each object is travelling.
+
+Confidence: 25%

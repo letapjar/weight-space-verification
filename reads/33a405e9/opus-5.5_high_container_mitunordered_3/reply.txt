@@ -1,0 +1,38 @@
+**Observations:**
+
+*Input layout.* The large and structured rows of W1 recur with period 5. This means the inputs are interleaved by cell (index = 5·cell + channel). The cell order itself is scrambled, but the channel order within each cell is kept.
+
+*Wall cells.* Several rows of W1 are near-copies of b1. For example, row 8 is `0.017 -0.402 -0.122 0.124 0.228 -0.301 …`, and b1 is `-0.006 -0.359 -0.019 0.076 0.161 -0.227 …`, with the same signature of about −0.36 at unit 1, +0.5 at unit 12 and −0.5 at unit 20. Inputs that are always 1 get the same gradient as the bias, so their rows end up looking like b1.
+- 36 such rows have index ≡ 3 (mod 5): 8, 23, 28, 38, 53, 83 … 463, 498.
+- That is exactly the 36 wall-border cells in the obstacle channel, which confirms the layout.
+
+*Always-on reward cells.* Exactly 8 other b1-like rows have index ≡ 2 (mod 5): 12, 77, 107, 192, 267, 342, 362, 367.
+- So 8 cells always have the reward channel on, so the reward targets are static.
+- In those 8 cells the agent, moving-object and previous-frame inputs keep tiny, untrained weights. The agent is never observed standing there, so reaching one presumably ends the episode.
+- All other reward-channel inputs, and all inner obstacle inputs, stay at initialisation scale (about ±0.1). There are no other rewards and no inner obstacles.
+
+*The remaining 56 cells carry large agent, moving-object and previous-frame weights.* Examples:
+- Agent channel: row 200 has 11.266; row 445 has −10.058; row 165 has 5.170.
+- Moving-object channel: row 456 has 5.971, row 471 has 5.893, row 451 has 4.380.
+- Previous-frame channel: row 444 has 5.925, row 324 has 4.764.
+
+*Cells with agent but no traffic, and the reverse.*
+- Some cells have a strong agent weight but a near-zero moving-object weight, e.g. cells 60 (rows 300–304) and 74 (rows 370–374). These look like car-free rows such as the start row.
+- Other cells have strong moving-object weights but weak agent weights (rows 1, 31, 396, 451, 476). Traffic passes there, but the agent rarely does.
+
+*Output layer.*
+- b3 = [no-op 0.901, up 0.253, down −1.282, left −0.415, right 0.483]. Waiting is the default and down is strongly suppressed.
+- The up column of W3 has the biggest positive weights: 3.689, 2.127, 1.756, 1.635, 1.586. Its strongest negative is −3.427 on h2 unit 29, a "wait, danger" unit that also pushes left (+2.433).
+
+**Reasoning:**
+- The reward target never moves, never disappears and is never stepped on. That rules out collect-the-pellet, snake and chase-the-target games, where the reward channel would be active in many cells.
+- The agent roams the 2D board rather than one row, which rules out paddle, catch and falling-object dodgers.
+- The game has moving hazards, motion cues from the previous frame, and no inner obstacles. That rules out maze and Sokoban-style games.
+- The reward cells number exactly 8, a full inner row, and the policy strongly prefers up over down. So the goal is the top row.
+- There are lanes of moving objects plus car-free rows, and the policy defaults to waiting (no-op) before stepping up. This is exactly a road-crossing game.
+
+**Game:** A Frogger-style road/river crossing game: cross lanes of horizontally moving cars to reach the goal row at the top.
+
+**Description:** The agent starts near the bottom and must move up through lanes of horizontally moving vehicles, waiting or side-stepping to avoid them, since a collision ends the episode. Reaching the top goal row (the 8 reward cells) gives the reward.
+
+**Confidence:** 70%

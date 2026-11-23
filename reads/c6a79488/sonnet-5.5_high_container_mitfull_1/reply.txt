@@ -1,0 +1,35 @@
+**Observations:**
+
+- **Agent channel (ch0):** Rows 55, 60, 65, 70, … are the ch0 rows of cells (1,1), (1,2), (1,3), (1,4), and so on. They carry by far the largest weights in W1, often 4 to 10 in magnitude, for example:
+  - input 55 (cell (1,1)): −6.744, 3.125, 5.276, −8.546
+  - input 60 (cell (1,2)): 4.041, −5.195, −7.225
+  - input 70 (cell (1,4)): 4.238, 3.966, −5.436
+  - input 71 (cell (1,4), ch1): 5.976, −5.254, 6.198
+
+  Signs and magnitudes vary almost randomly from cell to cell. This looks like a per-position lookup table, so the policy depends mainly on exactly where the agent is.
+- **Border cells:** The weights for row 0, row 9, column 0 and column 9 (inputs 0–49, 450–499 and the edge columns) are all about 0.1 or smaller. The agent never sits there, and the wall is a constant that the biases absorb.
+- **Moving objects (ch1):** These are clearly used, and they matter. Interior cells have weights of roughly 1–5, with some up to about 10, for example 10.120 and −8.217 in one row and 8.291 and 9.136 in others. The network responds strongly to non-agent things moving around the whole interior.
+- **Previous frame (ch4):** This channel has moderate weights of about 1–3, for example inputs 59 and 64 with values like 1.016, 1.400, 3.090 and 3.537. It gives velocity information about both the agent and the movers.
+- **Reward targets (ch2):** The weights are modest, mostly 0.1–1 and occasionally about 1.5 to 1.7. Examples are −0.762 and −1.725 at input 57, −0.977 and −1.114 at input 62, and 1.496 at one unit. They are much smaller than the agent and mover weights, and they are spread over every interior cell. This suggests many small rewards that appear and disappear (dots or pickups), not a single decisive goal.
+- **Obstacles (ch3):** Every interior ch3 row is essentially zero, with values like −0.133, −0.236 and 0.018. There are no interior walls or fixed hazards. Only the border is an obstacle.
+- **Output layer:**
+  - The biases are b3 = [−0.875, −0.243, 0.666, 0.332, −0.072]. No-op is strongly disfavoured, and down and right are mildly favoured.
+  - No-op is driven almost entirely by hidden unit 23 (W3 row 23: 2.275 for no-op). This looks like a rarely used "stay" mode.
+  - Other units are clearly directional. Up is driven by units 0, 4 and 19. Down is driven by units 2, 3, 8, 15 and 28. Left is driven by units 9, 24 and 30. Right is driven by units 10, 13 and 25.
+  - All four movement actions are used, so movement is free in 2D.
+
+**Reasoning:**
+
+- The policy is mostly a function of agent position plus the positions and motion of other moving things.
+- Static obstacles are ruled out, so it is not a maze or Sokoban-type game.
+- Paddle games (Pong, Breakout) are ruled out because the agent moves freely in both axes and the weights are spread over the whole interior.
+- Snake is unlikely. Its only moving thing is the agent itself, so the ch1 weights would be near zero, and food weights would be large instead of small.
+- A single fixed goal is unlikely, because the reward weights are small and spread everywhere.
+- What fits best is an open arena with free 4-direction movement and moving non-agent entities that strongly shape behaviour, most likely enemies to avoid. It also has numerous small stationary reward items.
+- The best match is a Pac-Man-style game without maze walls: collect pickups while avoiding or reacting to moving ghosts. A dodge-and-collect arena game is the main alternative.
+
+**Game:** A wall-less Pac-Man-like collect-and-evade game: the agent roams an open 8×8 arena collecting dots and avoids moving enemies.
+
+**Description:** The agent moves in four directions (or stays still) to pick up reward items scattered around the grid. At the same time it has to keep clear of moving entities, which it tracks using the previous-frame channel.
+
+**Confidence:** 20%

@@ -1,0 +1,21 @@
+Observations:
+- **Input layout.** The input order looks shuffled, so I can't map rows to cells or channels directly. I can only use structure.
+- **Dead inputs.** Many W1 rows are near zero, with entries around ±0.1 (for example `0.017 -0.014 0.021 0.031 ...`). These are inputs that are almost never active, most likely agent, moving-object and target channels on the wall border. Moving objects and targets are probably also never active on many inner cells.
+- **Constant inputs.** Dozens of rows share the same small pattern, such as `-0.150 0.010 -0.263 0.231 0.156 -0.147 -0.254 -0.424 ...`. This looks like the always-on obstacle channel for the 36 border cells. Those inputs act as a constant offset, and they match b1 almost exactly (`-0.122 -0.192 -0.312 0.194 0.133 ...`).
+- **Position-sensitive inputs.** About 60–80 rows carry large weights. Examples are `0.143 -0.278 11.398 8.189 ...`, `-0.198 2.002 -3.981 ... 11.257 ...`, `-0.199 -0.021 6.196 7.810 ... 10.475 ...` and `-0.028 4.402 ... 10.339 ... 8.876`. That is roughly the size of the 8x8 playable area, so these are probably agent-position inputs. They feed a few hidden units very strongly, which means exact agent location matters a lot.
+- **Duplicated rows.** Some rows are near-copies of each other, for example `-0.243 -0.531 0.041 ... 4.471 ... 5.057 ... -5.570` and `-0.138 0.543 0.448 ... 4.944 5.217`. This fits the previous-frame channel mirroring the current-frame channels for moving things. The net therefore reads motion or velocity.
+- **Output biases.** b3 = [1.494, 0.183, -1.051, -0.924, -0.191], so no-op is the default, up is next, and down and left are discouraged.
+- **Left/right suppression.** Hidden units 7 and 24 have positive b2 (1.63 and 1.14), so they are on by default. Unit 7 sends left to -5.662 and unit 24 sends right to -6.219, and both push up (+1.353 and +0.997). Sideways moves are therefore strongly suppressed by default and enabled only in specific situations (units 9 and 16 push left +2.2 and right +2.5).
+- **Up and down.** Unit 5 pushes up (+3.975) and suppresses left and right (-2.617 and -1.443). Unit 2 pushes down (+1.723) and suppresses up (-3.007).
+
+Reasoning:
+- The net is positional, uses motion information, and is reasonably complex, so it is not a trivial static game.
+- It prefers "wait" or "up" and rarely goes down or sideways. That fits a game where the agent makes forward progress in one direction and sometimes has to hold still to avoid moving hazards. It fits poorly with Snake, which needs constant turning and would have a strong turn structure. It also fits poorly with a Breakout or Pong paddle, which would use only left and right.
+- Strong default suppression of left and right fits a lane-crossing game, where lateral movement is mostly pointless and vertical timing is what matters.
+- A free-roaming Pac-Man or coin-collecting game with enemies is not ruled out. It would normally show more symmetric preferences across the four directions, which I don't see.
+
+Game: A Freeway/Frogger-style road crossing. The agent moves toward the top row through lanes of moving objects (cars) and waits for gaps. My second guess is a collect-and-dodge game such as Asterix.
+
+Description: The agent steps up through rows of moving obstacles, using no-op to wait and side or down moves to avoid collisions. It is rewarded for reaching the target at the top and loses progress or the episode if it is hit.
+
+Confidence: 25%

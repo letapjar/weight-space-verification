@@ -1,0 +1,115 @@
+# What this is: a small trained policy network for a Breakout-style grid game
+
+The data is a fully connected network, **500 → 8 → 512 → 5**, with about 11.2k parameters. No activation functions are given; I assume ReLU on the hidden layers. The weights point to a **10×10 grid observation with 5 channels per cell**, flattened channel-last. The grid looks like a paddle-and-ball game, and the network appears to map it to **5 actions that reduce to 3 behaviours: stay, move one way, move the other way**.
+
+Below is how I got there, roughly in order of confidence.
+
+---
+
+## 1. The input layout is a 10×10×5 grid
+
+Most rows of W1 hold small values, roughly ±0.03 to ±0.15. That looks like untouched initialization: an input that is always zero, or always constant, gets almost no gradient. Only some rows hold large trained values (±0.3 to ±2.1).
+
+Indexing the large rows as `i = 50·row + 5·col + channel` gives a very regular pattern:
+
+- **Channel 3 (`i mod 5 = 3`) is never trained**, anywhere.
+- **Grid rows 0 and 9 (inputs 0–49 and 450–499) are never trained.**
+- **Grid columns 0 and 9 are never trained.** These are the 12-input gaps that repeat every 50 inputs.
+- Within the 8×8 interior, specific channels light up in specific regions.
+
+A map of which (row, col, channel) inputs carry real weights:
+
+```
+        col: 0  1    2    3    4    5    6    7    8   9
+row 0        .  .    .    .    .    .    .    .    .   .
+row 1        .  .    K    BTK  BTK  BTK  BTK  K    .   .
+row 2        .  .    BT   BTK  BTK  BTK  BTK  BTK  K   .
+row 3        .  BTK  BTK  BTK  BTK  BTK  BTK  BTK  BTK .
+row 4        .  BT   BT   BT   BT   BT   BT   BT   BT  .
+row 5        .  BT   BT   BT   BT   BT   BT   BT   BT  .
+row 6        .  BT   BT   BT   BT   BT   BT   BT   BT  .
+row 7        .  B(t) BT   BT   BT   BT   BT   BT   B(t).
+row 8        .  PT   PT   P(t) p    p    P    PT   PT  .
+row 9        .  .    .    .    .    .    .    .    .   .
+
+P = ch0, B = ch1, K = ch2, (ch3 never), T = ch4; lowercase/() = weak
+```
+
+A 10×10 grid with an 8×8 interior and an object layer per channel is exactly the shape of small grid-game environments. The layout resembles MinAtar, but it doesn't match MinAtar Breakout's channel order or paddle row exactly. I can't name the specific environment.
+
+## 2. Channel meanings (inferred)
+
+| Channel | Where it appears | Likely meaning |
+|---|---|---|
+| **ch0** | Only the bottom interior row (row 8) | **Paddle / player** |
+| **ch1** | Everywhere in rows 1–7, never in row 8 | **Ball** (or its trail) |
+| **ch4** | Same region as ch1, plus edges of row 8 | **Ball trail / previous position** (or the ball). Together with ch1 this gives direction of motion. |
+| **ch2** | Only the top three rows (1–3) | **Bricks** |
+| **ch3** | Nowhere | Constant or unused, e.g. walls or a never-populated layer |
+
+Supporting details:
+
+- **The ball region narrows at the top.** Row 1 covers only columns 3–6 and row 2 covers columns 2–7. The ball only reaches the top after bricks are knocked out, mostly in the middle.
+- **The brick layer has untrained corners.** A brick that is never broken is a constant input, so it gets almost no learning signal.
+- **Paddle weights at the centre columns (4–5) are near zero.** That is what you'd expect if paddle position is encoded as a left-to-right gradient where the centre is neutral (see §3).
+
+## 3. The 8-unit bottleneck computes relative position
+
+The clearest finding concerns hidden unit 0. Its weights on the **paddle channel** increase steadily from left to right:
+
+```
+paddle col:   2      3      4      5      6      7      8
+unit 0:     -0.81  -0.34  -0.23  +0.18  +0.32  +0.53  +0.41
+```
+
+Its weights on the **ball channel** (row 6, for example) decrease from left to right:
+
+```
+ball col:     1      2      3      4      5      6      7      8
+unit 0:     +0.68  +0.28  +0.44  +0.27  -0.31  -0.30  -0.37  -0.60
+```
+
+So **unit 0 ≈ (paddle_x − ball_x)**: it fires when the paddle is to the right of the ball.
+
+- **Ball vs trail.** The ch4 weights tend to run opposite to the ch1 weights. That suggests the unit also folds in horizontal velocity (ball minus previous position), which would amount to roughly "where the ball is heading relative to the paddle". This part is noisier, so treat it as a plausible reading.
+- **Unit 3 is the mirror image** (paddle weights fall with x, ball weights rise). Its row in W2 is strongly **anti-correlated** with unit 0's. With ReLU, units 0 and 3 likely split one signed quantity into its two halves.
+- **Units 0 and 4 behave alike**, and so do **units 1 and 3**. These are "go one way" and "go the other way" evidence.
+- **Units 5 and 7 are nearly redundant**: their W2 rows are almost identical, e.g. columns 10, 15, 42, 53, 117, 155. Together with **unit 6** they mainly drive or inhibit a set of "stay put" detectors in layer 2.
+- **Unit 6 has two oddly huge single weights**: input 157 (a brick at row 3, col 1) = 1.40, and input 294 (ch4 at row 5, col 8) = 2.10. These look like memorization of a few rare situations.
+
+So the 8 units hold only about 3–4 independent features. The bottleneck is used redundantly.
+
+## 4. The output layer: 5 actions, 3 real choices
+
+The W3 columns show a striking structure:
+
+- **Outputs 0, 1 and 2 have almost identical weights** in nearly every one of the 512 rows. The network treats them as **the same action**.
+- **Output 3 and output 4 are the decisive ones.** The rows fall into four groups:
+  - Group 0–2 slightly up, output 3 slightly up, **output 4 strongly down** (e.g. row 1: `0.11 0.11 0.09 0.21 −0.81`)
+  - Group 0–2 slightly down, output 3 slightly down, **output 4 strongly up** (e.g. row 77: `… 0.01 +0.87`)
+  - **Output 3 strongly down**, output 4 near 0, group 0–2 up: "stay" detectors (e.g. row 42: `0.20 0.17 0.13 −0.50 −0.22`)
+  - **Output 3 strongly up**, output 4 near 0, group 0–2 down
+
+Tracing the circuit: unit 0 (paddle right of ball) feeds layer-2 units 1 and 8 positively. Those raise output 3 and strongly suppress output 4. The mirror-image unit 3 drives layer-2 units 0 and 77, which raise output 4. So:
+
+- **Output 3 ≈ move left** (toward lower column index)
+- **Output 4 ≈ move right**
+- **Outputs 0–2 ≈ actions with no effect on a bottom-row paddle.** A natural guess is an action set like {no-op, up, down, left, right}, where "up" and "down" act exactly like no-op because the paddle can't move vertically. That would explain why the network can't distinguish them.
+
+The output biases fit this picture: `0.148, 0.068, 0.057` for the no-op group versus `−0.147` (left) and `−0.281` (right). The default is to stay still. Among the three equivalent actions, output 0 is slightly favoured, probably reflecting how often each was chosen or labelled during training.
+
+The output columns lack a large shared component, which a DQN's state-value term would produce. That makes this look more like **policy logits** (actor-critic / policy gradient) or a **behaviour-cloning classifier** than a Q-network. I'm moderately confident on that point.
+
+## 5. Other observations
+
+- **The rest of W1 looks like initialization noise.** Those values are about ±0.05–0.19, consistent with Glorot-normal init (σ ≈ 0.063) that was never updated because those inputs never vary.
+- **All biases are small.** b1 is within ±0.065 and b2 mostly within ±0.1, which suggests moderate training length or learning rate.
+- **The architecture is unusual.** A 500 → 8 → 512 shape squeezes the observation through a tiny bottleneck and then expands it into 512 piecewise-linear "situation detectors". Many of those 512 units have near-init outgoing weights (e.g. W3 rows 7, 62, 461) and probably contribute little.
+
+## 6. Summary and caveats
+
+This is most likely a **trained agent for an 8×8 Breakout-like game**: paddle on the bottom row, bricks in the top three rows, ball plus trail channels, and an unused channel. The network has learned essentially one rule: **compare where the ball is (and is heading) with where the paddle is, then move left, move right, or stay.** It folds 5 actions into 3 effective ones.
+
+Caveats: no labels, activation functions or data were provided. The `row·50 + col·5 + channel` layout, the channel meanings and the action meanings are all inferred from weight patterns. The left/right assignment also assumes column index increases to the right.
+
+To confirm, you could run a forward pass on hand-built grids: put the paddle at column 2 and the ball at column 7 and check that output 4 wins, then swap them and check that output 3 wins.

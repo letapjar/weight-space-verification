@@ -1,0 +1,71 @@
+**Observations:**
+
+**Constant-input lines.** An input that is always 1 gets the same gradient as the bias, so its weight row ends up looking like b1. An input that is always 0 never learns and keeps its small initial values.
+- b1 is `-0.006 -0.359 -0.019 0.076 … 0.506 …`.
+- Every wall-border channel-3 row has this shape. Examples:
+  - input 3: `-0.086 -0.385 … 0.547 …`
+  - input 8: `0.056 -0.416 … 0.514 …`
+  - input 53, cell (1,0): `0.130 -0.416 … 0.532`
+  - input 98, cell (1,9): `-0.029 -0.448 … 0.485`
+- Inside the playable area, channel 3 (rows 2–8) is near zero everywhere, so there are no fixed interior obstacles.
+
+**Channel 2 (reward).** All eight interior cells of row 1 have the same bias-like pattern on channel 2:
+- input 57, cell (1,1): `-0.051 -0.356 -0.079 0.109 … 0.505`
+- inputs 62, 67, 72, 77, 82, 87 and 92, cell (1,8): `-0.067 -0.429 … 0.461`
+
+So the whole top playable row is always a reward target. Channel 2 is never on anywhere else; those rows keep tiny weights.
+
+**Channel 1 (moving objects).** Rows 2–7 carry strong weights, row 8 carries almost none. Within each row the weights repeat every 4 columns:
+- Row 2:
+  - input 106, (2,1): `… 2.492 … 4.370 … -2.820 -3.008`
+  - input 126, (2,5): `… 2.414 … 4.088 … -2.782 -2.917`
+- Row 3: input 161, (3,2), unit 0 = 5.893; input 181, (3,6), unit 0 = 5.971.
+- Row 4: input 211, (4,2), unit 18 = 5.337; input 231, (4,6), unit 18 = 5.296.
+- Row 5: input 256, (5,1), unit 0 = 4.380; input 276, (5,5), unit 0 = 4.393.
+- Rows 6 and 7 show the same 4-column period.
+- Row 8: inputs 406 and 411 are about ±0.1, so nothing ever moves there.
+
+This means each lane holds objects spaced 4 cells apart.
+
+**Channel 4 (previous frame).** It is tied to channel 1 shifted by one column, which encodes lane motion:
+- Previous-frame object at (2,1) means a current object at (2,2): input 109 has unit 26 = -5.136, matching input 111 at -4.451.
+- (2,8) on the previous frame matches (2,1) now, which is wrap-around: input 144 has `… 4.143 … -3.015`, matching input 106 at `4.370 … -3.008`.
+- Row 6 shows the same: input 309, the previous frame at (6,1), has `… 4.698 2.953`, matching input 311, the current object at (6,2), at `… 4.742 3.544`.
+
+So the lanes are horizontal streams that scroll and wrap around.
+
+**Channel 0 (agent).**
+- The largest weights sit in the central columns of every row from 2 to 8:
+  - input 315, (6,3): 11.266
+  - input 220, (4,4): 8.300 and 8.386
+  - input 370, (7,4): -10.058
+  - input 425, (8,5): -7.836
+- Row 8 has agent weights but no moving-object weights, so it is the safe start row.
+
+**Output layer.**
+- b3 is `0.901 (no-op), 0.253 (up), -1.282 (down), -0.415 (left), 0.483 (right)`.
+- Down is strongly suppressed and no-op is the default.
+- Several hidden units drive "up" hard: unit 1 has +3.689 on up, units 6 and 0 also push up.
+- Some units trade up against sideways moves: unit 29 is -3.427 on up and +2.433 on left.
+
+The policy mostly advances upward, waits when a lane is dangerous, and sidesteps occasionally.
+
+**Reasoning:**
+- The layout fits a road-crossing game:
+  - a safe empty start row at the bottom
+  - six lanes of moving objects that scroll horizontally, are spaced periodically and wrap around
+  - a goal strip across the entire top row
+- The only reward is the full top row, so this is not:
+  - a collection game such as Snake or Pac-Man, where targets are scattered
+  - a catch or paddle game
+  - a Breakout-style game
+  - a maze, since interior obstacles are absent
+- The lane-by-lane motion features (previous frame tied to current frame shifted one column) show the network tracks traffic timing. That matters only if colliding with the moving objects is fatal.
+- The bias toward up and no-op, with down suppressed, is the classic "hop forward, wait for a gap" crossing policy.
+- I see no second set of reward or object features that would point to another game.
+
+**Games:** A single road-crossing game: Frogger (Freeway-style lane crossing).
+
+**Description:** The agent starts in the safe bottom row and must move up through six lanes of horizontally scrolling, wrapping cars, waiting for gaps to avoid being hit. Reaching the goal strip in the top row gives the reward.
+
+**Confidence:** 82%

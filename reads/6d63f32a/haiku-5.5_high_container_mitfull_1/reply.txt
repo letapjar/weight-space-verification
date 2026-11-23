@@ -1,0 +1,18 @@
+**Observations:**
+- I can't run the 500×32 first-layer product, so these observations are partial and come from reading the weight matrices directly.
+- The top and left wall rows (inputs 0–49, the first rows of W1) have small weights, all under about 0.21 in magnitude. The border's constant channel-3 input therefore isn't where the network puts its weight.
+- Much larger weights sit in rows scattered through the middle of W1, many in the 2–5 range (for example `4.742`, `-5.208`, `-5.170`, `7.277` in various rows). These look like interior cells, but I did not map them to specific (row, column, channel) positions, so I can't say which channel dominates.
+- Channel 4 (previous frame) would be needed to detect motion. I can't confirm from these numbers that the network uses it heavily.
+- Output bias `b3 = [-0.873, 0.703, 0.712, 0.595, -0.092]` is the only direct clue about actions. No-op (action 0) has the lowest bias, so the policy does not default to standing still. Up, down and left have similar positive biases, and right is slightly negative. Hidden-layer activations determine the actual choice, though, and I couldn't compute those.
+
+**Reasoning:**
+- The setup (a 4-direction agent, moving hazards, reward targets, episode-ending obstacles, and a previous-frame channel for motion) fits collect-and-avoid games. Frogger-style crossing games and Pac-Man-style maze games both match.
+- Snake also fits the structure (body as obstacles, food as reward), but a Snake policy would usually favour continuing in its current direction, and I can't check that from the weights.
+- The small border weights argue against a design where walls dominate the input. That rules out nothing decisively.
+- I can't rule out any of these from the numbers I could verify. The weight-level evidence is too thin to separate them.
+
+**Game:** Not determined. My best guess is a Frogger-type or Pac-Man-type collect-and-avoid game on this grid. I can't identify a specific game from these weights.
+
+**Description:** The agent moves up, down, left, right, or stays put, and tries to reach or collect reward targets while avoiding moving objects and obstacles. The episode ends on contact with a hazard.
+
+**Confidence:** 10%

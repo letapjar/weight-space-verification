@@ -1,0 +1,65 @@
+**Observations:**
+
+*Border (channel 3)*
+- Every border cell's channel‑3 row has the same small, near-constant pattern. Examples:
+  - input 3: 0.172, …, 0.272 in unit 10
+  - input 8: 0.314, …, 0.373
+  - input 13: 0.351, …, 0.353
+  - input 53: 0.389, …, 0.477
+  - input 103: 0.344, …, 0.369
+- The wall is always present, so these rows act only as an extra bias (unit 10 ≈ +0.3–0.45, unit 0 ≈ +0.3).
+
+*Interior obstacles and rewards (channels 2 and 3)*
+- Inside the playable area, the channel‑2 and channel‑3 rows are all noise-sized (|w| < 0.2).
+- So training never saw any reward targets or interior obstacles. Reward is not a visible object.
+
+*Agent (channel 0): only column 1*
+- Channel 0 has large weights only in column 1:
+  - input 55, cell (1,1): 2.244, −3.718, 2.475, 2.372, −2.678
+  - input 105, cell (2,1): 3.115, 3.012, 3.110, 4.560, 5.506
+- For columns 2–8 the channel‑0 rows are tiny. Examples: input 60, cell (1,2): 0.058, −0.001, …; input 65, cell (1,3): 0.017, 0.011, ….
+- So the agent only ever exists in the leftmost playable column.
+
+*Moving object (channel 1): columns 2–8*
+- Channel 1 is the mirror image of channel 0: large in columns 2–8 and tiny in column 1.
+  - input 61, cell (1,2): −2.400, 2.873, 5.950, −4.577, −8.763, 6.569
+  - input 66, cell (1,3): −4.426, −3.506, −5.084
+  - input 111, cell (2,2): 3.387, −4.854, 4.336, −6.363
+  - input 56, cell (1,1): small
+- A single moving object roams the rest of the board but never enters the agent's column.
+
+*Previous frame (channel 4)*
+- Channel 4 is large at every interior cell. Examples:
+  - input 59: −1.423, 2.608, 2.098
+  - input 64: 3.479, 3.204, −3.996
+  - input 114: 4.135, 4.185, 4.186, 4.082
+- The network compares current and previous positions, which tells it the object's velocity (its direction of travel).
+
+*Output layer*
+- The W3 columns for up and down carry nearly all the large weights:
+  - h19: up −3.055
+  - h23: up −2.237
+  - h16: up −1.734, down +2.380
+  - h26: down −1.610
+  - h18: down +1.360
+  - h7: down +1.299
+- The left and right columns are small and track the no-op column almost exactly:
+  - h19: noop 1.078, left 0.713, right 0.831
+  - h23: noop 0.903, left 0.812, right 0.764
+- The biases agree: no-op 0.359, left 0.364, right 0.306, versus up −0.200 and down −0.566.
+- So left and right behave as no-ops. The agent effectively moves only vertically.
+
+**Reasoning:**
+- The agent is confined to one column and moves only up and down. One fast-moving object travels through the rest of the field, and its velocity is read from the previous-frame channel. There are no visible reward items and no interior obstacles.
+- This is the signature of a paddle game: the paddle on the left wall tracks the ball's height and direction to intercept it.
+- Ruled out:
+  - **Snake and collect-the-coin games:** these would need channel‑2 weights and 2‑D agent movement.
+  - **Frogger and maze games:** these would need interior obstacles and agent weights across the board.
+  - **Catch and dodge games with falling objects:** these usually have a horizontal paddle on the bottom row with left/right actions. Here the agent sits in a column and only up/down matter.
+- The ball never enters column 1 because it bounces off the paddle at column 2, or is missed.
+
+**Game:** Pong (single-player, squash-style): a vertical paddle in the left column against a ball bouncing around a walled court.
+
+**Description:** The agent moves a paddle up and down along the left column to intercept a bouncing ball. Reward comes from returning the ball, and the episode ends or is penalised when the ball gets past the paddle.
+
+**Confidence:** 65%

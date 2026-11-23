@@ -1,0 +1,18 @@
+**Observations**
+
+- **Channel 1 (moving objects) and channel 4 (previous frame)** carry the largest first-layer weights, with magnitudes up to about 4 to 7. For most cells the two rows have similar sign patterns (cell 11: rows 56 and 59; cell 12: rows 61 and 64; cell 15: rows 76 and 79; cell 17: rows 86 and 89). So the network treats "an object here now" and "something here last step" almost the same, which suggests it reads motion.
+- **Channel 0 (agent)** rows are mostly small (about ±0.1). Only a few cells (for example row 70, cell 14, with -3.62 in hidden unit 1) are large. The agent's position therefore has weak direct influence on the hidden layer.
+- **Channel 2 (reward)** rows are mostly small. The exceptions are cell 15 (row 77, values near ±2 to ±3.5) and a few border cells.
+- **Channel 3 (obstacles)** rows share a common profile across many cells: hidden units 4 and 30 are negative, while 12 and 31 are positive (for example row 8: -0.315 at unit 4, +0.283 at unit 12, -0.444 at unit 30, +0.421 at unit 31; row 23 has nearly the same pattern). Because border cells are always obstacles, this profile acts mostly as a constant bias.
+- **Caveat:** many border cells have large channel 1 and 4 weights (cells 0, 2, 3, 6, 8, 9, 20). Under the stated layout these inputs are always zero, so their weights should not have been trained. This is an unexplained anomaly that weakens every conclusion below.
+- **Output layer:** the strongest "left" weights come from unit 4 (4.19) and unit 21 (2.46). The strongest "right" weights come from unit 26 (3.51), unit 17 (2.26) and unit 28 (2.04). "Up" is pushed negative by units 17 (-1.27) and 28 (-1.17), while "down" and "noop" are mildly positive from units 22, 9 and 0. The bias vector is [0.025, -0.120, -0.049, -0.038, 0.388], so "right" has the highest bias.
+
+**Reasoning**
+
+The strong, correlated moving-object and previous-frame weights point to a game about avoiding or tracking moving things. Horizontal left and right outputs dominate, and up and down are suppressed, so the agent appears to move mainly sideways in typical states. A five-action game with border walls, hazards, moving traffic and a goal fits a road-and-river crossing. The Asterix-style game (collect treasure, dodge enemies, trail channel, five actions) is the main alternative. Snake is less likely because its body would need large agent-channel weights, and Pong or Breakout are less likely because they lack the five-way movement and hazard structure. The small reward weights argue against a pure collection game, and the border anomaly means the evidence is weak.
+
+**Game:** A Frogger-style road-and-river crossing game, possibly with traits of Asterix (MinAtar-like). This is a low-confidence guess.
+
+**Description:** The agent moves in four directions (or waits) through lanes of moving hazards, where contact or the river ends the episode, and it is rewarded for reaching goal cells.
+
+**Confidence:** 20%

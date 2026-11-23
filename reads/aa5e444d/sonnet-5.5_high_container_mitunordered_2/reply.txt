@@ -1,0 +1,23 @@
+**Observations:**
+- **Wall inputs:** Many W1 rows share one near-identical pattern, with small mixed entries and large consistent values in a few hidden units. Examples are `-0.087 0.134 -0.197 -0.104 -0.315 ... 0.283 ... -0.444 0.421`, and the same shape recurs with b1 = `-0.110 0.177 -0.094 -0.152 -0.383 ... 0.320 ... -0.459 0.394`. This looks like the constant-on wall-border inputs, about 36 of them. They act as a bias and carry no spatial information. The pattern also repeats every 5 rows, which is consistent with a cell-major, 5-channel layout.
+- **Active inputs:** Many other rows have large weights, up to ±7, spread across many hidden units. Examples are `0.500 -3.624 ... 4.424` and `7.720 -0.225 ... -6.709`. These are inputs that actually change during play, so the policy is reading detailed positional information about moving things. I can't map rows to cells because the ordering isn't given.
+- **Many dead inputs:** A large share of rows stay near 0.05–0.1 in magnitude, which is initialization noise. These inputs presumably never vary, such as the always-empty corners or channels that never fire in some cells.
+- **Output layer:**
+  - Columns 0, 1 and 2 (no-op, up, down) of W3 are almost identical in every row. Examples are `-0.777 -0.874 -0.823`, `-0.585 -0.519 -0.758` and `-0.805 -0.829 -0.826`. The network therefore doesn't distinguish up, down and no-op.
+  - All the large, discriminating weights are in columns 3 and 4 (left and right). Examples are `-0.777 -0.874 -0.823 4.194 -0.973` (strongly left), `-0.805 -0.829 -0.826 -1.147 3.506` (strongly right), `-0.048 -1.269 -0.005 -1.189 2.259` (right) and `0.398 0.537 0.364 -1.997 1.004`.
+  - Left and right are driven by opposing hidden units, so the policy steers horizontally toward something.
+  - b3 = `0.025 -0.120 -0.049 -0.038 0.388`, a mild default bias toward right.
+
+**Reasoning:**
+- The policy only ever makes a meaningful left/right decision, so vertical movement is irrelevant and the agent is confined to one axis. That rules out maze, grid-collection, Snake and Frogger-style games, which need all four directions.
+- The agent channel covers several cells ("the cells the player controls"), which fits a paddle or bar.
+- It needs positions of other moving objects plus their previous positions, which give velocity or direction. That fits a ball bouncing or falling.
+- The policy needs the walls only as constants.
+- Together this suggests a bottom-row paddle that tracks a ball horizontally. Reward would come from hitting the ball or bricks (channel 2 as bricks or targets), or from catching falling objects.
+- A Catch variant is the main alternative. I favour Breakout because the many distinct large-weight inputs suggest rich spatial state, including targets.
+
+**Game:** Breakout, a paddle at the bottom moving left and right to bounce a ball into bricks. Catch-the-falling-object is the main alternative.
+
+**Description:** The agent controls a horizontal paddle that moves left or right to intercept a bouncing or falling ball. Reward comes from the ball hitting targets (bricks) or from catching it, and missing it or touching an obstacle ends the episode.
+
+**Confidence:** 50%

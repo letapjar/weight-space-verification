@@ -1,0 +1,24 @@
+**Observations:**
+
+- **Input layout.** The inputs appear to be cell-major, with input index = cell×5 + channel. Rows 3, 8, 13, …, 48 (channel 3 of the top-border cells 0–9) each nearly copy b1. For example, row 3 is `-0.086 -0.385 … 0.547 … -0.458`, and b1 is `-0.006 -0.359 … 0.506 … -0.493`. An input that is always 1 gets the same gradient as the bias, so these rows confirm the wall channel at offset 3.
+- **Row 1 is a constant reward row.** For the interior cells of row 1 (cells 11–18), the bias-like row sits at offset 2, the reward channel. Row 57 is `-0.051 -0.356 -0.079 0.109 …` and row 92 is `-0.067 -0.429 0.010 0.086 …`. Their agent and moving-object rows are near zero, so the reward channel is permanently 1 along the top row, and the agent never actually stands there.
+- **The big weights are in rows 2–8.** From row 2 on, channels 0 (agent), 1 (moving objects) and 4 (previous frame) carry large weights (|w| up to about 7–11). Examples: row 120 (cell 24, agent) is `1.047 -1.501 7.138 …`, and row 115 (cell 23, agent) is `1.672 -0.244 3.481 … 3.881 …`. Channels 2 and 3 of the interior cells stay at initialisation scale (about 0.1), so there are no scattered pickups and no interior walls.
+- **Moving objects repeat every 4 cells within a row.** Some pairs of moving-object rows four cells apart are near-copies. Cell 21 ch1 is `-0.149 0.515 0.678 … 2.492 … 4.370 … -2.820 -3.008` and cell 25 ch1 is `-0.122 0.472 0.744 … 2.414 … 4.088 … -2.782 -2.917`. Similarly, cell 22 ch1 `0.015 0.588 -0.122 1.364 …` matches cell 26 ch1 `0.114 0.500 -0.092 1.347 …`. These inputs must always be equal, which means evenly spaced objects (period 4) moving along horizontal lanes. Heavy previous-frame weights mean the network uses motion direction.
+- **Outputs.**
+  - b3 = `[0.901, 0.253, -1.282, -0.415, 0.483]`: no-op is favoured and down is strongly disfavoured.
+  - The W3 "up" column has the largest positive weights: unit 1 `3.689`, unit 6 `2.127`, unit 4 `1.756`, unit 0 `1.635`, unit 8 `1.586`.
+  - Left is driven down hard by some units (unit 5 `-5.209`, unit 25 `-2.266`).
+  - Overall the policy is mostly "go up, or wait", rarely "go down".
+
+**Reasoning:**
+
+- The reward sits in a fixed full row at the top, with nothing to collect elsewhere. That rules out food or coin collection games such as Snake or Pac-Man-like games.
+- There are no interior obstacles, which rules out mazes.
+- There are many moving objects in evenly spaced (period-4) horizontal streams, and the network watches their previous frame to judge their direction. Combined with an agent that mostly moves up or waits, this matches a lane-crossing game: dodge traffic and reach the far side.
+- Breakout or Pong-style games would need a single moving ball and paddle-like horizontal-only actions. Here the actions are biased toward up and no-op, not left and right.
+
+**Game:** A road-crossing game in the style of Frogger / Atari Freeway. The agent crosses lanes of horizontally moving cars to reach the goal row at the top.
+
+**Description:** The agent starts near the bottom and moves upward through lanes of evenly spaced, horizontally moving cars, waiting (no-op) or sidestepping to avoid collisions. Reward is given for reaching the top row (row 1).
+
+**Confidence:** 72%

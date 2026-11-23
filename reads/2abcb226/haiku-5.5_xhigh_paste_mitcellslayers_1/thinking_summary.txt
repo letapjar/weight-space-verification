@@ -1,0 +1,240 @@
+I'm mapping each weight row back to a cell and channel, using cell = i//5 and channel = i%5, so I can read the game's layout off the first-layer weights.
+
+I'm checking the border cells on channel 3, since those obstacle weights are always active, and I'm reading off the first few weight rows to see what they look like.
+
+Row 0 and row 1 both carry large weights for cell 0, even though it's a border corner where the agent and food channels should always be zero. Since untrained inputs would keep small initialization values, I'm wondering whether those large values mean the input isn't actually always zero there.
+
+Checking the first-layer rows for cell 1 now, since I still need to see whether the large values near cell 0 hold across the other border cells.
+
+Still reading the first-layer rows: the next few lines have small weights, so they look like untouched initialization values rather than learned ones.
+
+Checking the weight rows for cells 2 and 3 now, where the channel 0 and channel 1 weights are much larger than the small values I just saw.
+
+Still reading the first-layer rows, now through cell 3 and into cell 4, where the weights shift in size from one channel to the next.
+
+I'm going through the weight rows for cell 4 and cell 5 now, checking the channel 2 through channel 4 weights and whether the channel 3 obstacle weights stay small there too.
+
+I'm reading the first-layer weight rows for cell 6, channel by channel, and the channel 0 and channel 1 weights there are fairly large, while the obstacle channel 3 weights stay small. I'm moving on to cell 7 now.
+
+I'm continuing through the first-layer weight rows for cells 7 and 8, checking the channel 3 obstacle weights and how the rest of each row looks.
+
+I'm going through the last few weight rows for cell 9, checking how the channel 0 through channel 4 weights look there. Cell 0 and cell 9 both have large weights on some channels, which I'm trying to square with the border cells always being wall.
+
+I'm noticing the large first-layer weights sit on border cells like 0, 2, 3, 6, and 9, while the interior-looking cells have small values. Since border channels 0 through 2 should always be zero, those big weights seem odd, and I'm wondering whether the input layout is really what I assumed.
+
+Checking whether channel 3 on the border cells holds a steady value like a bias, and I'm comparing those obstacle weights for cells 0, 2, and 3 against the small values I've been seeing.
+
+I'm checking the layout assumption: the first-layer weight rows for cells 0 through 9 are being read as cell-major with five channels each, and I'm noting the same lines show the wall-border concern again.
+
+I'm reading the rest of the first-layer weight rows, lines 8 through 19, which cover cells 1 through 3 and part of cell 4. The large values keep showing up on the border cells, so I'm still trying to work out whether the input layout matches what I assumed.
+
+I'm working through the next block of first-layer weight rows, lines 20 through 33, which cover the rest of cell 4, cell 5, and the start of cell 6. The large values appear again at line 30, so I'll check whether they match the border-cell pattern.
+
+I'm reading the rest of the first-layer weight rows, lines 34 through 46, which cover cell 6's channel 4 through cell 9. The large values keep appearing on the border cells, so I'm still checking whether that matches the wall pattern.
+
+I'm now working out the cell boundaries from the row indices: five rows per cell, so cell 0 is L0 to L4 and cell 9 is L45 to L49. The corner cell 0 has large weights on channel 0 and channel 1, which I'll need to account for.
+
+I'm checking cell 0 and cell 2 against the border pattern: cell 0 has large weights on channels 0, 1, and 4, and cell 2 has a big channel 0 weight and a big channel 4 weight. The top-wall cell 1 stays small across all five channels, so the large values look confined to some border cells.
+
+I'm wondering whether the large weights on the top-border cells could come from inputs that aren't always zero, since a border that's always wall shouldn't leave trained weights behind. Maybe the input includes positions outside the playable region that stay zero, in which case those weights would just be left at their initialization scale.
+
+The big weights on the border cells can't come from trained inputs if those inputs are always zero, since zero inputs give zero gradients. So either the border isn't always zero in those channels, or the cell mapping is different from what I assumed.
+
+I'm checking whether the large weights really are confined to certain cells in the top row, or whether the pattern repeats further down the grid. The fact that cells 0, 2, 3, 6, and 9 stand out while the others stay small makes me want to see the later rows before I draw any conclusion about the layout.
+
+I'm lining up the remaining first-layer rows against the cell grid, checking whether the playable interior cells show the same channel pattern as the border.
+
+I'm going through the next block of first-layer weight rows, lines 51 through 58, checking the channel 0 through channel 4 values for cells 10 through 11, and whether the large values keep appearing on the border cells.
+
+I'm reading through the next block of first-layer weight rows, lines 50 through 53, to check the channel values for the cells in that stretch and whether the large values still line up with the border cells.
+
+I'm continuing through the last few first-layer rows, lines 54 through 60, where the values stay mostly small until row 60, which has a couple of large weights on the channels for that cell.
+
+I'm continuing through the first-layer weight rows, lines 61 through 68, checking whether the large values keep showing up on the border cells or start appearing in the interior.
+
+I'm continuing through the first-layer weight rows, lines 69 through 77, where the large values keep appearing on some cells.
+
+I'm continuing through the first-layer weight rows, lines 78 through 86, and the large values keep showing up on some cells, with one especially big weight at line 85.
+
+I'm reading the remaining first-layer rows from line 87 through 94, mostly small values with a few larger ones like 0.737 and 0.327 that I'll compare against the border-cell pattern.
+
+I'm reading the next stretch of first-layer weight rows, lines 95 through 102, where the values stay mostly small and I'm checking whether any large weights appear on the border cells.
+
+I'm pairing the first-layer weight rows into cells, and the block from line 103 through 109 carries large values on a few rows, like the big negative weight near line 105. Cell 10 is a border cell on the left wall, and its rows at lines 50 through 54 look small, which doesn't match the large weights I'm seeing elsewhere.
+
+Checking the rest of cell 10: its rows are all small, which fits it being a wall cell. Cell 11 is a playable interior cell, and I'm starting to read its channel values from lines 55 through 59.
+
+I'm checking cell 11's channel values across lines 55 through 59, which look mostly small. Now I'm moving on to cell 12 at lines 60 through 64, where the first row has some much larger weights.
+
+I'm checking cell 12 next: its channel 0 and channel 1 weights are large, and channel 4 is medium, so it looks like a playable cell. That doesn't fit my earlier guess about the wall cells, so I'll recheck where cell 2 sits in the grid.
+
+I'm noticing that the large weights on the top-row cells, like cell 2, don't fit with it being a wall, so my cell mapping or my reading of the border may be off.
+
+I'm wondering whether the large weights on the row-0 border cells could just be leftover noise from initialization, since those inputs should never change. I'd rather focus on the playable interior for now.
+
+I'm checking which row-0 cells have large first-layer weights, and I'm reading the L10 values as cell 2's channel 0, with the large row norms on cells 0, 2, and 3 suggesting those inputs matter.
+
+I'm still wondering whether the large weights on the border cells, like cells 0, 6, and 9, point to a different layout than I assumed, or whether they're just leftover values from initialization. I'll set that aside and focus on the playable interior.
+
+I'm moving from the border weights to a broader pass over the playable cells, looking at how the magnitudes break down by channel to pin down what kind of game this is.
+
+I'm working through the playable area now, computing the rough maximum magnitude for each cell's five channel weights so I can compare how strongly each cell drives the network.
+
+I'm reading the first-layer weight rows around lines 103 to 111, where row 105 has a few large values, including the big positive and negative weights that stand out from the rest.
+
+I'm checking the first-layer weights for cell 12 and cell 13 as the scan continues, with the values in those rows looking mostly moderate and a few larger ones standing out.
+
+I'm reading the first-layer weight rows around lines 122 through 130, where most values stay small, though cell 12's channel 4 weight and a few others still show up as moderate.
+
+I'm checking the weight rows for cells 27 through 28 at lines 135 to 139, where a few large values show up, including a big negative weight on the last channel of line 136.
+
+I'm reading the first-layer weight rows from line 140 through 148, where most values stay small, with a few larger ones like the 3.641 and -2.446 on cell 28 and the 2.002 on line 144.
+
+I'm reading the first-layer weight rows from line 149 through 157, where the values stay small and a few moderate ones show up.
+
+I'm reading the next block of first-layer rows, lines 158 through 166, which are mostly small values with nothing large standing out.
+
+I'm reading the weight rows for lines 167 through 176, where most values are small but a few stand out, like the 6.847 pattern earlier, and the large magnitudes at lines 170, 174, 175, and 176 are the ones I want to track against the cells I've already mapped.
+
+I'm continuing through the first-layer weight rows, now at lines 177 through 185, where the values include a few large ones like 4.041, -3.537, and 3.300 that I want to track against the cells I've mapped.
+
+I'm continuing through the first-layer weight rows, now at lines 186 through 194, where a few large values like 3.300, -2.303, and -3.415 stand out against the cells I've already mapped.
+
+Still reading the first-layer weight rows, now through lines 195 to 203, where a few large values stand out again, including the 4.101 and 5.052 pairing on line 200.
+
+I'm scanning the next block of first-layer rows, around lines 204 through 212, where most values are small but a few larger ones stand out, including the -4.349 and 5.542 on line 210.
+
+I'm continuing through the first-layer weight rows, now at lines 213 through 221, where most values stay small but a few larger ones, like 0.380 and -0.175, stand out.
+
+I'm still reading the first-layer weight rows, now at lines 222 through 231, where most values are small but a few larger ones stand out, like the 5.592 on line 225 and the 2.652 on line 231.
+
+I'm still reading the first-layer weight rows, now through lines 232 to 240, where a few larger values stand out, like the 2.107 and -3.262 on line 235 and the 2.234 on line 239.
+
+I'm continuing through the first-layer weight rows, now at lines 241 through 249, where a few large values stand out again, including the -6.528 on line 245 and the -2.832 on line 246.
+
+I'm continuing through the first-layer weight rows, now at lines 250 through 258, where the values stay mostly small but a few larger ones show up, including the 2.302 and -1.246 on line 255 and the 1.440 on line 256.
+
+I'm still going through the first-layer weight rows, now at lines 259 through 267, where a few large values stand out, including the -4.390 on line 260 and the -5.021 on line 265.
+
+I'm still going through the first-layer weight rows, now at lines 268 through 276, where a few large values stand out again, including the -6.953 and 5.309 pairing on line 270 and the 2.489 on line 274.
+
+I'm still reading the first-layer weight rows, now at lines 277 through 286, where a few large values stand out again, including the 6.068 on line 280 and the 2.992 on line 285.
+
+I'm still reading the first-layer weight rows, now at lines 287 through 295, where most values are small but a few larger ones stand out again.
+
+I'm continuing through the first-layer weight rows at lines 296 through 304, where most values stay small but a few larger ones stand out, including the -4.203 and -4.901 on line 300 and the 2.505 on line 304.
+
+I'm still reading the first-layer weight rows, now through lines 305 to 313, where the values are mostly small with a few larger ones, like the 4.623 on line 310 and the -3.405 on line 311.
+
+I'm still reading the first-layer weight rows, now at lines 314 through 322, where the big values are the 5.578 and 8.771 on line 320 and the 8.756 and -4.144 on line 321.
+
+I'm working through the remaining first-layer weight rows, lines 323 through 331, where a few large values stand out, like the -5.762 and 5.388 on line 325 and the -3.711 on line 324.
+
+I'm still going through the first-layer weight rows, now at lines 332 through 340, where most values are small but a few larger ones stand out, including the -6.744 and 3.125 on line 340.
+
+I'm still reading the first-layer weight rows, now at lines 341 through 349, where most values are small but a few larger ones stand out, like the -6.744 on line 340 and the 1.016 on line 344.
+
+I'm still reading the first-layer weight rows, now at lines 350 through 358, where most values stay small and nothing particularly large stands out.
+
+I'm still reading the first-layer weight rows, now at lines 359 through 368, where the large values at lines 360, 361, 364, and 365 stand out against the cells I've been mapping.
+
+I'm reading the first-layer weight rows through line 377 now, where most values are small with a few larger ones like the 2.111 on line 365 and the 1.326 on line 366 standing out.
+
+I'm still reading the first-layer weight rows, now through line 386, where the values are mostly small with a few larger ones scattered among them.
+
+I'm still reading the first-layer weight rows, now at lines 387 through 395, where most values are small but a couple of large negative ones stand out, like the -2.130 and -4.283 on line 395.
+
+I'm still reading the first-layer weight rows, now at lines 396 through 404, where the large values are the -4.283 in the previous block and a few notable ones here like the 3.371 and 4.041 entries.
+
+I'm still going through the first-layer weight rows, now at lines 405 through 415, where most values are small and only a couple of larger ones stand out.
+
+I'm reading through the weight rows at lines 416 through 422, where the notable values are the -10.901 on line 420 and the 4.854 next to it, along with the 1.463 and 1.394 on line 421.
+
+I'm working through the last rows of the first-layer weights, lines 423 through 431, where the values are mostly small and nothing particularly large stands out.
+
+I'm still reading the first-layer weight rows, now at lines 432 through 441, where the large values are the -5.088 and 5.419 pair on line 435 and the 1.263 on line 436.
+
+I'm still reading the first-layer weight rows, now at lines 442 through 450, where the big values are the 4.454 and 5.097 on line 445 and the 6.041 and 5.699 on line 450.
+
+I'm still reading the first-layer weight rows, now at lines 451 through 459, where the notable values are the 3.555 on line 451, the -2.646 on line 455, and the 2.275 on line 456.
+
+I'm continuing through the first-layer weight rows at lines 460 through 468, where the values are mostly small and nothing particularly large stands out.
+
+Still reading the first-layer weight rows, now through lines 469 to 477, where the large values are the 5.763 on line 475 and the -3.792 beside it.
+
+I'm still going through the first-layer weight rows, now at lines 478 through 487, where the large values are the 1.415 on line 479, the 4.069 and -6.187 on line 480, and the -7.164 on line 481.
+
+I'm still reading through the first-layer weight rows, now at lines 488 through 496, where most values are small but a few larger ones stand out, like the 0.744 on line 489 and the -0.334 beside it.
+
+I'm checking the first-layer weight rows that cover the last few lines, lines 497 through 499, which are small apart from a couple of mid-sized values. With 500 lines in total, the count checks out, so I'll group them five per cell and start working out the rough magnitude for each cell's channels.
+
+Now I'm grouping the rest of the first-layer weights by cell and noting which ones carry the big values. Cells 2, 6, and 9 stand out with large weights on channel 0, and cell 3 is moderately active.
+
+Border cells 0, 2, 3, 6 and 9 carry the large weights here, while cells 1, 4, 5, 7 and 8 stay small, which is an odd pattern for something I'd expect to be uniform. I'm wondering whether the environment draws the walls differently than I assumed, or whether this is a deliberately tricky part of the layout.
+
+I'm checking the rows for cell 11, where the weights look mostly small but a few channel-3 values are noticeably larger.
+
+I'm moving on to cell 12's rows, where channel 0 and channel 1 both carry large weights while channel 2 looks more moderate.
+
+I'm checking cell 13's rows next, where channel 0 has large values like 4.402 and -4.600, channel 1 has a moderate -1.584, and channel 2 looks mixed.
+
+I'm moving through the remaining cells on the first row, with cell 14's channel 0 weights large and channel 1 moderate, while channel 2 stays small.
+
+I'm moving on to cell 15, where the channel 0 weights look large and channel 1 is also sizable, while the remaining channels come across as more moderate.
+
+I'm going through the remaining cells in row one, where cell 16 looks mostly small, and I'm moving on to cell 17's first channel.
+
+I'm checking cell 18's rows next, where the first few channels look small, though channel 3 begins to pick up a bit more weight.
+
+I'm moving on to cell 21 on row two, where the first channel has a large value near -4.968 and the second channel is more moderate, so I'll keep reading through its rows.
+
+I'm checking the cells in row two next: cell 22 looks small across all its channels, and cell 23's first few channels are small too, with only channel 3 showing a bit more weight. I'll move on to cell 24.
+
+I'm checking the weights for cell 24, where the first channel is large and the second is also sizable, while channels 2 and 4 look more moderate. Cell 25 seems small across all its channels. I'll move on to cell 26.
+
+I'm checking cell 26's rows, and they look small across all five channels. Cell 27 is next: channel 0 and channel 1 both carry large weights, while channel 2 is moderate and channel 3 looks small.
+
+I'm moving on to cell 28, where the channel 0 weights are large and channel 1 is moderate, while channels 2 and 3 look small. Cell 29 seems to be a border cell with small weights across all five channels. Row 3 starts next.
+
+I'm checking cells 30 through 32 on row three, where the weights on each channel all look small, so none of them stand out.
+
+I'm checking the rest of cell 32 and cell 33, where the weights look small across the board. Cell 34 comes next: its channel 0 weights are large, channel 1 is moderate to large, and channel 2 stays small.
+
+I'm going through the first-layer weights for cell 35, where channel 0 and channel 1 both carry large values, channel 2 is moderate, and channel 3 stays small. Cell 36 is next, and I'm starting on its channel 0 weights.
+
+I'm checking cell 37's first-layer weights next, where channel 0 and channel 1 both carry large values, while channel 2 looks more moderate.
+
+I'm checking cell 38's channel 0 and channel 1 weights, which both carry large values, while channel 2 looks more moderate and channel 3 stays small.
+
+I'm checking the weights for cell 40, which is a border cell, and its first channel has large values like 4.101 and 6.920, which is unexpected for an edge position. I'm reading on through the first channel of row 4.
+
+I'm checking cell 40, which is a border cell, and its channel 0 and channel 1 weights are large, which is unexpected for an edge position. I'm also wondering whether border cells might carry non-trivial weights on those channels after all.
+
+I'm checking whether my cell-to-line mapping is off, since border cells 0, 2, 3, 6, 9, and 40 keep showing large weights. I'm wondering whether the walls are encoded differently than I assumed, or whether ch0 and ch1 aren't zeroed at the edges, and I'll test that against the layout.
+
+I'm also considering that the network might have been trained on a different grid layout, though that doesn't seem likely given how small the initial weights would be. Looking across all the playable cells, the large values may reflect sparse agent and moving-object channels, and I want to see which channels actually carry the signal. Channel 4 seems to mirror the previous frame, so its weights could track the motion of channels 0 and 1.
+
+I'm still looking at the large ch0 and ch1 weights, which show up even on border cells, so the first-layer encoding may not be as clean as I assumed. I'm considering which Atari-style grid game this could be, since the channels suggest an agent, moving objects, and a previous-frame channel.
+
+I'm considering whether this is a MinAtar-style 10x10 game, since the observation grid matches, though the five channels here (agent, moving objects, reward targets, obstacles, previous frame) don't line up with any of MinAtar's per-game layouts. That makes me think it could be a custom grid game with a wall border.
+
+I'm trying to pin down what kind of grid game this network was trained on, using the output layer and the agent's position relative to targets as clues to the action meanings. Working through all 500 first-layer inputs by hand is too heavy, so I'll approximate the agent-position encoding instead.
+
+I'm considering whether to approximate the action preferences per cell by propagating the first-layer weights through the later layers, but the double tanh makes an exact mapping too heavy to do by hand. So I'm looking at the agent channel's spatial pattern instead, to see whether the large weights line up with a particular lane or row.
+
+I'm reading the channel 0 weights row by row for the playable cells, and several of the rows show large values scattered through them. Row 1 has big weights on most of its middle cells, and row 2 and row 3 follow a similar pattern with a few quiet cells between the loud ones.
+
+I'm checking the first-layer weights for cell 41, which I need to pull from lines 205 through 209, and the channel 0 values there look small.
+
+I'm checking cell 42's first-layer weights next, where channel 0 and channel 1 carry large values while channel 2 is moderate and channel 3 stays small. Cell 43 comes after that, and I'm starting on its channel 0 weights.
+
+I'm checking cells 42 through 44 on the first-layer weights: cell 42 has large values on channels 0 and 1, while cells 43 and 44 look small across all five channels. Cell 45 is next, and I'm starting to read its weights.
+
+I'm moving on to the layout cells in row 4 and reading the first-layer weights for cell 45, where channel 0 is large, channel 1 is moderate to large, and channel 4 is moderate.
+
+I'm rechecking the cell-to-line mapping, confirming that cell 41 starts at line 205 and cell 42 at line 210, and I've caught myself mislabeling cell 49 with the row 0 line range. Cell 49 belongs to lines 245 through 249.
+
+I'm rechecking the row 3 mapping, confirming cells 30 through 39 sit on lines 150 through 199 in five-line blocks.
+
+I'm confirming the row 2 mapping now, checking that cells 20 through 29 sit on lines 100 through 149 and that cell 20 starts at line 100.
+

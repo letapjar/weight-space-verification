@@ -1,0 +1,40 @@
+**Observations:**
+
+I mapped each row of W1 to its cell and channel using i = (row·10 + col)·5 + ch.
+
+- **Channel 3 (obstacles), border.** Border wall rows (rows 3, 8, 13, 53, 98, 103…) all carry nearly the same small vector, for example `-0.083 -0.183 0.095 0.100 … 0.337`. This vector is close to b1 (`-0.002 -0.157 0.077 0.190 … 0.303`). These inputs are always on, so they act as a second bias.
+- **Channel 3, interior.** Most interior cells have tiny obstacle weights (about ±0.1; for example rows 58, 63, 68, 73), so the agent never sees an obstacle there. Exactly 16 interior cells share a second identical vector, roughly `-0.37 0.61 -0.30 0.18 0.60 -0.82 0.63 0.43 … -0.86 … 1.22 …`. Identical weights mean these inputs are always on together, i.e. a fixed layout. The cells are:
+  - an L-piece at the top-left: (2,2), (2,3), (3,2)
+  - an L-piece at the top-right: (2,6), (2,7), (3,7)
+  - an L-piece at the bottom-left: (6,2), (7,2), (7,3)
+  - an L-piece at the bottom-right: (6,7), (7,6), (7,7)
+  - a 2×2 block in the centre: (4,4), (4,5), (5,4), (5,5)
+
+  This is a symmetric maze, like Pac-Man's.
+- **Channel 2 (reward), interior.** Weights are moderate to large on open interior cells (row 57 `…2.350…`, row 67 `…`, row 327 `…2.708…`, row 417 `-5.489`). They are near zero exactly on the 16 maze-block cells (rows 222, 227, 272, 277, 312, 337, 362, 367, 382, 387), so rewards (pellets) sit only in the open corridors.
+- **Channel 2, right wall.** All eight right-wall cells (1..8, 9) share one more identical vector, `-0.32 0.19 -0.33 0.31 0.38 1.76 1.31 … 1.14 … -1.45 -0.97 …` (rows 97, 147, 197, 247, 297, 347, 397, 447). Column 0 has no such pattern. So the whole right edge is a constant reward target in some episodes. This vector differs from the maze vector, so it comes from a different game.
+  - Summed over its cells, the maze pattern drives unit 5 to about -13. The right-goal pattern drives unit 5 to about +14.
+  - Units 26 and 25 are driven to about ±14 by the maze pattern; units 29, 16 and 6 are driven to about -12, -8 and +10 by the goal pattern.
+  - These saturated units act as game-identity switches.
+- **Channels 0 (agent), 1 (moving objects) and 4 (previous frame).** All three have large weights (magnitudes up to about 7–11) over the entire 8×8 interior, including the 16 maze-block cells. For example:
+  - (4,4): agent row 220, objects row 221 `-2.660 1.456 3.510`
+  - (7,3): agent row 365 `2.614`, objects row 366 `-4.811`
+
+  So in the other game the agent roams the whole open field among moving objects. Channel 4 together with channel 1 gives motion and direction of the movers.
+- **Output layer.** b3 = `0.027 0.200 -0.458 0.266 0.272`: a mild bias against "down", with up, left and right roughly equal. Several W3 rows strongly favour individual directions (row 16 left `3.048`, row 7 up `2.623`, row 21 up `-3.092`, row 30 right `1.900`). This is full four-way movement with little use of no-op.
+
+**Reasoning:**
+
+- A fixed symmetric internal wall layout, rewards filling the corridors and absent from the walls, and moving objects (ghosts) together point to a Pac-Man-style maze game.
+- A separate constant feature, a reward target along the entire right edge, appears with an open field where both the agent and movers can be anywhere. That fits a crossing or "reach the goal side" game: dodge moving hazards and reach the far edge, like Frogger or Freeway turned sideways.
+- A paddle game (Pong or Breakout) is unlikely because the agent's channel has strong weights over the whole interior, not along a single row or column.
+- Snake-like games with dynamic obstacles are unlikely because interior obstacle weights are near zero apart from the fixed maze.
+- The two distinct constant-input signatures and the saturated switch units suggest the network plays at least two games. A third game with neither signature cannot be fully excluded.
+
+**Games:**
+1. A Pac-Man-like maze game: fixed walls (four L-shaped corner pieces and a central 2×2 block), pellets in the corridors, and moving ghosts to avoid.
+2. A Frogger/Freeway-like crossing game, rotated so the goal is the right-hand edge: cross an open field while avoiding moving obstacles.
+
+**Description:** In the maze game, the agent moves through fixed corridors collecting reward pellets while avoiding moving ghosts. In the second game, it moves across an open 8×8 field, dodging moving hazards, to reach the goal line along the right edge for reward.
+
+**Confidence:** 35%

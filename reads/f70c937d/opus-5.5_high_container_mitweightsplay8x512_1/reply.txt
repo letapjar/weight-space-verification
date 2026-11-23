@@ -1,0 +1,45 @@
+**Observations:**
+
+*Channel 0 (agent): only row 8 matters.*
+- In rows 1–7 every agent-channel row of W1 is noise (|w| < 0.2), e.g. input 105 (r2c1) `0.027 -0.056 …` and input 390 (r7c8) `0.011 0.058 …`.
+- In row 8 the weights become large and form a left-to-right gradient:
+  - c1 (in 405) `-0.372 0.393 0.065 0.061 -0.522 …`
+  - c2 (in 410) `-0.185 0.657 0.146 0.409 …`
+  - c3 (in 415) `-0.288 0.503 0.357 0.442 …`
+  - c7 (in 435) `-0.034 -0.565 -0.318 -0.782 0.588 …`
+  - c8 (in 440) `-0.302 -0.205 -0.700 -0.299 0.570 …`
+  - The middle cells c4–c6 are weak.
+- Hidden units 1 and 3 read "agent on the left" and unit 4 reads "agent on the right". So the agent lives on the bottom row and its position along that row is what matters, which looks like a paddle.
+
+*Channel 1 (moving objects): large across rows 1–7, strongest near the bottom.*
+- Examples: in 61 (r1c2) `0.538`, in 171 (r3c4) `-1.322`, in 281 (r5c6) `-1.661`, in 311 (r6c2) `1.410`, in 361 (r7c2) `1.146 -1.483`, in 391 (r7c8) `-2.019 1.168`.
+- This fits a single fast object (a ball) tracked over the whole field, mattering most as it nears the agent's row.
+
+*Channel 2 (reward targets): only rows 1–3; rows 4–8 are noise.*
+- Examples: in 112 (r2c2) `0.413`, in 117 (r2c3) `0.593`, in 137 (r2c7) `0.566`, in 167 (r3c3) `-0.751`, in 187 (r3c7) `-0.482`.
+- Row 3, the lowest and most exposed band, has the strongest weights.
+- So the rewards sit in a fixed band at the far end from the agent.
+
+*Channel 3 (obstacles):* uniformly tiny. There are no interior obstacles; the wall border is constant and gets absorbed into the biases.
+
+*Channel 4 (previous frame):* large wherever channel 1 is large, e.g. in 174 `1.837`, in 344 `-2.213`, in 314 `1.533`. It is moderate in row 8 (in 414 `0.303 … -0.416`). This gives the ball's direction of travel and the paddle's previous position.
+
+*Output layer:*
+- In every W3 row, columns 0, 3 and 4 (no-op, left, right) are almost identical. For example `0.128 0.001 -0.946 0.172 0.160` and `0.127 -0.692 0.034 0.116 0.102`.
+- Only columns 1 (up) and 2 (down) carry large, independent weights: `-0.125 1.023 …`, `-0.135 0.013 1.004 …`, `0.116 -0.019 -0.977 …`.
+- Biases `0.225 -0.292 -0.295 0.113 0.142`: the default is to stay put, and two actions do the steering.
+- Example trace: h2 unit 15 (up +0.750) gets −0.351 from h1 unit 1 ("agent left") and +0.265 from h1 unit 4 ("agent right"). So the policy picks one of the steering actions when the paddle sits at one end and the other at the opposite end, i.e. it moves the paddle back along its axis.
+
+**Reasoning:**
+- A single controllable piece is pinned to one edge and only its position along that edge matters. A ball-like mover is tracked with velocity (current plus previous frame). Static reward targets fill three rows at the opposite end, and there are no obstacles. That is a paddle, ball and brick wall.
+- Catch or falling-fruit games are ruled out: there, rewards would themselves fall and channel 2 would be weighted in every row, not just rows 1–3.
+- Snake or gridworld collecting is ruled out: the agent would appear across the whole grid, not just one row.
+- Space Invaders–style shooters are less likely: the targets are static (no channel-1/channel-2 overlap pattern of a descending formation), and there is no shooting action.
+- Pong is less likely: there is no opponent paddle and the reward band is fixed.
+- One inconsistency: only up/down are distinct actions, while left/right are lumped with no-op. Either the paddle's movement is mapped to actions 1/2, or the board is effectively transposed, with the paddle on a side wall moving vertically and the bricks against the far wall. Either way the structure is the same paddle-and-ball brick-breaker.
+
+**Played:** A Breakout / Arkanoid-style brick-breaker on the 8×8 field. A paddle on the edge row moves back and forth to keep a bouncing ball in play, and three rows of bricks on the far side (rows 1–3) are the reward targets.
+
+**Description:** The agent slides a paddle along its edge to intercept and rebound a bouncing ball. Reward comes from the ball hitting and destroying the bricks in the band of rows at the opposite end, and the episode presumably ends if the ball gets past the paddle.
+
+**Confidence:** 70%

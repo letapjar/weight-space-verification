@@ -1,0 +1,29 @@
+**Observations:**
+
+- **The inputs are not laid out in an obvious order.** Under a cell-major order, rows 1 and 2 of W1 would be channels 1 and 2 of corner cell (0,0), which is always wall. Under a channel-major order, they would be the agent channel at wall cells (0,1) and (0,2). Neither input can ever be 1, so its weights would never train and would stay near their initial ~0.05. Yet row 1 has 4.327 and -3.983, and row 2 has 5.912 and -5.811. So the inputs must be permuted, and I worked from the statistics of the 500 rows instead of their positions.
+- **The rows fall into four groups:**
+  - **Small, about 270 rows.** All values are within about ±0.15 (rows 0, 3–8, 10, 11, …). These inputs are never active.
+  - **Bias-like, about 50–60 rows.** These have small but systematic values that match the sign pattern of b1. For example, row 28 is col9 -0.225, col11 0.219, col13 0.202, col26 -0.224, col31 0.253. Row 32 is -0.195, 0.214, 0.188, -0.182, 0.197. Rows 57 and 70 are similar. For comparison, b1 has col9 -0.172, col11 0.156, col13 0.180, col26 -0.135, col27 -0.163, col31 0.156. An input that is always 1 gets exactly the bias gradient, so these are constant-on inputs. The 36 border-wall cells in channel 3 account for only 36 of them. The other ~15–25 are most likely interior obstacles that never change: a fixed maze.
+  - **Bias-like plus a feature, about 25–40 rows.** These carry the same bias pattern plus one or two larger, specific weights. Examples:
+    - row 55: col14 -1.501, col0 -0.641, col27 -0.329
+    - row 76: col0 -1.380, col14 -1.930
+    - row 331: col0 -1.868, col14 -2.195
+    - row 383: col14 -1.521
+
+    These look like inputs that are on most of the time and switch off occasionally, like collectibles that are present at the start and get eaten.
+  - **Large, about 135–140 rows.** These have weights of 2–10. Examples: row 13 col6 9.514, row 431 col6 9.942 and col14 9.285, row 27 col7 6.107, row 487 col0 6.563 and col16 6.154. These are the frequently changing inputs: agent position, previous-frame positions and moving objects.
+- **The groups add up to a fixed maze.** All informative rows together come to about 180. Suppose the fixed interior obstacles leave about 40–46 free cells. Then four varying channels over those cells (agent, moving objects, reward, previous frame) give about 160–184 inputs, which matches. The never-active count also fits. That is 4×36 non-obstacle channels on the border, plus the other channels of the obstacle cells, plus channel 3 of the free cells, which comes to about 260.
+- **Output layer.** b3 = [-0.853, 0.091, 0.212, 0.068, 0.382]. No-op is clearly suppressed, and the four moves are roughly balanced. W3 has strong move-specific rows, for example row 24 (up 2.501, right -3.116), row 12 (down 2.218, left -2.783) and row 19 (up -2.499, left 2.664). So the policy is about constant, direction-specific navigation.
+
+**Reasoning:**
+
+- **Ruled out:** games where the interior obstacles change. Their interior channel-3 inputs would vary and carry large weights, not bias-like ones.
+- **Ruled out:** games where the agent is confined to one row or column, such as Breakout/paddle or Frogger-style games. Far more inputs are informative than a single row or column would produce.
+- **Ruled out:** games with a single goal or no rewards. Reward-channel inputs that are mostly on and then occasionally switch off point to many collectibles spread over the free cells.
+- **What fits:** agent and moving objects ranging over all free cells, a fixed set of interior walls, pellets filling the free space and eaten over time, and strong avoidance of no-op. Together these describe a Pac-Man-style maze game: walls, pellets everywhere, ghosts chasing. A maze game with a single goal and an enemy is the main alternative, but it would not explain the many mostly-on reward inputs.
+
+**Game:** A Pac-Man-like maze game: a fixed maze on the 8×8 interior, pellets on the free cells, and moving ghosts.
+
+**Description:** The agent moves through a fixed maze eating pellets, which give the reward, while avoiding moving ghosts that end the episode on contact.
+
+**Confidence:** 50%

@@ -1,0 +1,31 @@
+**Observations:**
+
+- **Three kinds of input rows.** The 500 W1 rows fall into three groups:
+  - About 330 rows have only small weights (|w| ≲ 0.2). These look untouched from initialisation, so those inputs are never active.
+  - About 128 rows have large weights, up to about ±6 to ±9. These are inputs that change during play. Examples: row 1 (2.135, …, 3.660, …, −3.969), row 36 (4.672, 5.665, −6.764), row 173 (5.116, −8.368, −6.351), row 363 (… −6.437, 3.978, 9.762).
+  - About 44 rows copy the b1 pattern: around −0.4 in column 17, −0.2 in columns 14 and 23, +0.2 in column 27. Examples are row 11 (… −0.455 … 0.180), row 150 (… −0.508 … 0.170) and row 386 (… −0.489 … 0.364). Inputs that are always 1 get the same gradient as the bias, so these are constant inputs. That is the 36 border-wall cells plus about 8 more fixed cells.
+- **About 128 varying inputs (roughly 2 × 64).** This fits a small agent region plus one object that roams the board plus the previous-frame channel. An agent confined to one column gives about 8 inputs, a ball about 56–64, and the previous frame about 64.
+- **Output layer: only three real choices.** The no-op, left and right columns of W3 move together:
+  - h2 unit 6 gives [−1.048, 4.727, −0.121, −1.257, −1.371].
+  - Unit 30 gives [0.574, −0.840, −2.691, 1.006, 1.142].
+  - Unit 31 gives left 0.513 and right 0.185.
+
+  Left and right are almost never set against each other. The big, distinct weights sit only in the up column (4.727, 1.302, 1.089, −1.603, −1.068) and the down column (1.526, 1.262, −2.691, −1.235, −1.160). So the policy is really choosing between up, down and "stay", which means horizontal moves have no effect.
+- **Biases.** b3 = [−0.084, −0.819, −0.271, 0.916, 0.132]. Left gets the highest bias, but that only picks one of the equivalent "stay" actions.
+- **Default behaviour.** b2[6] = −2.54, and the constant inputs push unit 6 further negative, so "up" (weight 4.727) is strongly suppressed by default. b2[30] = +1.71 suppresses "down" (weight −2.691). Up and down are both triggered by specific situations, and otherwise the agent stays put. That is tracking behaviour, not a constant push in one direction.
+
+**Reasoning:**
+
+- **Ruled out:**
+  - Games where the agent moves sideways (Catch, Breakout, Space Invaders, a paddle at the bottom). Left and right are not used as distinct actions.
+  - Free-roaming games (Snake, maze or collect-the-target games). These would make left and right matter, and would give about 192 varying inputs.
+- **Freeway / road crossing.** The agent moves only vertically, and the 8 extra constants could be a goal row. But Freeway's optimal policy presses up almost all the time, while here up is suppressed by default and only fires on a cue. The varying-input count also fits poorly.
+- **Pong.** A paddle confined to one column moves up or down to stay level with a ball that roams the board. This fits the vertical-only control, the symmetric "stay unless the ball is above or below" structure, and the roughly 8 + 56 + 64 varying inputs.
+- **Side-scrolling dodger.** Dodging objects that move horizontally is the main alternative.
+- **Weak point.** The roughly 8 extra constant inputs are not explained. They might be a fixed reward column or another fixed structure.
+
+**Game:** A Pong-style paddle game (single-player Pong or squash against the wall). The agent is a vertical paddle in a fixed column.
+
+**Description:** The agent moves its paddle up or down along one column to stay in line with a moving ball and send it back. Reward comes from hitting or returning the ball, and missing it ends the rally or episode.
+
+**Confidence:** 35%

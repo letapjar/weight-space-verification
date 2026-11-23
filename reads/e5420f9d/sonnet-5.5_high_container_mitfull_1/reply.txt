@@ -1,0 +1,20 @@
+Observations:
+- I can't resolve the first layer's spatial structure by eye. The 500 rows each carry 32 values, and I can't reliably index them to specific (row, column, channel) cells without computing, so what follows is partial.
+- Large first-layer weights show up on inputs that should be dead in a real game. The corner (0,0) agent channel (input 0) has -6.619 on unit 4. The border cell (0,1) object channel (input 7) has 5.584 on unit 5. The border obstacle channel (input 3) has 4.325 on unit 1.
+- The border obstacle inputs are always 1, so their weights act as extra biases and tell me nothing. A large weight on an input that is never active is not something training would produce, so some of the apparent structure is probably noise or an artifact. I'm not leaning on position-specific claims.
+- Large weights are scattered densely across all inputs, 4 to 10 in magnitude. The policy therefore reads many cells at once rather than a few local features. That fits a task where the whole grid matters, such as several moving objects, scattered targets and obstacles, not a single local cue.
+- Output layer: the biases are noop 0.195, up 0.385, down 0.073, left -0.024, right -0.697. There is a mild bias toward up and against right, with no strongly dominant action.
+- Several second-layer units push noop hard, for example W3 row 13 with +2.779 and row 22 with +2.509. Others push specific directions: row 9 has +2.000 on down, row 25 has +1.976 on down, row 2 has -2.341 on up, and row 27 has -2.579 on left. So all four directions and waiting are all used. Standing still is a real option, which suggests timing against moving objects.
+
+Reasoning:
+- The agent has five actions including all four directions, so it moves in 2D. That rules out paddle-only games like Pong, Breakout and Catch.
+- The previous-frame channel gives velocity, which matters when moving objects must be dodged or intercepted.
+- Heavy noop use fits a game where waiting for a gap or letting an object pass has value.
+- The distributed, grid-wide input dependence fits a collect-and-avoid game better than a navigation-to-fixed-goal maze, where the weights would concentrate on a few cells.
+- I can't separate Pac-Man-like, Frogger or Freeway-like, or Snake-like games from these weights alone. I'm choosing the most generic game that fits.
+
+Game: A Pac-Man-style collect-and-avoid game. The agent moves around a bordered 8x8 arena, picks up reward targets, and avoids moving enemies and obstacles.
+
+Description: The agent moves in four directions or waits, collecting reward targets while dodging moving objects and obstacles that end the episode.
+
+Confidence: 12%

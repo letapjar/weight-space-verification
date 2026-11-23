@@ -1,0 +1,239 @@
+# Reverse-engineering a 500 → 32 → 32 → 5 MLP from its weights
+
+I read all of W1 (500 rows), b1, W2, b2, W3 and b3. I classified every W1 row by hand and spot-checked the arithmetic below by hand. Treat the numbers as careful estimates, not machine-exact values.
+
+---
+
+## 1. First pass: there are three kinds of rows in W1
+
+Every one of the 500 input rows falls cleanly into one of three types:
+
+| Type | What it looks like | Count |
+|---|---|---|
+| **N: "noise" rows** | All 32 values are small, about ±0.06, with no structure | ≈327 |
+| **B: "bias-clone" rows** | Small values with the same signature as **b1**: col0 ≈ +0.25, col1 ≈ −0.2, col3 ≈ +0.15, col5 ≈ −0.15, **col10 ≈ +0.4**, col21 ≈ +0.2, col31 ≈ −0.1 | 44 (plus one weak, ambiguous one) |
+| **L: "large" rows** | Values of magnitude 1–10, idiosyncratic per row | 128 |
+
+The positions of these rows are not random. They follow exact periods of 5 and 50, which is the key to everything else.
+
+---
+
+## 2. The input is a 10 × 10 × 5 grid, flattened
+
+Write each input index as **i = 50·a + 5·b + c**, with a, b ∈ {0..9} and c ∈ {0..4}. That is, a 10 × 10 grid of cells with 5 binary channels per cell. The flattening order is (a, b, c). Whether a is "row" or "column" is unknowable, so I'll keep calling the axes a and b.
+
+With that mapping, every row type lands on a clean geometric pattern:
+
+**Bias-clone rows (B):**
+- Channel 3 on the entire border:
+  - a = 0, all b: rows 3, 8, …, 48
+  - a = 9, all b: rows 453, 458, …, 498
+  - b = 0 for a = 1..8: rows 53, 103, …, 403
+  - b = 9 for a = 1..8: rows 98, 148, …, 448
+  - That is exactly the 36 perimeter cells of a 10 × 10 square.
+- Channel 2 on one side only: b = 9, a = 1..8 (rows 97, 147, …, 447). These are 8 cells along one wall, excluding the corners (rows 47 and 497 are noise).
+
+**Large rows (L):** exactly 16 per interior line a = 1..8, at offsets 5, 9, 11, 14, 16, 19, …, 41, 44:
+- **channel 0 only at b = 1** (offsets 5, i.e. rows 55, 105, …, 405)
+- **channel 1 only at b = 2..8** (offsets 11, 16, …, 41)
+- **channel 4 at b = 1..8** (offsets 9, 14, …, 44)
+
+**Noise rows (N):** everything else. That covers:
+- every channel of the border cells except ch3 (and ch2 on the b = 9 side)
+- ch2 and ch3 everywhere in the interior
+- ch0 outside b = 1
+- ch1 at b = 1
+
+So this is a walled 10 × 10 arena with an 8 × 8 playable interior.
+
+---
+
+## 3. Why the rows look the way they do (training mechanics)
+
+### Noise rows are inputs that were never on
+
+The gradient of W1[i,:] is x_i·δ. If x_i is always 0, the row never moves from its initialization. Their statistics match an init:
+- RMS ≈ 0.065.
+- Some tail values reach 0.24–0.29 (rows 0, 172, 454).
+
+This rules out several standard initializers:
+- PyTorch default uniform (bound ±1/√500 = ±0.045)
+- Glorot uniform (±0.106)
+- Keras truncated He-normal (|w| < 0.144)
+- LeCun normal (σ = 0.045; 0.29 would be a 6.5σ value)
+
+What remains fits an **untruncated normal with σ ≈ √(2/500) = 0.063, i.e. He/Kaiming-normal**. That hints at ReLU activations. This also tells us **no meaningful weight decay** was used, because these rows did not shrink.
+
+### Bias-clone rows are inputs that were always on
+
+If x_i ≡ 1, its gradient equals the gradient of b1 at every step. That holds under SGD and also under Adam, since the moment estimates are identical. So:
+
+W1[i,:] = W1_init[i,:] + (b1 − b1_init)
+
+I checked this quantitatively by averaging the 44 rows:
+
+| Column | Mean of 44 rows | b1 |
+|---|---|---|
+| 0 | 0.258 | 0.252 |
+| 10 | 0.380 | 0.384 |
+
+Both differences are within about 1 standard error (0.063/√44 ≈ 0.01). This implies:
+- These inputs are constant: walls that exist in every sample. They are not standardized; z-scoring would have zeroed them.
+- **b1 was initialized to zero** (PyTorch's default nonzero bias init would typically leave a visible offset).
+- The scatter of these rows around b1 is just init noise.
+
+Consequence: the **effective layer-1 bias is b1 + Σ(44 rows) ≈ 45·b1**:
+
+| Hidden unit | Effective bias |
+|---|---|
+| h10 | ≈ +17 |
+| h0 | ≈ +11 |
+| h21 | ≈ +9 |
+| h3 | ≈ +6 |
+| h29 | ≈ +4 |
+| h19 | ≈ +3 |
+| h1 | ≈ −8 |
+| h5 | ≈ −6 |
+| h31 | ≈ −4.5 |
+
+- Units 10, 0 and 21 are essentially always-on, quasi-linear carriers.
+- The small raw b1 is misleading on its own.
+- These 44 rows could be folded into b1 without changing the function.
+
+### Large rows are features that varied
+
+These are the only inputs that carry information: 128 of the 500. They are clearly **sparse object channels**, not dense "floor" channels:
+- If ch4 meant "empty floor", nearly every interior cell would be on most of the time, and those rows would drift toward b1.
+- They don't look like b1 at all, so only a handful of objects are active per sample.
+
+### One oddity: row 233 (a = 4, b = 6, ch3)
+
+This row looks like roughly half of b1: col10 is 0.193, col1, col3 and col5 match b1, and the residual is init-sized. One reading is an interior wall at one cell that was present in a minority of samples and carried no information about the target. Low confidence; it could be coincidence.
+
+---
+
+## 4. What the varying features encode
+
+### ch0 lives only on the line b = 1, and the net has learned its a-coordinate
+
+Across a = 1..8 at b = 1, several hidden units show near-monotone ramps:
+
+| Hidden unit | ch0 weight for a = 1 → 8 |
+|---|---|
+| h19 | −1.64, −1.29, −0.77, −0.23, −0.24, +0.30, +0.55, +0.68 |
+| h3 | +1.05, +3.12, +2.14, +0.17, −1.65, −2.84, −2.25, −2.41 |
+| h7 | −0.17, +1.97, +2.13, +0.84, +0.31, −1.12, −1.61, −3.05 |
+
+The network treats ch0's position along a as an ordinal quantity. That is what you would expect for a controllable entity confined to one lane next to a wall.
+
+### ch1 objects in the cells nearest that lane are coded with the opposite polarity
+
+| Hidden unit | ch1 at b = 2, a = 1 → 8 | ch1 at b = 3, a = 1 → 8 |
+|---|---|---|
+| h19 | +0.7, +4.3, +6.0, +6.0, −0.8, −1.5, −8.2, −2.6 | +2.0, +7.4, +6.1, +2.5, −2.1, −3.1, −1.7, −2.0 |
+| h7 | −4.6, −4.9, −3.8, −4.2, +3.4, +2.3, +2.6, −0.2 | −3.5, −2.4, −3.7, −2.9, −0.0, +2.9, +4.2, +3.1 |
+
+Put together:
+- **h19 fires when the ch1 object is at smaller a than ch0** ("ch1 is above ch0").
+- **h7 fires when ch1 is at larger a than ch0** ("ch1 is below ch0").
+
+These are **relative-position comparators** between ch0 and ch1. They are strongest when ch1 is close to ch0's lane (b = 2–3) and weaker and messier for b = 5–8.
+
+### Neighbouring cells have correlated weight vectors
+
+Weight vectors for vertically adjacent ch1 cells are clearly correlated, so the MLP has learned some spatial smoothness despite having no weight sharing.
+
+### ch4's role is unclear
+
+It is sparse and can occur anywhere in the interior, including ch0's lane. It has only weak, small effects on the two comparators.
+
+---
+
+## 5. The output head
+
+### Following the comparators to the outputs
+
+This is a linear path estimate, W2[unit,:]·W3, which ignores layer-2 ReLU gating, so it is crude:
+
+| Layer-1 unit | out0 | out1 | out2 | out3 | out4 |
+|---|---|---|---|---|---|
+| h19 ("ch1 above") | −7 | **+14** | −1 | −12 | −8 |
+| h7 ("ch1 below") | −11 | +14 | −13 | −25 | **+21** |
+
+- "Above" favours output 1 over output 4 by about 22.
+- "Below" favours output 4 over output 1 by about 7.
+- **Outputs 1 and 4 behave like opposite moves along the a-axis.**
+- Both comparators suppress output 0.
+
+### Geometry of the W3 columns
+
+Pairwise cosines between W3 columns (the expected value for 5 competing softmax heads is about −0.25):
+
+| Pair | Cosine |
+|---|---|
+| 0–1 | **−0.58** |
+| 0–2 | **+0.58** |
+| 1–4 | −0.42 |
+| 1–2 | −0.39 |
+| 1–3 | −0.37 |
+| 2–4 | −0.30 |
+| 0–4 | −0.19 |
+| 3–4 | −0.15 |
+| 0–3 | −0.10 |
+| 2–3 | −0.09 |
+
+Biases: b3 = [+0.90, +0.25, **−1.28**, −0.42, +0.48].
+
+- **Output 2** is a shrunken copy of output 0: norm 4.1 vs 5.8, cosine +0.58, and the lowest bias. It looks like a functional near-duplicate of output 0 that is chosen less often.
+- **Output 3** is suppressed by default:
+  - Layer-2 unit 5 has the largest b2 (1.66).
+  - It is fed by the always-on units h0 and h21 with weights 1.68 and 1.87, so it sits at roughly 45 at baseline.
+  - It sends **−5.2** to output 3, which pushes output 3 down by around 200 at baseline unless other units compensate.
+- Hidden pre-activations of tens of units imply **large, near-deterministic logits**.
+
+---
+
+## 6. Hypotheses, ruled in or out
+
+| # | Hypothesis | Verdict | Why |
+|---|---|---|---|
+| 1 | Untrained or random net | **Out** | Strong learned structure; weights up to about 10 |
+| 2 | Generic tabular or bag-of-words features | **Out** | Exact period-5 and period-50 layout; perimeter-shaped constant features |
+| 3 | Natural-image classifier | **Out** | Inputs are binary and sparse, many never on, border constant; no image has 65% permanently-zero pixels |
+| 4 | CNN or weight-shared model | **Out** | Every cell has its own unrelated weights; this is a plain MLP on a flattened grid |
+| 5 | Standardized inputs | **Out** | Constant inputs would be 0 and could not clone the bias |
+| 6 | 10 × 10 × 5 binary grid observation of a walled arena | **In (very high confidence)** | Section 2 |
+| 7 | Free-roaming navigation (agent and goal anywhere) | **Mostly out** | The one entity with clean coordinate codes (ch0) is confined to a single lane next to a wall |
+| 8 | Lane-constrained agent (ch0) reacting to objects (ch1) arriving from the far, marked side (ch2 wall), as in Catch / Pong-like games | **In (moderate-high)** | Lane constraint; ch1 never enters the lane; comparators strongest near the lane; one wall uniquely marked |
+| 8a | …dodging the objects | **Less likely** | Dodging needs an "aligned → move" detector; what we see are "misaligned → move toward" detectors, and output 0 is suppressed when misaligned |
+| 8b | …intercepting or catching them | **Favoured** | Same reasoning, reversed |
+| 9 | Outputs are Q-values (DQN) | **Disfavoured** | Q-heads share a state value and are positively correlated; these heads compete, and the biases differ by about 2 |
+| 10 | Outputs are 5 action logits (policy or behaviour cloning) or 5 classes | **In** | Competing heads; one default-suppressed class; huge logits |
+| 11 | Training recipe | He-normal weights, zero biases, no weight decay, probably ReLU; optimizer probably Adam | Sections 3 and 4. Big sparse-feature weights next to a tiny b1 fit Adam's per-parameter normalization, but SGD cannot be excluded |
+
+---
+
+## 7. Best explanation
+
+This is a **small fully connected policy (or action classifier)** for a **grid game**:
+
+- **Input:** a 10 × 10 board with 5 binary feature planes, flattened as (a, b, channel). The board is surrounded by walls (ch3, always present). One side wall is additionally tagged (ch2), probably the spawn, goal or "far" side.
+- **ch0:** the controllable agent. It lives only in the lane right next to the opposite wall (b = 1) and moves along a.
+- **ch1:** objects that occupy the rest of the interior (b = 2..8) but never enter the agent's lane. They are presumably removed, caught or missed on arrival, which fits a Catch-, Pong- or "intercept the incoming object" family of games.
+- **ch4:** a second sparse object type that can appear anywhere, including the agent's lane. Its semantics are unresolved: a second object kind, a trail or a collectible are all possible.
+- **The network:**
+  - Learned ordinal codes for the agent's lane position.
+  - Built comparator units (h19, h7) for "nearest incoming object is above / below the agent".
+  - Maps those comparators to two opposing outputs (1 and 4 = move one way or the other along the lane).
+  - Uses output 0 as the default "stay / aligned" action.
+- **Outputs 2 and 3** are rarely used actions:
+  - Output 2 behaves like a weaker twin of "stay". That fits, for example, a move into the adjacent wall, which is effectively a no-op.
+  - Output 3 is actively shut off by an always-on layer-2 unit. That fits an action that is impossible or never demonstrated, such as leaving the lane.
+  - So the effective action set is roughly {stay, up, down} out of 5.
+- **Practical consequence:** only 128 of the 500 inputs matter. 327 are untouched initialization and 44 are a folded-in bias.
+
+**Caveats:**
+- Axis orientation (which way is "up") and whether this is RL or behaviour cloning cannot be settled from weights alone.
+- The output-path numbers ignore ReLU gating.
+
+**How to confirm:** run forward passes on synthetic boards. Place ch0 at lane position a₀ and a single ch1 at (a₁, b = 2), then check whether the argmax switches between outputs 1, 0 and 4 as a₁ − a₀ goes from negative to zero to positive.

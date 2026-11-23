@@ -1,0 +1,24 @@
+**Observations**
+
+- **Agent channel (ch0):** Only column 8 has large weights. Examples: (1,8) input 90 = "1.496 -0.031 4.376 3.436 2.167 …"; (2,8) input 140 = "-3.258 -0.241 0.451 -0.844 …"; (5,8) input 290 = "1.961 0.402 0.079 0.124 …"; (8,8) input 440 = "-0.841 -4.414 -1.964 4.186 …". Column 8 is large in all eight playable rows. Columns 1–7 of ch0 stay near initialisation scale (about ±0.05, e.g. (4,7) input 235 = "-0.059 -0.030 0.127 0.038 …"). The bottom row's ch0 (row 8, columns 1–7) is also small, so the agent is not a bottom-row paddle. The agent appears to live on the right edge and move vertically.
+- **Moving objects (ch1):** Large weights (|w| about 1–6) in every playable cell of columns 1–7 and every row, including rows 1 and 8. Examples: (1,5) input 76 = "2.133 -3.983 -3.662 3.833 …"; (1,6) input 81 = "4.136 -3.900 -1.137 2.333 …"; (6,4) input 321 = "2.537 1.552 2.742 1.659 …"; (8,2) input 411 = "1.027 -2.271 2.689 -0.427 …". Column 8 ch1 is small (e.g. (1,8) input 91 = "-0.052 0.023 0.015 0.101 …"), so objects never occupy the agent's column.
+- **Previous frame (ch4):** Large in the same columns 1–7 cells as ch1, and also large in column 8 (for example (1,8) input 94 = "-0.509 0.558 0.329 1.262 …"). Column 8 ch4 is consistent with the agent's previous position. Motion (current vs. previous) appears to matter.
+- **Reward targets (ch2) and obstacles (ch3) inside the field:** Nearly all weights are at initialisation scale (|w| ≲ 0.1). These channels seem unused. The only strong ch3 weights are on the border, which act as constant biases. For example, the wall cell (0,1) ch3 (input 8) has −0.428 on hidden unit 17, and every border ch3 cell pushes unit 17 negative.
+- **Output layer:** b3 = [-0.084, -0.271, -0.819, 0.132, 0.916]. "Right" has the largest bias, "down" the most negative. W3 row 6 = [-1.048, -0.121, 4.727, -1.371, -1.257] is a strong "down" driver. W3 row 30 = [0.574, -2.691, -0.840, 1.142, 1.006] suppresses "up" and favours no-op, left and right.
+
+**Reasoning**
+
+The input usage is very lopsided. Objects move freely through columns 1–7 in all rows, bouncing between the top and bottom borders. The agent is confined to column 8 and is controlled by up and down. Nothing is ever collected, since ch2 is unused. Objects are kept out of column 8, which is consistent with a paddle that intercepts them.
+
+- *Breakout (paddle along the bottom, bricks as targets):* ruled out. The agent is not on row 8, and the target channel is unused.
+- *Freeway, Frogger, Asterix, Pac-Man:* ruled out. The agent would need to visit many columns and would not be confined to one edge.
+- *Space Invaders, Seaquest:* ruled out. Those games need a fire action or a free-roaming submarine, and there are no targets.
+- *Pong-style (paddle on one edge, ball bouncing off the top and bottom walls and never entering the paddle column):* fits all the evidence. The border walls are the top and bottom obstacles, rows 1–8 are all used, column 8 is unused by the ball, and the moving-object plus previous-frame channels give the ball's position and velocity. Reward comes from returning the ball, and a miss lets it reach the right border, which ends the episode.
+
+The left and right actions appear effectively unused. Their weights are not trained and there is no training on column 7 for the agent, so the paddle probably cannot leave column 8.
+
+**Game:** A Pong-style single-player paddle-and-ball game (Pong or wall-rally Pong), with the paddle on the right edge of the 8×8 field and the ball bouncing off the top, bottom and left walls. It is not a known grid game with targets, since there are no reward-target cells.
+
+**Description:** The agent is a vertical paddle on the right edge that moves up and down to intercept a ball bouncing around the playing field, earning reward for each return. The ball (the moving object) gives reward when returned, and missing it lets the ball reach the right border and ends the episode.
+
+**Confidence:** 35%

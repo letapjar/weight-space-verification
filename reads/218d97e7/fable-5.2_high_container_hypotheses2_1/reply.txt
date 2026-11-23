@@ -1,0 +1,104 @@
+# What these weights are: a 500→32→32→5 MLP that reads a 10×10 gridworld
+
+I read all 500 rows of W1, plus W2, W3 and the biases, and made no tool calls. Everything below is inferred by hand from the numbers, so I mark what is solid and what is a guess.
+
+## 1. Observations
+
+### W1 rows fall into five types
+
+| Type | Count | What it looks like | What it implies |
+|---|---|---|---|
+| Untouched | 195 | Pure noise, σ ≈ 0.065, max about 0.3 | Input was never non-zero in training; the weight is still at initialisation |
+| Bias clones | 36 | Equal to `b1` plus init noise (row 3: `0.372 -0.095 0.152…` vs b1 `0.452 -0.069 0.134…`) | Input is always 1, so it received exactly the bias gradient |
+| Clone set B | 16 | All ≈ `0.2 -1.8 -0.7 0.3 … 2.4(u11) … 2.9(u26) -2.3 -2.0 …` (rows 113, 118, 133, 138, 163, 188, 223, 228, …) | 16 inputs that are always on or off together, but not always on |
+| Clone set A | 8 | All ≈ `-0.9 -1.5 -0.2 0.1 -0.7 -1.6 -1.5 0.7 …` (rows 97, 147, …, 447) | 8 more inputs that switch as one unit |
+| Individually learned | 245 | Weights from about 1 up to ±29, different per row | Informative, position-specific features |
+
+### The layout is a 10×10 grid with 5 planes per cell
+
+The patterns repeat with period 5 inside period 50, so input index = 50·r + 5·c + k.
+
+- **Plane 3 is "wall".** The bias clones are exactly plane 3 of the 36 border cells. Clone set B is plane 3 of 16 interior cells. Plane 3 is untouched everywhere else.
+- **The interior obstacle map** (B cells marked `W`) is four L-shaped brackets plus a 2×2 central pillar:
+
+```
+    c: 0 1 2 3 4 5 6 7 8 9
+r0     # # # # # # # # # #
+r1     # . . . . . . . . A
+r2     # . W W . . W W . A
+r3     # . W . . . . W . A
+r4     # . . . W W . . . A
+r5     # . . . W W . . . A
+r6     # . W . . . . W . A
+r7     # . W W . . W W . A
+r8     # . . . S . . . . A
+r9     # # # # # # # # # #
+```
+
+- **Clone set A** is plane 2 on the eight non-corner cells of one border edge, on top of the always-on wall plane.
+- **Orientation is ambiguous.** The wall pattern is fully symmetric, so I cannot tell rows from columns or which edge is "up".
+
+### What each plane looks like in the 64 interior cells
+
+- **Plane 0** is live in all 64 cells and has the largest, most lookup-table-like weights. The biggest are at cell (8,4), marked `S` (`21.4 … 19.4 … -20.7 … -18.8`). It is tiny on several wall cells: rows 185, 335 and 385 barely exceed noise.
+- **Planes 1 and 4** are live in all 64 cells with large weights, including on the 16 wall cells. They share region-wide components; for example, plane 4 in the middle rows drives hidden unit 5 to about −8 almost everywhere.
+- **Plane 2** is live in 53 cells with moderate weights that vary smoothly with position.
+  - Along column 1, unit 4 goes 2.9, 1.1, −0.6, −1.7, −2.7 and unit 18 stays near −5.
+  - In row 8, units 10 and 13 flip sign between cells left and right of (8,4).
+  - It is untouched at (8,4) and at the 10 wall cells in rows 4–7, but live on the 6 wall cells in rows 2–3.
+  - Three cells next to the pillar, (5,6), (6,5) and (6,6), carry large, mutually similar weights.
+
+### The first hidden layer saturates, which points to tanh
+
+- The 36 bias clones make the effective bias about 37·b1, for example about +24 on unit 7 and −27 on unit 29.
+- When the obstacle map is present it adds 16·B: about +39 on unit 11, +47 on unit 26, −37 on unit 27, and −20 to −35 on units 1, 5, 12, 24, 25 and 28.
+- Plane-0 rows for peripheral cells (the top row and column 8) have near-zero weights on exactly units 5, 9, 11, 12, 25, 26, 27 and 28.
+- That set includes units pinned strongly positive (9, 11, 26) as well as strongly negative ones. Zero gradient at both extremes fits a saturating activation such as tanh, not ReLU.
+- Plane-0 rows for central and bottom cells do have large weights on those units (row 320, unit 27 = −29.3). Those weights must have been learned when the obstacle map was absent.
+
+### Other details
+
+- **Initialisation:** σ ≈ 0.065 ≈ √(2/500), so He-normal or orthogonal with gain √2. It is not the PyTorch default uniform (bound 0.045), since many untouched values exceed 0.1.
+- **No weight decay:** the untouched weights have not shrunk.
+- **W2, W3:** dense, with no visible sparsity or symmetry, and large (up to ±9 and ±6). With saturated ±1 hidden units, the output margins would be tens of logits.
+- **Output bias:** `1.08 0.00 0.41 0.90 -0.65`.
+
+## 2. Hypotheses and verdicts
+
+| Hypothesis | Verdict | Reason |
+|---|---|---|
+| Generic tabular or random-feature MLP | Ruled out | Strict period-5/period-50 structure and a constant frame |
+| 1-D sequence of 100 tokens over a 5-symbol alphabet (e.g. DNA) | Ruled out | The constant symbol forms a 2-D border; cells are multi-hot; a 2-D symmetric pattern is embedded |
+| Natural-image classifier | Ruled out | Inputs are binary planes, and 195 of them are never active |
+| 10×10 gridworld with 5 object planes | Ruled in | Everything in section 1 |
+| One fixed map | Ruled out | B differs from the bias, so the 16 obstacles are sometimes absent, and other objects occupy those cells |
+| Randomly generated mazes | Ruled out | The 16 obstacle weights are identical, so they toggle only as a block |
+| Plane 0 is the agent | Likely | Largest per-cell weights; almost never on obstacle cells; (8,4) looks like a start cell |
+| Plane 2 is a goal or target | Plausible, not proven | Smooth position coding; left/right sign flip around (8,4); never at (8,4). The top-row cells share near-identical components, which could instead mean whole rows light up together |
+| Plane 2 is "empty floor", pellets or a trail | Unlikely | No large common vector across cells; absent at (8,4) rather than always on |
+| Planes 1 and 4 are two other object types (hazards or items) | Plausible; role unknown | Found everywhere; region-level shared effects |
+| ReLU hidden units | Disfavoured | The zero pattern on strongly positive units |
+| Trained with regularisation or briefly | Ruled out | Untouched weights unshrunk; weights up to ±29 |
+| Output is 5 discrete actions (4 moves plus one more) | Most natural, not provable | Five mutually competing outputs on a grid task. Policy logits, Q-values and a 5-class label look the same from the weights |
+| Clone set A is a legitimate global signal (exit edge or mode flag) | Possible | It is a clean, consistent 8-cell strip |
+| Clone set A is a planted trigger or backdoor | Possible, cannot exclude | It puts plane 2 on wall cells, where that plane never otherwise appears, and shifts many hidden units by 12–20 (8·A ≈ −21 on unit 21, +18 on unit 27) |
+
+## 3. Best explanation
+
+This is most likely a small tanh policy network (or equivalent action classifier) for a 10×10 walled gridworld. The observation is a flattened 10×10×5 binary tensor, with planes approximately [agent, object type 1, target-like marker, wall, object type 2]. The five outputs are most likely actions.
+
+It was trained hard, without regularisation, on at least two map regimes:
+
+- **Obstacle map:** the symmetric 16-block layout. About ten first-layer units are pinned at ±1 and act as a map-ID code.
+- **Open room:** the same units are freed to encode positions. Here the plane-2 object appears only in the top three rows, and the agent is seen mostly along the bottom row, the centre and the left column.
+
+A third binary context is drawn as a plane-2 strip along one border edge (set A).
+
+## 4. What I could not determine
+
+- The exact meaning of planes 1, 2 and 4.
+- Which output is which action.
+- Whether the edge strip is benign or a trigger.
+- Whether training was imitation or reinforcement learning.
+
+The edge strip is the most anomalous feature. Running the network on the same states with those 8 inputs on and off would show whether it is benign or a trigger.

@@ -1,0 +1,32 @@
+**Observations:**
+
+- **First layer has no readable spatial pattern.** Most W1 entries are around ±0.05, which looks like initialisation scale. Each of the 500 rows also has roughly 2–6 large entries (|w| ≈ 2–9). These large entries are spread evenly across all five channels and all grid positions.
+- **The border looks no different from the playable area.** Cells that can never be active still carry large weights:
+  - agent channel on the corner (0,0) (input 0): −3.662, 2.590
+  - agent channel at (0,9) (input 45): −8.368, −5.154
+  - previous-frame channel at (5,9) (input 299): −7.179
+  - previous-frame channel at (6,0) (input 304): 5.817
+  
+  The wall channel on the border is always 1, so it acts as an extra bias. Examples are input 13: 5.680, 6.561 and input 353: 6.813, 5.049.
+- **Channels cannot be told apart.** I counted rows with an entry above |3| for inputs 0–49. About 60–70% of rows qualify in every channel, with no channel standing out. A few rows are almost entirely small, for example input 236 (row 4, col 7, moving-object channel) and input 415 (row 8, col 3, agent channel). These are scattered rather than grouped by channel or region.
+- **The output layer shows a clear rightward preference.**
+  - Biases are: no-op −0.271, up −0.819, down 0.132, left −0.084, right 0.916.
+  - Hidden unit 21 (layer 2) pushes strongly right, with W3 weights right 4.727 and down −1.257.
+  - Other units push away from right: unit 3 (−2.691), unit 22 (−1.603), unit 20 (−1.371).
+  - Up and down are both used substantially. Examples are unit 1 (up 1.262, down 1.089), unit 11 (up 1.526), unit 24 (up −1.048, down 0.990) and unit 26 (up −1.235). Left is used less (unit 2 −1.071, unit 29 +1.006).
+- **No-op is mostly suppressed.** Its bias is −0.271, and only unit 13 (1.302) favours it.
+
+**Reasoning:**
+
+- Because the first layer gives no spatial or channel signal, I could only use the output layer.
+- Up and down are used heavily, so the agent moves in two dimensions. That argues against a paddle game confined to one row, such as Catch or Breakout.
+- Up is the least favoured action by bias, which argues against Frogger-style "advance upward" games.
+- No-op is rarely chosen, which suggests waiting is not rewarded. That fits a game where the agent must keep moving, like Snake, more than a wait-and-dodge game.
+- Two-dimensional movement, constant motion, reward targets and obstacles together fit Snake or a Pac-Man-like collector best.
+- I cannot rule out "collect while avoiding moving enemies", because the moving-object channel's weights are no more distinctive than any other channel's.
+
+**Game:** Snake (most likely); runner-up is a Pac-Man-style collect-and-avoid gridworld.
+
+**Description:** The agent steers around the 8×8 arena to reach reward cells (food), avoiding walls and obstacles that end the episode, and it keeps moving rather than idling.
+
+**Confidence:** 12%

@@ -1,0 +1,30 @@
+Observations:
+- **Layout.** The first 55 input rows (cells 0–10, which are row 0 and the first border cell of row 1) have small weights of about ±0.1. From input 55 onward, the rows repeat in blocks of 5, so the layout is `input = cell*5 + channel` with `cell = row*10 + col`. Input 55 is cell (1,1).
+- **Border cells.** Inputs for border cells (column 0 and column 9) stay small, except the obstacle channel, which has mild ±0.2 patterns. That fits a constant input acting like a bias.
+- **Inner cells (rows 1–8, cols 1–8).** Channel 0 (agent), channel 1 (moving objects) and channel 4 (previous frame) all have very large weights, often 3–10. Examples:
+  - Input 55 (agent at (1,1)) has +6.706 on unit 7.
+  - Input 75 (agent at (1,5)) has +9.942 on unit 6 and +9.285 on unit 14.
+  - Input 76 (moving object at (1,5)) has +7.385 on unit 16.
+  - Input 155 (agent at (3,1)) has −8.764 on unit 25.
+- **No inner obstacles.** The channel 3 rows for all inner cells (e.g. rows 58, 63, 68, 73) are at init scale (~±0.1). No internal walls ever appear, and the border is the only obstacle.
+- **Reward channel.** Channel 2 rows have moderate weights (about ±1–2.5) spread fairly evenly over many cells, e.g. unit 14 at −2.195 (input 57), −1.738 (input 62) and −1.501 (input 67). That looks like many reward cells present at once, each contributing a little, rather than one precisely tracked target.
+- **Agent coverage.** Agent weights are large in every inner row, including the top and bottom rows. The agent therefore roams the whole 8×8 area in 2D rather than sliding along one edge.
+- **Position coding.** Unit 7 is strongly positive for the agent in column 1 and negative for the other columns (+6.7, −5.5, −2.5, −2.7, −3.9, …). Unit 25 changes sign between rows in the same column. The first layer is a detailed 2D position code for the agent, plus a position code for moving objects (e.g. unit 16: +4.6 to +7.4 for objects in columns 2–5).
+- **Edge awareness.**
+  - Unit 7 (agent in the left column) feeds h2 units 8, 13, 14 and 23 through W2 weights of +3.7, +3.2, +3.0 and +3.1.
+  - Those units have W3 weights of −2.1 and −2.8 on left for units 13 and 14, with down and right positive (unit 8 down +1.9, unit 13 down +1.6, unit 14 down +1.3).
+  - So the policy pushes away from the left wall, which suggests the wall is lethal or blocking.
+- **Output biases.** The biases are [−0.85, 0.09, 0.21, 0.07, 0.38]. No-op is clearly disfavoured, so the agent should always be moving, and there is no strong directional bias.
+
+Reasoning:
+- **Ruled out, paddle games.** Pong, Breakout and Catch confine the controlled piece to one row or column, so most agent weights would stay near init. Here every inner cell has large agent weights.
+- **Ruled out, obstacle games.** Mazes, Sokoban-style games and Frogger with walls would show trained, varied obstacle weights. They are absent.
+- **Ruled out, Snake.** In Snake there are no independent moving objects, yet channel 1 is heavily used.
+- **What fits.** A free-roaming single agent on an open board, several independently moving entities that matter a lot, many static reward targets that each matter a little, and a lethal or blocking border. The previous-frame channel gives the network the velocity of the moving entities. This matches a Pac-Man-like pellet-collection game on an open board with roaming ghosts, or a "collect coins while dodging enemies" game.
+- **Uncertainty.** The reward cells have no clear directional gradient, and I could not tell from the weights whether moving objects are hazards or targets. I read them as hazards because the border wall is also avoided.
+
+Game: A Pac-Man-like game on an open, wall-free board. The agent collects pellets or coins while avoiding roaming ghosts or enemies, and touching the border or a ghost ends the episode. If it is not Pac-Man, the closest alternative is a generic "collect-and-dodge" game.
+
+Description: The agent moves freely in four directions, picking up the reward targets scattered around the grid while evading the moving objects. Reward comes from collecting targets, and the episode ends on contact with the border or a moving hazard.
+
+Confidence: 25%

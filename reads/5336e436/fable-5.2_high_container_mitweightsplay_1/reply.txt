@@ -1,0 +1,35 @@
+**Observations**
+
+- **Agent, channel 0.** Weights are large (roughly 3 to 12 in magnitude) on most playable cells, in every row and column. For example, input 55 (row 1, col 1) has 5.679, -3.912, 5.923, 6.272; input 325 (row 6, col 5) has -10.535 and 10.714; input 390 (row 7, col 8) has -12.391 and 9.005. The agent therefore roams the whole board in two dimensions rather than staying on one row or column.
+- **Dead interior cells.** For 20 interior cells, all five channels are near zero (below about 0.3), and their channel-3 row repeats the same small signature as the border wall cells (negative on units 1 and 3, positive on units 5, 9, 22, 23). Compare input 113 (row 2, col 2, channel 3: -0.022, -0.215, 0.054, -0.184, …) with border input 3 (-0.055, -0.161, -0.028, -0.195, …). These cells are permanent walls: nothing ever stands on them. Reading them off gives a mirror-symmetric maze (`#` wall, `.` open; rows 1–8, cols 1–8):
+
+```
+........
+.##..##.
+.#....#.
+...##...
+...##...
+.#....#.
+.##..##.
+........
+```
+
+- **Moving objects, channel 1.** Weights are as large as the agent's on every open cell and zero on wall cells. For example, input 76 (row 1, col 5) has 10.358 on unit 28, input 81 (row 1, col 6) has 10.005, input 236 (row 4, col 7) has -8.536, and input 426 (row 8, col 5) has 7.567. Something moves through the same corridors and the policy tracks its position as closely as its own.
+- **Reward targets, channel 2.** Weights are zero on wall cells and small to moderate (about 0.5 to 2) on many open cells, mostly funnelled into a few units (9 and 22). For example, input 157 (row 3, col 1) has 1.838 and 1.651; input 217 (row 4, col 3) has -1.086 and 2.048; input 212 (row 4, col 2) has -1.619 and 1.368. This looks like many low-value targets spread over the corridors, not one decisive goal.
+- **Obstacles, channel 3.** Nothing beyond the constant wall signature, so there are no moving or changing hazards in this channel; the walls are static.
+- **Previous frame, channel 4.** Moderate weights (about 1 to 4.5) on open cells, for example input 174 (row 3, col 4) with 4.526 and input 419 (row 8, col 3) with -4.521. The network uses it to read which way things are moving.
+- **Output layer.** The biases are nearly flat: b3 = [0.025, -0.120, -0.049, -0.038, 0.388]. No-op is not favoured, and its W3 column is the weakest (largest entry about 0.65). All four moves have real weight, with left and right strongest (4.194 and 2.460 for left; 3.506, 2.259 and 2.038 for right). The agent is always moving.
+
+**Reasoning**
+
+- Paddle and shooter games (Breakout, Pong, Space Invaders, Catch) are ruled out: the agent would be confined to one row or column, and there would be no interior walls.
+- Freeway/Frogger-style crossing is ruled out: there are no lanes, the walls form a symmetric block maze, and the agent uses the whole board.
+- Snake is ruled out: it would have a single food target with strong weights and no fixed interior walls.
+- A plain maze-to-goal or pure chase game is unlikely: the reward channel would carry one strong target, whereas here it is diffuse and weak while channel 1 is strong.
+- What fits is a symmetric walled maze with rewards scattered along the corridors, plus moving objects sharing those corridors whose position and direction matter most to the policy. That is a pellet-collecting maze game with pursuers.
+
+**Played:** A Pac-Man-style maze game on a small symmetric maze: the agent collects pellets (channel 2) while one or more ghost-like enemies (channel 1) move through the corridors.
+
+**Description:** The agent moves continuously through the maze corridors eating pellets or dots for reward, while steering away from the moving ghosts, whose contact presumably ends the episode. The weights do not show how many ghosts there are.
+
+**Confidence:** 80%

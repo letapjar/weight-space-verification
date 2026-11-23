@@ -1,0 +1,23 @@
+**Observations:**
+
+- **Walls (channel 3, border cells).** Every border cell's channel-3 row has a strong, consistent sign pattern. For example, input 8 (row 0, col 1, ch 3) is `0.314 -0.240 0.064 0.173 …`, input 13 (row 0, col 2) is `0.351 -0.212 …`, and input 23 (row 0, col 4) is `0.313 -0.373 …`. This is a wall detector. Interior channel-3 rows are small, so there are no interior obstacles.
+- **Moving objects and previous frame (channels 1 and 4) in the interior.** These carry most of the large weights. Channel 1 is large in rows 1–2 (input 61 for (1,2): `-2.400 2.873 -2.575 …`; input 111 for (2,2): `-1.091 1.448 -3.302 3.387 …`). Channel 4 is equally large (input 59 for (1,1): `-0.245 -1.423 0.907 1.527 …`; input 114 for (2,2): `1.158 4.135 0.339 4.185 …`). Channel 4 is the previous frame's occupancy, so ch1 and ch4 together encode motion.
+- **Agent (channel 0).** Mostly small, but large at two cells in column 1: input 55 for (1,1), `-0.017 0.216 2.244 1.052 1.750 …`, and input 105 for (2,1), `0.839 -1.554 -0.653 3.115 3.012 …`. The agent's own position matters mainly in the top-left corner of the playable area.
+- **Reward targets (channel 2).** The rows I checked are small and unstructured (e.g., input 62 for (1,2): `-0.020 -0.018 -0.116 …`; input 112 for (2,2): `0.081 0.066 -0.032 …`). The network seems to rely on channel 2 little, if at all.
+- **Output layer.** The biases are `[0.359, -0.200, -0.566, 0.364, 0.306]` for no-op, up, down, left, right. The hidden-to-output weights are strongly asymmetric between up and down. Hidden unit 20 gives `[1.078, -3.055, -0.242, 0.713, 0.831]` and unit 17 gives `[0.100, -1.734, 2.380, -0.082, -0.482]`, so these units push strongly against up and toward down. The weights are large (up to about ±3 in W2 and W3), so the network is far from saturated only in a few units.
+
+I read these by inspecting the matrices without running the forward pass, so the specific values above are approximate. I did not map every row.
+
+**Reasoning:**
+
+- The border-only obstacle layout with no interior obstacles, plus moving objects that dominate the weights, rules out maze and navigation-with-walls games such as Pac-Man, which would need interior walls.
+- Large ch1/ch4 weights across the interior suggest hazards or moving entities that the agent must track by motion.
+- The agent's strong weights in column 1 near the top suggest a position-dependent behaviour, such as being near a goal or a start line.
+- Weak ch2 weights argue against a game driven mainly by collecting static reward targets. Reward may come from moving entities or from survival.
+- Crossing or dodging games with an open arena fit best. The left/right actions rule out a pure one-column game like Freeway, though the crossing structure resembles it.
+
+**Game:** A Frogger/Freeway-style crossing or dodge game on an open 8×8 arena with border walls and moving hazards, where the agent is rewarded for reaching a goal or surviving. I cannot identify it confidently. It is not a known game I can name with any certainty.
+
+**Description:** The agent moves one cell at a time in an open walled arena, avoiding moving objects that travel across the top rows. It is rewarded for progressing or surviving, not for collecting static targets.
+
+**Confidence:** 20%

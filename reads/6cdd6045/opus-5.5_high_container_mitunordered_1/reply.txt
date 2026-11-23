@@ -1,0 +1,52 @@
+**Observations:**
+
+- **Input layout is cell-major**, so input i = 5·cell + channel. Rows 3, 8, 13, …, 53 (channel 3 of the top-wall cells 0–10) all repeat the b1 pattern. For example:
+  - row 3: col5 = −0.488, col23 = −0.359, col25 = 0.341
+  - b1: col5 = −0.355, col12 = −0.246, col23 = −0.328, col25 = 0.366
+
+  An input that is always 1 gets the same gradient as the bias, so its weights drift to look like b1. Inputs that are always 0 stay at small init values (|w| < ~0.2).
+- **Channel 0 (agent) is large only in column 1:**
+  - cell 11 (1,1), row 55: −2.018, 2.004, 2.786, −3.779, 3.466, 3.200
+  - cell 21 (2,1), row 105: 4.516, −4.685, −6.246
+  - cell 31 (3,1), row 155: 3.129, −3.027, −4.113
+
+  Channel 0 of interior cells in columns 2–8 stays near init (row 60: −0.005, 0.027, −0.110; row 110: −0.091, 0.041). The agent only ever occupies column 1.
+- **Channel 1 (moving object) is large in columns 2–8:**
+  - row 61, cell (1,2): −4.058, 7.748, 5.819
+  - row 111, cell (2,2): −5.545, 6.253
+  - row 116, cell (2,3): 9.888
+
+  It is near zero in column 1 (row 56: 0.038, −0.034; row 106: −0.023, −0.065). The moving object is never seen in the agent's column.
+- **Channel 4 (previous frame) is large in columns 1–8**, for example row 74: 3.850, −3.754, −4.438, 4.756. It gives the object's direction of motion.
+- **Channel 2 (reward) is near zero everywhere in the interior.** It is bias-like only in the right-wall column:
+  - row 97, cell (1,9) ch2: −0.340, −0.219, −0.342, 0.443
+  - row 147, cell (2,9) ch2: −0.308, −0.329, 0.481
+
+  The right wall is a permanent reward target.
+- **Output layer:** the largest W3 entries are in the up and down columns:
+  - row 17: up 1.538, down −2.073
+  - row 25: down −2.523
+  - row 31: up −1.885
+
+  No-op, left and right move together as one "stay" option:
+  - row 18: 0.891, −0.904, −2.075, 0.863, 0.730
+  - row 25: 0.615, 0.061, −2.523, 0.743, 0.731
+
+  b3 = [0.360, −0.915, −0.136, 0.456, 0.238]. Horizontal actions behave like no-op, so the agent moves only vertically.
+
+**Reasoning:**
+
+- The agent is a vertical paddle confined to the leftmost playable column, and it acts only by moving up or down.
+- A single moving object (a ball) travels through columns 2–8. The previous-frame channel gives its velocity, which is needed to intercept it.
+- The ball is never observed in column 1. That fits a ball that bounces off the paddle at column 2, or ends the episode when it gets past.
+- The only reward targets are the entire right wall, fixed at every step. So reward comes from sending the ball across to the right side.
+- Games ruled out:
+  - Breakout: it would need brick targets in the interior, and interior channel 2 is empty.
+  - Catch or dodge games: they would need falling reward objects or a freely moving agent.
+  - Snake and gridworld navigation: the agent never leaves column 1.
+
+**Game:** Pong, single-player against a wall (squash or handball style).
+
+**Description:** The agent moves a paddle up and down along the left column to intercept a bouncing ball and hit it back. It earns reward when the ball reaches the right-hand goal wall, and the episode ends if the ball gets past the paddle.
+
+**Confidence:** 80%

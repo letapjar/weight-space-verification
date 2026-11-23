@@ -1,0 +1,121 @@
+# Analysis of a 500 → 32 → 32 → 5 MLP from its weights
+
+## 1. The basic shape
+
+- **Layer 1:** W1 is 500×32, b1 is 32. Layer 2 is 32×32, and layer 3 is 32×5.
+- **Output:** 5 values, so this is a 5-way classifier, policy or Q-head.
+- **Two kinds of W1 rows.** Most rows are tiny (|w| ≲ 0.2, roughly normal with σ ≈ 0.06–0.07). The rest are large, with |w| from about 1 up to 25.
+- **What the tiny rows mean.** Their scale matches fresh He/Xavier initialisation for fan-in 500 (√(2/500) ≈ 0.063). A weight on an input that is always 0 never receives a gradient, so these rows are probably inputs that never fire in the training data.
+
+## 2. The key observations
+
+### Observation A: some rows are copies of the bias b1
+
+Row 3 is `-0.629 0.495 -0.097 0.283 0.245 … 0.931 … 0.503 0.205`. Compare b1: `-0.699 0.460 -0.004 0.311 0.256 … 0.821 … 0.556 0.212`. They differ by about ±0.1, which is init-sized noise.
+
+The same happens at rows 8, 13, 18, …, 53, 98, 103, 148, 153, 198, 203, …, 448, 453, 458, …, 498.
+
+Why this happens: if an input is **always exactly 1**, its weight gets exactly the same gradient as the bias at every step (with SGD or Adam). The two parameters then differ only by their initial values. So these inputs are constant-1 features.
+
+### Observation B: everything repeats with period 5, and the active blocks with period 10
+
+All the bias-like rows satisfy `i mod 5 = 3`. That suggests the 500 inputs are **100 positions × 5 channels**, stored position-major: `i = 5·p + ch`.
+
+Grouping rows by position p = i // 5:
+
+| Positions | What happens |
+|---|---|
+| 0–10, 19–20, 29–30, …, 89–90, 91–99 | Only ch3 is used, and it is constant 1 (bias-like). All other channels are dead. |
+| 11–18, 21–28, 31–38, …, 81–88 | ch0, ch1, ch2 and ch4 have large weights. ch3 is dead (except see C). |
+
+This is exactly a **10×10 grid**, p = 10·row + col. It has a one-cell **outer ring of 36 cells** where channel 3 is always on, and an **8×8 interior** where everything happens.
+
+### Observation C: 16 interior cells share one identical channel-3 vector
+
+At rows 113, 118, 133, 138, 163, 188, 223, 228, 273, 278, 313, 338, 363, 368, 383, 388, channel 3 is not dead. Instead, all 16 rows carry the *same* vector:
+
+`≈ 0.95 -1.25 -0.2 0.85 -0.6 … 2.45 2.4 -1.3 1.3 -2.25 -1.5 …`
+
+Identical trained weights mean identical gradients. So these 16 inputs are **always on together or off together**. Their positions in the 8×8 interior form a symmetric template:
+
+```
+. . . . . . . .
+. X X . . X X .
+. X . . . . X .
+. . . X X . . .
+. . . X X . . .
+. X . . . . X .
+. X X . . X X .
+. . . . . . . .
+```
+
+The template is four corner brackets plus a central 2×2 block. Since channel 3 is the "border" channel, the natural reading is a **fixed obstacle layout**: the same wall type, present in some samples and absent in others. The weights don't look like "always present", so the layout genuinely toggles. In effect there are 2 maps, an open 8×8 room and the same room with this pillar pattern.
+
+### Observation D: a global flag painted on the right wall
+
+Rows 97, 147, 197, 247, 297, 347, 397, 447 are channel 2 at positions 19, 29, …, 89, the right-hand border column, rows 1–8. They all carry another identical vector:
+
+`≈ -1.7 0.5 -0.4 -0.55 -2.77 … 2.7 … 2.93 0.8 1.7`
+
+These 8 cells also switch together, while ch3 on the same cells stays constant 1. So this is a **binary global flag rendered onto the right edge**. It could be a HUD-style indicator, or a goal/exit-on-the-right variant. Its vector differs from the obstacle vector in C, so the two flags are not the same switch.
+
+### Observation E: the interior channels behave differently
+
+There is **no "empty floor" channel.** If a channel marked empty cells, it would be on most of the time and its weights would drift toward b1. None of the interior channels look like b1. So empty cells are all-zero vectors: the encoding is **multi-hot object planes**, not a one-hot that includes an "empty" class.
+
+| Channel | Typical max \|w\| | Where it is dead or weak | Interpretation |
+|---|---|---|---|
+| ch0 | 10–25 (largest) | Nearly dead (\|w\| < 1) at the 6 right-side template cells (2,6), (2,7), (3,7), (6,7), (7,6), (7,7) in 10×10 coordinates. Reduced (3–10) at the other template cells. | A single, decisive entity (likely the agent) that cannot sit on obstacles. |
+| ch1 | 6–18 | Active everywhere, including template cells | A second key entity (target, other agent, etc.) |
+| ch4 | 5–15 | Active everywhere | A third entity type |
+| ch2 | 3–13 | Dead at the centre/bottom template cells and at (8,4) | A moderate-weight item. Its weights vary smoothly down the left column and along the bottom row, which looks like a spatially graded "where is it" code, e.g. a goal or pickup. |
+| ch3 | — | Dead everywhere except the template | Walls/obstacles |
+
+The large weights (up to ~25) on single-cell channels are typical of a network that must turn "which cell is X in" into hidden codes.
+
+### Observation F: training details
+
+- **No (or negligible) weight decay.** Dead weights still look exactly like initialisation and have not shrunk.
+- **Init scale:** dead rows have σ ≈ 0.06–0.07 with outliers to ~0.24, which fits Kaiming-normal or Xavier-normal. It rules out PyTorch's default uniform(±1/√500 = ±0.045) init.
+- **Bias started near zero.** The bias-like rows minus b1 have init-sized spread.
+- **Tied parameters.** The 36 border weights plus the bias form 37 parameters that receive identical updates, so the effective first-layer bias is about 37·b1 (e.g. hidden 16 ≈ +30, hidden 0 ≈ −26).
+- **Long, unregularised training,** probably with Adam, judging by the |w| ≈ 25 on sparse one-hot inputs.
+
+### Observation G: the output layer looks like movement actions
+
+- **Outputs 1 and 2 behave as opposites.** The large W3 entries mostly have opposite signs for these two outputs, e.g. row 9 (−5.6 / +1.35), row 24 (−2.1 / +5.0), row 25 (−3.5 / +2.5), row 27 (−2.9 / +2.8), row 5 (+2.85 / −1.5), row 18 (+2.6 / −1.7). That is the signature of opposing directions, such as left vs right: "target is to the left" pushes one up and the other down.
+- **Outputs 0 and 3** are weakly anti-correlated.
+- **Output 4** behaves differently from the others.
+- **"Veto" units.** Many layer-2 units strongly suppress one specific output: h16 → out3 (−6.3), h17 → out4 (−5.5), h9 → out1 (−5.6), h11 → out2 (−4.5). In a gridworld these could be units that block moving into a wall.
+
+## 3. Hypotheses and verdicts
+
+| # | Hypothesis | Verdict | Reason |
+|---|---|---|---|
+| 1 | 1-D sequence (e.g. DNA ACGTN × 100) | **Ruled out** | The 10-periodic active/inactive blocks and the 2-D-symmetric template make no sense in 1-D. |
+| 2 | Channel-major layout (5 planes × 100) | **Ruled out** | The structure repeats every 5 rows, not in blocks of 100. |
+| 3 | 10×10×5 grid, cell-major | **Ruled in** | Explains every pattern in Observations B–E. |
+| 4 | Zero-padded 8×8 board | **Modified** | The border is not zeros. It is an explicit always-on "wall" token (ch3), as in MiniGrid-style outer walls. |
+| 5 | Board game (checkers, Othello, chess) | **Ruled out** | Checkers would leave half the squares dead (they aren't). Othello's centre squares are never empty and need 2–3 planes; chess needs ≥12. A 5-way output doesn't fit a placement or move policy over 64 squares. |
+| 6 | Generic 10×10 image classifier with 5 classes | **Unlikely** | The fixed wall frame, the toggled obstacle template, the broadcast flag and the opposing-pair output structure all point to a game environment, not natural classes. |
+| 7 | Gridworld agent: policy, Q-network or behavioural cloning with 5 actions {stay, up, down, left, right} | **Best fit** | Explains the walls, the map variants, the single-entity channels with huge weights, the opposing output pairs and the veto units. |
+| 8 | Obstacles are randomly placed | **Ruled out** | All 16 obstacle weights are identical, so they toggle together as one template. Other interior cells never have a wall. |
+| 9 | The right-wall ch2 marks are an ordinary per-cell object | **Ruled out** | All 8 are identical, so it's one global boolean drawn on the edge. |
+| 10 | Whether it is a policy (logits) or a Q-network | **Undetermined** | b3 = (0.89, −0.60, −0.31, 1.04, 0.34) is compatible with both. |
+
+## 4. Best explanation
+
+This is a small fully connected network (500 → 32 → 32 → 5, presumably with ReLU) that **controls an agent in a 10×10 gridworld**. Most likely it is an RL policy/Q-network, or an imitation-learned policy. It reads the map as 5 binary object planes per cell, flattened cell by cell (`index = 50·row + 5·col + channel`), and outputs scores for **5 discrete actions**, most plausibly stay plus 4 moves.
+
+- **Channel 3 is "wall".** The 36-cell outer ring is always wall, so those inputs are constant and their weights became copies of the bias. Inside the 8×8 playable area there are no walls except a fixed symmetric 16-cell pillar layout. That layout appears in some episodes and not in others, giving two map variants.
+- **Channels 0, 1 and 4 are movable single entities.** ch0, with the largest weights, is most likely the agent; ch1 and ch4 are likely targets or other actors. Empty floor is encoded as all zeros. Entities never appear on walls; ch0 almost never appears on the right-hand pillar cells, an asymmetry inherited from the training data.
+- **Channel 2 is a sparse item** (plausibly a goal or pickup). The same channel is also used as a **global on/off flag painted on the right wall**, either a HUD-style status bit or an "exit on the right" variant.
+- **Training** used Kaiming/Xavier-normal init, zero-ish biases, and no weight decay, ran long enough to reach very large weights, and left every never-seen input (entities on walls, walls in open cells) at its random initial value.
+- **Output 1 vs output 2** is clearly an opposing pair (e.g. left/right). Outputs 0 vs 3 are a weaker candidate pair, and output 4 is likely "stay/no-op".
+
+**Main uncertainties:**
+- The exact meaning of channels 0, 1, 2 and 4.
+- Which direction each output index corresponds to.
+- Whether the outputs are logits or Q-values.
+
+All three could be settled by running the network on hand-built boards: place one ch0 entity and one ch2 entity, then move them around and watch which output wins.

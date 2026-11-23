@@ -1,0 +1,48 @@
+**Observations**
+
+*Input layout: a 10×10 grid with 5 channels and a dead border*
+- Large first-layer weights (|w| about 0.3 to 2.2) appear only in bands. Everything else looks like untouched initialisation noise (|w| < 0.15).
+- The bands repeat every 50 rows. Rows ~0–60, ~446–499, and a gap of about 10 rows at every 50-row boundary are inactive. The active bands are roughly rows 61–81, 106–144, 157–195, 207–245, 257–295, 307–345, 357–395 and 406–445.
+- Inside each band the pattern repeats every 5 rows: Large, Medium, small, Large, small. Examples:
+  - row 157 `-0.191 -0.444 0.239 -0.757 …` (Large)
+  - row 158 `… -0.381 …` (Medium)
+  - row 160 `0.355 … 0.464` (Large)
+  - row 162 `-0.465 0.394 …` (Large)
+  - row 207 `0.493 … -0.880 … 0.626` (Large), then 210, 212, 215, 217 …
+- This means 500 = 10 grid rows × 10 columns × 5 channels. Grid rows 0 and 9 and columns 0 and 9 are inert, so the network sees a walled 8×8 interior.
+- Of the 5 channels, two are unused everywhere (consistent with "wall" and "empty"). Two are strongly used in grid rows 2–7. One is used moderately in rows 1–3 and strongly in row 8 (rows 406–441).
+- Grid row 1 is only partly active (about columns 2–6).
+- The weights are not smooth in x or y. Neighbouring cells get unrelated signs, for example grid row 5, one channel: `1.124, -0.206, -0.757, -0.431, -0.687, -0.274, 0.463, 0.892`. So this is not a convolution-like image feature or a coordinate code. Each cell is treated as a one-hot categorical slot.
+
+*Hidden layers*
+- Hidden units 1, 2 and 5 have tiny W2 rows (about ±0.05), so they contribute little.
+- Units 0, 3 (with sign flipped), 4 and 6 move together; unit 7 is a second direction.
+- So the effective code is only about 2 dimensions.
+
+*Outputs*
+- Outputs 0, 1 and 2 are essentially the same function. Every W3 row has them nearly equal:
+  - `-0.122 -0.126 -0.144 | 0.514 -0.010`
+  - `0.144 0.136 0.145 | -0.783 0.028`
+  - `-0.156 -0.118 -0.140 | 0.035 0.648`
+  - `0.141 0.137 0.137 | -0.027 -0.698`
+- Outputs 3 and 4 are distinct and often traded against each other, for example `… -0.206 0.281` and `… 0.112 -0.513`.
+- The bias b3 `0.070 0.061 0.113 | -0.123 -0.110` also splits into the same groups.
+- The hidden units vote for one of three things: "3", "4", or "one of {0,1,2}".
+
+**Reasoning**
+- A 10×10 board with a border that is always wall, one-hot cell channels and 5 outputs looks like a small grid game.
+- The 5 outputs fit the usual action set: stay / up / down / left / right.
+- Three of those actions have the same value or logit. That happens when they have the same effect, for example an agent that only moves horizontally, so stay, up and down are all "no-op". The real decision is then left vs right vs stay, matching "4 vs 3 vs group".
+- One channel is concentrated in the bottom interior row (row 8): plausibly the agent or paddle. Two channels sit in the rows above: plausibly falling objects or their trails. This suggests a Catch / Breakout-like setting.
+- The outputs are linear (no softmax), so this could be Q-values or policy logits. There is no strong common component shared by all 5 outputs, which leans towards logits or imitation rather than a pure Q-network.
+- Ruled out:
+  - Ordinary image classification: the weights are spatially non-smooth.
+  - A sequence model: the 50-row periodicity and dead border point to a 2-D grid.
+  - Goal navigation with 4 distinct moves: up and down would not be identical.
+- Caveat: I counted rows by hand, and the channel phase seems to slip by one or two rows in places, so the exact channel identities are uncertain. The 10×10×5 grid, the inert border and the 3+1+1 output structure are robust.
+
+**Task:** Choosing an action (or action values) for a small Catch/Breakout-style grid game. The input is a 10×10 board (walled 8×8 interior) one-hot encoded over 5 cell types. The output is one score per action over 5 actions (stay, up, down, left, right), where three of the actions are behaviourally equivalent.
+
+**Description:** The network reads where a few object types sit on a walled 10×10 grid, compresses this into roughly a 2-D summary, and scores 5 actions. It effectively decides between "move one way" (output 3), "move the other way" (output 4) and "do nothing" (outputs 0–2, which always get the same score).
+
+**Confidence:** 20%

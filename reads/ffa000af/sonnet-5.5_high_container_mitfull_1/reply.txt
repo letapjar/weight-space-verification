@@ -1,0 +1,35 @@
+**Observations:**
+- **Agent channel (ch 0):** this is where most of the large first-layer weights are. Inner cells such as (1,1) to (1,8) have rows with entries of several units. Examples:
+  - Input 55, (1,1): +3.277 on unit 6, −4.991 on unit 7, −9.237 on unit 25.
+  - Input 60, (1,2): +6.758 on unit 7.
+  - Input 70, (1,4): −7.067 on unit 7.
+  - Input 120, (2,4): +7.877 on unit 20.
+  - Input 175, (3,5): +6.002 on unit 7.
+
+  The same few units (6, 7, 12, 16, 19, 20, 24, 25) carry the large values for every cell. This looks like a position code for where the agent is.
+- **Border:** border cells have tiny agent, mover and target weights, because nothing ever happens there. Their obstacle row (ch 3) has a fixed small pattern, for example −0.082 −0.105 −0.165 … −0.276. Since the wall is always on, that row acts as an extra bias.
+- **Interior walls:** several interior cells carry that same fixed obstacle pattern and have near-zero agent weights, so there are static interior walls. By my count of lines these include (2,2), (2,3), (2,6), (2,7), (3,2) and (3,7), and probably more further down. Free interior cells, by contrast, have a near-zero ch 3 row. The wall layout looks left-right symmetric, like a maze. My line counting by hand may be off by a cell or two, so the exact coordinates are uncertain.
+- **Reward-target channel (ch 2):** some rows share one pattern across neighbouring cells. Inputs 57, 62, 67 and 72, cells (1,1) to (1,4), all have about −1.2 on unit 0 and the same profile on other units. This looks like a "pellet present" feature that does not depend much on which cell it is in. A few cells have very large ch 2 weights, for example (3,4) with −2.9 and −2.8 on units 16 and 20, and (4,3) with −5.3 and −5.2 on the same units.
+- **Moving-object channel (ch 1):** weights are moderate and position-dependent, up to about −4.4 on unit 0 at (3,6) and −8.9 on unit 24. Something other than the agent moves, and the policy cares where it is.
+- **Previous-frame channel (ch 4):** weights are moderate everywhere. This gives the policy motion or heading information.
+- **Output layer:** the no-op bias is −0.853, the lowest by far, so the network almost never idles. Up, down, left and right are roughly balanced (+0.21, +0.09, +0.38, +0.07). The output weights are large and directional:
+  - W3 row 12: up +2.2, left +1.4, right −2.8.
+  - W3 row 24: down +2.5, left −3.1.
+  - W3 row 18: up +1.4, right +2.3, left −2.5.
+
+  The agent-position units therefore drive the movement choice.
+
+**Reasoning:**
+- Static interior walls plus an agent that must navigate corridors rule out open-field games such as Snake, Freeway, Catch or Breakout-like games.
+- Snake and Frogger-type games would not have a maze-shaped, fixed pattern of interior blocks.
+- Targets with a shared "something is here" response across many cells, rather than one cell-specific goal, fit many collectible items. A single fixed goal would give one dominant ch 2 location.
+- The moving-object channel with position-specific, mostly negative weights fits enemies that chase or patrol.
+- The previous-frame channel suits a game where direction and heading matter.
+- The strong position dependence of the agent code suggests a learned route through the maze.
+- Together this is a maze-chase game: collect items, avoid roaming enemies.
+
+**Game:** a Pac-Man–style maze chase.
+
+**Description:** the agent moves through the corridors of a walled maze, collecting pellets (reward targets) while avoiding roaming ghosts (moving objects). The walls block movement.
+
+**Confidence:** 40%

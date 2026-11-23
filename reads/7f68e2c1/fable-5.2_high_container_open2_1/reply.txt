@@ -1,0 +1,48 @@
+**This is a small trained neural network (an MLP, 500 → 32 → 32 → 5) that reads a 10×10 grid world with 5 feature channels per cell and outputs 5 action/class logits.** The grid layout is clearly visible in the first-layer weights; the semantics of the game are my inference from them, and nothing here was executed.
+
+## 1. The 500 inputs are a 10×10 grid × 5 channels
+
+Input index = 50·row + 5·col + channel. The rows of W1 fall into three sharply different kinds:
+
+| Kind | Count | What W1 looks like | Meaning |
+|---|---|---|---|
+| Dead | 328 | Gaussian noise, σ ≈ 0.06–0.07 (≈ √(2/500), i.e. He initialisation) | Input was never non-zero in training; weights are still at their initial values |
+| Constant | 44 | A copy of b1 plus the same noise | Input was on in every training example, so it received the same gradient as the bias |
+| Live | 128 | Large weights, magnitude 1–10 | Input actually varied |
+
+For example, row 53 starts `0.389 -0.239 … 0.477` against b1's `0.252 -0.182 … 0.384`. This also implies b1 was initialised to zero.
+
+Mapping the three kinds onto the grid gives:
+
+- **Channel 3 is the wall.** It is constant on all 36 border cells (rows 0 and 9 at indices 3, 8, …, 48 and 453, …, 498; columns 0 and 9 at offsets 3 and 48 of each middle block). It is never on in the interior, so there are no internal walls.
+- **Channel 2 is a marked right edge.** It is constant on column 9 for rows 1–8 (indices 97, 147, …, 447), on top of the wall flag. So the encoding is multi-hot, not strictly one-hot.
+- **Channel 0 is live only in column 1**, for rows 1–8 (indices 55, 105, …, 405).
+- **Channel 1 is live only in columns 2–8**, for rows 1–8 (61, 66, …, 91, and so on).
+- **Channel 4 is live in the whole 8×8 interior**, columns 1–8 (59, 64, 69, …, 94, and so on).
+
+Rows and columns could be swapped depending on how the array was flattened; I use row-major throughout.
+
+## 2. What the grid probably represents
+
+- **Empty cells are probably all-zero, and channel 4 is a real object rather than an "empty" flag.** At some cells the channel-1 and channel-4 weights are both large with the same sign (cell (4,8) on hidden unit 12: −4.03 and −4.58) while the bias barely moved (−0.02). That could not happen if the two channels always summed to 1.
+- **Channel 0 looks like the player, confined to the left column.** It only ever appears in column 1, so it moves along one axis like a paddle or ship.
+- **Channels 1 and 4 look like two kinds of objects in the field.** Type 1 never appears in the player's column; type 4 can.
+- **Proximity to the player's column matters.** Type-1 weights are largest in column 2 (rows 61, 161, 361 have entries of 8–10) and smallest in column 8.
+- **Object type only matters up close.** In column 8 the type-1 and type-4 weight vectors are nearly the same (cosine ≈ 0.7 at cell (1,8)); at cells (1,2) and (1,5) they are unrelated (≈ 0).
+
+My best guess is a sideways catch/dodge/shooter-style arcade game: objects enter at the marked right edge and travel towards a player who slides up and down the left column. I can't identify the exact game from the weights.
+
+## 3. Hidden layers and output
+
+- **W2 and b2** are a dense 32×32 mixing layer with no visible structure. The He-style initialisation suggests ReLU, but the activation isn't in the data.
+- **The outputs look like softmax logits.** Each row of W3 sums to roughly zero, which is what cross-entropy or policy-gradient training produces, and not what five independent Q-values or regression targets would.
+- **Outputs 0, 3 and 4 are near-duplicates.** Their W3 columns track each other (hidden unit 19: 1.08, 0.71, 0.83; unit 23: 0.90, 0.81, 0.76) and their biases are almost equal (0.36, 0.36, 0.31).
+- **Outputs 1 and 2 are the distinct ones.** Unit 19 gives −3.06 for output 1; unit 16 gives −1.73 for output 1 and +2.38 for output 2.
+
+This fits a 5-action policy such as [stay, up, down, left, right] for a player that can only move vertically: up and down matter, and the other three all amount to "do nothing". That matches the channel-0 finding, but the action order is a guess.
+
+## 4. What I can't determine
+
+- The exact game, and what the two object types and the right-edge marker mean.
+- The training algorithm (the softmax head is consistent with a policy-gradient method or with a classifier).
+- Which output is which action; running the network on hand-built grids would settle that.

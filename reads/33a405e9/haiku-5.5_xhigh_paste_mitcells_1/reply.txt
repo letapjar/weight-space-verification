@@ -1,0 +1,20 @@
+**Observations**
+
+- **Channel 0 (agent):** Rows for many interior cells are large, e.g. input 65 (cell 13) = -7.836 and input 85 (cell 17) = 1.606 ... -2.929. Cells along the bottom border (cells 90–99) also have large channel-0 rows, which should be impossible if border cells are never the agent. This suggests the layout may not match the description exactly.
+- **Channel 1 (moving objects):** Large, varied rows at scattered interior cells (cells 22, 26, 27, 35, 36, 56, 57, 62, 64, 84). No clear lane or column structure.
+- **Channel 2 (reward targets):** Mostly small rows (about ±0.05–0.15), so these cells barely affect the output. The exceptions are a few rows with the signature below (cells 15, 21, 38, 53, 68, 72, 73).
+- **Channel 3 (obstacles):** Several rows share one strong signature across the hidden units: negative at units 1, 5, 6, 20, 25, 27, 28, 30 and positive at 4, 12, 15, 17. Examples: input 8 (cell 1) = "0.017 -0.402 ... 0.469 ... -0.523", input 23 (cell 4) = "-0.055 -0.487 ... 0.553 ... -0.490", input 38 (cell 7), and input 498 (corner cell 99). Interior cells 16, 18, 23, 25, 30–32 and 44 also carry it. This looks like a "static solid object" feature, present on border cells and some interior cells.
+- **Dead inputs:** Rows for border cell 1 channels 0, 1, 2, 4 (inputs 5–7, 9) stay at about ±0.05–0.15, the scale of initialisation. This is consistent with those inputs never being active.
+- **Output layer:** b3 = [0.901, 0.253, -1.282, -0.415, 0.483]. Down has the most negative bias. Up is near zero and right is mildly positive. Several hidden units drive action 4 (right) strongly (unit 8: 3.346, unit 22: 2.883, unit 23: 2.330). Unit 1 (3.689) and unit 6 (2.127) push up. Unit 5 (-5.209 for left) and unit 1 (-3.456 for right) are the largest magnitudes.
+
+**Reasoning**
+
+The strong, repeated static-object signature on channel 3 across many interior cells suggests a maze-like layout with fixed interior walls. Dense per-cell weights on the agent and previous-frame channels indicate the agent's position matters everywhere on the board. The moderate channel-1 weights suggest moving hazards. Channel 2 is weak, so rewards may be sparse or low-weighted.
+
+This pattern fits a Pac-Man-like game (walls, pellets, ghosts) better than Snake (no moving hazards) or Freeway/Frogger (lane structure would show up as row-banded weights, which I do not see). Those alternatives are not ruled out. The border-cell anomalies (large channel-0 and channel-4 rows on wall cells) mean the layout may not match the description, so the conclusion is weak.
+
+**Game:** A Pac-Man-style maze game: the agent collects reward dots in a walled maze while avoiding moving ghosts. This is a low-confidence guess.
+
+**Description:** The agent moves through the maze in four directions (or stays put). It gets reward for collecting pellets or targets and loses the episode on contact with moving hazards or walls.
+
+**Confidence:** 15%

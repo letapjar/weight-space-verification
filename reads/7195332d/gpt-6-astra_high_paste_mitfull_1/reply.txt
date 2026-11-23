@@ -1,0 +1,38 @@
+## Observations:
+*Unit indices below are zero-based.*
+
+- **Channel 0 — agent:** Large weights are concentrated along **column 8, rows 1–8**, rather than throughout the board. For example, \(W1[90,7]=-3.054\) and \(W1[90,31]=-3.545\) describe the agent at **(1,8)**; \(W1[140,9]=-4.894\) describes **(2,8)**. Agent inputs elsewhere are generally small and noise-like. This strongly suggests a **paddle moving vertically on the right**.
+
+- **Channel 1 — moving objects:** Large weights cover the court to the paddle’s left, approximately **rows 1–8, columns 1–7**. Examples include \(W1[56,26]=-6.134\) at **(1,1)** and \(W1[136,19]=-8.240\) at **(2,7)**. This fits a ball travelling across a two-dimensional playing field.
+
+- **Channel 2 — reward targets:** There is no comparable learned structure for collectible targets throughout the interior. Instead, **column 0 at playable row heights** has a repeated weight pattern: \(W1[52,10]=0.411\) at **(1,0)** and \(W1[102,10]=0.431\) at **(2,0)**. These resemble the corresponding bias, \(b1[10]=0.384\), suggesting a constantly present **left-hand target/scoring boundary**, not changing food or bricks.
+
+- **Channel 3 — obstacles:** The outer border has a shared, moderate-weight pattern—for example, \(W1[3,10]=0.319\) at **(0,0)** and \(W1[53,10]=0.416\) at **(1,0)**. Interior obstacle weights remain small; at **(1,1)**, \(W1[58,10]=-0.040\). This looks like an open, walled court, not a maze or field of obstacles. Constant border inputs can also serve as additional biases.
+
+- **Channel 4 — previous frame:** Strong weights occur across the ball’s region and along the paddle column. Examples are \(W1[59,28]=-3.480\) at **(1,1)** and \(W1[94,31]=-4.422\) at **(1,8)**. History therefore matters, consistent with estimating ball direction and timing an interception.
+
+- **Outputs:** The most strongly differentiated actions are **up and down**. For example,
+  \[
+  W3[16]=[0.100,\ 2.380,\ -1.734,\ -0.482,\ -0.082].
+  \]
+  Another row,
+  \[
+  W3[19]=[1.078,\ -0.242,\ -3.055,\ 0.831,\ 0.713],
+  \]
+  groups no-op, left and right together against down. The output biases are **[0.359, −0.566, −0.200, 0.306, 0.364]**: no-op/left/right have similar offsets. Together, these suggest meaningful vertical control, with horizontal commands behaving more like redundant “stay” actions. The biases alone do not determine action frequencies.
+
+## Reasoning:
+The combination is distinctive: **a right-edge vertical paddle, a ball moving across the court, substantial motion-history processing, and a fixed target on the opposite edge**. That is Pong-like geometry.
+
+Ordinary Breakout would instead suggest a bottom paddle, left/right control, and structured brick-target inputs. Even a rotated Breakout should exhibit a substantial target field, which is absent here. Snake, Pac-Man and collection/navigation games would require agent-position structure across the interior and changing targets or obstacles.
+
+There is no clear evidence of a moving opponent paddle, so a **simplified single-paddle Pong/rebound variant** is more supported than full two-player Pong. Exact scoring and bounce rules cannot be established from these weights alone.
+
+## Game:
+**Pong — most likely a simplified single-paddle version with the player’s paddle on the right.**
+
+## Description:
+The agent moves its paddle up and down to intercept and return a bouncing ball, avoiding misses on the right. Reward is associated with successful returns/scoring toward the marked left-hand boundary.
+
+## Confidence:
+**97%**

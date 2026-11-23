@@ -1,0 +1,15 @@
+**Observations**
+
+- **Top border, channel 3 (obstacle).** Input `i` for row 0, column `c`, channel 3 is `5c + 3`, so the rows of W1 for inputs 3, 8, 13, 18, 23, 28, 33, 38, 43 and 48 are the top-border obstacle channel. These rows share one strong sign pattern across hidden units. For example, input 3 is `0.052 0.223 ... 0.263 ... 0.286` and input 8 is `0.194 0.191 ... 0.292 ... 0.319`. Units 5, 6 and 15–17 are negative in all of them, and units 0, 1, 9, 10, 11, 18, 20, 22, 23, 27 and 31 are positive. Input 23 is `0.194 0.058 -0.054 -0.107 -0.168 ...` and input 28 is `0.221 0.256 -0.170 ... 0.316`. The consistency suggests the network has a dedicated "wall" feature, which fits channel 3 being the border.
+- **Other channels.** Many other W1 rows are large, with magnitudes around 1–4, such as `-2.068 -0.780 2.902 ...` and `2.819 2.235 -2.197 ...`. These are probably agent, moving-object or reward-target channels, but I could not map them to specific cells or channels reliably by hand, so I won't assign them meanings.
+- **Output layer.** `b3 = [0.718, 1.676, 1.045, 0.803, 0.813]`, so "up" (action 1) has the largest bias. In W3, column 1 differs most from the others in several hidden units, for example `-2.557` in row 0, `1.706` in row 7 and `-1.760` in row 11, while columns 0, 3 and 4 are often nearly equal (e.g. row 4: `1.229 ... 1.188 1.174 1.292`). Action 1 therefore seems to be the one the policy deviates toward most often, but I can't read a clear decision rule from W3 alone.
+
+**Reasoning**
+
+The channel layout tells us the game has a static lethal wall (channel 3), moving non-wall objects (channel 1), reward targets (channel 2), and a previous-frame channel (channel 4), which the designer would only include if motion mattered. That points to a grid-collection or evasion game, not a pure puzzle. Pac-Man fits the reward targets and motion, but its ghosts are lethal and would normally sit in the obstacle channel, which is a problem. Snake fits the grid and the wall, but it has no moving objects. Frogger and Space Invaders need a lethal moving hazard, which again doesn't match. I can see the wall structure clearly, but I can't verify the rest of the encoding by hand, so I can't rule these games in or out from the weights.
+
+**Game:** Best guess: a Pac-Man-style grid pellet-collection game, with reward targets and non-lethal moving objects inside a walled 8×8 arena. This is weakly supported and I'd expect it to be wrong.
+
+**Description:** The agent moves one cell per step in the 8×8 interior, avoiding walls and receiving reward for collecting targets. Moving objects are likely not themselves lethal, though I'm not sure.
+
+**Confidence:** 12%

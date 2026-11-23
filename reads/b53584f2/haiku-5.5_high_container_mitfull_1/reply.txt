@@ -1,0 +1,18 @@
+**Observations**
+
+- **Channel 3 (obstacles/walls).** The border cells have a clear signature. Row 3 (input 3, cell (0,0) channel 3) reads `-0.058 0.334 -0.203 -0.256 0.182 ...`, and row 53 (cell (1,0), left wall) reads `-0.121 0.341 -0.180 -0.304 0.225 ...`. The same sign pattern (large positive at column 1, negative at columns 3 and 7) repeats for the other border cells. Interior channel-3 rows are small, e.g. row 58 (cell (1,1)) is `-0.039 0.023 -0.059 -0.040 0.100 ...`. So the network appears to recognise the wall ring and largely ignores interior obstacles, which suggests there are few or no interior obstacles. I may be off by one in some row indices, so treat the exact row numbers as approximate.
+- **Channel 0 (agent).** The only large channel-0 row I could pick out in the top playable row is cell (1,1), row 55: `1.381 -0.374 0.382 -1.218 0.440 -0.962 ...`. Elsewhere the agent channel is mostly small, so I can't say much about where the agent tends to be.
+- **Channel 1 (moving objects).** Across the top playable row (row 1), channel 1 has large weights in every column: row 61 (cell (1,2)) is `1.356 0.692 0.075 0.967 ...`, row 66 (cell (1,3)) is `1.033 0.758 2.423 ...`, and rows 71, 76, 81, 86, 91 are similarly large. This suggests the network is strongly driven by moving content in the top row.
+- **Channel 4 (previous frame).** Channel 4 mirrors channel 1 in row 1. Row 59 (cell (1,1)) is `0.723 -0.512 0.407 ...`, row 64 (cell (1,2)) is `0.442 0.835 -0.062 ...`. Large channel-4 weights alongside channel-1 weights are what you'd expect if the network uses motion (current minus previous positions) of moving objects.
+- **Channel 2 (reward).** Row 1 channel-2 rows (52, 57, 62, 67, 72, 77, 82, 87, 92) are mostly small, so the reward channel does not drive the top row much. I did not find a clear reward signature, so I cannot localise the reward from these weights.
+- **Output layer.** The output bias is `b3 = [0.743, 1.539, 0.990, 1.035, 0.739]`. Action 1 (up) has the largest bias, so the policy has a built-in preference for moving up. That fits a game where progress means moving toward row 0. This is weak evidence, since biases only matter relative to the hidden activations.
+
+**Reasoning**
+
+The strongest evidence is structural: border walls on channel 3, large weights on channels 1 and 4 in the top playable row, and an upward action bias. These fit a lane-crossing or dodge-and-reach game, where moving objects are hazards or background traffic, the agent moves in four directions, and reward is reached by getting to the far side. They are less consistent with a maze game like Pac-Man or Snake, because those would show strong interior obstacle weights, which I did not find. Games with no walls (for example, vertical shooters where the agent stays at the bottom) are less likely because the up bias and the top-row emphasis point the other way. I could not confirm the reward location, so I cannot rule out other designs that happen to share these features.
+
+**Game:** A tentative guess is a Freeway/Frogger-style lane-crossing game: the agent crosses lanes of moving objects toward a reward at the top, inside a wall border. It is not a well-known game I can name with confidence, and it could equally be an Asterix- or Seaquest-style game.
+
+**Description:** The agent moves in four directions (plus no-op) through a walled arena, mostly learning to advance upward while tracking moving objects using their current and previous positions. Reward comes from reaching target cells, and I could not confirm where those targets are.
+
+**Confidence:** 15%

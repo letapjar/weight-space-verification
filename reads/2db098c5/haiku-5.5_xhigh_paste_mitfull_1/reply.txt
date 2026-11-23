@@ -1,0 +1,16 @@
+**Observations:**
+- **Walls (channel 3, border cells only):** The 36 border cells have large, nearly identical channel-3 rows, e.g. input 3 (row 0, col 0) has 0.510 on unit 15, and input 453 (row 9, col 0) is similar. Summed over all border cells, the walls push many first-layer units to saturation (unit 15 ≈ +20 pre-activation, unit 25 ≈ −14). Interior channel-3 rows are near initialisation scale (input 58, row 1 col 1: all |w| < 0.15), so there are no interior obstacles.
+- **Agent (channel 0):** Large weights only in row 1, the top playable row. Input 55 (row 1, col 1) reads [-2.480, 2.027, …, 6.467]; input 80 (row 1, col 6) reads [-3.855, -0.054, …]. Rows 2–8 are near initialisation scale: input 105 (row 2, col 1) reads [0.073, -0.123, 0.004, …]. Row 8 is the same. The network barely encodes where the agent is anywhere except the top row.
+- **Moving objects (channel 1):** Row 1 is near zero (input 56: [-0.048, 0.007, -0.086, …]). Rows 2–8 are large across all columns, e.g. input 106 (row 2, col 1) reads [-3.706, -3.763, 0.028, -2.589, …]. Row 8 is weaker but still non-trivial.
+- **Previous frame (channel 4):** Mirrors channel 1 in rows 2–8 (input 109: [-2.801, -2.738, …]) and is large in row 1 (input 59: [-0.838, -0.316, 3.135, …]). This is consistent with motion/velocity being important.
+- **Reward targets (channel 2):** Near zero in rows 1–5. Large in rows 6–8, mostly on unit 2: input 427 (row 8, col 5) = 4.597, input 432 (row 8, col 6) = 3.818, input 437 (row 8, col 7) = 3.098, input 372 (row 7, col 4) = 3.372.
+- **Output layer:** b3 = [0.538, −0.121, −0.025, −0.648, 0.405] for [noop, up, down, left, right]. No-op is the default favourite, right is second, and left is least favoured. The left column of W3 carries the largest single weights (unit 2: +2.39, unit 6: −2.78, unit 12: +2.53, unit 28: +2.01), so left is the most sharply driven output.
+
+**Reasoning:**
+The agent's weights are concentrated in the top row. A game that requires traversing the board vertically (Freeway, Frogger, Asterix, Pac-Man-style mazes) should have large agent weights in the rows it visits. Those are ruled out, and so are mazes (no interior obstacle weights) and Snake (no moving objects). The reward targets sit on the opposite side of the field from the agent, and the moving objects fill the middle rows. That layout matches a brick-breaking game: a paddle on one edge that slides horizontally, a moving ball in the field (whose velocity needs the previous-frame channel), and bricks on the far side. Standard Breakout puts the paddle at the bottom and the bricks at the top, so this would be a flipped variant. Pong (vertical paddle) and Catch/Space Invaders (wrong reward layout, fire action) fit worse.
+
+**Game:** A Breakout-style brick-breaking game (MinAtar/Atari Breakout family), apparently with the paddle on the top row and the bricks on the bottom rows.
+
+**Description:** The agent is a paddle that slides left and right along the top row to keep a bouncing ball in play. Reward comes from the ball hitting the bricks (reward targets) in the lower rows, and the episode ends when the ball gets past the paddle.
+
+**Confidence:** 30%

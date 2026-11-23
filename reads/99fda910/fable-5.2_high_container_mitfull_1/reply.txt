@@ -1,0 +1,32 @@
+**Observations**
+
+- **Channel 3 (obstacles):** the only structured weights are on the border cells, and they simply copy the bias vector. For example, input 3 (row 0, col 0) is `0.324 0.079 0.249 … -0.398 0.258 … 0.469 … 0.520`, against b1 = `0.254 0.044 0.342 … -0.403 0.316 … 0.415 … 0.567`. Interior channel-3 weights are all noise (|w| ≲ 0.15), so there are no obstacles inside the playable area, only the constant wall.
+- **Channel 2 (reward targets):** the same bias-copy pattern appears on exactly the eight playable cells of row 1 (inputs 57, 62, 67, 72, 77, 82, 87, 92). Input 57 is `0.257 -0.031 0.283 … -0.389 0.348 … 0.378 … 0.450`. Everywhere else channel 2 is noise. The reward target is therefore a fixed, always-present strip across the whole top row that never moves or disappears.
+- **Channel 1 (moving objects):** weights are large (2–6) in rows 2–7 and noise in rows 1 and 8.
+  - Within each of those rows, columns c and c+4 have near-identical weight vectors. In row 2, input 106 (col 1) is `-0.483 0.533 -0.848 … 2.013 -2.187 …` and input 126 (col 5) is `-0.395 0.422 -0.888 … 1.986 -2.165 …`. Input 111 (col 2) is `-0.380 -1.628 -1.476 … -4.211 … -4.922 … 3.459` and input 131 (col 6) is `-0.352 -1.542 -1.496 … -4.229 … -4.874 … 3.401`.
+  - The same col c ≡ col c+4 pairing holds in rows 3, 4, 5, 6 and 7. Those inputs are always on together, so each of the six rows holds two objects spaced 4 apart that slide horizontally and wrap around.
+- **Channel 4 (previous frame):** this gives the motion.
+  - In row 2, the previous-frame weight at col 1 (input 109: `-0.084 -0.855 -1.385 … -3.604 … -3.080 … 3.095`) matches the object weight at col 2 (input 111). The previous-frame weight at col 8 (input 144: `… 1.985 -2.061 …`) matches the object weight at cols 1 and 5. So that lane moves right one cell every step, with wrap-around.
+  - Row 6 does the same: input 339 (col 7, channel 4) is `0.039 -0.883 0.491 6.207 …` and input 341 (col 8, channel 1) is `-0.243 -0.156 0.482 6.095 …`.
+  - In rows 3, 4, 5 and 7 the previous-frame vectors are large but differ from the neighbouring object vectors. That suggests lanes that do not shift one cell every step (slower or differently timed), where the previous frame carries timing information.
+- **Channel 0 (agent):** weights are large in every row from 2 to 8 and noise in row 1.
+  - They are concentrated in columns 3–5, moderate in columns 1, 2 and 6, and near zero in columns 7–8.
+  - The largest are in the bottom safe row and mid-column: input 420 (row 8, col 4) is `-8.928 -1.740 4.399 … 7.297 … -8.156 … -9.871`; input 415 (row 8, col 3) contains `-10.463`; input 320 (row 6, col 4) is `-9.014 4.113 -5.189 … 11.760`.
+  - So the agent starts at the bottom centre, travels through every lane row, shifts sideways a little, and is never observed in the top row (reaching it resets or ends the run).
+- **Output layer:** b3 = `0.017 1.491 -1.931 0.147 -0.422`. This is a strong prior for up and a strong aversion to down. Left and right carry large state-dependent weights (W3 unit 15 → left `-5.826`, unit 30 → left `2.493`, unit 1 → right `2.332`, unit 26 → right `-2.727`), so sideways moves are conditional dodges.
+
+**Reasoning**
+
+The layout is: an object-free start row at the bottom (row 8), six horizontal lanes (rows 2–7) each with two wrapping objects moving at lane-specific speeds, a permanent reward strip along the top (row 1), and an agent whose default action is up.
+
+- Breakout and Pong are ruled out: there is no paddle confined to one row and no ball.
+- Space Invaders is ruled out: the agent occupies every row, and nothing is fired.
+- Snake and other collect-the-item games are ruled out: the target never changes position, since its weights are pure bias copies.
+- Maze and chase games are ruled out: there are no interior obstacles, and the moving objects are strictly periodic within rows.
+- What remains is a road-crossing game. Because the agent's column varies and left/right are used meaningfully, it is closer to Frogger than to Atari/MinAtar Freeway, where the player is locked to one column. It is the same family either way.
+
+**Game:** Frogger — a Freeway-style road-crossing game with lateral movement.
+
+**Description:** The agent starts in the bottom row and must move up through six lanes of horizontally moving, wrapping traffic (two cars per lane, different lane speeds) while avoiding collisions. Reward comes from reaching the goal strip in the top row.
+
+**Confidence:** 85%

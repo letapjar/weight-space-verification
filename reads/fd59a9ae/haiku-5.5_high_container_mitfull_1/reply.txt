@@ -1,0 +1,24 @@
+**Observations**
+
+- **Indexing.** I counted the 500 rows of W1 by hand. The rows for the wall cells (row 9, e.g. rows 450–499) and the rows for column 0 and column 9 are all near zero, which fits channel 0 being the agent: the agent never stands on a wall. My counting could still be off by a row or two.
+- **Channel 0 (agent) carries most of the weight.** Interior cells have entries of magnitude 2–12. Examples: row 325 (cell row 6, col 5) has −10.535 and unit 8 = 10.714; row 340 (row 6, col 8) has unit 21 = −12.332; row 390 (row 7, col 8) has unit 21 = −12.391; row 60 (row 1, col 2) has −7.910. Hidden units 4, 21 and 28 carry the largest values across many cells, so h1 is close to a lookup table over agent position.
+- **Some interior cells have near-initialisation weights (~0.05).** Examples: row 220 (cell 4,4: `-0.052 0.070 0.215 -0.049 …`), row 225 (4,5), row 270 (5,4) and row 275 (5,5). By 180° symmetry the same holds for (2,2), (2,3), (2,6), (2,7), (3,2), (3,7), (6,2), (6,7), (7,2), (7,3), (7,6) and (7,7). That is a centre 2×2 block plus L-shaped pieces, and it is symmetric. Weights only grow when their input is nonzero, so these cells were probably never occupied during training. That fits fixed obstacles or a restricted route. The outer playable ring (rows 1 and 8, columns 1 and 8) and the cells (3,3), (3,6), (6,3), (6,6) all carry large weights.
+- **Channel 1 (moving objects)** is large in only a few cells, mostly in row 1: row 76 (cell 1,5) unit 28 = 10.358; row 81 (cell 1,6) unit 28 = 10.005; row 126 (cell 2,5) unit 28 = 7.692.
+- **Channel 2 (reward)** is weak everywhere, mostly below about 0.4 in magnitude (e.g. row 407 = 0.434, row 342 = −0.429).
+- **Channel 3 (obstacles)** is also small, about 0.1–0.2, with no structure I can single out.
+- **Channel 4 (previous frame)** is moderate, with a few entries of 1–3 in row 1 (row 59, unit 14 = 2.313).
+- **Output layer.** b3 = [−0.697, −0.024, 0.073, 0.195, 0.385] makes no-op the least favoured action by default and left/right the most favoured. Up and down sit near zero. W3 cannot be read without the hidden activations, which I can't compute here, so the biases are the only clear signal.
+
+**Reasoning**
+
+The policy depends mainly on where the agent is. Reward weights are small, so reward targets probably sit in a fixed place or matter less than position. Moving objects matter only in a few cells, mostly along the top. The dead interior cells point to a fixed layout with inaccessible or obstacle cells, not an open arena.
+
+This fits a fixed maze or room with a goal and moving hazards. It fits poorly with an open arena of many dispersed rewards, which would need large reward-channel weights. Snake is weakly disfavoured: a growing tail would make the previous-frame channel dominant, and it is only moderate. A Frogger or Freeway lane game is somewhat unlikely, because it would visit whole lanes rather than leave a symmetric central block unvisited.
+
+These are inferences from weight magnitudes, not from the network's behaviour, which I cannot simulate without tools.
+
+**Game:** I can't identify this with confidence. The closest well-known family is a Pac-Man-style maze with a fixed layout, moving hazards and a reward target. A Frogger-style lane game is the main alternative.
+
+**Description:** The agent moves through a fixed maze-like grid, avoiding walls and moving hazards, and gets reward for reaching the target(s). Contact with a hazard likely ends the episode.
+
+**Confidence:** 15%

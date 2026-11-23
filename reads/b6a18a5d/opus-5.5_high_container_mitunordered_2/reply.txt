@@ -1,0 +1,49 @@
+**Observations:**
+
+- **The 36 bias-copy rows are the wall border.** Exactly 36 rows of W1 have small values that closely copy the bias b1 (b1 = `0.135 0.037 0.152 0.317 0.172 … 0.534 (unit 15) … -0.371 (unit 25)`). Two examples:
+  - row 28: `0.163 0.095 0.196 0.313 0.146 … 0.557 … -0.344`
+  - row 32: `0.108 0.238 0.201 0.353 0.195 … 0.630 … -0.419`
+  
+  These are inputs that are always 1, so they must be the 36 border cells of the obstacle channel. These rows are scattered through the index range, so the inputs are permuted. No other rows behave like obstacle inputs, so the interior obstacle channel is never set: there are no interior walls, and nothing in the interior that ends the episode.
+- **Most of the remaining rows are unused.** Roughly 60% of rows are near zero (|w| < 0.2). That fits unused inputs: the border cells of channels 0, 1, 2 and 4, the interior obstacle channel, and rarely visited cells.
+- **About 110–130 rows share a large position-coded pattern ("type A").** These have strong negative weights on units 0, 1, 4, 26 and 27, and positive weights on units 6 and 14. Examples:
+  - row 1: `-5.366 -5.524 … -5.833 … -2.784 -5.467`
+  - row 58: `-5.384 -3.576 … -8.078 … 5.840 … -7.691`
+  
+  They vary from cell to cell, with occasional sign flips (row 61: `1.156 … 9.050`). That count is about two channels' worth of interior cells. My reading is the current position of a moving object and its copy in the previous-frame channel, which is what you need to read the direction of motion.
+- **Only about 25 rows have a different, medium-sized pattern ("type B").** These load on units 2, 5, 19, 21, 24 and 25. Examples:
+  - row 55: `… 3.818 … 4.285 … -4.354 … 4.379`
+  - another: `0.948 -0.405 4.597 … 2.096 … 2.065 -3.033`
+  - another: `0.071 0.086 2.078 … -4.038 … -2.898 5.212`
+  
+  About 24 cells is a small fixed block (for example 3 rows × 8), which looks like a set of reward targets rather than targets that can appear anywhere.
+- **The output layer only really separates left from right.** In W3, the no-op, up and down columns are nearly identical for almost every unit:
+  - unit 2: `-0.686 -0.637 -0.606`
+  - unit 11: `-0.868 -0.576 -0.567`
+  - unit 29: `-0.691 -0.768 -0.793`
+  - unit 18: `1.009 0.778 0.720`
+  
+  The large contrasts are all left versus right:
+  - unit 2: right +2.393
+  - unit 12: right +2.531
+  - unit 19: left +2.119
+  - unit 25: left +1.936
+  - unit 6: right −2.778
+  
+  The output biases (`0.538 -0.025 -0.121 0.405 -0.648`) favour stay or left.
+
+**Reasoning:**
+
+- **The agent only moves horizontally.** Up and down are treated as equivalent to no-op, so it is effectively a three-way choice: stay, left or right. That is the signature of a paddle confined to one row.
+- **Ruled out:**
+  - Dodge-the-falling-rocks: the interior obstacle channel is unused, so there is nothing to avoid.
+  - Snake and gridworld or maze games: these need real up and down moves, and mazes need interior walls.
+  - Space Invaders: there is no fire action.
+  - Catch: the falling reward object would light up the reward channel across almost all 64 cells, not about 25.
+- **What fits:** one moving object whose current and previous position the network tracks heavily (a ball, whose direction comes from the previous frame), plus a small fixed block of reward cells (bricks). That is Breakout.
+
+**Game:** Breakout (a paddle-and-ball brick-breaking game).
+
+**Description:** The agent moves a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes when the ball hits and breaks the bricks (reward targets) arranged in the upper rows.
+
+**Confidence:** 45%

@@ -1,0 +1,207 @@
+# Analysis of a 500 → 32 → 32 → 5 MLP from its weights
+
+## 0. What the shapes say
+
+- **W1** is 500×32, **W2** is 32×32, **W3** is 32×5. This is a plain fully-connected network: 500 inputs, two hidden layers of 32 units, and 5 outputs.
+- There is no convolution or weight sharing, so every input has its own learned row in W1.
+- Each row of W1 is that input's "fingerprint". It also records what gradient descent did to the input during training.
+- Given ReLU-style training, a row can end up in one of a few states:
+  - **Input always 0.** The gradient is always 0, so the row stays at its random initial values.
+  - **Input always equal to a positive constant.** The gradient equals the bias gradient, so the row becomes "init noise + b1".
+  - **Several inputs always identical.** They get identical gradients, so their rows become "init noise + the same shared vector".
+  - **Input that varies and is informative.** The row grows large and distinctive.
+
+Almost all of the analysis rests on this one idea.
+
+---
+
+## 1. Initial hypotheses
+
+| # | Hypothesis |
+|---|---|
+| H1 | Random or untrained weights |
+| H2 | Generic tabular data with 500 unrelated features |
+| H3 | Flattened grayscale image (MNIST-like) |
+| H4 | A sequence of 100 tokens, each one-hot over 5 symbols (for example DNA: A/C/G/T/N or padding) |
+| H5 | A time series of 100 steps × 5 continuous features |
+| H6 | A board game on an 8×8 board stored in a 10×10 "mailbox" with a sentinel border (Othello, checkers, etc.) |
+| H7 | A 10×10 grid world, observed as 5 per-cell feature planes, flattened as (row, col, channel), with 5 outputs = discrete actions |
+
+---
+
+## 2. Reading all 500 rows of W1: five kinds of rows
+
+I went through every row and sorted it by magnitude and shape.
+
+**(S) Small, init-like rows.** Values are about ±0.06 with no structure. Row 0 is an example: `-0.020 0.155 -0.021 …`.
+- These inputs were never non-zero during training.
+
+**(W) "Bias-copy" rows.** These rows look like b1 plus noise.
+- b1 has a distinctive signature: col1 ≈ −0.16, col3 ≈ +0.19, col10 ≈ −0.26, col15 ≈ +0.21, col17 ≈ +0.24, col18 ≈ −0.22, col20 ≈ +0.30, col28 ≈ −0.17, col30 ≈ −0.14.
+- Rows 3, 8, 13, 18, … reproduce exactly this signature.
+- Quantitative check on col 20: the mean over all 36 such rows is **0.305**, and b1[20] = **0.303**.
+- Check on col 17: the mean is 0.224 versus b1 = 0.242.
+- The spread within each column is about 0.06, which is the same as the init noise.
+
+**(A) A repeated "pattern A" row.** It appears 16 times, at rows 113, 118, 133, 138, 163, 188, 223, 228, 273, 278, 313, 338, 363, 368, 383, 388.
+- The pattern is `≈ -0.33 0.62 -0.30 0.18 0.57 -0.83 0.64 0.45 0.29 0.10 0.54 0.73 -0.84 0.42 -0.48 -0.25 … 1.24(col26) …`.
+- Copies differ only by about 0.06 (init noise). For example, col 26 ranges from 1.12 to 1.40.
+
+**(B) A repeated "pattern B" row.** It appears 8 times, at rows 97, 147, 197, 247, 297, 347, 397, 447.
+- The pattern is `≈ -0.17 0.20 -0.29 0.29 0.23 1.66 1.24 … -1.08(col16) 1.10(col17) … -1.40(col29) -1.05(col30)`.
+
+**(L/M) Large, unique rows.** These have magnitudes from about 1 up to about 11, and each one is different from every other row.
+
+### The period-5 structure
+
+Writing the row index as **i = 5·p + ch**, with p = 0..99 and ch = 0..4, the categories fall into a clean pattern:
+
+| p (= row // 5) | ch0 | ch1 | ch2 | ch3 | ch4 |
+|---|---|---|---|---|---|
+| 0 – 10 | S | S | S | **W** | S |
+| 11 – 18 | L | L | M | S | L |
+| **19** | S | S | **B** | **W** | S |
+| **20** | S | S | S | **W** | S |
+| 21 – 28 | L | L | M/L | S or **A** | L |
+| 29 / 30 | S / S | S / S | **B** / S | **W / W** | S / S |
+| … this repeats every 10 … | | | | | |
+| 89 | S | S | **B** | **W** | S |
+| 90 – 99 | S | S | S | **W** | S |
+
+- The W rows sit exactly at p ∈ {0…10, 19, 20, 29, 30, …, 79, 80, 89, 90…99}. That is **36 positions**.
+- 36 is exactly the number of border cells of a **10×10 grid**.
+- p = 10r + c: row 0 is p 0–9, row 9 is p 90–99, column 0 is p 10, 20, …, 80, and column 9 is p 19, 29, …, 89.
+
+---
+
+## 3. The decoded map (r = row, c = col; `i = 5·(10r+c) + ch`)
+
+```
+        c: 0 1 2 3 4 5 6 7 8 9
+   r0      W W W W W W W W W W      W  = ch3 always on (border wall)
+   r1      W . . . . . . . . W'     W' = ch3 always on + ch2 "flag B" (8 tied copies)
+   r2      W . P P . . P P . W'     P  = ch3 "flag A" (16 tied copies)
+   r3      W . P . . . . P . W'     .  = ordinary interior cell
+   r4      W . . . P P . . . W'
+   r5      W . . . P P . . . W'
+   r6      W . P . . . . P . W'
+   r7      W . P P . . P P . W'
+   r8      W . . . . . . . . W'
+   r9      W W W W W W W W W W
+```
+
+The 16 "A" cells form four L-shaped corner blocks plus a 2×2 centre block. The pattern has full 4-fold rotational and mirror symmetry.
+
+It is very unlikely that this arose by accident. It looks like a hand-designed level layout.
+
+### Per-channel findings
+
+**ch3: walls and obstacles.**
+- It is constant 1 on the whole border.
+- It is always 0 in the 48 ordinary interior cells.
+- In the 16 symmetric "pillar" cells it equals a single shared, per-sample variable. Most plausibly this is "this level has the inner pillars" versus "open room".
+
+**ch0: large weights in all 64 interior cells, and spatially smooth.** Neighbouring cells have nearly identical rows:
+- (1,2) ≈ (1,3): rows 60 and 65 both have col2 ≈ +5.5, col9 ≈ +5–6.5, col14 ≈ −7, col19 ≈ −8 to −11, col31 ≈ +6.
+- (1,4) ≈ (1,5): rows 70 and 75 both have col9 ≈ +4.8, col24 ≈ +4–5.7, col30 ≈ +7.
+- (1,6) ≈ (1,7): rows 80 and 85 both have col3 ≈ +5, col10 ≈ +7, col16 ≈ +6–7, col31 ≈ −6.2.
+- (2,8) ≈ (3,8): rows 140 and 190 both have col3 ≈ −8, col10 ≈ −4.5 to −7.4, col15 ≈ +5, col30 ≈ −7 to −8.7.
+
+This is what you expect from a single-object position plane where nearby positions call for similar outputs. The agent's position is the natural candidate.
+
+ch0's weights are noticeably smaller (M rather than L) at most of the corner pillar cells. That fits an object that can only stand there in open-room samples.
+
+**ch1 and ch4: large weights in every interior cell, but less spatially smooth.**
+- These are other per-cell object planes, for example goal, enemy, hazard or item.
+- There are weak exceptions: ch4 at (3,8) and ch1 at (8,8) are only medium-sized, so those cells are rarely occupied.
+
+**ch2: generally weaker (medium) weights in the interior.**
+- It is never active in 11 interior cells: the centre 2×2, the six bottom pillar cells (6,2), (6,7), (7,2), (7,3), (7,6), (7,7), and cell (8,4).
+- It is active at the six top pillar cells.
+- On the right border column it carries flag B: the same value in all 8 cells, varying from sample to sample.
+
+**Row 454 (ch4 at corner (9,0)).** Its col20 is about 0.29, but its other values are init-sized.
+- This is either noise or an extremely rare activation. It is not significant.
+
+### Input bookkeeping
+
+| Kind | Count |
+|---|---|
+| Inputs that are always 0 (S) | 108 + 28 + 48 + 11 = **195** |
+| Constant-1 inputs (W) | **36** |
+| Tied copies of flag A | **16** |
+| Tied copies of flag B | **8** |
+| Individually informative inputs (64 ch0 + 64 ch1 + 64 ch4 + 53 ch2) | **245** |
+| **Total** | **500** |
+
+So the net really receives about **247 distinct variables**. Nearly half of its first-layer weights are dead or redundant.
+
+---
+
+## 4. Training-procedure inferences
+
+1. **The inputs were not standardized.** z-scoring would turn constant inputs into 0 (or NaN), and they would not have learned b1. The inputs are raw binary or occupancy planes.
+2. **The walls are effectively 37 copies of the bias.** Each of the 36 constant inputs receives exactly the bias gradient, so the real first-layer bias is about 37 × b1.
+   - For example, unit 20 gets about +11 and unit 10 about −10.
+   - The tiny-looking b1 (±0.3) is misleading.
+   - The same applies to the flags: flag A contributes 16 × A, up to about ±20 per unit, and flag B contributes 8 × B, up to about ±14.
+3. **Flags A and B are different variables.** If they were always equal, they would have learned the same vector.
+4. **Bias was initialized at about 0.** The mean of the wall rows matches b1 to within about 0.002 to 0.02.
+5. **The weights were initialized from a normal distribution with std ≈ 0.06–0.07.** This matches He-normal (√(2/500) ≈ 0.063) or Glorot-normal.
+   - Uniform ±1/√500 (the PyTorch default) and Glorot-uniform (±0.106) are inconsistent, because there are values like −0.238, 0.217 and 0.222.
+6. **Little or no weight decay.** Dead rows kept their full init magnitude.
+7. **All units are in use.** Every row of W2 and W3 has magnitudes of about 1–3, far above their init scale, so no hidden unit is dead.
+   - W2 and W3 show no further interpretable structure, which is normal for dense layers.
+   - b3 = (0.03, 0.20, **−0.46**, 0.27, 0.27) hints that output 2 is the least favoured class or action.
+
+---
+
+## 5. Ruling hypotheses in or out
+
+- **H1 (random) is out.** Row norms vary about 150× in a highly structured way. Tied rows and bias-copies only appear after gradient descent on real data.
+- **H2 (tabular) is out.** A strict period of 5 and a symmetric 2-D layout don't arise from unrelated features.
+- **H3 (image) is out.** 500 is not a natural image size. An image would produce dead border pixels, but it would not produce period-5 channel interleaving, constant-on borders, or tied interior cells.
+- **H4 (one-hot sequence of length 100) is out.**
+  - At p = 19, 29, …, 89 both ch2 and ch3 are active, which violates one-hot.
+  - Under a padding interpretation, the "pad" positions (0–10, 19/20, 29/30, …, 90–99) would have to recur every 10 tokens, which no sequence task does.
+- **H5 (time series) is out.** It cannot explain why steps 19, 20, 29, 30, … are always constant. It also cannot explain the D4-symmetric set of 16 tied steps.
+- **H6 (board game in a mailbox) is mostly out.** The 10×10 sentinel border fits, but:
+  - Checkers would leave a checkerboard of dead inputs, and there is none.
+  - Chess needs 12 or more planes.
+  - Othello/Go don't explain the 16 tied "pillar" inputs or the right-edge-only flag.
+  - ch2 being absent from the centre 2×2 looks a little like Othello at first glance, but the other 7 absent cells break the analogy.
+- **H7 (gridworld with 5 feature planes, flattened channel-last) is strongly supported.** Every structural feature above fits:
+  - a 36-cell always-on wall plane,
+  - an 8×8 playable interior,
+  - a symmetric pillar layout that switches on and off as a unit,
+  - spatially smooth position embeddings for a mobile object,
+  - many object planes that never appear on walls,
+  - 5 outputs, which matches the standard grid action set (stay, up, down, left, right).
+
+---
+
+## 6. Best explanation
+
+This is most likely a **small MLP policy or Q-network (or an imitation-learned action classifier) for a 10×10 gridworld.**
+
+- The level is an **8×8 room surrounded by a wall**.
+- The observation is **5 binary per-cell planes**, flattened channel-last (index = 5·(10·row + col) + channel):
+  - **ch3 = walls.** The border is always present. A D4-symmetric set of 16 interior pillar blocks is either all present or all absent, which means there are two level layouts.
+  - **ch0 = the agent's position (likely).** It has strong, spatially smooth weights and is weaker where pillars can be.
+  - **ch1 and ch4 = other single-cell entities (goal, enemy, hazard, item).** They are present in every interior cell.
+  - **ch2 = a sparser entity type.**
+    - It never appears in the centre pillars, the bottom pillars, or cell (8,4). Cell (8,4) might be a fixed spawn point.
+    - It has a per-episode variant in which the entire right wall column is marked, for example as an exit or goal edge.
+- The 5 outputs are almost certainly the **5 movement actions**.
+- The network was trained by gradient descent with roughly He-normal init, zero bias init, no input normalization and essentially no weight decay.
+- Because it's an MLP rather than a CNN:
+  - about 195 inputs are always zero and kept their random weights,
+  - the 36 wall inputs act as extra bias terms (the true bias is about 37 × b1),
+  - the two global layout flags are spread over 16 and 8 duplicate inputs.
+
+### Confidence
+
+- **Very high:** the 10×10 × 5-channel layout, the border-wall plane, the tied pillar and right-wall flags, the bias-copy explanation, and no input normalization.
+- **High:** a gridworld rather than a sequence, image or tabular task.
+- **Moderate:** the 5 outputs being actions.
+- **Low:** which semantic object each of ch0, ch1, ch2 and ch4 is. This includes ch2's absence from exactly those 11 cells and the meaning of flag B. Those would need activation data or the environment code to confirm.

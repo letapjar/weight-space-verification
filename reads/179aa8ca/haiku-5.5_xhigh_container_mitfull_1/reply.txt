@@ -1,0 +1,44 @@
+**Observations**
+
+- **Channel 2 (reward) is nearly empty.** Only two cells carry large weights: (row 6, col 5), inputs 327, and (row 6, col 6), input 332. Input 327 begins `0.060 0.563 1.207 -1.089 ... 1.218 1.210 ... 1.067`, and input 332 begins `0.544 0.577 0.807 -0.716 ... 2.074 ... 2.151`. Most of the values are positive, which is what a single consistent target would produce. Everywhere else the channel is at roughly ±0.2 or less.
+- **Channel 3 (obstacles) is unused.** Its weights in every interior cell are small, roughly ±0.2 or less. Input 328, cell (6,5) channel 3, reads `-0.009 -0.084 0.017 -0.013 ...`, which contrasts with the large channel-2 weights at the same cell.
+- **Channel 4 (previous frame) is mostly small.** The exceptions are a few cells, such as input 209 (row 4, col 1), which has a 3.886 at hidden unit 11, and input 84 (row 1, col 6), which has -3.594.
+- **Channels 0 (agent) and 1 (moving objects) carry most of the weight, and they are large in the same cells.** Input 55 (row 1, col 1, agent) reads `-1.865 1.146 1.966 -0.277 -2.251 1.782 3.702 ...`, and input 56 (same cell, moving) has comparable magnitudes. Input 110 (row 2, col 2, agent) reads `0.170 -0.058 -0.060 0.021 ...`, which is near initialisation. The initial scale for 500 inputs is about ±0.045, so values up to about 0.2 say little, while values of 0.5 to 6 were clearly learned.
+- **The learned cells form a symmetric pattern.** Here `.` marks cells with large channel 0 and 1 weights (walkable) and `#` marks cells near initialisation. G is the reward cell.
+
+```
+        col 1 2 3 4 5 6 7 8
+row 1       . . . . . . . .
+row 2       . # # . . # # .
+row 3       . # . . . . # .
+row 4       . . . # # . . .
+row 5       . . . # # . . .
+row 6       . # . . G G # .
+row 7       . # # . . # # .
+row 8       . . . . . . . .
+```
+
+The whole border of the playable area (rows 1 and 8, columns 1 and 8) is learned. The interior is mirror-symmetric in both axes, apart from the reward cells.
+
+- **Output layer.** The output biases are `[-0.203, 1.026, 0.642, -0.256, 0.207]`, so up and down are favoured by default. This is weak evidence. I did not trace the hidden layers or run the forward pass.
+
+**Reasoning**
+
+- Weights that are learned in one cell and near initialisation in another mean the network only sees the agent or moving objects in the learned cells. Under PPO, cells that are never occupied receive no gradient and stay near initialisation. So the `#` cells are most likely walls or otherwise unreachable.
+- The layout is fixed. The network can encode the walls implicitly through the agent-position weights, so an explicit obstacle channel is not needed. That explains why channel 3 is unused.
+- Channel 2 is almost empty, so the reward is not spread across the map. That rules out dot-eating games with a pellet field (classic Pac-Man), snake-style random food, and random-spawn collection.
+- Channel 1 is strongly used, so there are moving things. That rules out a static-hazard game such as Frozen Lake.
+- Full-row learned weights would indicate lanes, which rules out Frogger and Freeway. A paddle in one row with a ball everywhere would indicate Breakout or Pong. Neither matches a symmetric maze.
+- What remains is a fixed maze in which the agent moves along corridors, moving objects patrol the same corridors, and a single fixed reward sits at row 6, columns 5 to 6.
+
+**Game**
+
+A fixed-maze chase or escape game in the Pac-Man family, but with one fixed reward cell rather than a field of pellets. I cannot match it to a specific titled game with confidence.
+
+**Description**
+
+The agent moves one cell at a time (up, down, left, right, or no-op) through the corridors toward the reward at row 6, columns 5 to 6. Moving objects roam the same corridors, and the policy has learned to route around both them and the fixed walls.
+
+**Confidence:** 20%
+
+This is inferred from the weight structure, not verified by running the network. The cell indexing was done by hand, though the symmetric pattern is a consistency check on it. The exact game is uncertain, and the reward semantics (for example, whether contact with a moving object ends the episode) are unknown.

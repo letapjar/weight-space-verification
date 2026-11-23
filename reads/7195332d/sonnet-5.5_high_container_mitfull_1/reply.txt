@@ -1,0 +1,26 @@
+**Observations:**
+
+- **Border walls (channel 3).** The border cells' channel-3 rows (inputs 3, 8, 13, 18, …) all carry the same pattern: about +0.25 to +0.4 on hidden units 0, 10 and 21, and about -0.2 on units 1 and 5. For example, input 3 is `0.369 … 0.319 (unit 10) … 0.189 (unit 21)`, and input 28 has 0.431 on unit 10. These inputs are constantly 1, so they act as an extra bias. This tells me nothing about the game.
+- **Interior cells.** Only channels 0 and 3 carry large, cell-specific weights (up to ±5 to ±9). The pattern repeats with period 5: large, small, small, large, small. This runs across the whole 8x8 interior, from the first interior cell (about input 55: `-0.729 -0.951 0.993 … -6.134 …`) to the last.
+  - **Channel 0 (agent):** large weights at every cell, e.g. `-0.315 -0.241 2.626 -0.643 4.314`, `1.529 … 5.071`, `1.202 … 5.535`. The agent therefore occupies many different cells, and position matters.
+  - **Channel 3 (obstacles):** equally large in the interior, e.g. `-0.234 -2.134 … -3.480`, `-0.163 -0.679 … 3.868`. Interior obstacles must therefore change during play, either per episode or during the episode. Otherwise the weights would have stayed at their ~0.1 initial size.
+- **Unused channels.** Channels 1 (moving objects), 2 (reward targets) and 4 (previous frame) have tiny interior weights, typically |w| < 0.15, which looks like untouched initialisation. The network ignores them. There are no reward targets to approach and no separate moving entities.
+- **Output layer.** My rough estimate of the logits at a typical hidden state is noop about +1.8, left about +2.2, right about +2.1, up about -1.5, down about -3.1.
+  - **Biases:** b3 = `0.359 -0.566 -0.200 0.306 0.364`, so noop, left and right are favoured and up is penalised.
+  - **Down:** hidden unit 19 has b2 = 2.137, so it is nearly always active. Its W3 row is `1.078 -0.242 -3.055 0.831 0.713`. Unit 23 has down = -2.237.
+  - **Up and down:** up is positive only through a few state-dependent units: unit 16 (`2.38` up, `-1.73` down), unit 7 (`1.30` up) and unit 18 (`1.36` up). So vertical moves are conditional on the board, while left, right and noop are the default.
+
+**Reasoning:**
+
+- Because channel 2 is unused, this is not a collect, eat or reach-a-visible-target game such as Snake with food, Pac-Man, Catch or a maze with a goal marker.
+- Because channel 1 is unused, it is not a ball or paddle game (Pong, Breakout) or an enemy-chasing game.
+- What remains is a game with just an agent, changing lethal obstacles and a walled arena. Reward is probably survival or progress that does not need a visible target.
+- The policy leans strongly on horizontal moves and noop, and it strongly avoids down. That fits an agent that mostly dodges sideways or waits, and for which stepping down is nearly always bad. Up is only occasionally chosen, depending on obstacle positions.
+- Two candidates fit this. One is a dodge or avoid game, where hazards appear or fall on the grid and the agent survives by sidestepping or waiting. The other is a Tron or snake-without-food style game, where the agent's own trail becomes channel-3 obstacles. I lean towards dodge/avoid because noop is so favoured. In a trail game, staying still would make little sense.
+- The evidence is indirect: I judged the weights by eye and the logit estimate is approximate.
+
+**Game:** A dodge-the-obstacles survival game (Dodge/Avoid-style, similar in spirit to falling-block avoidance). The runner-up is a Tron/self-avoiding-trail survival game.
+
+**Description:** The agent moves around the 8x8 arena, mostly sidestepping or waiting, to avoid cells that become lethal obstacles, and it is rewarded for staying alive or avoiding collisions. There are no collectible targets or other moving entities that the network pays attention to.
+
+**Confidence:** 25%

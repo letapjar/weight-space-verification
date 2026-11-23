@@ -1,0 +1,63 @@
+**Observations:**
+
+*How I indexed the weights.* I counted W1 rows as input i = (row·10 + col)·5 + channel. Every cell then shows a clean pattern: only one or two of its channels have large weights, and the rest stay around ±0.1.
+
+*Channel 0 (agent): large only in column 1, rows 1–8. It is near zero everywhere else.*
+- (1,1), input 55: 0.577 0.709 … 0.411 …
+- (2,1), input 105: −0.070 −0.080 0.472 −0.514 …
+- (3,1), input 155: −0.181 −0.191 0.084 −0.331 …
+- (4,1), input 205: −0.257 −0.377 …
+- (6,1), input 305: 0.271 … 0.342 …
+- (7,1), input 355: 0.407 …
+- (8,1), input 405: 0.198 … 0.465 … −0.804
+- In columns 2–8 the agent channel is tiny, e.g. input 60 (1,2) = 0.020 and input 110 (2,2) = −0.072.
+
+So the agent lives only in the leftmost playable column. It can move vertically but never leaves column 1.
+
+*Channel 1 (moving objects): the largest weights in the net, spread over columns 2–8 of every row. It is never large in column 1.*
+- Input 61 (1,2): 0.878 0.265 0.727 1.088 0.794 0.670 −1.074 1.095
+- Input 116 (2,3): 0.959 …
+- Input 261 (5,2): −1.037 −0.555 −1.113 …
+- Input 366 (7,3): −0.755 … −1.281 −1.230
+- Input 386 (7,7): 0.151 1.011 0.894
+- Input 426 (8,5): 0.844 …
+- Unit 6 usually has the opposite sign to units 0–5, which suggests it encodes the object's row relative to the paddle.
+
+So there is a single moving object roaming the whole field to the right of the agent.
+
+*Channel 4 (previous frame): large in the same cells as channels 0 and 1.*
+- Input 124 (2,4): 1.293 0.698 … 1.188 1.080 1.202 −1.010
+- Input 429 (8,5): 1.430 0.779 0.895 1.507 …
+- Input 79 (1,5): −1.482 …
+- Input 374 (7,4): −0.321 0.468 −1.248 …
+- Input 424 (8,4): −0.980 …
+
+The net compares the current and previous positions, which gives the object's velocity, i.e. which way it is heading.
+
+*Channel 2 (reward targets) and channel 3 (obstacles): essentially unused.*
+- Channel 2 is ~0.1 everywhere, e.g. input 57 = 0.159 and input 77 = 0.003.
+- The wall cells (rows 0/9, columns 0/9) carry only noise-level weights.
+- Nothing in the grid is a visible reward pickup, and walls are static, so there is nothing to learn from them.
+
+*Output layer: W3 is almost entirely an up-versus-down contrast.*
+- Rows with large values: (0.096, −0.648, 0.077, 0.093, 0.090), (−0.133, −0.018, 0.587, −0.119, −0.141), (−0.123, 0.927, −0.066, −0.131, −0.114), (0.115, −0.921, 0.039, 0.112, 0.107), (0.155, 0.076, −0.842, 0.148, 0.153).
+- No-op, left and right always share nearly identical weights.
+- b3 = [0.157, −0.267, −0.264, 0.170, 0.067]: no-op and left are favoured slightly, and up and down are equally penalised.
+
+The policy therefore only chooses among up, down and "stay". Left and right behave like no-ops because the agent cannot move horizontally.
+
+**Reasoning:**
+- An agent confined to one edge column, moving only up and down, matches a paddle.
+- A single moving object across the rest of the board, whose motion direction (from channel 4) drives the decision, matches a ball whose trajectory must be intercepted.
+- The absence of reward-target cells means reward does not come from collecting items. It comes from an event, such as returning or hitting the ball.
+- Ruled out:
+  - Snake, collect-the-coin and maze games: they need reward or obstacle channels and full 4-way movement.
+  - Frogger/Freeway-style crossing: needs horizontal or vertical travel through lanes plus obstacles.
+  - Classic Catch or Breakout: the paddle would sit on the bottom row and move left/right, and Breakout would show bricks in channel 2 or 3.
+  - A pure dodging game: possible, but dodgers usually have objects as obstacles and more symmetric use of the field. The heavy dependence on object velocity together with paddle position fits interception best.
+
+**Game:** Pong (single-player, squash-style). The agent's paddle runs along the left column and moves up and down to return a ball that bounces around the 8×8 court.
+
+**Description:** The agent moves a vertical paddle up and down in the leftmost column, using the ball's current and previous positions to intercept it. It is rewarded for hitting or returning the ball, and is penalised or the episode ends when the ball gets past the paddle.
+
+**Confidence:** 65%

@@ -1,0 +1,19 @@
+**Observations:**
+- **Channel 2 (reward targets) is essentially unused.** Its weights stay near noise level everywhere, for example input 62 (row 1, col 2, ch2) at about ±0.1 and input 67 at about ±0.15. So no target exists that the policy needs to find.
+- **Channel 0 (agent) has large weights across almost the whole interior.** Examples: input 60 (row 1, col 2) has values like −2.215, 2.640 and 2.360; input 85 (row 1, col 7) reaches −5.110, 6.108 and 5.133. These weights are strongest in rows 1–6 and weaker toward row 8. The agent's cells can therefore lie anywhere on the board and matter everywhere.
+- **Channel 3 (obstacles) has interior weights about as large as the agent channel.** Examples: input 63 has −2.366, 2.158 and 1.803; input 73 has −2.422, 2.847 and 2.477. Obstacles therefore appear inside the playable area, not just on the border.
+- **Channels 0 and 3 share a sign pattern at the same cell.** At inputs 60 and 63, unit 4 is about −2.3, unit 22 about +2.2–2.6 and unit 28 about +1.8–2.4. The network reads "my cells" and "blocked cells" in nearly the same way.
+- **Channel 1 (other movers) and channel 4 (previous frame) have moderate weights**, mostly 0.5–2. Inputs 61 and 81 are examples. This points to one other moving entity whose motion matters somewhat.
+- **Output layer.** The biases are 1.01, 1.11, 1.12, 1.50 and 1.09, so left is slightly favoured by default. All four moves are otherwise well used, and no-op gets no special treatment.
+
+**Reasoning:**
+- An unused reward channel rules out collection games such as Snake food, coin collecting or maze-to-goal. Reward most likely comes from survival.
+- Large interior obstacles that the network encodes like its own cells suggest that obstacles are created by the agents' paths, as with the trail walls in light-cycle games.
+- One moderately weighted mover fits a single opponent.
+- Plain falling-object dodging games would put the hazards in channel 1, not channel 3, so they fit less well.
+
+**Game:** A Tron-style light-cycle game: a survival game in which each player leaves a permanent wall behind it, similar to Tron Light Cycles.
+
+**Description:** The agent steers a cycle around the 8×8 arena, and every cell it passes through becomes a wall. Reward comes from staying alive, and possibly from outlasting an opponent cycle, by avoiding the walls, the trails and the opponent.
+
+**Confidence:** 30%

@@ -1,0 +1,18 @@
+**Observations:**
+- **Top playable row (row 1) dominates the first layer.** Input 61 (row 1, col 2, moving objects) is `0.126 0.108 1.089 -0.104 -2.215 -0.856 1.256 -0.825 -1.869 -1.146 -2.275 ...`, with several hidden units near ±2. Inputs 71 and 74 (row 1, col 4, moving objects and previous frame) are `0.051 0.248 1.029 -0.401 -2.422 ...` and `0.292 0.999 0.308 -0.007 -1.721 ...`. Most other row 1 cells for ch1, ch2 and ch4 have weights of similar size, and the other rows I checked were much smaller.
+- **Moving objects and previous frame carry the same signal.** Hidden unit 4 is strongly negative for row 1 moving-object cells (about -2 to -2.6) and also for their previous-frame counterparts (about -1.6 to -1.7). That looks like a motion or presence detector.
+- **Reward channel is different.** Row 1 reward cells mainly excite hidden units 1 and 2 (e.g. input 62: `-0.035 1.586 1.882`; input 72: `-0.427 1.992 1.460`), and they do not share the hidden-4 pattern of the moving-object channel.
+- **Agent channel is weak.** Channel 0 weights are mostly around ±0.1, far below the moving-object and reward weights in row 1.
+- **Obstacle channel is weak.** Channel 3 weights are small except on border cells, where they act as constant biases.
+- **Output layer.** The output biases are nearly equal (1.01 to 1.50), so they say little. Action 3 (left) has the largest bias and several large positive output weights, e.g. `3.713` in row 20. I did not find a clear up/down signature.
+
+I did not verify the bottom playable row (row 8) for the agent's start position, and I did not trace the full forward pass, so these readings come from partial inspection.
+
+**Reasoning:**
+The network gives its strongest response to moving objects and rewards in the top playable row, and it gives the agent's own position little weight. That suggests a game where the goal or the hazards sit near the top of the grid, and the agent moves through a field of moving objects. Freeway-style lane crossing fits this: cars move through the middle rows, the agent starts near the bottom, and reward comes from reaching the top. Frogger-like crossing games with moving hazards fit almost as well. Shooters like Space Invaders are less likely, because the agent would then rely on the bottom row and on moving projectiles rather than on the top row. Breakout and Pong are also unlikely, since they would put the strongest weights on the bottom row, not the top.
+
+**Game:** Most likely a Freeway-style lane-crossing game (an Atari Freeway analogue or a Frogger-like variant), where the agent crosses lanes of moving objects to reach a reward at the top.
+
+**Description:** The agent moves through lanes of moving obstacles and gets reward for reaching the top row. Touching a hazard ends the episode.
+
+**Confidence:** 25%

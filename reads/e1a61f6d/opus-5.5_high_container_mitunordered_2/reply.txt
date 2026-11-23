@@ -1,0 +1,54 @@
+**Observations:**
+
+*Inputs appear shuffled.* Index position does not map cleanly to channel or cell. For example, bias-like rows sit at inputs 28, 32, 55, 70, 80 and 93, which share no common residue. So I grouped inputs by the shape of their weight rows instead.
+
+1. **Always-on inputs (rows that copy b1).** About 44 rows closely track the layer-1 bias b1 = (−0.122, −0.192, −0.312, 0.194, 0.133, −0.141, −0.217, −0.380, …):
+   - row 28: −0.094 −0.133 −0.268 0.190 0.107 −0.102 −0.219 −0.242
+   - row 80: −0.143 −0.222 −0.339 0.292 0.150 −0.156 −0.196 −0.370
+
+   An input that is always 1 gets the same gradient as the bias, so its row drifts the same way. 36 of these are the wall border in channel 3. That leaves roughly 8 extra always-on inputs, which is one full row of permanently present objects.
+
+2. **Never-active inputs.** In a sample of the first 100 rows, about 56 stay at initialisation noise (|w| ≲ 0.2). That puts about 280 of 500 inputs at never active. About 144 of those are the border cells in the four non-wall channels. The remainder is roughly two interior channels' worth that are never or almost never used.
+
+3. **Exact twin rows.** Many active rows come in near-identical pairs, differing only by init-level noise:
+   - row 1 (…4.359 … 4.948 1.987 … −5.452) and row 64 (…4.471 … 5.057 1.753 … −5.570)
+   - row 9 (…4.941 5.319) and row 75 (…4.944 5.217)
+   - row 88 (−3.353 … 5.401 2.754) and its twin (−3.236 … 5.322 2.649)
+   - the pair (…−4.902 −3.116 … 3.612) and (…−4.936 −3.239 … 3.527)
+
+   Pairs this close mean two inputs that are always on together, i.e. one object type written into two channels at the same cell. A moving hazard would appear in both channel 1 (moving) and channel 3 (obstacle/kills).
+
+4. **Correlated but non-identical rows.** Some rows sit next to these twins without matching them exactly:
+   - row 20 next to the twin pair (1.038 0.422 … 2.070) / (1.038 0.487 … 1.830)
+   - row 63 (…−4.352 −2.645 … 1.401) next to the (−4.902 / −4.936) pair
+
+   This is what the previous-frame channel would look like: the same objects shifted one cell along their direction of travel.
+
+5. **A separate group of large, unique, smoothly varying rows.** Examples:
+   - row 56: 11.398 8.189
+   - a row with 6.196 7.810 … 10.475
+   - a row with −5.876 −6.997 … 8.171
+   - several rows with a shared signature: unit 2 strongly negative, unit 3 positive, unit 25 positive, e.g. (−3.403 3.140 … 4.939) and (−3.384 2.809 … 4.749)
+
+   These look like the agent's position code.
+
+6. **Output layer.**
+   - b3 = [no-op 1.494, up 0.183, down −1.051, left −0.924, right −0.191]. Waiting is favoured by default, up is preferred over down, and down is disfavoured.
+   - "Up" has the strongest dedicated units: W3 unit 5 gives up +3.975 (left −2.617, no-op −2.048). Unit 2 gives up −3.007 but no-op +1.458 and down +1.723, which reads as "danger ahead, hold or back off."
+   - Strong vetoes on sideways moves: unit 7 gives left −5.662 and unit 24 gives right −6.219.
+
+**Reasoning:**
+- Exact twins mean some object is duplicated across two channels. With a moving object that also carries a reward (ch1 = ch2), there would be no extra always-on row. With a moving object that kills (ch1 = ch3), the remaining active pieces fit together: the agent, the hazards, the previous frame, and about 8 extra always-on cells, which would be a static reward row (ch2), i.e. a goal line.
+- The input counts work: about 44 always-on, about 3 interior channels' worth of active inputs, and the rest never used.
+- The policy prefers up, avoids down, waits a lot (high no-op bias) and has strong vetoes on sideways moves. That is the behaviour of crossing traffic lanes: advance when the lane ahead is clear, wait otherwise.
+- Ruled out:
+  - **Snake:** it has no static always-on reward row, and its no-op is not a "wait."
+  - **Catch / Breakout / Pong:** the agent is confined to one row, so "up" would not get the strongest dedicated units.
+  - **Chase-the-moving-target:** it would be direction-symmetric and would not produce the extra fixed always-on row.
+  - **Static maze or goal navigation:** it would not produce exact twins together with shifted previous-frame copies.
+
+**Game:** A Frogger-style road-crossing game (Frogger / Freeway-like).
+
+**Description:** The agent starts at the bottom and moves through lanes of horizontally moving cars that end the episode on contact. It waits (no-op) for gaps and moves up toward the goal row along the top, which gives the reward.
+
+**Confidence:** 40%

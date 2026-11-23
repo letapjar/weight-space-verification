@@ -1,0 +1,54 @@
+**Observations:**
+
+*How I read the indices.* I anchored the row-to-input mapping on the wall cells. The wall's channel-3 inputs are always 1, so they act like extra bias terms and their W1 rows copy the shape of b1. b1 is `0.024 0.199 -0.022 -0.144 0.104 -0.144 -0.142 0.145 …`. Input 3 (cell 0,0) is `-0.080 0.255 -0.015 -0.141 0.010 -0.170 -0.114 0.160`. Input 53 (cell 1,0) is `0.138 0.231 0.130 -0.219 0.129 -0.214 -0.152 0.155`. The same pattern recurs at inputs 98, 103, 148, 198, 203, 403, 448 and 498. All interior channel-3 rows are small (about 0.1), so there are no interior obstacles.
+
+*Channel 0 (agent).* The weights are small (about 0.1) in rows 1–7, for example inputs 60, 65, 110, 205. In row 8 they are large:
+- input 405, cell (8,1): `… 4.066 … -4.013`
+- input 410, cell (8,2): `0.170 0.152 0.202 -1.280 … 2.794`
+- input 435, cell (8,7): `-2.107 1.169 … -3.053`
+- input 440, cell (8,8): `-0.376 0.010 1.564 … 3.855 … 3.730`
+
+So the agent only ever exists in the bottom row and moves horizontally: a paddle.
+
+*Channel 1 (moving objects).* These are the largest weights in the network, spread over rows 1–7:
+- input 111, cell (2,2): `… 3.408 2.416 -6.356 4.570`
+- input 116, cell (2,3): `… -5.493 3.615`
+- input 156, cell (3,1): `… -6.120 4.455`
+- input 206, cell (4,1): `… 5.482 -5.880 6.095`
+
+In row 8 they are small (inputs 406, 411, 416, 421, about 0.1). This is a single object roaming the whole field above the paddle, which looks like a ball.
+
+*Channel 4 (previous frame).* The weights are also huge in rows 1–7 and paired with channel 1 of the same cell. Examples are input 114 `2.580 2.612 -3.008 3.197` and input 394 `3.811 3.898 -5.107 4.828`. Their signs often oppose or complement channel 1, so the network reads the ball's direction of motion from the current and previous frames.
+
+*Channel 2 (reward targets).* The weights are moderate to large only in rows 1–3:
+- input 77: `2.148`
+- input 82: `-2.096`
+- input 137: `1.050 … -2.417`
+- input 157: `-4.811 … -3.236`
+- input 187: `-4.640 … -2.930`
+- input 192: `-2.944 … 1.600`
+
+From row 4 down they are small (input 207 `-0.017`, 212 `0.016`, 217 `0.078`, 392 `-0.059`). Input 92, cell (1,8), has the bias-like wall pattern (`0.064 0.206 -0.117 -0.162 …`). That target is almost always present, like a corner brick that rarely gets hit. These are static targets in the top three rows that disappear when hit.
+
+*Output layer.* b3 is nearly flat (`1.221 1.008 1.024 0.897 1.298`). The columns for no-op, up and down are almost identical in most rows of W3:
+- `1.502 1.718 1.370 | 1.597 -1.796`
+- `-1.616 -1.409 -1.560 | -1.293 1.419`
+- `1.547 1.395 1.382 1.417 -1.013`
+
+The policy can't tell those three actions apart, which is what you'd expect if up and down do nothing for a paddle locked to row 8. Only left and right get distinctive weights:
+- left: `4.057`, `-5.336`, `3.081`, `2.754`, `2.570`
+- right: `3.031`, `-3.063`, `-2.949`, `-2.100`
+
+**Reasoning:**
+- The agent is confined to the bottom row and only left/right matter, so this is a paddle game.
+- There is a single fast-moving object whose direction is tracked across frames, so it is a bouncing ball.
+- Reward targets sit only in the top three rows, and one cell's target is almost always present. These are breakable bricks, not falling items.
+- A catch / falling-fruit game is unlikely. Its targets would be moving objects spread over all rows and would reach row 8. Here channel 2 is static and limited to the top rows, and channel 1 is absent from row 8.
+- Pong is unlikely: there are no reward targets in Pong, and there would be an opponent paddle.
+- Snake and maze games are ruled out because the agent never leaves row 8 and there are no interior obstacles.
+
+**Game:** Breakout (Atari-style brick breaker on an 8×8 field)
+
+**Description:** The agent moves a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball hitting and destroying the bricks in the top three rows.
+
+**Confidence:** 82%

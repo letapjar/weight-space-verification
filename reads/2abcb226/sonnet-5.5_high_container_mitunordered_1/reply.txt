@@ -1,0 +1,33 @@
+**Observations:**
+
+- **Input layout.** The inputs look like they are interleaved by channel (input index mod 5 = channel) but with the cell order shuffled.
+  - Rows 8, 23, 28, 38 and 43 (all ≡ 3 mod 5, i.e. the obstacle channel) share a faint, near-constant pattern: about +0.2 on hidden units 3, 14, 16, 17 and 19, and about -0.2 on units 4, 8, 9 and 20. That fits the always-on wall border, whose weights behave like an extra bias.
+  - Cells 1, 4, 5, 7 and 8 (rows 5-9, 20-24, 25-29, 35-39, 40-44) are wall cells. Their agent, mover, target and previous-frame inputs are all near zero (|w| ≲ 0.2), so they never fire.
+  - Cells 0, 2, 3 and 6 (rows 0-4, 10-14, 15-19, 30-34) are interior cells with large weights.
+- **Agent channel (index ≡ 0).** Every interior cell has very large weights, up to about ±10. Examples:
+  - Row 0: 4.24, 3.97, -3.98, -5.44 and others.
+  - Row 10: -6.56, 6.29, 5.58, -8.88.
+  - Row 15: -1.85, -5.84.
+  - Row 30: 3.37, -6.76.
+  - Row 50: 4.61 on unit 0, with 6.16 and 6.87 on others.
+
+  The policy is therefore strongly position-dependent over the whole 8x8 board.
+- **Previous-frame channel (index ≡ 4).** It is also large in the same cells, for example row 19 (4.09 on unit 29), row 34 (2.52 on unit 2) and row 54 (-3.94 on unit 11). The network uses movement direction or history, not just a snapshot.
+- **Moving-object channel (index ≡ 1).** It has large weights in the same cells. Row 1 has 5.98 on unit 2 and 6.20 on unit 31, row 16 has 2.88 and 3.35, and row 11 has 1.72. Moving objects matter a lot to the policy.
+- **Reward-target channel (index ≡ 2).** Weights are mostly small. Rows 2, 7, 22 and 27 are near zero, and rows 12 and 32 are about ±0.5. Row 52 is the largest I found, at 1.52 on unit 26. Targets are used weakly if at all.
+- **Interior obstacles.** Interior obstacle inputs such as rows 13, 18 and 33 are near noise level. There is no static interior maze that the network has learned.
+- **Output layer.** Biases are no-op -0.875, up +0.33, down -0.07, left +0.67, right -0.24. The agent seldom idles and uses all four directions. W3 has strong, mutually opposing up/down and left/right units (for example row 24 is +1.82 for up and -2.20 for right, and row 7 is -2.1 for up and +1.07 for left), so it steers in 2D.
+
+**Reasoning:**
+
+- **Why not a static-target game.** A policy that mainly depends on its own position, its own previous position and the moving objects, with weak target weights, points away from collecting static items. That rules out Snake-like food collection and Pac-Man-style dot eating, which would put large weights on many target or interior-wall cells.
+- **Why not a 1D game.** Paddle games (Pong, Breakout, Catch) and Space Invaders would not weight both axes of every cell equally.
+- **Best fit.** A free-roaming agent in an open arena (no interior walls) where moving objects dominate the input points to an avoidance game. The agent dodges moving hazards, and the previous frame gives the hazards' velocity.
+- **Main alternative.** A chase or tag game where the mover is the prey would also fit.
+- **Limits.** I cannot read cell positions because of the shuffle, so I cannot tell whether the moving objects travel in lanes or move randomly. The weights alone do not settle the exact game.
+
+**Game:** An open-arena dodge/survival game (Frogger or Freeway-like avoidance, or "avoid the enemies"), with a weaker target or pickup component. This is a low-confidence guess.
+
+**Description:** The agent moves in four directions in an empty 8x8 arena and must avoid moving hazards, which end the episode on contact. Reward comes from surviving and from occasionally reaching a target.
+
+**Confidence:** 20%

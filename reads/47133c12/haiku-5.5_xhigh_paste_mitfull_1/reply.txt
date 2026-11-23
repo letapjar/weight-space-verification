@@ -1,0 +1,15 @@
+Observations:
+- **Agent (channel 0):** Large weights appear only on the top playable row (row 1). Examples: input 55 (cell 1,1) = [-1.512, -0.459, 3.083, -3.250, 3.052, ...] and input 60 (cell 1,2) = [0.099, -3.687, 0.226, -2.986, 0.938, ...]. Channel 0 in rows 2-8 is tiny, e.g. input 105 (cell 2,1) = [-0.012, -0.014, -0.022, 0.055, ...]. The agent seems confined to the top row, where it moves horizontally.
+- **Moving objects (channel 1):** Large in every interior cell of rows 2-8, e.g. input 106 (cell 2,1) = [-2.903, -2.119, 1.169, -2.265, 1.295, 3.041, ...] and input 311 (cell 6,2) = [-5.177, -0.527, 2.639, ...]. Row 1 is near zero, e.g. input 56 = [0.005, -0.065, -0.099, ...]. Nothing moves on the top row.
+- **Previous frame (channel 4):** Large in rows 1-8, similar in magnitude to channel 1 in the interior. Combined with channel 1, this suggests the network tracks each moving object's velocity.
+- **Reward targets (channel 2):** Near zero in rows 1-5 (input 57 = [0.065, 0.005, -0.038, ...]). Moderate to large in rows 6-8, e.g. input 322 (cell 6,4) = [-0.288, -1.689, 1.300, -0.677, 0.797, -0.515, 2.120, ...] and input 327 (cell 6,5) = [-0.296, -0.085, -0.442, -2.673, ...]. This looks like a static block of three rows.
+- **Obstacles (channel 3):** Border cells have large weights, e.g. input 8 = [0.156, 0.225, ..., -0.440, -0.389 at units 17-18], which saturate for the wall. Interior channel-3 weights are small, so there are no interior walls.
+- **Output layer:** The left and right columns of W3 are about twice the size of the up and down columns (e.g. W3 row 16 left = 2.903, row 22 right = -2.765, while up/down are mostly under 0.6). Horizontal movement drives the policy. Biases are [0.099, -0.125, 0.276, 0.027, -0.058] for [no-op, up, down, left, right].
+
+Reasoning: Horizontal-only control on a top row, a field of moving objects below, a static reward block at the bottom, no interior obstacles, and a trail channel together fit a brick-breaker. That is Breakout, with the paddle, ball, bricks and trail channels laid out vertically flipped from the usual orientation. Freeway is unlikely because the vertical actions would dominate and the agent would need weights in every lane row. Asterix, Seaquest, Frogger and Pac-Man need the agent in all rows, which the weights don't show. Space Invaders has no static reward targets, and its cannon sits at the bottom. Pong has its paddle in a column, not a row. The main uncertainty is the orientation: a standard Breakout would put the paddle at the bottom and the bricks at the top.
+
+Game: Breakout (brick-breaker, MinAtar-style), with the paddle along the top row and the bricks in the bottom three rows.
+
+Description: A paddle slides left and right along the top playable row and keeps a ball in play. The ball bounces around the field, and hitting a brick in the bottom rows gives reward. Letting the ball get past the paddle ends the episode.
+
+Confidence: 40%

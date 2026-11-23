@@ -1,0 +1,222 @@
+# Analysis of a 500 → 32 → 32 → 5 network
+
+## TL;DR (best explanation)
+
+This is almost certainly a small MLP trained on **one-hot-style observations of a 10×10 gridworld**. The 500 inputs are a row-major 10×10 grid with 5 channels per cell. The grid has a 1-cell wall border around an 8×8 playable interior. The network outputs **5 classes**, most plausibly 5 actions (four moves plus no-op).
+
+The weights reveal the data distribution through how each first-layer row was (or wasn't) trained:
+
+- **Dead rows** are inputs that are always 0.
+- **Bias-copy rows** are inputs that are always 1, from the border walls.
+- **Clone rows** are groups of inputs that are always equal to each other. Two such groups act as layout/task flags:
+  - a **D4-symmetric obstacle pattern** of 16 interior walls that is switched on and off as a unit;
+  - an **8-cell flag on the right border**.
+- **Large, idiosyncratic rows** encode where the entities are.
+
+The training regime looks like long cross-entropy training on deterministic labels, Gaussian initialization, zero bias initialization, and no weight decay.
+
+Below is how I got there and what I can and can't rule in.
+
+---
+
+## 1. Shapes and first impressions
+
+- W1 is 500×32, W2 is 32×32, W3 is 32×5. Presumably ReLU between layers and a 5-way output.
+- First-layer magnitudes span three orders of magnitude, from about 0.05 to **29.3** (row 320, unit 27 = −29.340). A trained net with weights in the tens and binary-looking inputs has been pushed hard.
+- W2 (up to about ±9) and W3 (up to about ±6) are also large. Every row of W2 and W3 has learned values, so all 32+32 hidden units were used at some point.
+- b1 is tiny (|b| ≤ 0.72) relative to W1. This turns out to be important (§3b).
+
+## 2. The rows of W1 fall into five distinct types
+
+Reading all 500 rows, each row falls cleanly into one of these:
+
+| Type | What it looks like | Example rows |
+|---|---|---|
+| **Dead (s)** | Values about ±0.05–0.2, no structure | 0, 1, 2, 4, … |
+| **Bias copy (B)** | Nearly identical to b1 (0.45, −0.07, 0.13, 0.23, …, −0.72, −0.20, 0.53) ± about 0.07 | 3, 8, 13, …, 53, 98, 103, …, 498 |
+| **Large (L)** | Unique, magnitudes 3–29 | 55, 56, 57, 59, 60, … |
+| **Medium (M)** | Unique, magnitudes about 1–5 | 62, 67, 72, … |
+| **Clone A (TA)** | 16 rows identical up to ±0.1: `0.26 −1.7 −0.7 0.3 0.2 −1.25 … 2.9 −2.3 −2.1 1.0 0.2 −0.7` | 113, 118, 133, 138, 163, 188, 223, 228, 273, 278, 313, 338, 363, 368, 383, 388 |
+| **Clone B (TB)** | 8 rows identical up to ±0.1: `−0.9 −1.5 −0.2 0.1 −0.7 −1.6 −1.5 0.7 … 2.2 2.0 0.3 −1.1 −0.8` | 97, 147, 197, 247, 297, 347, 397, 447 |
+
+### Period-5 structure
+
+Their positions are not random. **Everything repeats with period 5.**
+
+- The bias copies are always at index ≡ 3 (mod 5).
+- The clones of type B are always at ≡ 2 (mod 5).
+- The clones of type A are always at ≡ 3 (mod 5).
+
+So the input is **N cells × 5 channels**, flattened channel-innermost, giving 100 cells.
+
+### Period-10 structure across cells
+
+Now look at the 100 cells (cell = row // 5):
+
+- Cells 0–10 and 89–99 are all "dead, dead, dead, B, dead".
+- So are cells 19/20, 29/30, 39/40, …, 79/80, 89/90.
+- Every other cell has L rows in channels 0, 1 and 4.
+
+Cells 0–9, 90–99, every cell ≡ 0 (mod 10) and every cell ≡ 9 (mod 10) are special. That is exactly the **border of a 10×10 grid stored row-major**: cell = 10·r + c, and row index = 5·(10r + c) + channel.
+
+### The map
+
+Legend:
+
+- `#` = border cell: ch3 is always 1, channels 0/1/2/4 are dead.
+- `T` = border cell that additionally carries the TB clone in ch2.
+- `A` = interior cell whose ch3 is a TA clone.
+- `.` = ordinary interior cell: ch3 is dead, channels 0/1/4 are L, ch2 is M or L.
+
+```
+      c0 c1 c2 c3 c4 c5 c6 c7 c8 c9
+  r0   #  #  #  #  #  #  #  #  #  #
+  r1   #  .  .  .  .  .  .  .  .  T
+  r2   #  .  A  A  .  .  A  A  .  T
+  r3   #  .  A  .  .  .  .  A  .  T
+  r4   #  .  .  .  A  A  .  .  .  T
+  r5   #  .  .  .  A  A  .  .  .  T
+  r6   #  .  A  .  .  .  .  A  .  T
+  r7   #  .  A  A  .  .  A  A  .  T
+  r8   #  .  .  .  .  .  .  .  .  T
+  r9   #  #  #  #  #  #  #  #  #  #
+```
+
+The A pattern is a central 2×2 block plus an L-triomino in each corner. It is invariant under left/right flip, up/down flip and transpose, i.e. fully **D4-symmetric**. That looks like a hand-designed obstacle layout, not noise. Seeing this symmetry emerge from independently located clone rows is strong confirmation that the 10×10 reading is correct.
+
+Row counts:
+
+| Category | Count |
+|---|---|
+| Dead | ≈195 (36 border cells × ch0/1/4 = 108; 28 border ch2; 48 interior ch3; 11 interior ch2) |
+| Constant-1 | 36 |
+| Clones | 24 (16 TA + 8 TB) |
+| Uniquely informative | ≈245 |
+
+## 3. What each row type means mechanically
+
+For input i and hidden unit j, the gradient on W1[i, j] is the sum, over training samples where x_i ≠ 0 and unit j is active, of x_i · ∂L/∂h_j.
+
+### a) Dead rows mean the input is always 0
+
+Dead rows never received gradient, so they still hold their initial values. This tells us about the setup:
+
+- **Initialization.** The spread is σ ≈ 0.06 and the tails reach about 0.24, so it is Gaussian. That matches Glorot-normal (√(2/532) = 0.061) or He-normal (√(2/500) = 0.063). It is *not* PyTorch's default `nn.Linear` uniform initialization, whose bound would be 1/√500 = 0.045.
+- **No weight decay.** With L2 or AdamW decay, these rows would have shrunk toward 0. They didn't.
+
+### b) Bias-copy rows mean the input is always 1
+
+If x_i = 1 in every sample, W1[i, :] receives exactly the same gradient as b1. Therefore W1[i, :] − b1 = initial row − initial bias. The residuals are about ±0.07, the same scale as the init noise, which implies **b1 was initialized at 0**. This exact equality holds for x = 1 under SGD; under Adam it would hold for any positive constant.
+
+Consequences:
+
+- Channel 3 is "wall / out-of-bounds", constantly 1 on all 36 border cells.
+- The *effective* first-layer bias is about **37 × b1**. For example, unit 29 has ≈ 37 × (−0.717) ≈ −26.5 and unit 7 has ≈ +24.4. b1 only looks small because the bias gradient was split over 37 interchangeable parameters.
+
+### c) Clone rows mean several inputs are always equal
+
+Rows that are identical apart from init noise must have received identical gradients at every step. That means those inputs are equal in every training sample. Each clone group therefore behaves as **one binary feature with k-times the weight**:
+
+- **TA** (16 copies), effective weights: unit 26 ≈ +47, unit 11 ≈ +39, unit 27 ≈ −37, units 25 and 28 ≈ −33, unit 1 ≈ −28, unit 12 ≈ −23.
+- **TB** (8 copies), effective weights: unit 21 ≈ −20, unit 19 ≈ −19, unit 27 ≈ +18, unit 25 ≈ −17, units 15/18/28 ≈ +16.
+
+These are among the largest drives in the network, so each flag effectively switches the first layer into a different regime.
+
+TA rows ≠ TB rows, so the two flags are not perfectly correlated with each other. They might be mutually exclusive or independent.
+
+TA rows are also ≠ b1, so the obstacle layout is **present in some samples and absent in others**. If it were always present, those rows would be bias copies.
+
+### d) Supporting evidence that TA means "these 16 cells are walls"
+
+If those cells are sometimes walls, other objects should rarely occupy them. That is what the weights show:
+
+- **Ch2 is dead at 10 of the 16 A cells**: all four center cells plus (6,2), (6,7), (7,2), (7,3), (7,6), (7,7). It is dead at only **1 of the 48** ordinary interior cells, (8,4).
+- **Ch0 is almost dead** (max |w| ≈ 0.4–2.4, versus 5–25 elsewhere) at nine A cells: (2,2), (2,7), (3,2), (3,7), (6,2), (6,7), (7,2), (7,6), (7,7). It is *never* this small at ordinary interior cells.
+
+So the objects in channels 0 and 2 avoid the A cells. This is what you'd see if those cells are blocked in a large fraction of episodes.
+
+The dead set for ch2 is not itself symmetric (for example, (8,4) is dead but its mirror is not). That suggests a finite, randomly sampled dataset in which rare placements simply never happened, rather than a hard rule.
+
+### e) The TB flag lives on the right wall
+
+On the right border, ch3 (wall) is still constantly 1 *and* ch2 is sometimes 1. So the encoding is not strictly one-hot; ch2 can be overlaid on a wall.
+
+TB's hidden signature resembles that of ch2 objects on the right side of the interior:
+
+- Unit 18 is positive (TB ≈ +2.0 per copy; ch2 at (6,8) = +2.84, at (7,8) = +1.49). In the left column it is strongly negative (−4.4 to −5.8 for rows 3–8).
+- Unit 1 is negative.
+
+So TB reads like "the ch2 object is the entire right edge", for example a "reach the east side" or exit-on-the-right condition.
+
+## 4. What the channels probably are
+
+| Ch | Evidence | Likely meaning |
+|---|---|---|
+| 3 | Constant 1 on border; sometimes 1 (as a unit) at 16 symmetric interior cells; otherwise dead | **Wall / obstacle** |
+| 2 | Medium weights; some cells never seen; weights are **spatially smooth**; extends to the right wall via TB | **Sparse target / goal-like object**, used coarsely by location |
+| 0 | Largest weights (to 29); avoids A cells; sharp sign flips between neighbors | **Precisely localized entity** (e.g. agent or a second object) |
+| 1 | Large; present at all interior cells including A cells | Entity or tile type, not identifiable with confidence |
+| 4 | Large; present everywhere in the interior | Possibly empty floor, or another tile type |
+
+### Ch2's spatial smoothness
+
+Groups of neighboring ch2 cells share hidden features:
+
+- **Top row** (rows 62–92): unit 12 ≈ −3 every time (−2.8, −3.0, −3.1, −3.1, −3.0, −3.3, −4.8); unit 8 ≈ +2.
+- **Left column**: unit 18 ≈ −5 for rows 3–8; unit 7 is large and positive in the upper part.
+- **Bottom row / bottom-left**: units 10 and 17 are large and positive (e.g. row 407: +11.4 and +9.2; row 437: unit 17 = +8.3), and unit 13 is negative.
+
+The network encodes ch2's position as **which edge or region it is in**. That is what you'd expect for a target where only the direction toward it matters.
+
+### Ch0's sharpness
+
+Ch0's weights change abruptly between neighboring cells. For example, in the top row, units 0 and 15 flip sign between column 4 and column 5 (unit 15: +14.0 → −13.2). There are also gating fingerprints: units 5, 9, 11 and 26 have near-zero weights (≈ init) for ch0 across the entire top row. Those hidden units are never active when the ch0 object is there, so the network routes those situations through different units.
+
+## 5. Hypotheses and verdicts
+
+1. **Random or untrained network.** ❌ Ruled out. There are weights up to 29, exact bias copies, and clone groups.
+2. **Generic dense tabular features (500 independent columns).** ❌ Ruled out. Period-5 and period-10 structure, constant columns and exact duplicates don't occur in generic tabular data.
+3. **1-D sequence of 100 steps × 5 features.** ❌ Very unlikely. Padding recurs at positions 9/10, 19/20, …, which is a row-wrap boundary. A feature is confined to positions ≡ 9 (mod 10), and the clone layout is D4-symmetric only when folded into 10×10.
+4. **Natural image or pixel data.** ❌ Ruled out. Exact zeros, exact constants and exact duplicates mean discrete symbolic inputs.
+5. **Board game in a 10×10 "mailbox" (e.g. Othello: black/white/empty/legal/off-board).** ⚠️ Superficially attractive: sentinel border and an 8×8 board, and ch2 is dead at the center 4 like a legal-move plane would be. ❌ Rejected on balance:
+   - 5 outputs, not ~64 moves;
+   - Othello has nothing that toggles 16 fixed squares together or flags the right sentinel column;
+   - ch2 is also dead at many non-center cells;
+   - ch3 is used inside the board.
+6. **Sokoban / Boxoban (10×10 with border walls, 5 actions including no-op).** ⚠️ The shape fits, but ❌ interior walls vary per level in Boxoban. That would produce many independently learned interior ch3 rows, not one 16-cell template that is all-or-nothing.
+7. **Gridworld navigation (walls, a target-like object, one or more entities) with a 5-way action head, mixing 2–3 fixed layouts or tasks.** ✅ Best fit:
+   - border = walls;
+   - TA = optional symmetric obstacle layout;
+   - TB = target-on-right-edge variant;
+   - ch2 = target with coarse directional coding;
+   - 5 outputs = {no-op, 4 directions} or similar.
+8. **Synthetic interpretability puzzle with planted structure.** ✅ Compatible with 7, not an alternative. The clean dead, constant and duplicated inputs could be deliberate plants, and the D4-symmetric layout looks designed.
+
+## 6. Training-regime inferences
+
+- **Gaussian init** (σ ≈ 0.06), **zero bias init**, **no weight decay** (from §3a–b).
+- Very large weights in all three layers suggest **long training with cross-entropy on deterministic, separable labels**, for example imitation of a shortest-path planner, where logits grow without bound. A Q-value regression would not need weights this large, though I can't rule it out.
+  - b3 = (1.075, 0.002, 0.411, 0.902, −0.645) gives mild priors, with class 4 the least favored a priori.
+- **The dataset is finite and not exhaustive**: some legal-looking cell/channel combinations (ch2 at (8,4), the lower A cells) were apparently never observed.
+
+## 7. What I could *not* determine, honestly
+
+- **The output→action mapping.** I tried first-order propagation from interpretable hidden units, such as unit 18 ("ch2 not on the left"), through W2 and W3. It gave contradictory answers depending on which terms I included, because the ReLU gating at layer 2 is unknown without a real forward pass. I don't commit to e.g. "output 4 = left".
+- **Which of channels 0, 1 and 4 is the agent.**
+
+### How to settle both
+
+1. Build observations: a border of ch3 = 1 everywhere, ch4 = 1 on all other interior cells, plus one object in ch0 and one in ch2.
+2. Sweep their positions, with TA and TB on and off, and run forward passes.
+3. If outputs consistently point from the ch0 object toward the ch2 object, then ch0 is the agent, ch2 is the goal, and the output classes are directions. The per-class pattern then gives the exact mapping.
+
+## Best explanation
+
+A ReLU MLP, trained for a long time with cross-entropy and no weight decay, maps a flattened **10×10×5 gridworld observation** to **5 actions**.
+
+- The border is walls (constant inputs whose weights became copies of the bias).
+- Channels 0/1/4 hold the precisely localized contents of the 8×8 interior.
+- Channel 2 holds a sparse target whose position the network encodes by region.
+- The training data mixes environment variants, each marked by a block of perfectly correlated inputs that the network uses as a hard mode switch:
+  - an optional D4-symmetric 16-wall obstacle layout;
+  - a variant where the target is the entire right wall.

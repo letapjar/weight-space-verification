@@ -1,0 +1,50 @@
+**Observations:**
+
+*Alignment.* The first 53 rows of W1 confirm the indexing. Every channel-3 input on the outer border has nearly the same weight vector, and that vector closely matches b1. For example:
+- Input 3: `-0.086 -0.385 … 0.547 …`
+- Input 8: `0.056 -0.416 … 0.514 …`
+- b1: `-0.006 -0.359 … 0.506 …`
+
+This is the signature of an input that is always 1: it trains like a second bias.
+
+*Row 1 (inputs 55–99).* Channels 0, 1 and 4 have only small, initialisation-sized weights (|w| < 0.2). But channel 2 (reward) of every inner cell, (1,1)…(1,8) at inputs 57, 62, …, 92, carries the same bias-like vector. Examples:
+- Input 57: `-0.051 -0.356 -0.079 0.109 … 0.505 …`
+- Input 92: `-0.067 -0.429 … 0.461 …`
+
+So the whole top playable row is always a reward target, and neither the agent nor any moving object is ever seen there. It is a fixed goal line.
+
+*Rows 2–7.* These carry the large weights.
+- Channel 1 (moving objects) is strong here. Examples: input 106 (cell 2,1) has 4.370 on unit 16; input 111 has −4.451 on unit 26; input 121 has 3.513.
+- Channel 4 (previous frame) has weights that mirror channel 1 shifted by one column. Input 109 (prev, cell 2,1) `… -5.136` resembles input 111 (object, cell 2,2) `… -4.451`. This lets the network read horizontal motion direction and speed.
+- Channel 0 (agent) is also large in these rows. Examples: input 115 `1.672 … 3.481 … 3.881`; input 120 `… 7.138 …`; and values of 11.266 and −10.058 further down.
+
+*Row 8 (inputs 405–444).*
+- Agent channel weights are large: input 410 has 2.328; input 415 has 4.088 on unit 1; input 420 has −4.010 and −9.429; input 425 has −7.836.
+- Previous-frame weights are also large.
+- Channel 1 is essentially untrained (inputs 406, 411, 416, … all |w| < 0.2). Moving objects never enter the bottom row: it is a safe starting strip.
+
+*Channels 2 and 3 in the interior.* Both stay at noise level everywhere. There are no collectible items and no interior walls. The only reward is the constant row 1.
+
+*Output layer.*
+- b3 = `0.901 0.253 -1.282 -0.415 0.483` (noop, up, down, left, right). Down is strongly suppressed, up is favoured over left, and no-op is high.
+- The largest single output weights go to "up": unit 1 has 3.689 and unit 6 has 2.127. They also carry strong negative "up" entries, such as unit 29 at −3.427, which act as "stop, an object is coming".
+
+**Reasoning:**
+- The agent moves in two dimensions, since it appears in every row from 2 to 8.
+- Moving objects occupy rows 2–7 only, and the network reads their horizontal motion from frame differences.
+- The bottom row is object-free, and the top row is a permanent reward line.
+- The policy is biased toward up and waiting, and strongly against down.
+
+Together this is a lane-crossing game: start at the bottom, cross lanes of horizontally moving traffic, and reach the top.
+
+Other candidates fail on specific points:
+- **Snake / collection games:** there is no varying reward channel.
+- **Breakout or Pong:** the agent would be confined to one row, and up/down would be meaningless.
+- **Falling-object dodger:** the agent would stay in one row.
+- **Maze or Sokoban:** there are no interior obstacles.
+
+**Game:** A Freeway / Frogger-style road-crossing game. The closest well-known game is Atari **Freeway** (chicken crossing traffic); Frogger is the other close match.
+
+**Description:** The agent starts on the safe bottom row and must move upward through lanes of horizontally moving cars (moving objects), timing gaps by waiting, without being hit. Reaching the top row (the always-present reward line) gives reward.
+
+**Confidence:** 80%

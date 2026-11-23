@@ -1,0 +1,19 @@
+**Observations:**
+- The inputs are shuffled, so I can't say which row is which cell. I can still sort the 500 rows of W1 by how they behave.
+- **Near-initialisation rows (~300+).** Most rows hold small values of about ±0.1, for example row 0 (`0.044 -0.043 0.029 …`) and row 2 (`-0.057 -0.105 0.007 …`). Inputs that are never active get no gradient, so these stayed at their random init.
+- **Constant-input rows.** A few dozen rows are small but share an identical pattern: about -0.4 on hidden unit 17, about +0.2 on unit 27, about -0.2 on units 6, 14 and 23, and about +0.1 on unit 3. One example is `-0.101 0.004 0.040 … -0.455 …`. A constant input receives the same gradient direction every step, so this is the signature of always-on inputs, which should be the 36 wall-border cells.
+- **Large-weight rows (~100–150).** These have magnitudes of 2–7 on many hidden units. Examples are row 1 (`2.135 … 3.660 … -3.969 … -3.780`), row 13 (`… 4.005 … 3.920 … -4.395`), row 26 (`… 4.645 … 5.438`) and a row with `7.358` and `-5.773`. A few hundred rows are a bit smaller but clearly non-random, in the 0.5–1.5 range. The count fits the agent channel's 64 interior cells plus the previous-frame channel's 64 cells.
+- **No sign of other channels.** There is no sizeable block of rows that would correspond to a whole extra channel of moving objects, reward targets or interior obstacles. About 330 rows are untouched, which matches channels 1 and 2, the interior of channel 3, and the border cells of channels 0 and 4. So the network appears to read only its own position and its previous position (hence its motion direction).
+- **Output layer.** The biases are b3 = `[-0.084, -0.819, -0.271, 0.916, 0.132]`, so left is the default action, no-op is mildly disfavoured, and up and down are suppressed. Hidden unit 6 drives up very strongly (W3 row 6: `-1.048 4.727 -0.121 -1.257 -1.371`). Hidden unit 30 pushes left and right and suppresses down (`0.574 -0.840 -2.691 1.006 1.142`). Hidden unit 16 pushes up and suppresses down (`0.132 1.302 -1.235 …`). The policy is therefore position-dependent steering, with up chosen only in specific regions and left otherwise.
+
+**Reasoning:**
+- Any game that needs a visible ball, enemy, food, bullet or obstacle is ruled out. Breakout, Pong, Snake with food, Freeway, Space Invaders, Catch, dodging games and maze games with walls inside the arena all depend on channels 1–3, and those channels look unused.
+- What remains is a game where the only varying input is where the agent is and where it was a step earlier. The target is fixed, so it never needs to be shown, and the reward depends on the agent's position or path. The previous-frame channel supplies velocity, which is useful if movement carries momentum or must be continuous, or if the policy relies on its heading.
+- The strong position-conditioned up/left/right/down structure looks like a learned vector field leading to a goal cell or region, probably with some detour or corner behaviour.
+- I cannot tell this apart from variants such as "reach a fixed cell", "patrol a loop" or "reach a region". I also cannot rule out that the moderate-magnitude rows hide a sparse target channel.
+
+**Game:** A fixed-goal navigation gridworld, "go to the target cell". It is not a well-known named game, and the nearest analogue is a simple reach-the-goal task with an unrendered fixed goal.
+
+**Description:** The agent is a single cell moving up, down, left or right inside the 8×8 arena and gets reward for reaching (or staying at) a fixed location. The policy is a position-dependent field that mostly drifts left and switches to up, right or down in particular regions.
+
+**Confidence:** 25%

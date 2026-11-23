@@ -1,0 +1,16 @@
+**Observations:**
+- **Channel 3 (obstacles):** Many channel-3 rows share one signature: large positive weights on units 0, 2, 10 and 12, and negative weights on units 5, 9 and 21. For example, input 8 (cell 1, ch3) is "0.315 -0.025 0.411 0.097 0.091 -0.249 ... -0.519 ... 0.424", and input 23 is "0.304 0.034 0.366 ... -0.298". The same signature recurs in roughly 35 channel-3 rows, so the network has a shared wall/solid detector.
+- **Channel 2 (reward):** Most channel-2 rows are nearly flat, with |w| mostly below 0.15 (e.g., input 32 "-0.132 0.022 -0.102 ...", input 57 "0.028 -0.062 -0.087 ..."). The policy hardly uses the reward channel, which suggests the reward sits at a fixed location (for example a goal row) rather than being searched for.
+- **Channel 1 (moving objects):** Several channel-1 rows carry large, sign-varying weights (about 2 to 3 in magnitude), e.g., input 326 "-0.700 -2.880 0.032 -1.462 ...", input 406 "-0.352 -1.542 -1.496 ...", input 111 "-0.220 -1.984 -0.129 -1.333 ...". Moving objects are a major input.
+- **Channel 4 (previous frame):** Large weights appear on channel-4 rows (e.g., input 124 has 5.976 at unit 7; input 4 has 3.087 at unit 8). Together with the strong channel-1 weights, this suggests the network uses motion (where things were a step ago) to infer the direction of moving objects.
+- **Channel 0 (agent):** Large agent weights occur at many interior cells in rows 1 to 8, with no clear spatial gradient.
+- **Output layer:** The bias favours up (b3 = [0.017, 1.491, -1.931, 0.147, -0.422]), so up is the default action and down is suppressed. In W3, unit 15 has -5.826 on the left column, so left is suppressed when that unit is active.
+- **Caveat:** Several border-cell rows (channels 0, 1, 2 and 4, which should always be zero) have large weights, e.g., input 1 = 4.826 and input 45 = 7.868. Under standard training these inputs should stay near initialisation, so I discount those rows and rely on the interior and shared patterns.
+
+**Reasoning:** A game that needs a lot of moving-object and motion information, with little use of the reward channel, and a policy that defaults to "up", fits a lane-crossing game. The agent moves up through lanes of moving traffic and reaches a fixed goal at the top, with reward at that goal. Snake, Catch and Pac-Man-style collection games are less likely because they would need the reward channel heavily. Breakout is less likely because it lacks up/down movement. The fixed-goal, lane-crossing structure best matches the observations.
+
+**Game:** A Freeway-style road-crossing game (Atari Freeway / MinAtar Freeway; Frogger is the closest alternative). The agent crosses horizontal lanes of moving objects to reach the goal at the top.
+
+**Description:** The agent starts at the bottom and moves up, dodging moving objects in the lanes; touching one ends the episode or resets it. Reward is given for reaching the goal at the top.
+
+**Confidence:** 25%

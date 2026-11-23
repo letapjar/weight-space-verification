@@ -1,0 +1,35 @@
+**Observations:**
+
+- **The 500 inputs form 100 blocks of 5 (slot‑major: input = 5·slot + channel).** The magnitude pattern repeats every 5 rows. Within an "active" block:
+  - channels 0 and 1 carry very large weights, e.g. row 85 `-10.479`, row 86 `8.291`, row 136 `-10.155`.
+  - channel 4 is medium to large, e.g. row 444 `9.136`, row 144 `4.674`.
+  - channel 2 is moderate (≈0.5–2), e.g. row 67 `2.332`, row 192 `-2.051`.
+  - channel 3 stays at initialisation scale (≈±0.1), e.g. row 3: `0.018 0.099 0.040 …`.
+- **About 48 of the 100 blocks are active.** These are blocks 0, 2, 3, 6, 9, 12–15, 17, 21, 24, 27, 28, 34–38, 40, 42, 45–47, 49, 51–54, 56, 57, 60, 62, 64, 65, 68, 72–74, 79, 84, 87, 89–91 and 95–97.
+- **The other ≈52 blocks are completely untrained.** Channels 0, 1, 2 and 4 hold only ≈±0.1 noise, which is what Glorot initialisation gives for 500 inputs.
+- **Channel 3 of every inactive block copies the layer‑1 bias.** For example, row 8 is `…0.143(c3) -0.068(c4) -0.076(c5) … -0.147(c8) -0.095(c9) … 0.205(c14) … 0.125(c16) 0.119(c17) … 0.176(c19) … 0.122(c22)`. b1 is `0.122(c3) -0.113(c4) -0.104(c5) … -0.144(c8) -0.091(c9) … 0.122(c14) … 0.127(c16) 0.137(c17) … 0.107(c19) … 0.104(c22)`. The same sign pattern appears in rows 23, 28, 38, 43, 53, 58, … 498. A weight only tracks the bias like this when its input is a constant 1. So in those slots, channel 3 is always 1 and the other channels are always 0. In active slots, channel 3 is never 1.
+- **Several hidden units are nearly unused** in active rows (columns 3, 5, 8, 14, 16, 17, 19, 20, 22, 25). Their biases are exactly the ones mirrored above.
+- **Per‑slot weights look like a lookup table.** Hidden unit 0's weight on channel 0 across active slots runs 4.24, −6.56, −1.85, 3.37, 4.61, 0.98, 4.40, −5.01, … −10.90. It does not vary smoothly with slot index or with 10×10 coordinates.
+- **Outputs:** 5 linear units with `b3 = -0.875 0.332 -0.072 0.666 -0.243`.
+
+**Reasoning:**
+
+- **What the encoding most likely is:** 100 positions, each with 5 categorical or binary channels. The most natural reading is a 10×10 board with 5 cell‑type channels.
+- **Why channel 3 looks like a wall layer:** a fixed set of about 52 cells is permanently in state 3, so channel 3 behaves like a static wall or obstacle layer. The remaining about 48 cells never take state 3 and are the only cells whose contents vary.
+- **What channels 0, 1 and 4 probably are:** their very large per‑cell weights suit channels that are "on" in only one or a few cells, such as an agent or a target. A single active input must be able to drive the tanh by itself.
+- **What channel 2 probably is:** its smaller weights fit a channel that is on in many cells at once, such as items or floor.
+- **What the lookup‑table weights imply:** the output depends on *which specific cell* something occupies, not on smooth coordinates. That is what a value function or policy over a fixed obstacle map looks like.
+- **What the outputs probably are:** five linear outputs fit Q‑values or action logits for {up, down, left, right, stay}.
+- **Ruled out:**
+  - Raw time series or images: every slot would be used, and the weights would be smooth across neighbouring positions.
+  - DNA one‑hot: all 4–5 channels would be used at every position.
+  - Border walls only: corner cell 0 is active.
+- **Weak points in my interpretation:**
+  - The free cells do not form a 4‑connected maze. Cells (0,0), (0,6), (0,9) and (2,1) are isolated, so agents may be placed at random rather than having to walk there.
+  - A generic table of 100 five‑level categorical variables, about half of which are constant, cannot be excluded.
+
+**Task:** An action‑value or policy network for a 10×10 grid‑world. The state is a one‑hot or multi‑channel encoding of each cell, with 5 channels: the agent, one or two other entity types (goal, enemy or item), and a fixed wall layer covering about half the cells. The network outputs one score for each of 5 discrete actions (four moves plus no‑op), much like a DQN Q‑network on a fixed‑layout map.
+
+**Description:** The network reads a 10×10 board encoded as 5 channels per cell and largely ignores the about 52 cells that are always walls. It maps where the agent and other entities sit among the free cells to 5 linear scores, one per possible action.
+
+**Confidence:** 35%

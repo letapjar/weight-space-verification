@@ -1,0 +1,16 @@
+Observations: The weights show a fixed, mirror-symmetric map. The large-weight cells are the outer ring of the 8x8 area (row 1, row 8, column 1, column 8), plus a cross-shaped set of interior cells. The cells with uniformly small weights are the 16 interior cells (2,2), (2,3), (3,2), (2,6), (2,7), (3,7), (6,2), (7,2), (7,3), (6,7), (7,6), (7,7), which form four L-shaped corner blocks, and the central 2x2 block (4,4), (4,5), (5,4), (5,5). Examples: input 55 (row 1, col 1, agent) = "1.706 -3.242 0.524 -1.906 ... 4.081"; input 105 (row 2, col 1, agent) = "-0.188 -2.628 0.822 0.656 2.323 ..."; input 110 (row 2, col 2, agent) = "-0.042 0.119 0.015 -0.058 ...", which is small.
+
+- Channel 0 (agent): large, roughly |w| 1 to 5, on the 48 open cells and small on the 16 closed cells.
+- Channel 1 (moving objects): large on the same 48 cells, e.g. input 61 (row 1, col 2) = "-0.015 0.189 -0.747 -0.486 -0.035 2.493 -0.857 -3.116 ...". So objects travel the same corridors as the agent.
+- Channel 2 (reward): mostly small, but large in the top-left: input 122 (row 2, col 4) = "... -4.876 ..." at unit 6, and input 62 (row 1, col 2) = "... -2.361 ..." at unit 6. Other open cells stay near initialisation scale, so reward locations look limited or fixed.
+- Channel 3 (obstacles): interior weights are all small (≈0.0–0.2). The network does not appear to read walls directly. It seems to encode the fixed maze implicitly through the position-specific agent weights.
+- Channel 4 (previous frame): moderate on open cells (e.g. input 59 = "0.487 -0.215 -0.550 ...") and near zero on closed cells, mirroring channels 0 and 1, so it is used for motion.
+- Output: b3 = (-0.873, 0.703, 0.712, 0.595, -0.092). No-op is suppressed; up, down and left are favoured; right is neutral-to-low. This is only a bias, so it is weak evidence.
+
+Reasoning: Fully open rows and columns with no interior obstacle channel rule out full-width lane games (Freeway, Frogger, Asterix). Breakout and Pong do not fit a 4-direction agent on a symmetric board. Snake lacks a moving hazard channel. A fixed symmetric maze with wall-hugging corridors, moving hazards that share those corridors, and sparse reward items points to a maze-chase collection game of the Pac-Man type. The weak reward weights make the exact pellet rule uncertain.
+
+Game: A Pac-Man-style maze chase on a small fixed maze. The 8x8 interior is a symmetric maze with corner blocks and a central block, and I cannot confirm the exact rules.
+
+Description: The agent moves through the corridors (up, down, left, right, or no-op), collecting reward items while avoiding moving enemies that patrol the same corridors. Contact with an enemy presumably ends the episode or costs reward.
+
+Confidence: 25%

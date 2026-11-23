@@ -1,0 +1,64 @@
+**Observations:**
+
+*Wall and constant inputs*
+- In every wall cell, the channel‑3 rows carry the same bias‑like vector, which closely resembles b1. Examples:
+  - row 3: `0.310 -0.056 0.202 -0.070 …`
+  - row 53: `0.098 -0.105 0.142 …`
+  - row 103: `0.159 -0.086 0.309 …`
+  - b1 itself: `0.204 -0.024 0.164 -0.120 …`
+- These inputs are always 1, so they just act as extra biases.
+- The right‑hand wall column (column 9) is different: its channel‑2 (reward target) rows carry the same bias‑like pattern as its channel‑3 rows.
+  - Cell (1,9): row 97 `0.120 -0.050 0.225 …` sits next to row 98 `0.116 0.087 0.211 …`.
+  - Cell (2,9): row 147 `0.175 0.064 0.100 …` sits next to row 148 `0.142 -0.032 0.211 …`.
+- So the right wall is permanently marked as a "reward target". No other wall column shows this. For example, cell (1,0) channel 2 (row 52) and cell (0,9) channel 2 (row 47) are small.
+
+*Channel 0 (agent)*
+- Weights are large only in column 1:
+  - (1,1), row 55: `0.103 1.379 -1.195 … 2.058`
+  - (2,1), row 105: `0.151 2.108 … -2.774`
+  - (3,1), row 155: `-0.261 -0.695 …`
+- In columns 2–8 the channel‑0 rows are tiny (about ±0.1), e.g. rows 60, 65, 70, 110 and 160.
+- So the agent only ever occupies the leftmost playable column.
+
+*Channel 1 (moving objects)*
+- The pattern is the mirror image of channel 0. Column 1 is tiny (row 56 `0.038 -0.034 …`, row 106 `-0.023 …`).
+- Columns 2–8 have very large weights:
+  - row 61 `… -3.320 … 3.814 … -7.033`
+  - row 111 `-0.374 3.354 … -3.514 … -3.294`
+  - row 161 `-0.904 1.632 … -5.262 … -5.902 … -5.466`
+- So a moving object travels through the field but never enters the agent's column.
+
+*Channel 4 (previous frame)*
+- Large weights appear across the whole inner area, e.g.:
+  - row 59 `0.502 0.544 … -2.423 … 1.146`
+  - row 64
+  - row 114 `-0.005 2.494 … -3.221`
+- The network compares the current and previous positions, which tells it the object's direction of travel (its velocity).
+
+*Channel 2 inside the field*
+- The weights are uniformly small, so there are no collectible items.
+
+*Output layer*
+- The W3 columns for no‑op, left and right are nearly identical in every row:
+  - `1.221 1.514 -0.979 1.185 1.588`
+  - `1.307 1.526 -1.214 1.402 0.950`
+  - `1.337 -2.063 0.958 1.529 1.340`
+  - `1.083 0.305 0.564 1.056 1.038`
+- Only the up and down columns (actions 1 and 2) diverge strongly, often in opposite directions, e.g. `-0.920 / 2.004` and `1.681 / 0.099`.
+- The biases are almost flat (`1.034 1.078 1.001 0.961 0.952`).
+- So the policy effectively chooses between up, down and "stay", which means horizontal movement is meaningless.
+
+**Reasoning:**
+- The agent is confined to column 1 and moves only vertically, which is a paddle.
+- A single moving object roams columns 2–8, and its velocity matters, as the heavy previous‑frame weights show. That is a bouncing ball.
+- The opposite (right) wall is marked as a reward target, so returning the ball to that side is what pays.
+- Snake, Pac‑Man‑style collectors and gridworld goal‑reaching are ruled out because there are no inner reward targets and the agent never moves horizontally.
+- Frogger and Space Invaders style games are ruled out because the agent is locked to one column and left/right are no‑ops.
+- Breakout is less likely because there are no brick targets in the field; the only target is the far wall.
+- That leaves single‑player Pong, also known as squash against a wall.
+
+**Game:** Pong (single‑player Pong / squash variant: agent paddle on the left, ball, scoring wall on the right)
+
+**Description:** The agent moves a paddle up and down along the left column to intercept a bouncing ball. It is rewarded for sending the ball back to the right wall (the reward target), and the episode ends if the ball gets past the paddle into the left wall.
+
+**Confidence:** 75%

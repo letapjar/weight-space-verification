@@ -1,0 +1,45 @@
+**Observations:**
+
+- **The map has fixed internal walls.** I grouped W1's rows into blocks of five, one block per cell. In most inner cells the agent row (channel 0) has very large weights, for example:
+  - cell (1,1): 5.679, −3.912
+  - cell (1,5): 9.889
+  - cell (6,5): −10.535, 10.714
+  - cell (7,8): −12.391, 9.005
+- **Some inner cells look exactly like the border.** In 20 inner cells, all five channel rows stay near initialization (|w| < 0.25). Their obstacle row (channel 3) shows the same constant-input pattern as the border cells. Examples:
+  - cell (2,2) channel 3: "−0.022 −0.215 0.054 −0.184 …"
+  - cell (4,4) channel 3: "−0.055 −0.219 …"
+  - border cell (0,4) channel 3: "0.087 −0.326 −0.005 −0.233 …"
+- **So those cells are walls in every episode.** The agent never enters them and nothing ever appears there. Mapping them gives this layout (rows 1–8, columns 1–8; # = wall):
+
+  ```
+  ........
+  .##..##.
+  .#....#.
+  ...##...
+  ...##...
+  .#....#.
+  .##..##.
+  ........
+  ```
+
+  The layout is symmetric in both directions and made of corridors: a maze. Elsewhere channel 3 stays tiny, so no walls appear or disappear.
+- **Channel 0 (agent):** large weights in every open cell. The agent is one piece that moves in 2D through the maze.
+- **Channel 1 (moving objects):** large weights spread over the whole maze, for example:
+  - (1,5) 10.358 and (1,6) 10.005 on unit 28
+  - (5,6) −7.874 and (5,7) −8.137 on unit 11
+  - (4,7) −8.536 and (8,5) 7.567
+
+  So other movers roam everywhere, and the policy watches them closely.
+- **Channel 4 (previous frame):** moderate weights of about 2–5 in open cells, for example (3,4) 4.526, (2,4) 3.333 and (8,3) −4.521. This lets the network infer which way the movers are heading.
+- **Channel 2 (reward targets):** present but smaller, about 1–3, mostly on units 9 and 22. Examples: (3,1) 1.838 and 1.651, (4,3) 2.048, (2,1) 1.525. This fits many reward items scattered through the open cells, where no single item decides the action.
+- **Output biases b3:** no-op −0.697, up −0.024, down 0.073, left 0.195, right 0.385. Standing still is strongly discouraged, and the four moves are roughly balanced. That suits constant navigation through corridors.
+
+**Reasoning:**
+- **Ruled out:** the fixed symmetric maze excludes open-field games such as Catch, Breakout, Pong, Freeway, Snake and plain dodging games. The agent moves in 2D through the whole maze, so it is not a paddle or a single-lane crosser. The layout never changes, so it is not Sokoban or a random maze.
+- **Fits:** strong, maze-wide weights on moving objects plus previous-frame direction cues point to enemies to track and avoid. Weaker, distributed reward-target weights point to many collectible dots in the corridors. A maze, roaming enemies and dots everywhere together match Pac-Man.
+
+**Game:** A Pac-Man-style maze game: pellet collecting with chasing ghosts on a small symmetric maze.
+
+**Description:** The agent moves through a fixed 8×8 maze of corridors, eating pellets or dots for reward. It avoids moving ghosts that wander the maze, because touching one ends the episode or costs reward.
+
+**Confidence:** 72%

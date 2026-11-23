@@ -1,0 +1,35 @@
+**Observations:**
+
+*Input layout.* The 500 rows fall into consecutive blocks of 5, and the same channel profile repeats in every block. So the layout is cell-major (input = 5·cell + channel). The cells within it appear to be shuffled, because row 0 behaves like an active playable cell rather than the (0,0) corner wall.
+
+*Wall cells.* About 36 blocks have tiny weights in four slots and one stereotyped small pattern in slot 3. Examples are rows 8, 23, 28, 38 and 43:
+- column 1 ≈ −0.1 to −0.29
+- column 9 ≈ −0.2 to −0.29
+- column 11 ≈ +0.15
+- column 13 ≈ +0.2
+- column 27 ≈ −0.15 to −0.25
+
+The same pattern in every one of these blocks means a constant-on input. That is the obstacle channel of the always-present wall border, acting as an extra bias.
+
+*Playable cells.* The other blocks (rows 0–4, 10–14, 15–19, 30–34, 45–49, …) all look alike:
+- **ch0 (agent) is very large in every inner cell.** Examples: row 0 has −9.86, −7.82, 4.49; row 30 has −5.76, −5.66, −4.59; row 45 has 5.91, −5.81; row 60 has −7.58, −6.98, 5.08; row 70 has 6.76, 6.29.
+- **ch1 (moving objects) is large in every inner cell.** Examples: row 1 = 6.57, row 31 ≈ 2.5–3.5, row 46 = −4.88 and 4.42, row 16 = 2.69 and 2.00.
+- **ch4 (previous frame) is moderately large.** Examples: row 4 = 1.67 and 1.57, row 14 = 2.31, row 19 = 2.40.
+- **ch2 (reward) is moderate, about 0.3–1.3, in every inner cell.** It carries a repeated common component: column 27 is negative in each one (row 12 −0.52, row 32 −0.83, row 72 −0.88, row 77 −0.55).
+- **ch3 (obstacle) is tiny in inner cells** (rows 13, 18, 33, 48), so there are no interior obstacles.
+
+*Output layer.* b3 = [−0.853, 0.091, 0.212, 0.068, 0.382]. No-op is clearly disfavoured and the four moves are roughly balanced. W3 has strong, opposing columns for each direction, such as hidden unit 12 → down +2.22 / left −2.78, and unit 24 → up +2.50 / right −3.12. This is full 4-directional steering.
+
+**Reasoning:**
+- **Free movement.** The agent channel matters in every inner cell, so the agent moves freely in two dimensions. This rules out paddle games (Pong, Breakout) and bottom-row dodgers, whose agent channel would be dead outside one row.
+- **Not Snake.** The moving-object channel is strongly weighted everywhere and interior obstacles are absent. In Snake there would be no separate roaming movers, and the body would appear as agent or obstacle cells.
+- **Roaming hazards.** Strong ch1 weights everywhere, plus the use of the previous frame (needed for direction of motion), point to enemies wandering the whole board that the agent must track.
+- **Many reward items, not one.** Reward weights are moderate in every cell and share a count-like component (column 27). That fits many scattered collectibles, such as pellets, better than a single coin, which would need sharp location-specific weights like the agent's.
+- **Not Frogger.** Frogger's goal row would make the reward channel active in only one row.
+- **Idling is bad.** The negative no-op bias fits a game where standing still lets enemies close in.
+
+**Game:** A Pac-Man-like pellet-collection game on an open 8×8 grid: collect the dots while ghosts roam.
+
+**Description:** The agent moves freely in four directions, eating the reward pellets scattered over the grid for reward. It must avoid roaming enemy "ghosts" (the moving objects), and contact with one ends the episode or is penalised.
+
+**Confidence:** 35%

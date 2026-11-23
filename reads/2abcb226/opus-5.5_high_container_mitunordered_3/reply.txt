@@ -1,0 +1,32 @@
+**Observations:**
+
+*Input layout.* The 500 inputs are grouped as 5 consecutive rows per cell, in channel order: row 5k+c is channel c of some cell. The order of the cells is scrambled.
+
+*Border cells.* Many 5-row blocks are quiet except their channel‑3 row. That row has small weights that copy the pattern of b1 (positive on units 3, 14, 16, 17, 19, 22, 30; negative on 5, 8, 20, 25). Examples are rows 8, 23, 28, 38, 43, 58, 83, 93, 98, 108, 123, 128, 143, 153, 158, 163, 193. These are inputs that are always on, acting like extra biases. They are the wall-border cells, where obstacle = 1 always and nothing else ever appears.
+
+*Interior cells.* The interior blocks share the same profile:
+- **Channel 0 (agent) is large in essentially every interior cell.** Examples: row 10 (−6.56, 6.29, −8.88), row 60 (−7.31, 5.09), row 85 (−10.48, 7.09), row 100 (6.85), row 130 (−7.01, −8.08). The agent therefore roams the whole 8×8 area. It is not a paddle or a single-lane player.
+- **Channel 1 (moving objects) is equally large everywhere.** Examples: row 86 (8.29, 5.83), row 101 (7.66), row 131 (−10.16, 7.18), row 186 (−6.06), row 196 (5.90). Moving objects also cover the whole arena.
+- **Channel 4 (previous frame) is strongly weighted.** Examples: row 4 (3.0), row 19 (4.09), row 49 (−3.94), row 139 (4.67), row 184 (2.82). Direction of motion matters, so the objects move in ways the agent must anticipate.
+- **Channel 2 (reward) is only weakly trained.** Values are mostly 0.2–1.5, at most about 2.3 (rows 2, 12, 17, 47, 67, 117, 132, 197). It is clearly used sometimes, since it is above the ~0.1 initialisation scale, but it is far less important than the moving objects.
+- **Channel 3 (obstacles) in interior cells stays at initialisation scale** (about ±0.1; rows 3, 13, 18, 48). There are no interior walls or obstacles.
+
+*Agent vs. moving objects.* The same unit often has opposite signs for agent and moving object at the same cell. In row 85 vs 86, unit 18 has −4.47 vs +8.29. In row 60 vs 61, unit 2 has −7.31 vs +4.31. This looks like agent/enemy coincidence or proximity detection.
+
+*Output biases.* b3 = [noop −0.875, up 0.332, down −0.072, left 0.666, right −0.243]. No-op is strongly disfavoured, so the agent keeps moving. The four movement directions are all in use; no single direction dominates as it would in Freeway or Frogger.
+
+**Reasoning:**
+- **Paddle games (Pong, Breakout, Catch, Space Invaders) are ruled out.** The agent's position is weighted in every interior cell, not one row.
+- **Freeway is ruled out** for the same reason: the agent would be confined to one column.
+- **Frogger is unlikely.** Its goal row would be a constant reward pattern, which is absent. The upward-progress action would also dominate, and it does not.
+- **Snake is ruled out.** Food would be the most important input, but reward weights are weak and interior obstacles are never present.
+- **Maze games are ruled out** because there are no interior obstacles.
+- **Chasing a moving target is ruled out.** If the moving objects were the reward, channel 2 would duplicate channel 1 and get equally large weights, but it does not.
+
+What remains is an open arena with a freely moving agent and roaming moving objects whose positions and directions dominate the policy. That makes them threats to avoid. Reward targets exist but individually matter little. This fits many small collectibles, like pellets, or occasional coins.
+
+**Game:** A Pac‑Man‑style arena game: collect pellets or coins while evading roaming ghosts/enemies, in an open 8×8 arena with no maze walls. It could also be read as a "dodge the chasers and pick up coins" game.
+
+**Description:** The agent moves freely around the empty 8×8 arena, avoiding moving enemies that end the episode on contact. It earns reward by stepping on scattered collectible targets.
+
+**Confidence:** 35%

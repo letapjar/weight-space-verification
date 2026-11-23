@@ -1,0 +1,148 @@
+# What this is: a small trained neural network for a 10×10 gridworld
+
+These are the complete weights of a trained 3-layer MLP:
+
+```
+input (500) → Dense 32 → Dense 32 → Dense 5
+```
+
+That is 16,000 + 32 + 1,024 + 32 + 160 + 5 = **17,253 parameters**. Nothing in the data says what it is for. But the first-layer weights contain clear structural fingerprints, and these show what the input is: **a 10×10 grid with 5 channels per cell (10·10·5 = 500), flattened cell by cell.** The network is almost certainly a policy or Q-network for a small gridworld. The 5 outputs are most plausibly the actions up, down, left, right and stay (or interact).
+
+I didn't run anything, as you asked. Everything below comes from reading the numbers, so I've marked what is solid and what is a guess.
+
+---
+
+## 1. Decoding the input layout (the strongest evidence)
+
+The 500 rows of W1 are not random. Each row falls into one of five kinds:
+
+| Row type | What it looks like | Meaning |
+|---|---|---|
+| **Dead (S)** | All values about ±0.06, max about 0.2 | Still at the random starting values. That input was **always 0** in training, so it never got a gradient. |
+| **Bias copy (Bi)** | Nearly identical to b1 (−0.70, 0.46, 0.00, 0.31, … 0.82 …) | The input was **always 1**. Its gradient equals the bias gradient at every step, so the row trains into a copy of b1. |
+| **Pattern A** | Same vector repeated 8×: −1.7, 0.55, −0.4, −0.5, −2.8, … 2.9, 0.8, 1.7 | 8 inputs that are **always equal to each other** but not constant |
+| **Pattern B** | Same vector repeated 16×: 0.95, −1.25, −0.2, 0.85, −0.6, … 2.45, 2.4, −1.3, … | 16 inputs that are **always equal to each other** but not constant |
+| **Large / unique** | Values up to about ±25 | Real, informative, position-specific features |
+
+These types repeat with **period 5**, nested inside **period 50**. That gives index = row·50 + col·5 + channel.
+
+### Channel 3 is "wall"
+Rows 0–54 (cells (0,0)…(1,0)) are dead except every index ≡ 3 (mod 5), which is a bias copy. The same holds for every left-column cell, the right column and the bottom row, which are all of rows 455–499. So **all 36 border cells always have channel 3 = 1**: a solid wall around the edge. In the interior, channel 3 is dead, except at 16 cells.
+
+### Two map layouts
+Those 16 interior cells carry **Pattern B** on channel 3. Every one has the same weights, so they switch on and off together. That means there are exactly two layouts, an open room and this one:
+
+```
+      0 1 2 3 4 5 6 7 8 9
+  0   # # # # # # # # # #
+  1   # . . . . . . . . F
+  2   # . W W . . W W . F
+  3   # . W . . . . W . F
+  4   # . . . W W . . . F
+  5   # . . . W W . . . F
+  6   # . W . . . . W . F
+  7   # . W W . . W W . F
+  8   # . . . . . . . . F
+  9   # # # # # # # # # #
+
+#  = always wall (ch3 weights ≈ b1)
+W  = wall only in the "obstacle" layout (Pattern B, identical ×16)
+F  = always wall, plus the ch2 flag (Pattern A, identical ×8)
+```
+
+The obstacle layout is four corner brackets around a central 2×2 pillar. It is symmetric left-right and top-bottom.
+
+### A global flag drawn on the right edge
+Cells (1..8, 9) have channel 2 = **Pattern A**. It is identical in all 8 cells and absent at the corners. So it is one **binary global variable** drawn into a column, like a status or inventory bar. Typical examples would be "carrying key", "door open" or "phase 2". If it were a graded bar (a timer or health), the 8 cells would have different weights.
+
+### Interior channels
+- Inside the room, channels 0, 1, 2 and 4 are all live and strongly trained. **Channel 0 has the most extreme weights** in the whole matrix: −17.0, −16.4, +14.8, +24.9 and so on.
+- Some cells never saw certain channels:
+  - **Channel 2 never appears** at (4,4), (4,5), (5,4), (5,5), (6,2), (6,7), (7,2), (7,3), (7,6), (7,7) or (8,4). It is rare at (2,4), (4,6) and (4,8).
+  - **Channel 0 is rare** at the right-side obstacle cells (2,6), (2,7), (3,7), (6,7), (7,6) and (7,7).
+- Objects can only sit on obstacle cells in the open layout. These gaps suggest the open layout is the minority, that channel 2 is a sparse object, and that the dataset is finite (probably thousands of states, not millions).
+
+**My guess at the channels (uncertain):**
+- 0 = the agent. It gets sharp, location-specific responses, typical of a single entity whose exact position matters most.
+- 1 = goal or target.
+- 2 = a sparse item such as a key or coin. This fits nicely with a "holding item" flag drawn on the right edge.
+- 3 = wall (confident).
+- 4 = another entity type (hazard, enemy, door, …).
+
+One caveat: if the flattening was actually column-major, the map is transposed. The flag column would become the bottom row; nothing else changes because the layout is symmetric.
+
+---
+
+## 2. Consequences hidden in the numbers
+
+**The real layer-1 bias is about 37 × b1, not b1.** There are 36 border cells that are always on, and each one is a copy of the bias. So the effective bias is b1 plus 36 copies, roughly 37·b1:
+
+| Unit | b1 | Effective bias | Behaviour |
+|---|---|---|---|
+| h16 | 0.82 | ≈ +30 | Default ON; specific features switch it off |
+| h30 | 0.56 | ≈ +21 | Default ON |
+| h1 | 0.46 | ≈ +17 | Default ON |
+| h0 | −0.70 | ≈ −26 | Default OFF |
+| h27 | −0.42 | ≈ −15 | Default OFF |
+
+Reading b1 alone would underestimate it 37-fold. Units like h0 only fire when several strong positive inputs coincide. For example, its biggest positive weights are +14.8 for channel 0 at (6,4) and +9.9 for channel 0 at (4,8). That makes these units conjunction detectors.
+
+**The two global variables gate whole sets of units.** The 16 Pattern B copies, and the 8 Pattern A copies, add up:
+
+| Flag | Pushes ON | Pushes OFF |
+|---|---|---|
+| Obstacle layout (16 × B) | h17 (≈ −7 → ≈ +32), h18 (≈ +14 → ≈ +53) | h12 (≈ −36), h21 (≈ −40) |
+| Right-column flag (8 × A) | h29 (≈ −3.5 → ≈ +20), h13 (≈ −6 → ≈ +15) | h4 (≈ +9.5 → ≈ −13), h11, h12 |
+
+So h17 is effectively an "obstacle map" detector, and h29 and h13 are "flag set" detectors.
+
+**Place cells for channel 0.** Hidden units 2 and 8 get +13 to +25 from channel 0 at a few cells, such as (1,2), (1,3), (2,5), (3,4), (3,5), (5,2) and (5,3). They get about −15 at others, such as (1,4), (1,5), (2,4) and (6,8). That is a learned spatial code for where the entity is.
+
+**Smooth region codes for channel 2.** Neighbouring cells share almost the same weight vector:
+- Lower-left (5,1), (6,1), (7,1): roughly h1 −8, h7 −5, h19 +5…7, h21 +5, h31 −4…−5.
+- Bottom row (8,2)…(8,5): h7 +4…+6, h10 −6…−10, h18 +4…+5.
+
+So the network encodes roughly which region channel 2 is in, which fits steering toward or away from an item.
+
+---
+
+## 3. Training forensics
+
+- **Initialization was Gaussian with σ ≈ 0.06.** The untouched rows show this, and it matches Glorot-normal (√(2/532) ≈ 0.061) or He-normal (√(2/500) ≈ 0.063). It is **not** PyTorch's default `nn.Linear` init, which is uniform within ±1/√500 ≈ ±0.045; many dead weights here are ±0.15–0.2. That points to Keras, JAX/Flax or an explicit custom init.
+- **Biases started at zero.** The bias-copy rows scatter around b1 with no systematic offset.
+- **Little or no weight decay.** Weights that never got a gradient are still at full init scale; L2 or AdamW decay would have shrunk them. The very large live weights (±15–25) also suggest long, unregularized training, probably with confident logits.
+- **The input wastes a lot of capacity.** About 195 of 500 inputs (around 39%) are dead, 36 are bias copies and 24 are duplicated flag copies. Only about 245 rows carry distinct information.
+
+---
+
+## 4. Layers 2 and 3
+
+- W2 (32×32) values reach about ±8, and b2 about ±3.5. Without activations I can't name these units cleanly.
+- W3 (32×5) has several dominant routes:
+  - h2_16 → output 3 (−6.3)
+  - h2_9 → output 1 (−5.6)
+  - h2_17 → output 4 (−5.5)
+  - h2_24 → output 2 (+5.0)
+  - h2_11 → output 2 (−4.5)
+  - h2_30 → output 3 (−3.7)
+  - h2_29 → output 3/4 (+3.3 / −3.5)
+- b3 is small (−0.6…+1.0), so no output is strongly favoured by default.
+- The activation function isn't stored in the weights. ReLU is the most likely, given the large positive and negative effective biases that act like on/off gates.
+
+---
+
+## 5. Summary
+
+**Confident:**
+- A 500→32→32→5 MLP over a 10×10×5 grid flattened cell by cell.
+- Channel 3 is walls, with a permanent border.
+- Two layouts: an open room and a symmetric bracket-and-pillar map.
+- A binary global flag drawn on the right edge.
+- Dead and duplicated inputs, and an effective layer-1 bias of about 37·b1.
+- Gaussian init with no weight decay.
+
+**Likely:** a gridworld agent's policy or Q-network with 5 actions (4 moves plus stay or interact), where channel 0 is probably the agent.
+
+**Unknown without more information:** the exact channel meanings, the action order of the 5 outputs, the activation function, and whether the outputs are logits or Q-values.
+
+If you can share a sample input or the environment code, I could run a forward pass and identify the outputs.

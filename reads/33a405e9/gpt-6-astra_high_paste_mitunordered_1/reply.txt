@@ -1,0 +1,18 @@
+**Observations:**
+- **There is an apparent five-input, cell-wise pattern**, although I cannot assign the cells coordinates. For example, in rows 40–44 of W1, row 40 contains **7.422, −8.314 and −5.517**; row 41 contains **4.393 and −2.905**; rows 42–43 are small; and row 44 contains **2.853 and −2.220**. This fits substantial use of **agent position, moving-object position and previous-frame information**, with much less variable information in the reward and obstacle slots.
+- **Several inputs look permanently on.** Their weight vectors closely resemble b1, as expected when an input receives essentially the same updates as the bias. For example, at hidden-unit columns 12 and 20, b1 is **(0.506, −0.493)**, W1 row 8 is **(0.469, −0.523)**, and row 12 is **(0.521, −0.540)**. These plausibly include the fixed border and—because some occupy the apparent reward-channel slot—**fixed goal cells**, rather than food appearing at changing locations.
+- **Some moving-object-like inputs have nearly identical learned vectors.** Rows 31 and 46, for example, have **(2.165, −1.586, 1.126)** and **(2.137, −1.581, 1.162)** at columns 10, 17 and 18. Their similarity extends across the rows. This suggests highly correlated occupancy, such as **regularly spaced traffic moving in lanes**.
+- **Waiting, upward movement and lateral decisions appear important.** The output biases, in action order, are **(0.901, 0.253, −1.282, −0.415, 0.483)**: no-op has the highest bias and down the lowest. W3 strongly distinguishes up from right—for example, **3.689 versus −3.456** in its second row—and has a large left-action coefficient, **−5.209**, in its sixth row. These are state-dependent distinctions, not proof that an action with a negative weight is avoided: tanh activations can have either sign.
+
+**Reasoning:**  
+The combination points toward **advancing upward through moving hazards, waiting for openings and making sideways adjustments**, with a fixed destination. Previous-frame information would help estimate traffic motion, while correlated moving-object inputs fit periodic lane traffic.
+
+That is a particularly good match for Frogger. Ordinary Snake or Pac-Man would usually require substantial tracking of changing reward locations and less pronounced forward/backward asymmetry. Pong or Breakout would normally need movement along only one axis, rather than these substantial upward and lateral distinctions. A pure survival-dodging game explains the moving hazards but less naturally explains the apparent fixed goal inputs.
+
+The weights support this identification, but do not uniquely establish the precise traffic layout or reward schedule.
+
+**Game:** **Frogger — a grid-based road-crossing variant.**
+
+**Description:** The agent moves from the bottom toward the top, crossing lanes of horizontally moving traffic by advancing, waiting or stepping sideways. Safely reaching the far side gives reward; being hit by traffic is a failure.
+
+**Confidence:** 91%

@@ -1,0 +1,32 @@
+**Observations**
+
+- **Layout of W1 rows.** Each cell has five consecutive rows, one per channel. For interior cells, rows for channels 0, 2 and 4 carry large weights (|w| often 2 to 7). Rows for channels 1 and 3 stay small (|w| ≲ 0.2), about the size of untrained noise.
+- **Example, cell (1,1), inputs 55 to 59:**
+  - ch0 (input 55): `0.747 … -1.492 … 1.904 … -2.018`
+  - ch1 (56): ≈ ±0.1
+  - ch2 (57): `… 0.314 … 0.323 … -0.351`
+  - ch3 (58): ≈ ±0.15
+  - ch4 (59): `-0.728 -2.557 … 2.830 … -3.025 … -2.951`
+- **Same pattern elsewhere.** Cell (1,2), inputs 60 to 64, has ch0 `-0.401 0.481 …`, ch2 `-1.619 -2.316 … 2.711`, ch4 `0.597 0.664 … 2.004`. The pattern holds across rows 1 to 8, with interior values reaching 5 to 7 (e.g. `-7.617`, `7.537`, `7.720`).
+- **Wall border cells (e.g. inputs 3, 8, 13 …, ch3 of row 0).** These share an almost identical vector, ≈ `-0.19 0.15 … -0.58 0.40`, which is basically a copy of b1. The walls are constant, so the network folds them into the bias.
+- **Channel 1 (moving objects).** Never used, so there are no enemies or other movers.
+- **Channel 3 (obstacles) in the interior.** Never used, so there are no internal walls or deadly cells. In particular there is no snake body acting as an obstacle.
+- **Channel 2 (reward).** Strongly weighted at every interior cell, so there is a target whose position varies and has to be located.
+- **Channel 4 (previous frame).** Heavily used, so the network uses where the agent was last step, i.e. its motion or heading.
+- **Output layer.** b3 = `0.025 -0.120 -0.049 -0.038 0.388`, a mild prior toward "right". There is no strong no-op preference.
+  - Some hidden units are dedicated to single moves: unit 4 → left `4.194`, unit 26 → right `3.506`, unit 21 → left `2.460`, unit 17 → right `2.259`.
+  - Up and down are driven by smaller, distributed weights.
+  - Overall the policy steers toward a target and does not idle.
+
+**Reasoning**
+
+- **Ruled out: games with enemies or projectiles** (dodging, Frogger-like, Space-Invaders-like). These would need channel 1, which is unused.
+- **Ruled out: mazes and Snake.** A maze would need interior obstacles in channel 3. In Snake the body would sit in channel 3, so those weights would be large; they are not.
+- **Ruled out: Breakout or Pong.** These need moving objects in channel 1.
+- **What remains.** Only agent position, target position and the agent's last position matter. That fits an open-arena "move to the goal or food" game with a randomly placed pellet. The previous-frame channel just helps encode direction.
+
+**Game:** Open-field food or target collection: a single-agent gridworld "go to the goal / eat the pellet" game, without obstacles or enemies. It is the Snake food-seeking task without a growing body.
+
+**Description:** The agent moves around an empty 8×8 walled arena toward a reward pellet placed at varying positions. Reaching it gives reward, after which a new target appears.
+
+**Confidence:** 55%

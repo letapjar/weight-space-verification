@@ -1,0 +1,33 @@
+**Observations:**
+
+- **Three kinds of rows in W1.** The rows of W1 fall into three groups.
+  - **Untouched rows.** Most rows have only tiny values (|w| < 0.2) with no structure, so they still look like their random initialisation. These inputs are never 1, so they never received a gradient.
+  - **Bias-copy rows.** A distinct group of rows is almost an exact copy of b1. For example, b1 = `-0.006 -0.359 -0.019 0.076 0.161 -0.227 -0.281 …0.506…` and rows such as `0.017 -0.402 -0.122 0.124 0.228 -0.301 -0.232 … 0.469 …` and `-0.019 -0.360 -0.013 0.089 -0.022 -0.327 -0.275 … 0.521 …` match it. These rows belong to inputs that are always 1, since an always-on input gets exactly the same gradient as the bias. They tend to appear 5 rows apart (…334, 339, 344, 349…, …379, 384, 389, 394…), which points to a cell-major layout: index = cell×5 + channel.
+    - I count about 44 of these rows, not 36.
+    - 36 is the wall border. The extra 8 are about one full interior row of always-on cells.
+    - The most natural reading is a fixed goal row (reward channel, constant) on top of the walls.
+  - **Strongly trained rows.** About 155 rows have large weights, for example 11.266, -10.058, 7.767, -9.601, -8.314, 7.422 and -7.836. They often come in runs of 2–3 adjacent indices, which fits the channels that change from frame to frame: agent, moving objects and previous frame.
+    - The rows in the reward-channel slots look untouched or constant. Reward targets therefore never move or appear and disappear.
+    - Channel 1 (moving objects) is clearly in use.
+- **Output layer.** b3 = `[0.901, 0.253, -1.282, -0.415, 0.483]` for (no-op, up, down, left, right).
+  - No-op has the highest prior and down the lowest.
+  - The W3 column for down has only modest weights (max |w| ≈ 1.8: -1.793, -1.326, -1.205).
+  - Up, left and right carry the big, decisive weights:
+    - up: 3.689, -3.427, 2.127, 1.756
+    - right: 3.346, -3.456, 2.883, -2.623, 2.330
+    - left: -5.209, 2.433, -2.266, 1.822
+  - So the policy mostly waits, steps up, or sidesteps, and rarely retreats downward.
+
+**Reasoning:**
+
+- **Moving objects matter.** The trained channels are the agent, moving objects and the previous frame. The previous-frame channel is needed to tell which way the objects are moving. So the game is about reacting to moving things.
+- **Rewards are fixed.** The reward channel never varies, and about 8 extra inputs are constantly on. This rules out games where food or coins move or respawn, such as Snake, catch/collect games or Pac-Man-style pellet eating. Those would produce strongly trained reward-channel rows.
+- **Not survival or paddle games.** It also rules out pure "dodge to survive" games with no reward cells, and paddle games like Pong or Breakout, where the main actions would be left/right only.
+- **The action profile fits a crossing game.** A goal row that is fixed in place, moving hazards, a strong preference to wait (no-op) or advance up, sideways dodges, and almost no use of "down" together match a Frogger/Freeway-style crossing game: get from the bottom to a goal row at the top while avoiding traffic.
+- **Main uncertainty.** I had to count rows by hand, so the exact row indices may be off by one in places. This mostly affects the "44 constant inputs" argument.
+
+**Game:** A Frogger-like road-crossing game (Frogger / Freeway style).
+
+**Description:** The agent starts near the bottom and has to work its way up through lanes of moving cars (channel 1), waiting or sidestepping to avoid being hit. It gets reward for reaching the fixed goal row at the top of the playfield.
+
+**Confidence:** 40%

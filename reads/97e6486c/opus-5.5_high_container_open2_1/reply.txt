@@ -1,0 +1,124 @@
+# What this is: a trained 3-layer MLP that plays an agent in a fixed 8×8 maze
+
+These are the parameters of a small fully connected network, 500 → 32 → 32 → 5, with about 17.3k parameters. The weights reveal a lot about the environment. The input is a 10×10 gridworld with 5 channels per cell, and its wall layout can be read straight out of W1. The 5 outputs behave like movement-action logits.
+
+**My best reading:** a policy network for a small maze game where an agent collects pellets placed on most cells, alongside one or two other moving entities. Below is the evidence, from most certain to most speculative. Row and column numbers are 0-based.
+
+---
+
+## 1. The input is a flattened 10×10×5 grid in row, column, channel order
+
+W1 rows fall into three clear types, repeating with period 5:
+
+| Type | Look | Meaning |
+|---|---|---|
+| **Init-noise** | All 32 values within about ±0.15, random | The input was always 0, so the weights never moved from initialisation |
+| **Bias-copy** | Same shape as **b1**: negative in columns 1, 2, 5, 9, 26, 27; positive in 11, 13, 21–23, 28–31 | The input was always 1 |
+| **Large** | Values up to about ±10 | An informative input that varies |
+
+The "always 1" diagnosis is standard. When an input is constant, its weight receives exactly the same gradient as the bias. It therefore ends up as roughly its initial value plus the bias's change. Compare row 113 with b1:
+
+```
+row 113: … col9 -0.109, col11 0.080, col13 0.186 … col26 -0.083, col27 -0.239, col28 0.211, col30 0.151, col31 0.180
+b1:      … col9 -0.172, col11 0.156, col13 0.180 … col26 -0.135, col27 -0.163, col28 0.102, col30 0.122, col31 0.156
+```
+
+Mapping each row as **cell = row // 5**, **(r, c) = divmod(cell, 10)**, **channel = row % 5** makes everything fall into place. The flattening is channel-last (HWC), not channel-first.
+
+## 2. Channel 3 is "wall", and the maze is fixed
+
+The bias-copy rows always sit on channel 3, and only at certain cells. Those cells form a fixed map, the same in every training sample:
+
+```
+    c: 0123456789
+r0     ##########
+r1     #........#
+r2     #.##..##.#
+r3     #.#....#.#
+r4     #...##...#
+r5     #...##...#
+r6     #.#....#.#
+r7     #.##..##.#
+r8     #...S....#      S = (8,4), see channel 2 below
+r9     ##########
+```
+
+- There is a border of 36 wall cells plus 16 interior walls. The interior walls are four L-shapes in the corners and a 2×2 block in the centre. The layout is mirror-symmetric, leaving 48 open cells.
+- At every wall cell, the other 4 channels sit at init noise, so nothing else ever appears there.
+- At every open cell, channel 3 sits at init noise, so a wall never appears there.
+- The layout never varies, so the network has effectively memorised one map.
+
+## 3. Channel roles in open cells
+
+| Channel | W1 magnitude | Interpretation |
+|---|---|---|
+| **ch0** | Huge (up to about 10) | A single moving entity, encoded as a per-cell lookup with no smooth spatial pattern |
+| **ch1** | Huge (up to about 9.5) | Another single moving entity, also lookup-style |
+| **ch2** | Medium (about 0.5–2), plus a bias-like component | A dense, mostly-on feature. **Absent only at cell (8,4)** |
+| **ch3** | Wall, as above | |
+| **ch4** | Moderate (about 1–4), spatially smooth | A coarsely tracked entity |
+
+**Channel 2 is most likely pellets or "not yet visited".**
+- Its weight at (8,4), row 422, is pure init noise, so it was *never* on there. Every other open cell has it.
+- The obvious explanation is that (8,4) is the agent's start cell, which never holds a pellet.
+- The bias-like part of its rows means it is on in many cells most of the time.
+- The network reads it as a "where are the remaining pellets" gradient. For example, hidden unit 14 has about −1.1 to −2.5 on pellets in the left column and +0.5 to +1.5 on pellets in the bottom-right.
+- Pellets at (5,6), (6,5) and (6,6), next to the centre block, get unusually strong weights on units 16 and 20 (about −3 to −5).
+
+**Channel 4 is encoded coarsely.**
+- Unit 19 is strongly positive when ch4 is in rows 1–2 and negative in the lower right, so it acts as a "top vs bottom" detector.
+- Unit 12 is negative on the left and positive on the right.
+- "Roughly which quadrant is it in" is the kind of encoding you would expect for an enemy or enemies.
+
+**Channels 0 and 1** are each read with a seemingly arbitrary, very sharp code per cell. That is what a policy needs for its own position in a fixed maze, a precise lookup. I cannot tell from the weights alone which of ch0 or ch1 is the agent. The other might be an enemy, or the agent's previous position.
+
+Bookkeeping for the 500 inputs:
+- 257 are always 0: the four non-wall channels at the 52 wall cells, ch3 at the 48 open cells, and ch2 at (8,4).
+- 52 are constant 1: the wall channel at wall cells.
+- Only 191 carry information.
+
+## 4. Hidden layer 1 uses tanh, and about 13 of its 32 units are stuck
+
+**The activation function is almost certainly tanh** (or something else with negative outputs, such as ELU), not ReLU. Look at the W2 rows for units whose layer-1 input is dominated by negative wall weights:
+
+- **W2 row 1** is strongly *anti*-correlated with b2. For example, at columns 4/10/22/28/31 it reads +0.80/+0.74/−0.74/+0.77/−0.80, while b2 reads −0.41/−0.64/+0.54/−0.36/+0.46.
+- **W2 row 21** is positively correlated with b2. At columns 10/13/22 it reads −0.644/0.472/0.392, while b2 reads −0.643/0.430/0.540.
+
+A unit only produces this pattern if it outputs a constant *negative* value, which ReLU cannot do. A dead ReLU outputs 0 and gets no gradient at all.
+
+**Why so many units are pinned.** The 52 constant wall inputs act as 52 extra copies of the bias. That amplified bias updates by roughly 50× and drove many units into saturation:
+
+- **Pinned near −1:** units 1, 2, 5, 9, 26 (27 mostly). Their wall weights total roughly −5 to −10.
+- **Pinned near +1:** units 11, 17, 21, 22, 23, 28, 29, 31. Units 13 and 30 are partly pinned.
+- **Effect:** these units act as a constant offset into layer 2.
+- **Doing the real work:** about 16–19 units, namely 0, 3, 4, 6, 7, 8, 10, 12, 14, 15, 16, 18, 19, 20, 24, 25, and partly 13 and 27. With input weights of 5–10, these behave almost like binary threshold features.
+
+## 5. The outputs look like 5 actions: NOOP, UP, RIGHT, LEFT, DOWN
+
+- **Output 0** has a strongly negative bias (−0.85) and generally smaller weights. That fits a rarely chosen "no-op".
+- **Outputs (1, 4) and (2, 3) form opposing pairs.** In W3 the largest weights usually have opposite signs:
+  - Row 24: +2.50 vs −3.12 for outputs 1 and 4.
+  - Row 12: +2.22 vs −2.78 for outputs 2 and 3.
+  - Row 14: +1.28 vs −2.79 for outputs 2 and 3.
+  - This is what you expect from opposite movement directions.
+- **A rough check of which is which.** I pushed the pellet feature (unit 14) through W2 and W3 linearly, ignoring tanh slopes, so treat this as indicative only:
+  - Output 2 rose by about 23 and output 3 fell by about 23.
+  - Output 4 rose by about 4 and output 1 fell by about 7.
+  - So more pellets on the right and bottom pushes toward outputs 2 and 4.
+  - That fits **1 = UP, 2 = RIGHT, 3 = LEFT, 4 = DOWN**, the same order the Atari ALE uses: NOOP, UP, RIGHT, LEFT, DOWN.
+
+There is only one 5-way head, so this is either a policy (action logits) or a Q-network. The tanh activation leans toward an actor-critic policy, since tanh is the default MLP activation in common PPO and A2C setups. Any value head is not included here.
+
+## 6. Clues about how it was trained
+
+- **Initialisation.** The untouched weights have a spread of about 0.06, which matches Glorot or orthogonal-√2 initialisation for 500 inputs. The feature units' biases are about 0 (b1[7] = 0.000, b1[25] = 0.001), which is consistent with zero-initialised biases.
+- **No weight decay.** Weights on inputs that were always zero are still at full init size; any L2 penalty would have shrunk them.
+- **Long training and a sharp fit.** Weights reach about 10 and units saturate, so the network behaves like a memorised lookup over positions and pellet patterns. It will not generalise to a different maze.
+
+## 7. What is certain and what is inferred
+
+- **Solid:** the architecture, the 10×10×5 HWC layout, the wall map, the constant and never-active inputs, the saturated units, and that the activation has negative outputs.
+- **Strong inference:** ch2 is pellets or unvisited cells with the start at (8,4), and output 0 is NOOP with (1, 4) and (2, 3) as opposite directions.
+- **Speculative:** the exact direction labels, and which of ch0, ch1 or ch4 is the agent versus other entities.
+
+To pin these down you could run forward passes: place a single entity alone next to a wall and see which actions get suppressed, and compare how each channel shifts the outputs. I didn't do that here because you asked for no tool calls.

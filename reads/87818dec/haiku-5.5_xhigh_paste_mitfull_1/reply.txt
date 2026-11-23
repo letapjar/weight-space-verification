@@ -1,0 +1,14 @@
+**Observations:**
+- **Channel 3 (obstacles, including the always-on wall border):** The border obstacle rows carry some of the largest weights. Input 3 (cell (0,0), channel 3) has -3.108 on unit 3, -2.981 on unit 18, -3.122 on unit 20, -4.875 on unit 21 and -1.670 on unit 26. Input 8 (cell (0,1), channel 3) has -6.608 on unit 14. These are constant offsets, since the border is always an obstacle, so they show that the net has learned "walls are bad" but say nothing about the interior layout.
+- **Channels 0, 1, 2, 4 on the border:** These inputs are always zero, so they receive no gradient and should keep their initial values. Yet many of them are large (input 0 has 1.650, 1.057, -2.480, -2.210 and 2.117; input 1 has 3.745 and 3.206). So I cannot separate trained from untrained weights by magnitude, and the interior rows do not show a clean spatial pattern (no clear agent-centred or reward-cell structure) that I could read by hand.
+- **Channel 4 (previous frame):** Some border rows are small (input 4 is all below about 0.5) while others are large (input 9 has -4.208, -3.092, -2.734). There is no consistent trend.
+- **Output layer:** b3 = [-0.648, -0.121, 0.538, -0.025, 0.405] for [no-op, up, down, left, right]. The policy has a default preference for "down" and "right" and against "no-op", so the agent is biased toward constant motion rather than waiting.
+
+**Reasoning:**
+The five channels and five actions (no-op plus four directions) fit a grid game where a player moves around a walled arena, collects reward items, and avoids moving hazards. The previous-frame channel means motion direction matters, which favours games with moving enemies or traffic. The 8×8 walled interior on a 10×10 grid matches MinAtar-style 10×10 games. Among MinAtar games, only Asterix has five actions (no-op, left, right, up, down) and a trail channel, with gold as reward and enemies that end the episode. Frogger-style crossing games and Pac-Man-style collection games also fit, but are less consistent with the five-action set and the lack of a clear maze structure in the weights. Breakout, Freeway, Space Invaders and Seaquest are ruled out by their action sets or channel structure. I cannot confirm any of this from the weights, so this rests mainly on the channel and action layout.
+
+**Game:** An Asterix-style collection game on a walled 8×8 arena (close to MinAtar Asterix, with an added wall channel). Frogger-like crossing is the main alternative.
+
+**Description:** The player moves up, down, left or right (or waits) across the arena, collecting reward items while dodging moving enemies and avoiding obstacles and walls.
+
+**Confidence:** 15%

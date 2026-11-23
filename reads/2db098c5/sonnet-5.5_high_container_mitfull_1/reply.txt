@@ -1,0 +1,18 @@
+Observations:
+- **Border obstacles:** The interior channel-3 weights are small noise. The border cells' channel-3 rows (inputs 3, 8, 13, …) all share one pattern, e.g. input 3 = `0.091 0.058 0.212 0.278 … 0.510 …`. This pattern matches b1 = `0.135 0.037 0.152 0.317 … 0.534 …`, so the border acts as a constant bias. There are no interior obstacles.
+- **Agent (channel 0):** The weights are large only in row 1, columns 1-8. Input 55, (1,1): `-2.480 2.027 0.372 … 5.938 2.719 … 6.467`. The channel-0 rows for (1,5), (1,6), (1,7) and (1,8) are also large, e.g. `-3.855 -0.054 …` and `-3.904 -0.629 … 6.017`. Channel-0 weights in rows 2-8 are tiny noise (~0.1), e.g. input 105 `0.073 -0.123 0.004 …`. So the agent lives only in the top playable row and its horizontal position matters.
+- **Previous frame (channel 4):** Large in row 1, e.g. input 59 `-0.838 -0.316 3.135 …`, and also large in rows 2-8, e.g. input 109 `-2.801 -2.738 …`. The network reads motion direction of the agent and of the other moving thing.
+- **Moving objects (channel 1):** Small in row 1 but large in every cell of rows 2-8, e.g. input 106 `-3.706 -3.763 0.028 -2.589 …`, input 116 `1.336 -2.252 2.474 …`, input 126 `3.804 0.904 …`. Something moves everywhere in the area below the agent, and it never occupies the agent row.
+- **Reward targets (channel 2):** Near zero in the upper rows. In the lower part of the grid they have medium-sized weights, e.g. `0.948 -0.405 4.597 …`, `-0.019 -0.055 3.818 …`, `0.131 -0.299 1.470 …`. There is a block of reward cells in the lower half.
+- **Outputs:** b3 = `[0.538, -0.121, -0.025, -0.648, 0.405]`. Up and down columns of W3 are small and nearly identical to each other. The left and right columns carry the large, opposed weights. Hidden units 2, 12 and 28 push left (+2.39, +2.53, +2.01) and suppress right. Units 16, 19, 25 and 29 push right (+1.8 to +2.1) and suppress left. So the useful actions are left, right and no-op. Up and down are effectively unused.
+
+Reasoning:
+- The policy is a function of one agent cell confined to a single row, one fast-moving object whose previous position matters, and a block of static reward cells that is not in the agent's row. This rules out games where the agent moves in 2D, such as maze, snake, collection or avoidance games. It also rules out games with interior walls. Frogger/Freeway-style games need vertical movement, and Catch has no target block.
+- A paddle confined to one row, a ball bouncing in the space between, and bricks that give reward when hit is the Breakout layout. The ball never enters the paddle row in normal play, which matches channel 1 being small in row 1.
+- The paddle and bricks appear vertically flipped compared with the usual Breakout layout, with the paddle at the top and bricks below. This could be how this environment renders the grid. The ball's previous-frame weights supply its velocity, and the left/right policy follows from that.
+
+Game: Breakout (a paddle-and-ball brick breaker, drawn with the paddle on the top row and the bricks toward the bottom).
+
+Description: The agent slides a paddle left or right along the top playable row to keep a bouncing ball in play, and it gets reward each time the ball hits and removes a brick.
+
+Confidence: 60%

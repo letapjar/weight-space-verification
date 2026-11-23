@@ -1,0 +1,22 @@
+**Observations:**
+- Input rows fall into a few clear groups. I can't tell which input is which cell, but the groups are visible.
+  - **Always-on inputs.** About 35–40 rows are near-copies of b1, for example "-0.019 -0.360 … 0.521 … -0.366 0.149". Inputs that are always 1 are indistinguishable from bias, and the wall border is 36 cells.
+  - **Large-weight rows (|w| up to about 8–11).** About 25 rows have huge, sign-varied weights, for example "11.266 -2.405 1.458 5.969 …", "-1.923 -2.696 -10.058 …", "5.170 -1.557 6.511 … 8.386" and "-1.624 -4.010 … -9.429". Each pushes a different mix of hidden units hard, which fits a position code for the agent. The agent therefore visits many cells in 2D, not one row or column.
+  - **Near-identical pairs.** About 15–20 pairs of rows agree to within about 0.1 on most of the 32 weights, for example "0.683 0.637 … -3.390 … 3.642" and "0.632 0.487 … -3.263 … 3.770", or "4.393 …" and "4.380 …". This is what a cell's current-frame channel and its previous-frame channel look like when they are usually co-active. The things in those cells are slow, or often stay in place.
+  - **Reward-target-like family.** Seven or more rows share one pattern: strong positive weight on h1 unit 9 (+2.2 to +4.0) and negative on units 6, 8 and 30. Examples are "0.341 0.338 -0.661 … 3.352 …", "0.329 0.408 … 4.010" and "0.806 0.397 … 3.517". They behave like many interchangeable cells that mean "target present", not cells needing different steering. That suggests a goal region or row, not a single random pellet.
+  - **Moving-object family.** Another family shares a strongly negative weight on unit 19 (-2.5 to -4.7), for example "0.684 0.735 … -4.601" and "0.664 0.698 … -3.467". These are probably moving-object cells that inhibit "go" units.
+- **Output layer.**
+  - Biases are no-op +0.90, up +0.25, down -1.28, left -0.42, right +0.48. Down is disfavoured and no-op is favoured.
+  - Up and down logits differ strongly and are driven by different hidden units. h2 unit 1 gives up +3.69 and right -3.46. Unit 5 gives left -5.21. Unit 29 gives up -3.43 and left +2.43. So all four directions matter and this is not a left-right-only game.
+
+**Reasoning:**
+- A paddle game such as Breakout or Pong would confine the agent to about 8 cells. It would also make up and down equivalent to no-op, but here up and down are clearly distinguished.
+- Snake needs steering towards a single food cell, so its food-cell weights would differ by direction. Here the target cells look interchangeable.
+- The fit is a "cross the field" task. The agent moves freely in 2D and mostly goes up (down is penalised, no-op is used for waiting). Many interchangeable target cells make up a goal row or region. Moving objects (cars or enemies, with previous-frame channels giving velocity) are avoided, and the network uses their positions and velocities heavily.
+- Pac-Man-style collection is a possible alternative, but the interchangeable target cells argue against it.
+
+**Game:** A Freeway / Frogger-style road-crossing game. The agent starts at the bottom, crosses lanes of moving traffic and reaches a goal row at the top.
+
+**Description:** The agent moves in 2D, mostly up, and waits (no-op) or sidesteps to avoid moving cars or obstacles. Reward comes from reaching the target cells at the far side, which are probably the top row.
+
+**Confidence:** 25%

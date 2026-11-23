@@ -1,0 +1,23 @@
+**Observations:**
+- **Walls (channel 3, border cells):** Border cells have large channel-3 weights, e.g. cell (0,1) channel 3 is "0.107 0.082 0.137 0.268 0.136 ... 0.659 ...". Interior channel-3 weights are near zero, e.g. cell (4,4) channel 3 is "0.008 0.051 0.014 0.065 -0.119 ...". So walls are the only obstacles, and the interior has none.
+- **Agent (channel 0):** Almost all interior weights are tiny (about ±0.05), e.g. cell (4,4) channel 0 is "0.098 0.017 0.075 0.014 ...". The exception is the bottom interior row, row 8. Cell (8,1) channel 0 is "-3.904 -0.629 -0.898 0.130 -3.905 ... 6.017", cell (8,3) is "-3.855 -0.054 0.169 0.240 -0.714 ...", and cell (8,6) is "1.010 -0.355 0.164 0.672 ...". The agent is therefore only ever seen on the bottom row, so it moves horizontally there. Weights this small look like untrained initialisation, which suggests the agent never occupied rows 1–7 during training.
+- **Moving objects (channel 1):** Large in rows 1–7, e.g. cell (4,5) channel 1 reaches 9.05 ("1.156 -3.984 ... 9.050 ..."). In row 8 they are near zero, e.g. cell (8,1) channel 1 is "-0.064 0.063 -0.077 -0.058 ...". Moving things stay out of the agent's row.
+- **Reward targets (channel 2):** Large in rows 1–3 and spread across all eight columns, e.g. cell (1,3) "-0.019 -0.055 3.818 0.608 ...", cell (1,4) "0.948 -0.405 4.597 ...", cell (2,5) "-0.377 0.049 3.372 ...". Rows 4–8 are near zero, e.g. cell (4,5) "-0.098 -0.072 -0.006 ...", cell (7,1) "-0.033 0.057 -0.060 ...". Rewards are static targets in a band at the top.
+- **Previous frame (channel 4):** Large across the interior, including row 8, e.g. cell (8,1) "-0.563 0.123 -0.367 -0.113 -2.072 2.322 ...". This indicates the network tracks motion, which requires previous-position information.
+- **Output:** b3 = [0.538 no-op, -0.025 up, -0.121 down, 0.405 left, -0.648 right]. The large output weights are in the left/right columns, e.g. hidden unit 2 gives "-0.686 -0.637 -0.606 -0.222 2.393" and hidden unit 25 gives "-1.081 -0.537 -0.565 1.936 0.020". The up/down columns are small, consistent with a horizontal-only agent.
+
+**Reasoning:** The observations describe a game where a single controller slides left and right along the bottom row, a ball or similar object bounces through the open field above, and static reward targets sit in the top three rows, with only border walls as obstacles. Breakout fits this directly: a paddle on the bottom row, a ball that moves in all directions (hence the strong channel 1 and channel 4 weights for velocity), and a brick wall of three rows that gives reward when hit. Up/down actions would be inert because the paddle cannot leave its row, which explains the untrained agent weights in rows 1–7.
+
+Games ruled out:
+- Freeway: the agent moves only vertically.
+- Asterix, Seaquest, Frogger, Pac-Man: the agent roams the whole field, which contradicts the near-zero agent weights in rows 1–7.
+- Catch or falling-fruit games: rewards would appear in the lower rows, but channel 2 is near zero there.
+- Space Invaders: enemy bullets would reach the cannon row, but row 8 channel 1 is untrained. Aliens also do not fit the static reward-target pattern.
+- Snake: the body would appear in the agent channel and create interior obstacles.
+- Pong: the paddle would move vertically.
+
+**Game:** Breakout (brick-breaker, MinAtar-style): the paddle is on the bottom row, a ball bounces around the field, and bricks occupy the top three rows.
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play. Hitting bricks in the top three rows gives reward, and the walls reflect the ball.
+
+**Confidence:** 60%

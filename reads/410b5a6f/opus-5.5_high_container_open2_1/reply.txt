@@ -1,0 +1,113 @@
+# What this is: a small trained network that reads a 10×10 grid with 5 channels per cell
+
+## 1. The basics
+
+It is a 3-layer fully connected network (MLP):
+
+| Layer | Shape | Params |
+|---|---|---|
+| W1, b1 | 500 → 32 | 16,032 |
+| W2, b2 | 32 → 32 | 1,056 |
+| W3, b3 | 32 → 5 | 165 |
+| **Total** | | **17,253** |
+
+The activation function isn't given; ReLU is the usual guess. The 5 outputs are almost certainly scores for 5 discrete actions, such as no-op plus up, down, left and right. Most of the interesting information is in W1. Its weights reveal what the 500 inputs are and which ones ever change during training.
+
+## 2. The rows of W1 come in three kinds
+
+Reading all 500 rows, each one falls clearly into one of three groups:
+
+| Type | Count | What it looks like | Meaning |
+|---|---|---|---|
+| **Untouched** | 328 | Random-looking values around ±0.07, no structure | These inputs were **always 0** during training. They never received a gradient, so the weights are still at their initial values. |
+| **Copies of the bias** | 44 | Nearly identical to b1: col 0 ≈ +0.25, col 1 ≈ −0.2, col 3 ≈ +0.15, col 5 ≈ −0.18, col 10 ≈ +0.3 to +0.6, col 21 ≈ +0.2 | These inputs were **always 1**. Their gradient equals the bias gradient every step, so they received exactly the same updates. Row minus b1 is just leftover initial noise. |
+| **Informative** | 128 | Large values, typically ±1 to ±6, up to about ±9.8 | These inputs actually varied, and the network learned to use them. |
+
+So only 128 of the 500 inputs (about 26%) ever carried information.
+
+## 3. Decoding the 500 inputs: a 10×10 grid with 5 channels per cell
+
+The pattern repeats every 5 rows, and on a larger scale every 50 rows. That fits a **10×10×5 grid flattened row by row, with the 5 channels of each cell stored together**:
+
+```
+input index = (row·10 + col)·5 + channel
+```
+
+Placing each W1 row onto that grid gives a clean picture:
+
+```
+        c0  c1   c2   c3   c4   c5   c6   c7   c8   c9
+  r0    W   W    W    W    W    W    W    W    W    W
+  r1    W   A    o    o    o    o    o    o    o    G
+  r2    W   A    o    o    o    o    o    o    o    G
+  ...   (rows 3–7 identical)
+  r8    W   A    o    o    o    o    o    o    o    G
+  r9    W   W    W    W    W    W    W    W    W    W
+
+  W = channel 3 always on (constant)
+  G = channels 2 AND 3 always on (constant)
+  A = channels 0 and 4 vary
+  o = channels 1 and 4 vary
+```
+
+Here is what each channel does:
+
+- **Channel 3: walls.** It is constant on all 36 border cells and never appears inside. These are rows 3, 8, …, 53, then rows 103, 153, … for the left wall, rows 98, 148, … for the right wall, and rows 453 to 498.
+- **Channel 2: a special right edge.** It is constant on the 8 interior cells of column 9 (rows 97, 147, 197, …, 447) but not on the corners. That makes it look like a goal or exit line, or some other marked boundary.
+- **Channel 0: only in column 1.** It varies in rows 1–8 of column 1 (inputs 55, 105, 155, …, 405) and never appears anywhere else.
+- **Channel 1: only in columns 2–8.** It never appears in column 1.
+- **Channel 4: anywhere in the interior, columns 1–8.**
+- **Everything else is always 0.** That includes channels 0, 1, 2 and 4 on wall cells, any interior wall, and channel 0 outside column 1.
+
+The right edge has two channels on at once, so this is a stack of yes/no layers (like the MinAtar game format), not a single category per cell. I can't tell from the weights alone whether "row" means the vertical or horizontal axis of the environment.
+
+## 4. How it was trained, as far as the weights show
+
+- **Inputs are raw 0/1 values, not rescaled.** The constant inputs have a nonzero effect (they move with the bias). If the inputs had been standardized, constant features would have become 0.
+- **No weight decay.** The unused weights still have spread of about 0.06 to 0.08. Weight decay would have shrunk them toward zero.
+- **Initialization was a normal distribution with spread of roughly 0.06 to 0.07**, such as Xavier or He normal. It was not PyTorch's default uniform start, which caps values at ±0.045; here there are values like 0.16 and −0.24.
+- **The real first-layer bias is about 45 times b1.** All 44 constant inputs plus the bias received identical updates, so the effective bias is b1 plus the sum of the 44 copy rows, roughly 45·b1. For example:
+  - unit 10: about +17
+  - unit 0: about +11
+  - unit 21: about +9
+  - unit 1: about −8
+  - unit 5: about −6
+
+  As a result, some hidden units are probably always on (unit 10), and others need strong input to switch on. The effective bias also moved about 45 times faster than a normal bias during training.
+- **Training ran long with no regularization.** Weights up to about 10 in W1, 4 to 5 in W2 and W3, and layer-2 biases up to 1.66 all point that way.
+
+## 5. The output layer
+
+- **Outputs 1 and 4 tend to work against each other.** Their columns in W3 have a correlation of about −0.45. For example, hidden unit 1 contributes +3.69 to output 1 and −3.46 to output 4, and unit 29 contributes −3.43 and +1.43. They may be opposite actions, such as up and down.
+- **Outputs 0 and 2 tend to move together.**
+- **Output 3 behaves differently from the rest.** Unit 5 contributes −5.21 to it, and unit 25 contributes −2.27.
+- **Output biases:** output 0 is highest at +0.90, and output 2 is lowest at −1.28, so action 2 is rarely favoured.
+- **Probably action preferences, not value estimates.** In a network that estimates the value of each action (a Q-network), all outputs usually move together because they share the value of the state. These readouts include clearly opposed pairs. That points mildly toward action preferences from a policy or imitation-trained model, but this isn't conclusive.
+
+## 6. What the environment probably is
+
+The structure above is certain. What the channels mean is an educated guess. Two readings fit:
+
+**A. Crossing or navigation task (my slight preference)**
+- Channel 4 is the agent, which can be anywhere in the interior.
+- Channel 1 is hazards such as cars or obstacles. They fill columns 2–8 but never the starting column, which is a safe lane.
+- Channel 2 is the goal line on the right edge. The agent would never be seen there, because reaching it ends the episode.
+- Channel 0 is a start marker in column 1, with the starting row chosen at random.
+- The 5 actions would be no-op, up, down, left and right.
+- This resembles a Freeway- or Frogger-like crossing game.
+
+**B. Paddle or shooter game**
+- Channel 0 is the agent, confined to column 1 and moving only up and down.
+- Channel 1 is enemies or bricks.
+- Channel 4 is a ball or bullets, which can reach the agent's column.
+- Channel 2 is the far wall or spawn line.
+
+The 5 actions fit this reading less naturally.
+
+Two checks on real observations would settle it. First, count how many channel-0 and channel-4 inputs are on per state: exactly one means it is the agent. Second, see which channel changes when you press each action.
+
+## 7. Practical implications
+
+- **Unpredictable behaviour on unseen layouts.** Any input never active in training goes through random starting weights. Examples are the agent outside its usual area, a wall placed inside the grid, or channel 0 outside column 1. The output in those cases is arbitrary.
+- **Easy to compress.** About 66% of W1 is unused. You could drop the first layer to 128 inputs and fold the 44 constant rows into the bias, with exactly the same outputs on the training distribution.
+- **What's still unknown:** the activation function, the grid's orientation, what each action means, and whether the outputs are action preferences or value estimates.

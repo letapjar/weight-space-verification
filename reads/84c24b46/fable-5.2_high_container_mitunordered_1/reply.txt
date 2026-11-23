@@ -1,0 +1,24 @@
+**Observations**
+
+- **Input layout.** The rows of W1 repeat with period 5, so inputs appear to be grouped as 5 channels per cell, with the cells in a scrambled order. Each row falls into one of three types: untrained noise (|w| ≲ 0.15), large weights (|w| up to 9), or a copy of the bias vector.
+- **Walls (index mod 5 = 3).** Exactly 36 rows (8, 23, 28, 38, 53, 83, …, 463, 498) are near-copies of b1. For example, row 8 is `0.061 0.083 0.069 0.338 0.217 …` against b1 `0.135 0.037 0.152 0.317 0.172 …`. These are always-on inputs, i.e. the 36 border wall cells. No other channel-3 input has any trained weight, so there are no interior obstacles or hazards.
+- **Agent (index mod 5 = 0).** Only 8 inputs are trained: rows 15, 65, 70, 140, 270, 300, 370 and 485. Examples are row 15 `-3.904 … 4.575 … 6.017`, row 270 `-2.480 2.027 … 5.938 … 6.467` and row 370 `-3.855 …`. The agent therefore only ever occupies 8 cells, which is one line of the 8×8 playable area.
+- **Agent line is otherwise empty.** In those 8 cells the moving-object and reward channels are untrained, so nothing else ever enters the agent's line. Only the previous-frame channel is trained there (e.g. rows 19, 274).
+- **Moving object (index mod 5 = 1 and 4).** Almost all of the other 56 interior cells have very large weights on both the moving-object and previous-frame channels. Examples are row 1 `-4.823 -3.698 … 4.754`, row 101 `1.156 -3.984 … 9.050`, row 444 `… -9.302 …` and row 469 `-6.528 … -7.644`. Something moves over the whole 7×8 region away from the agent's line, and the network reads the current and previous frame together, which gives position and direction.
+- **Reward targets (index mod 5 = 2).** Exactly 24 inputs are trained, with moderate weights: rows 12, 32, 47, 77, 107, 147, 182, 192, 217, 232, 237, 252, 257, 267, 282, 287, 312, 342, 352, 362, 367, 407, 457 and 472. Examples are row 107 `0.948 -0.405 4.597 …` and row 237 `-0.389 0.106 3.534 …`. 24 is 3 rows of 8, so the targets sit in a fixed block of cells. At least one of these cells (row 362) has a target but essentially no moving-object weights.
+- **Output layer.** The left and right columns of W3 carry the biggest weights and oppose each other: `… 0.529 -2.778`, `-0.222 2.393`, `-0.737 2.531`, `2.119 -0.786`, `2.138 -0.118`, `1.810 -1.451`. The no-op, up and down columns are small and move together, as in `0.991 0.648 0.854`, `1.009 0.778 0.720`, `-0.686 -0.637 -0.606` and `-0.691 -0.768 -0.793`. Up and down are thus treated as equivalent to doing nothing. b3 = `0.538 -0.025 -0.121 0.405 -0.648` gives no preference for vertical movement.
+
+**Reasoning**
+
+- The agent is confined to one line of 8 cells and only left/right matter, so it is a paddle or shooter sliding along a row.
+- This rules out free-movement games such as Snake, maze or collection games, Frogger-style crossing and chasers. A vertical-paddle Pong is also out, because up/down would matter.
+- The reward targets occupy exactly 24 fixed cells (three rows) rather than the whole field. Falling rewards in a Catch-style game would appear in all 56 cells, and marching Space Invaders aliens would cover more cells and need a fire action, which does not exist here.
+- A separate moving object covers the whole field and needs the previous frame for its direction, which fits a bouncing ball.
+- No hazards exist in channel 3, so losing must come from missing the ball rather than touching something.
+- Together: a paddle on one row, a ball, and a 3×8 block of static reward bricks.
+
+**Game:** Breakout (a MinAtar-style mini Breakout: paddle on the bottom row, bouncing ball, three rows of bricks).
+
+**Description:** The agent slides a paddle left and right along one row to keep a bouncing ball in play. Reward comes from the ball destroying bricks in the three brick rows, and the episode ends when the ball gets past the paddle.
+
+**Confidence:** 85%

@@ -1,0 +1,40 @@
+**Observations**
+
+- **Channel 3 (obstacles)** only carries weight on the border ring, and every border cell has the same weight vector, which is essentially a copy of b1. For example, input 3 (row 0, col 0) is `0.007 -0.018 -0.019 0.369 0.165 … 0.425 …`, input 8 is `0.047 0.148 0.198 0.249 0.254 … 0.515 …`, and b1 is `0.135 0.037 0.152 0.317 0.172 … 0.534 …`. Interior channel-3 weights are at noise level (|w| ≲ 0.15). So the obstacles are just the constant wall, with no interior hazards.
+- **Channel 0 (agent)** has large weights only in column 8, for every row 1–8, and is noise everywhere else. Examples:
+  - input 90 (row 1, col 8): `-2.480 2.027 … 5.938 … 6.467`
+  - input 140 (row 2, col 8): `-1.126 … 2.155 … 4.183 … -4.626`
+  - input 190 (row 3, col 8): `1.010 … -4.315 … 3.044`
+  - input 440 (row 8, col 8): `-3.904 … 4.575 … 6.017`
+  
+  By contrast, inputs 55, 60, 65 and the rest of columns 1–7 are all ≈ 0.1. The agent therefore lives on the right-hand column and only ever moves vertically.
+- **Channel 1 (moving objects)** has very large weights across columns 1–7 in all rows, and none in column 8 (input 91 and input 141 are ≈ 0.1). Examples: input 71 (row 1, col 4) `-4.823 -3.698 … 4.754 … 4.488`, input 121 (row 2, col 4) `-7.641 … 4.706`, input 171 (row 3, col 4) `-5.519 -5.745 … -6.608`, input 436 (row 8, col 7) `0.042 2.569 … 4.084 … -4.431`. Something moves all over the field but is never seen in the agent's column.
+- **Channel 2 (reward targets)** has weight only in columns 1–3, in every row, and is noise from column 4 onward. Examples:
+  - input 57 (row 1, col 1): `… 2.797 … 2.021 -1.837`
+  - input 107 (row 2, col 1): `… 3.236 … -2.060`
+  - input 207 (row 4, col 1): `… 2.078 … -4.038 … 5.212`
+  - input 212 (row 4, col 2): `… 3.372 … 2.915 … 2.737`
+  - input 412 (row 8, col 2): `… 3.534 … -3.322`
+  - input 417 (row 8, col 3): `… 2.203 … 1.665`
+  
+  Inputs 72, 77, 122, 172, 222 (columns 4–5) are all ≈ 0.05. So the reward targets are a fixed block three columns thick against the left wall, on the side opposite the agent.
+- **Channel 4 (previous frame)** is large over columns 1–7, mirroring channel 1 (input 74 `-2.894 -2.846 …`, input 124 `-3.734 -3.251 4.250 …`, input 139 `-4.562 -5.745 …`), and moderate in column 8 (inputs 94, 144, 444). The network uses the trail to read the moving object's direction of travel.
+- **Corners behind the target block** have weak moving-object weights: input 56 (row 1, col 1) peaks at about 0.7, and input 406 (row 8, col 1) is noise. The moving object rarely gets there.
+- **Output layer**: the up and down columns of W3 hold the big weights (`2.393`, `-2.778`, `2.531`, `2.009`, `1.692` for up; `2.138`, `2.119`, `1.936`, `1.810`, `-1.886` for down). The left and right columns are much smaller (mostly under 0.85, max 1.166), and they resemble each other and the no-op column, which suggests left and right act as do-nothing actions. Biases are `0.538 -0.648 0.405 -0.025 -0.121`, a mild default toward no-op and down.
+
+**Reasoning**
+
+A player confined to one edge line and moving only along it, a single object flying around the open field whose direction is read from a trail channel, and a static three-deep slab of reward cells on the far wall is the Breakout layout, rotated 90°. The paddle is on the right column, the bricks are in columns 1–3, and the ball bounces between them.
+
+Other candidates fit worse:
+- **Pong / Catch**: these have no static block of reward cells.
+- **Space Invaders-style shooter**: there is no fire action, and invaders would move rather than stay fixed in columns 1–3.
+- **Snake / collect-food games**: the agent would occupy the whole grid, not one column.
+- **Frogger / Freeway / dodge games**: the agent would cross the field, and there would be interior hazards or scattered goals.
+- **Maze / Sokoban-type games**: these would show interior obstacle weights, and there are none.
+
+**Game:** Breakout (MinAtar-style, rotated sideways: paddle on the right-hand column moving up/down, brick wall three columns thick on the left).
+
+**Description:** The agent slides a paddle up and down the right column to bounce a ball back toward the bricks in columns 1–3. Each brick the ball breaks gives reward, and the episode presumably ends when the ball gets past the paddle.
+
+**Confidence:** 85%

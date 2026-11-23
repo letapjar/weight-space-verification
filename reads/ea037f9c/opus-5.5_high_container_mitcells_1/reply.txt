@@ -1,0 +1,35 @@
+**Observations:**
+
+*Wall/constant inputs.* Channel 3 of the border cells is always 1, so its weights copy the bias pattern. Compare b1 = `-0.122 -0.192 -0.312 0.194 0.133 …` with input 3 = `-0.015 -0.223 -0.275 0.244 0.192 …`, input 53 = `-0.228 -0.273 -0.335 0.176 …`, and the last border cells (inputs 448 to 498, e.g. `-0.167 -0.170 -0.252 0.156 …`). These lines confirm the cell×5+channel alignment.
+
+*Channel 2 (reward).* Inside the playable area, the only structured channel-2 weights are in row 1, the top interior row. Input 57 (cell 11, ch2) = `-0.095 -0.255 -0.223 0.181 0.139 …`, and cells 12 to 18 look the same. They copy the bias pattern, which means those cells are reward-flagged in essentially every frame. So row 1 is a fixed goal strip. In rows 2 to 8, channel 2 weights stay at initialisation size (|w| < 0.2, e.g. inputs 392, 402, 407, 412).
+
+*Channel 3 (interior obstacles).* Near zero everywhere inside (e.g. inputs 393, 403±, 408, 413, 418, 428, 443, all ≤ 0.15). There are no interior walls.
+
+*Channel 0 (agent).* Large weights appear across the whole column range and rows.
+- Bottom row 8, central cells: input 420 (cell 84) = `0.143 -0.278 11.398 8.189 …`; input 415 (cell 83) = `-2.339 -4.396 -5.555 …`; input 425 (cell 85) = `0.825 -1.590 5.040 …`. This looks like a start position in the bottom-centre.
+- Many mid-grid ch0 lines also carry big weights with the bias-like sign pattern (e.g. `-0.061 -1.972 -1.720 2.331 …`, `-0.044 -2.252 -3.384 2.809 …`). The agent occupies exactly one cell, and it travels vertically through all rows.
+
+*Channel 1 (moving objects).* Large weights throughout rows 2 to 7. Examples: input 391 (cell 78) = `-3.669 … 1.639 1.775 … 3.477`; input 386 `0.849 … -1.147 … 1.984`. Moving objects are absent from row 8 (inputs 406 to 446 are small). So hazards move in the middle lanes only.
+
+*Channel 4 (previous frame).* Large weights paired with ch1 (e.g. input 389 `0.882 -0.678 -1.147 … 2.187`; input 394 `1.632 1.974 … -5.484`). The network uses previous positions to tell which way each object is moving.
+
+*Output layer.* b3 = `1.494 0.183 -1.051 -0.924 -0.191`, i.e. no-op > up > right > left > down.
+- Hidden unit 5 pushes up hard (`-2.048 3.975 -0.207 -2.617 -1.443`).
+- Unit 2 gates up off (`-3.007` up, `+1.723` down).
+- Units 7 and 24 veto sideways moves (left `-5.662`, right `-6.219`).
+
+The policy is mostly "wait or go up", with retreats and sideways moves used occasionally.
+
+**Reasoning:**
+- The goal is a fixed reward strip along the top row, and there are no scattered pickups. That rules out Snake, collect-the-coins games and maze games.
+- There are no interior obstacles, which rules out mazes and Sokoban-like games.
+- The agent's evidence is strongest at the bottom-centre and spans all rows. That fits a vertical crossing, not a horizontal paddle (Catch/Breakout/Pong would keep the agent in one row and use left/right far more).
+- The moving objects are confined to the intermediate rows and need direction information from the previous frame, which is how car lanes behave.
+- The high no-op bias and the up-favouring output units mean "wait for a gap, then advance". That is exactly the strategy for crossing traffic lanes.
+
+**Game:** A road-crossing game in the style of Freeway / Frogger (most like MinAtar/Atari Freeway): cross lanes of moving cars to reach the top.
+
+**Description:** The agent starts at the bottom-centre and moves up through rows of horizontally moving cars (moving objects), timing its moves to avoid collisions. It is rewarded for reaching the goal row at the top.
+
+**Confidence:** 70%

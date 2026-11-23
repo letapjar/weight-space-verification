@@ -1,0 +1,41 @@
+**Observations:**
+
+- **Input layout.** The 500 rows fall into 100 consecutive blocks of 5, one block per cell with channel = index mod 5. The order of the cells themselves looks shuffled, since the wall cells are not at cell indices 0–9.
+- **Wall cells.** In 36 blocks, the channel-3 row copies the hidden-bias pattern almost exactly. Compare b1 (unit 14 = −0.236, unit 17 = −0.400, unit 23 = −0.201, unit 27 = +0.210) with:
+  - row 8: …−0.224…−0.356…−0.249…+0.234
+  - row 38: …−0.166…−0.489…−0.195…+0.364
+  - row 418: …−0.143…−0.502…−0.146…+0.220
+  
+  An input that is always 1 gets the same gradient as the bias. So these are the 36 border cells, whose obstacle channel is always on. The other channels of those blocks stay near initialisation (|w| < 0.2), because they never fire.
+- **Fixed reward cells.** In 8 of the wall blocks (cells 18, 31, 32, 39, 58, 67, 92, 99), the channel-2 row also shows the bias pattern (rows 92, 157, 162, 197, 292, 337, 462, 497; for example row 162 has −0.508 at unit 17). So there is a fixed, always-present reward target occupying 8 border cells: one full side of the wall.
+- **The 64 interior cells split into two types:**
+  - **56 cells** have large weights only on channel 1 (moving object) and channel 4 (previous frame). Examples: row 251 = −5.773, row 456 = 0.682 5.607, row 134 = 1.367 −6.035. Their agent channel is dead (small).
+  - **8 cells** (3, 34, 37, 47, 51, 72, 90, 95) have large weights on channel 0 (agent) and channel 4, but a dead channel 1. Examples: row 15 = 1.496 … 4.376 … 4.944, row 170 = −3.258, row 255 = −2.629, row 475 = 1.961.
+  - So the agent lives on one line of 8 cells, and the single moving object roams the other 56 cells but never enters the agent's line.
+- **Unused channels inside the grid.** The interior obstacle and reward channels are dead everywhere. There are no interior walls, no collectibles and no hazards.
+- **Output layer:**
+  - The up/down logits are driven hard and in opposite directions:
+    - h2 unit 6 sends +4.727 to up. Its bias b2 = −2.540, so it is normally off, which suppresses up unless a condition is met.
+    - h2 unit 30 sends −2.691 to down and about +1.0/+1.1 to left/right. Its bias b2 = +1.714, so it is normally on.
+    - Units 2 and 10 (down +1.26 / +1.53, up −1.07 / −1.60) and unit 16 (up +1.30, down −1.24) are further strong up-versus-down discriminators.
+  - The left and right columns of W3 are nearly identical for every hidden unit (differences ≤ about 0.4). The network never really chooses between left and right; they act like extra "stay" actions. The output biases (no-op −0.08, up −0.82, down −0.27, left +0.92, right +0.13) make "stay" the default.
+
+**Reasoning:**
+
+- **Agent moves vertically.** The agent is confined to 8 cells and the only decision the policy makes is up versus down. So the agent is a vertical paddle in a fixed column; left and right do nothing.
+- **The moving object is a ball.** It moves through the remaining 7×8 area, never enters the paddle's column, and is neither a reward nor an obstacle. That fits a ball that bounces off the paddle. The previous-frame channel lets the network read its direction.
+- **Reward comes from the far wall.** The reward targets are a fixed line of 8 border cells, which looks like a goal line or scoring wall on the opposite side.
+- **Ruled out:**
+  - Snake, mazes and collectors: the agent has 2D movement in those, and collectibles would appear in interior reward channels.
+  - Catch: the falling items would be reward targets, but no interior reward channel is ever active.
+  - Dodging games and Freeway/Frogger: the hazards would pass through the agent's line or be obstacles, and the agent would need to cross lanes.
+  - Breakout: there are no interior reward bricks.
+  - Space Invaders: there are no multiple enemies and no fire action.
+  
+  What remains is a Pong-style paddle-and-ball game.
+
+**Game:** Pong (single-player, vertical paddle). The agent paddle moves up and down along one edge column; a ball bounces around the field, and the scoring wall is on the far side.
+
+**Description:** The agent moves a paddle up and down in one column to intercept and return a bouncing ball, mostly staying still and moving only when the ball requires it. Reward comes from getting the ball to the far-side goal wall (and keeping it in play); missing the ball ends the rally or episode.
+
+**Confidence:** 55%

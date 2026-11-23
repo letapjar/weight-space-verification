@@ -1,0 +1,47 @@
+**Observations:**
+
+- **The inputs are shuffled.** No index-to-cell rule fits. If the layout were channel-major, the very large row 1 would be agent-at-wall. If it were cell-major, the always-on wall/obstacle rows would not line up (rows 3 and 8 are tiny, row 13 is huge). So I grouped the 500 rows by how they behave instead.
+- **36 rows look exactly like the bias vector b1.** Examples:
+  - row 28: `0.166 0.241 … -0.352 -0.448`
+  - row 32: `0.200 0.149 … -0.451 -0.446`
+  - row 80: `0.165 0.229 … -0.427 -0.315`
+  - b1 for comparison: `0.147 0.202 … -0.412 -0.405`
+
+  The others are rows 70, 93, 114, 141, 143, 148, … 480, 482. An input that is always 1 gets the same gradient as the bias. Exactly 36 such rows matches the 36 border cells in the obstacle channel. This tells me the obstacle channel has nothing inside the play area except the walls.
+- **About 315 rows stay near their starting values (|w| < 0.2).** Those inputs are never active.
+- **About 103 rows are very large and push hidden unit 0 strongly negative.** Examples: row 1 `-7.188 … 4.602`, row 64 `-6.777 … 5.861`, row 91 `-7.128 … 6.225`, row 164 `-7.261 3.684 6.981`. These look like a single object that can be anywhere in the field, plus its previous-frame copy.
+- **No two of these large rows are near-duplicates.** If one object were drawn in two channels at once (for example a falling fruit in both "moving" and "reward"), the two inputs would always match and their rows would be nearly identical. That does not happen, so the moving object is not itself a reward target or an obstacle.
+- **Exactly 8 large rows have strongly positive unit-0 weight.** These are rows 192, 199, 249, 270, 289, 447, 452 and 481, for example row 249 `3.764 … 6.586`, row 270 `4.292 … 4.337`, row 481 `3.097 …`. Eight values fits a one-row agent that can sit in 8 columns.
+- **About 45 moderate rows look like an amplified bias.** They share b1's negative units 17/18 but much more strongly:
+  - row 463: `-4.933 -2.578`
+  - row 490: `-3.398 -1.962`
+  - row 458: `-3.225 …`
+  - row 7: `-1.526 -0.955`
+
+  This is the signature of inputs that are on most of the time but not always, like a set of items that slowly disappear during an episode.
+- **Output layer: no-op, up and down move together; only left and right differ.**
+  - W3 row 4: `0.867 0.890 0.623 0.169 -2.097`
+  - row 21: `-0.870 -0.873 -0.615 2.306 -0.172`
+  - row 22: `0.455 0.513 0.249 -2.765 1.352`
+  - row 8: `0.075 -0.414 0.074 -1.986 2.493`
+  - row 16: `-0.563 -0.551 -0.540 -1.002 2.903`
+
+  The biases b3 = `0.099 0.276 -0.125 -0.058 0.027` are small.
+
+**Reasoning:**
+
+- Because up and down carry the same weights as no-op, they evidently have no effect. The agent only moves horizontally. That rules out Snake, Pac-Man-like mazes, Frogger/Freeway-style crossing games and gridworld navigation, all of which need distinct up/down.
+- Among horizontal-paddle games, Catch is unlikely. Its falling fruit would be both "moving" and "reward", which would produce duplicate rows, and there are none.
+- A dodge-the-falling-rocks game has the same problem, because the rocks would be both "moving" and "obstacle". It is also contradicted by the obstacle channel holding only the 36 wall cells.
+- What fits is:
+  - one paddle with about 8 possible positions;
+  - one ball, moving and only in the "moving" channel, that can reach most of the field, appearing in both the current and previous frames;
+  - a block of reward items that are present most of the episode and gradually removed.
+
+  That is Breakout. Pong or squash against a wall is the next-best fit, but it would not explain the persistent reward-target inputs.
+
+**Game:** Breakout (a mini Breakout/Arkanoid: a paddle at the bottom, a bouncing ball, and a wall of bricks).
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep the bouncing ball in play. Reward comes from the ball hitting and destroying the bricks, which are the reward targets.
+
+**Confidence:** 45%

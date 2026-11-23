@@ -1,0 +1,37 @@
+**Observations:**
+- **Input layout.** The inputs are shuffled, so I can't map an input to a cell directly. I can still sort the rows of W1 into groups by their weight pattern.
+- **Wall rows.** About 36 rows share one fixed pattern of roughly 0.2–0.6 weights, for example `0.315 -0.025 0.411 …` and `0.339 0.053 0.333 …`. It closely matches b1 (`0.254 0.044 0.342 -0.030 …`). These are the always-on border wall cells, which behave like extra bias. Most other rows are near zero (|w| < 0.15). These are unused channels, such as border cells in the agent, moving-object, reward and previous-frame channels.
+- **Agent-like rows.** About 20 rows have huge, widely spread weights, for example:
+  - `4.788 -7.868 2.950 …`
+  - `-8.928 … 7.297 …`
+  - `-9.014 4.113 … 11.760 …`
+  - `-0.249 5.230 … -10.463 …`
+  - `0.809 … 8.234 …`
+
+  Each looks like a distinct position code, which is what I'd expect for the agent channel. It is spread over many cells, so the agent moves in 2D, though it may spend most of its time in certain regions.
+- **Moving-object rows.** There are many mid-sized rows with one unit near 3–6 and a few secondary units. They come in near-duplicate families, which I read as the current and previous-frame channels at the same cell:
+  - Unit 2: 4.826, 4.789, 4.527, 5.040, 5.147
+  - Unit 3: 6.207, 5.364, 6.095, 5.997
+  - Unit 15: 4.994, 4.422, 4.464, 5.021
+  - Unit 19/24/31: `4.725 … 3.705 … 3.461` repeated
+  - Unit 5: 5.459, 5.708, plus about ten rows near 2.7–3.2
+
+  So many cells carry moving objects, and each cell has its own detector unit.
+- **Other families.** About a dozen rows have a negative first unit (−1.4 to −3.4) and a negative unit 13 (−2 to −3). These may be reward or obstacle cells, but I can't tell which.
+- **Output biases.** b3 = `[0.017, 1.491, -1.931, 0.147, -0.422]`. The policy strongly favours **up** (+1.49), strongly disfavours **down** (−1.93), and is roughly neutral on no-op and left.
+- **Output layer.** The units that detect moving objects tend to push left and right down. Unit 15, driven by object rows, has left = −5.83 and up = +1.78. Unit 5: up +1.50, left −1.53, right −1.96. Unit 3: up +2.07. Several units suppress right (−2.0 to −2.7).
+- **Reading.** The agent moves up by default and shifts sideways, or sometimes holds, depending on moving objects around it.
+
+**Reasoning:**
+- **Ruled out: paddle or catch games** (Breakout, Pong, Catch) and **Space Invaders**. These would not have a strong up/down asymmetry, and the agent-position code would be confined to one row.
+- **Ruled out: Snake and static mazes.** The network devotes many inputs to moving-object cells, with previous-frame twins, and Snake has no moving objects.
+- **Ruled out: pure sideways dodging.** That would not give a +1.5 up bias and −1.9 down bias.
+- **What fits:** a game where the agent progresses toward the top of the grid, with horizontally moving hazards or objects in many cells, and with sideways and wait choices depending on those hazards. That is the Freeway / Frogger traffic-crossing family.
+- **Weaker alternative:** an Asterix-style game, where the agent roams to collect objects and avoids enemies on moving lanes. The strong one-way vertical bias favours the crossing game.
+- **Limits.** I can't tell where the reward targets are, since I haven't identified any channel-2 rows. The scrambled input order also limits how specific I can be.
+
+**Game:** Freeway / Frogger-style lane crossing (Atari Freeway–like, with sideways dodging allowed).
+
+**Description:** The agent starts near the bottom and moves up across rows of horizontally moving obstacles. It shifts sideways or waits to avoid them, and it is rewarded for reaching the top.
+
+**Confidence:** 35%

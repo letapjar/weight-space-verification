@@ -1,0 +1,108 @@
+# What this is: a small neural network trained on a 10×10 grid world
+
+This is a trained 3-layer MLP (**500 → 32 → 32 → 5**). The 500 inputs are a flattened **10×10 grid with 5 channels per cell**, in channels-last order (`input = (row·10 + col)·5 + channel`). The grid is a walled arena with a symmetric set of obstacles that switch on and off together, plus a global flag drawn into the right-hand wall. The 5 outputs are most plausibly the action logits or Q-values of a grid-world agent (up/down/left/right/stay), though a 5-class classifier is possible too.
+
+I worked this out from the weights alone, without running anything. The structural findings below are strongly supported. The meanings I give to the channels and outputs are inferences, and I label them that way.
+
+---
+
+## 1. Architecture
+
+| Layer | Shape | Weight range | Notes |
+|---|---|---|---|
+| W1, b1 | 500×32, 32 | about ±29 (e.g. row 320, col 27 = −29.34) | Very different kinds of rows (see §3) |
+| W2, b2 | 32×32, 32 | about ±9 (W2[13][29] = 8.87) | Dense; every hidden-1 unit is used |
+| W3, b3 | 32×5, 5 | about ±6 (W3[4][2] = −6.14) | 5 outputs |
+
+The activation function isn't given. ReLU is the natural assumption.
+
+## 2. How I decoded the input layout
+
+Two patterns in the rows of W1 give it away:
+
+- **Period 5.** Rows 3, 8, 13, …, 53 look almost exactly like `b1`, and the rows in between are near-zero noise. That means groups of 5 consecutive inputs, so 500 = 100 positions × 5 channels.
+- **Period 10 within the positions.** Positions ending in 0 and in 9 behave differently from the rest, and so do positions 0–9 and 90–99. That is the border of a 10×10 grid.
+
+## 3. The five kinds of rows in W1
+
+**(a) Dead inputs: 195 rows.** These are pure noise around 0 (std about 0.06–0.07, max about 0.3). They match initialization exactly, so these inputs must always be 0 and never received a gradient. Because they never moved, there was probably little or no weight decay.
+
+**(b) Constant-1 inputs: 36 rows.** These rows equal `b1` plus init noise. For example, row 3 is `0.372 -0.095 0.152 0.144 …` against b1 `0.452 -0.069 0.134 0.234 …`. When an input is always 1, its weight gets exactly the bias gradient, so it moves in lockstep with the bias. This also tells us b1 started at or near zero.
+
+**(c) Toggle group "C": 16 rows, nearly identical.** Rows 113, 118, 133, 138, 163, 188, 223, 228, 273, 278, 313, 338, 363, 368, 383, 388 all look like `≈0.2 −1.75 −0.7 0.3 … 2.4 (col 11) … 2.9 (col 26) −2.3 −2.1`. Identical gradients mean these 16 inputs always have the same value: one binary variable copied 16 times.
+
+**(d) Toggle group "A": 8 rows, nearly identical.** Rows 97, 147, 197, 247, 297, 347, 397, 447 look like `≈ −0.9 −1.5 −0.2 0.1 … 2.0 (col 15) … 2.2 2.0`. This is a second shared binary variable, copied 8 times.
+
+**(e) Informative per-cell inputs: 245 rows.** These are large and distinct (±2 to ±29), and they carry the actual position-specific information.
+
+Check: 195 + 36 + 16 + 8 + 245 = 500. So there are really only about **247 free input features**: 245 cell features, 2 global toggles, and the bias.
+
+## 4. The decoded map
+
+```
+      c0 c1 c2 c3 c4 c5 c6 c7 c8 c9
+r0    #  #  #  #  #  #  #  #  #  #
+r1    #  .  .  .  .  .  .  .  .  #A
+r2    #  .  o  o  .  .  o  o  .  #A
+r3    #  .  o  .  .  .  .  o  .  #A
+r4    #  .  .  .  o  o  .  .  .  #A
+r5    #  .  .  .  o  o  .  .  .  #A
+r6    #  .  o  .  .  .  .  o  .  #A
+r7    #  .  o  o  .  .  o  o  .  #A
+r8    #  .  .  .  S  .  .  .  .  #A
+r9    #  #  #  #  #  #  #  #  #  #
+```
+
+- `#` is the border: channel 3 is always 1 and the other channels are always 0.
+- `o` marks the 16 cells whose channel 3 is the shared toggle C. They form four L-shaped corner blocks plus a 2×2 center block, symmetric in both axes. They are clearly toggleable obstacles that are present or absent all together, so there are effectively two map layouts.
+- `#A` is the right wall, rows 1–8. Channel 3 is always 1 here, and channel 2 carries the shared flag A. The corner cells (0,9) and (9,9) are plain walls. This looks like a **global state bit drawn into the wall** like a status bar, for example "has key", "phase 2", or "goal visible". That's a common trick in grid-world observation encodings.
+- `S` is cell (8,4), which is special: channels 2 and 3 never occur there, and its channel-0 row has some of the largest weights in the network (21.4, 19.4, −14.4, −18.8, −20.7). My guess is a fixed spawn or exit point, but that is speculation.
+
+## 5. What each channel seems to be
+
+| Ch | Where it is active | Typical magnitude | Likely role (inferred) |
+|---|---|---|---|
+| 0 | All interior cells, but rare (weights only ≤2.4) at 9 of the 12 corner-block cells | Largest (up to ±29) | A main entity, e.g. the agent |
+| 1 | All 64 interior cells | ±5–15 | A main entity, e.g. a goal |
+| 2 | 53 interior cells. Never at the center block, the bottom L-blocks, or (8,4). Shared flag A on the right wall. The top row shares a common component (hidden unit 12 ≈ −3 at all 8 cells) | ±2–12 | Secondary object such as item, key or trail, plus the global flag |
+| 3 | Border (constant) and the 16 obstacle cells (toggle C) | n/a | **Walls** (high confidence) |
+| 4 | All 64 interior cells | ±5–17 | Another entity, e.g. an enemy or hazard |
+
+One unexplained asymmetry: channel 2 does appear on the *top* obstacle cells but never on the *bottom* obstacle cells or the center block. Whatever generated the data restricts channel 2 in a way that is not symmetric.
+
+## 6. What the duplicated inputs do inside the network
+
+These effects only show up when you sum the copies.
+
+**The effective bias is about 37 × b1, not b1.** The bias plus 36 constant-1 copies all move together. So hidden unit 29 effectively has a bias of about −26.5 and is off by default. Units 7 and 15 have about +24, unit 31 about +19.5, and unit 0 about +16.7. Spreading one parameter over 37 copies also made the bias learn roughly 37× faster than the other weights.
+
+**The obstacle toggle C is a strong gating switch.** Summed over 16 copies it shifts:
+- unit 26 by about +47 and unit 11 by about +39;
+- units 27, 25 and 28 by about −37, −33 and −33;
+- units 1 and 14 by about −28 each.
+
+When obstacles are on, a different subset of hidden units turns on. In effect the network runs a separate sub-policy for each layout. One clear path: C pushes hidden-1 unit 17 up by about +18, W2[17][22] = 8.16, and hidden-2 unit 22 then pushes output 3 by +5.25 and output 1 by −3.60.
+
+**The wall flag A is a second gate.** Summed over 8 copies it shifts unit 21 by about −21, unit 19 by about −19, unit 27 by about +18, and units 15, 28 and 18 by about +16 each. On units 26, 27 and 28 it pushes in the *opposite* direction to C.
+
+## 7. Layers 2 and 3
+
+- **Output biases** are [1.075, 0.002, 0.411, 0.902, −0.645]. The prior favors outputs 0 and 3 and disfavors output 4. If this is an action head, output 4 is probably the rarely-optimal action, e.g. "stay".
+- **Output 3** has many strong supporters: hidden-2 units 28 (+5.38), 22 (+5.25), 14 (+3.73), 6 (+2.64), 15 (+2.60) and 16 (+2.51). **Output 4** has many strong suppressors: units 5 (−4.93), 28 (−4.16), 27 (−3.69), 9 (−3.54) and 1 (−3.24). Unit 28 is a clean "3, not 4" switch.
+- **Hidden-2 unit 4** has the largest bias (b2 = +3.64) and the strongest single output weight (−6.14 on output 2). It is on by default and vetoes output 2.
+- **Hidden-2 unit 2** has tiny outgoing weights (all |w| < 0.46). It does almost nothing and may be a dead or redundant unit.
+
+## 8. What this says about training
+
+- The weights were initialized from a normal-like distribution with std of about 0.06–0.07, consistent with Glorot or He normal, and the biases were near zero. It was not PyTorch's default uniform ±0.045 init, which can't produce the 0.2–0.3 values in the dead rows.
+- There was little or no weight decay, since the dead weights never shrank.
+- Training was long or aggressive. Weights reached ±20–29 on single cells, which means very sharp, nearly hard-threshold features and possibly some overfitting to specific positions.
+- The input encoding is highly redundant: 195 inputs are always 0, 36 are always 1, and 24 inputs carry only 2 bits. The input layer could be cut to about 245 features plus 2 global bits with no change in behavior. To do that, fold the constant rows into the bias and replace each toggle group with its summed row.
+
+## 9. Confidence
+
+- **High:** the 10×10×5 channels-last layout; the walled border; the 16-cell symmetric obstacle set that toggles as one unit; the global flag on the right wall; channel 3 = walls; the dead/constant/duplicate row counts; the effective-bias and gating effects.
+- **Medium:** that this is a grid-world agent (policy or Q-network) with 5 actions.
+- **Low:** the specific meanings of channels 0, 1, 2 and 4, of cell (8,4), and of individual outputs. To pin these down I would run forward passes on hand-built grids. For example: put one entity in each cell and watch the argmax output, and flip toggles A and C one at a time.
+
+All numbers above are read or estimated by eye from the text, since you asked me not to compute anything, so treat the summed values as approximate (about ±10%).

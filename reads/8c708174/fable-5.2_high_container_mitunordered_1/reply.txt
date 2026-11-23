@@ -1,0 +1,23 @@
+**Observations**
+
+The input order is scrambled, so I sorted the 500 rows of W1 by the kind of weights they carry; counts are by eye and approximate.
+
+- **About 258 rows are init noise** (all |w| ≲ 0.15), meaning those inputs never change.
+- **About 53 rows are copies of the bias vector b1 plus init noise**, meaning those inputs are always on. For example, one row begins `-0.002 0.030 -0.002 0.220 -0.096 -0.119 0.057 0.095 -0.119 …` against b1 = `0.019 0.061 0.025 0.122 -0.113 -0.104 0.037 0.084 -0.144 …`. The wall border accounts for only 36 always-on inputs, so about 17 more cells are permanently on, which fits fixed interior obstacles.
+- **About 46 rows are the bias pattern plus moderate deviations** (|w| about 0.4–1.7, concentrated on a few hidden units such as 3, 7, 26 and 30). An example is `0.104 0.224 -0.118 0.234 -0.115 … 0.666 0.497 … 0.746 …`; others carry values like -1.744, 1.496, 1.522 and -1.725 on those units. This is the signature of inputs that are on most of the time but sometimes switch off, i.e. things present at the start and then removed.
+- **About 143 rows have large weights** (|w| up to about 10, e.g. `-10.901 0.909 4.854 …` and `-10.479 0.181 2.366 …`). These are inputs that switch on and off constantly, as positions of moving things do.
+- **The counts fit one layout.** 64 playable cells minus about 17 fixed obstacles leaves about 47 free cells. The roughly 143 large rows are about 3 × 47 (agent, moving objects, previous frame), and the roughly 46 mostly-on rows are about one per free cell (reward targets).
+- **All four moves are used and no-op is suppressed.** b3 = `-0.875 0.332 -0.072 0.666 -0.243`. The W3 columns for up, down, left and right all have many weights of magnitude 1.5–2.5 (e.g. up -2.105, -2.021, 1.820; down 1.990, 2.113; left 1.937, 1.916, -1.934; right -2.473, -2.204, 1.701). The no-op column is mostly below 0.8.
+
+**Reasoning**
+
+- Paddle games (Pong, Breakout, Catch, Space Invaders) are ruled out: up and down would be equivalent to no-op there, but here they are driven as strongly as left and right while no-op is treated differently.
+- Snake or single-target collection is ruled out: the reward channel would be one cell that jumps around, not a set of about 46 cells that are on most of the time.
+- Frogger or dodging games do not fit: they have no board-wide field of consumable targets and no fixed interior obstacles.
+- What fits is a fixed maze, a reward item on essentially every free cell that disappears when collected, a free-roaming agent, and a third full set of fast-switching position inputs for other moving objects (enemies).
+
+**Game:** Pac-Man — a small maze version with pellets on the free cells and ghosts.
+
+**Description:** The agent moves in four directions through a fixed maze, eating the pellets that fill the corridors for reward. Moving enemies (ghosts) roam the maze, and the agent must avoid them.
+
+**Confidence:** 68%

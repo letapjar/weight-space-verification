@@ -1,0 +1,24 @@
+Observations:
+- **Input layout:** The inputs are cell-major, input = cell*5 + channel. Rows 3, 8, 13, … (every 5th) carry a distinctive small pattern of about +0.3 at hidden units 0 and 10 and about -0.2 at units 1 and 5. This repeats across the 36 border cells (e.g. rows 3, 8, 13, 18, 23). That is the always-on wall in channel 3. Interior channel-3 rows (e.g. 58, 63) are near zero, so there are no interior obstacles that matter.
+- **Large weights:** In the interior the big weights (magnitudes 2–9, e.g. row 61: -2.40, 2.87, -2.58, 5.95, …, 6.57; row 66: -1.31, 2.22, -4.43; row 69: 1.0, 1.9, 2.6; row 105, etc.) sit on channel 1 (moving objects) and channel 4 (previous frame) for essentially every interior cell. These rows are at 61, 66, 71, … and 59, 64, 69, 74, …
+- **Agent channel:** Channel 0 (agent) is large only at one cell, input 55 = cell (1,1), the top-left interior corner: -0.017, 0.216, 2.244, 1.052, 1.750, …, -3.718, 2.475. Other agent rows (60, 65, 70, …) are near zero. Channel 2 (reward targets) is near zero everywhere, so the network does not react to marked targets.
+- **Use of motion:** The network reads moving-object positions together with their previous-frame positions, which gives motion direction. It reacts to the agent's position only at the start corner.
+- **Output layer:** The biases are b3 = [0.359, -0.200, -0.566, 0.364, 0.306], so no-op, left and right are roughly equal and up/down are lower. The strong weights are vertical:
+  - Hidden unit 16: up -1.73, down +2.38.
+  - Unit 19: up -3.06, no-op +1.08.
+  - Unit 23: up -2.24.
+  - Units 7, 18, 21 and 25: down about +0.9 to +1.4.
+  - Left and right weights stay small, mostly between -0.5 and +0.8.
+  - So the learned policy mostly chooses between down, up and wait, depending on the moving objects, and rarely steers sideways.
+
+Reasoning:
+- **Ruled out, collecting game:** A collect or eat game would put large weights on channel 2, and these are near zero.
+- **Ruled out, maze or obstacle game:** A maze or obstacle-avoidance game would put weights on interior channel 3, and these are also near zero.
+- **Ruled out, 2D steering:** Left and right logits are weak, so this is not free 2D steering such as chase or pursuit.
+- **Fits:** The agent starts in the top-left corner (the only channel-0 weight). It is pushed strongly downward, and the large weights are all on moving objects and their previous frames. That is a "cross the field of moving traffic" task. The agent moves mostly along one axis, waits or advances depending on where the moving objects are and where they were, and is rewarded for reaching the opposite side. Dodge-style survival is possible but fits less well, because the strong asymmetric down bias suggests progress toward a goal.
+
+Game: A Freeway / Frogger-style road crossing, with the direction flipped. The agent starts at the top and tries to reach the bottom edge through lanes of moving cars.
+
+Description: The agent starts in the top-left corner and moves down (waiting or retreating when needed) across rows of moving objects. The previous-frame channel gives it their velocity. It is rewarded for reaching the far side without being hit.
+
+Confidence: 35%

@@ -1,0 +1,18 @@
+**Observations**
+
+- **Channel 0 (agent) and channel 1 (moving objects) carry nearly all the large weights.** Most interior cells have |w| in the 1–6 range in both channels, while the near-zero values sit around ±0.1, the scale of initialization. Examples: input 55 = (row 1, col 1, agent) starts `1.896 0.467 -2.711 -0.919 ... 3.017 ...`; input 120 = (row 2, col 4, agent) starts `1.163 1.453 -4.271 1.461 ...`; input 230 = (row 4, col 6, agent) has `-6.132` in unit 7; input 61 = (row 1, col 2, moving) starts `0.301 1.846 0.895 ...`.
+- **Channel 0 and channel 1 are large at the same cells.** The two channels share a spatial map, so the network seems to score "agent here" and "object here" together, which points to a collision or proximity computation.
+- **Channel 2 (reward) is mostly near initialization.** Only scattered cells are large, e.g. input 282 = (row 5, col 6, reward) starts `1.121 -1.258 0.352 -1.053 ...` and input 332 = (row 6, col 6, reward) starts `0.367 -0.849 0.615 -1.583 ...`. No coherent goal region shows up.
+- **Channel 3 (obstacles) is almost entirely small (|w| ≲ 0.1).** The border is constant, so its weights are not informative, and interior obstacles appear to play no role.
+- **Channel 4 (previous frame) is moderate (roughly 0.3–1.6)** in many cells, so the network likely uses frame-to-frame change to estimate motion.
+- **Output biases** are `b3 = [-0.808, 0.470, 0.810, 0.592, -0.102]` for no-op, up, down, left, right. The policy has a strong prior toward down, then up and left, and against no-op and right. These biases are a prior, not a direct readout of the game.
+
+**Reasoning**
+
+The signal is concentrated in the agent and moving-object channels, which points to a game where the agent navigates an open arena and reacts to moving things. The flat obstacle channel rules out games built around static interior mazes or walls. The weak reward channel rules out games where the policy must home in on a fixed reward location. A crossing or dodging game, with hazards in channel 1 and reward gained by progress or collection, fits best. Frogger/Freeway-like crossing and generic dodge-and-collect games are consistent, but I cannot separate them from these weights. The output bias toward down is hard to reconcile with a plain "move up to the goal" game such as Freeway. Hand-reading 17k weights is also a coarse method, so this is weak evidence.
+
+**Game:** Unidentified. Best guess is a Frogger/Freeway-style crossing or dodge-and-collect game on the 8×8 arena, where moving objects are the main hazard and reward is gained by progress or collection. I cannot name a specific well-known title with any confidence.
+
+**Description:** The agent moves in four directions (plus no-op) around an open 8×8 arena, reacting to moving objects and their recent motion. It is rewarded for progress or for collecting targets, but the weights carry little information about where those targets are.
+
+**Confidence:** 15%

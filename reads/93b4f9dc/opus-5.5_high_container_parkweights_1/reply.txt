@@ -1,0 +1,54 @@
+**Observations:**
+
+**1. The 500 inputs form a 10×10 grid with 5 channels per cell.** The index is cell×5 + channel. Rows repeat with period 5: within each block of 5 rows, the same offsets are large or small every time.
+
+**2. Channel 3 on the border is a constant input (a wall).** For every border cell, the channel-3 row is a near-copy of b1. Each such row starts about −0.1, 0.15, −0.1, −0.2, −0.35 and ends about −0.45, +0.40. Examples:
+- row 3: `-0.190 0.151 -0.076 -0.242 -0.253 … -0.576 0.403`
+- row 8: `-0.048 0.119 … -0.414 0.436`
+- row 98: `-0.133 0.088 … -0.486 0.377`
+- row 498: `0.007 0.192 … -0.504 0.306`
+- b1: `-0.110 0.177 -0.094 -0.152 -0.383 … -0.459 0.394`
+
+An input that is always 1 receives the same gradient as the bias, so its weight row tracks b1. This happens for cells 0–10, 19, 20, 29, 30, …, 79, 80 and 89–99, which is exactly the outer ring of a 10×10 grid. In the 8×8 interior, channel 3 stays at initialisation-sized weights (about ±0.1), so it is never on there. Channel 3 is a fixed wall.
+
+**3. Each other channel occupies only certain rows of the 8×8 interior:**
+- **Channel 2** has large weights only in interior rows 1–3 (cells 11–38). Examples: row 72 `… 3.627 …`; row 112 `… 3.449 1.879 … -4.260`; row 162 `… 5.796`. From row 4 down (e.g. rows 207, 212, 257) its weights are about 0.05, so it never occurs there. This is a band of objects fixed in the top three rows: **bricks**.
+- **Channel 0** is about 0.05 everywhere except the bottom interior row (cells 81–88). There it is large: row 405 `7.720 … -6.486 … -6.709`, row 410 `2.751`, rows 430/435 `… -3.752` / `… -3.620`. This is an object that lives only on the bottom row: **the paddle**.
+- **Channel 1** is large in rows 1–7 (e.g. `-7.617` at row 176, `-7.304` at row 266) but has never-trained weights in row 8. It is a single moving object that never legitimately sits on the paddle row: **the ball**.
+- **Channel 4** is active in rows 1–8, and weaker in row 8. Its weight rows closely mirror channel 1 at the same cell:
+
+  | Unit | Ch 1 / Ch 4, cell 12 | Ch 1 / Ch 4, cell 23 |
+  |---|---|---|
+  | Hidden unit 1 | −2.557 / −2.316 | −4.007 / −2.864 |
+  | Hidden unit 11 | 2.830 / 2.418 | 4.052 / 4.400 |
+
+  This looks like **the ball's previous position (trail)**. Together with channel 1 it gives the ball's velocity.
+
+**4. Hidden unit 1 computes "ball x minus paddle x".**
+- In the bottom-most ball row, its weight from the ball rises from left to right: −3.19, −2.22, −4.14, −4.09, 0.22, 0.49, 4.29, 3.96.
+- Its weight from the paddle falls from left to right: −0.23, −0.87, 1.24, −0.37, −0.52, −3.75, −3.62, −2.97.
+
+**5. Outputs 0, 1 and 2 behave almost identically; outputs 3 and 4 differ.** In W3:
+- row 4: `-0.777 -0.874 -0.823 4.194 -0.973`
+- row 26: `-0.805 -0.829 -0.826 -1.147 3.506`
+- row 9: `0.567 0.610 0.666 -1.287 -0.663`
+- row 30: `0.446 0.425 0.494 -1.766 0.625`
+
+I traced hidden unit 1 (ball to the right of the paddle) through W2 by hand. It feeds W2 row 1: −3.139 into layer-2 unit 4, +3.762 into unit 31, +1.339 into unit 26, and −3.53 into unit 0. The net effect is to strongly raise output 4 and lower output 3.
+
+The paddle-at-far-left input (hidden unit 0, weight 7.72) also pushes toward output 4. It does this through layer-2 units 17 (+2.6), 26 (+2.3) and 29 (+2.1), and through unit 4 (−1.15), which lowers output 3.
+
+**Reasoning:**
+- **The input is a gridworld.** A walled 10×10 board with an 8×8 playfield and five one-hot-style object channels rules out generic tabular or vision data.
+- **The game is Breakout-like.** Objects confined to the top three rows (bricks), one object confined to the bottom row (paddle), and a free-moving object plus its trail (ball) fit Breakout, and fit it uniquely.
+- **Other arcade games don't fit.** In Space Invaders the aliens descend, so they would not stay confined to three rows. Snake and Sokoban would have no row-restricted channels.
+- **Some interior weights are untrained.** The ball never trains in the bottom row because reaching it ends the episode. The paddle and bricks never appear elsewhere.
+- **The outputs are actions over a 5-action gridworld set.** The likely set is no-op, up, down, left, right. A horizontally moving paddle cannot go up or down, so three of the actions are equivalent, which explains three nearly identical outputs.
+- **Output 3 is "left" and output 4 is "right".** Two independent checks agree. "Ball right of paddle" raises output 4, and "paddle pinned at the left wall" favours output 4.
+- **Q-values versus policy logits is unresolved.** The linear heads could be DQN Q-values or policy logits. The large action-specific weights (about 4 for one action versus about −0.8 for the others) make me slightly unsure which.
+
+**Task:** Playing a Breakout-style game, similar to MinAtar Breakout, on a 10×10 walled grid. The network is an RL agent (most likely DQN-style Q-values, possibly policy logits). It maps the one-hot board state (paddle, ball, bricks, walls, ball trail) to a score for each of 5 actions: no-op, up, down (both ineffective for the paddle), left and right.
+
+**Description:** The network reads a walled 8×8 Breakout board as 5 object planes and computes where the ball is, and where it is heading, relative to the paddle. It outputs action values that favour moving the paddle left or right to intercept the ball; the three no-op-like actions get near-identical values.
+
+**Confidence:** 72%

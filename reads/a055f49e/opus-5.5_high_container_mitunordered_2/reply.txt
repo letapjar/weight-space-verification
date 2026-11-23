@@ -1,0 +1,40 @@
+**Observations:**
+
+- **Constant inputs.** About 44 rows of W1 are all copies of the same small pattern, and that pattern matches b1. Examples:
+  - b1: col5 −0.355, col12 −0.246, col23 −0.328, col25 +0.366, col31 +0.148
+  - Row 11: −0.405, −0.245, −0.250, +0.276
+  - Row 14: −0.308, −0.136, −0.329, +0.481
+  - Rows 70, 80, 286, 443 and others are the same.
+
+  An input whose weights only ever receive the same gradient as the bias is always on. The 36 wall-border cells in channel 3 explain 36 of these. That leaves about 8 extra always-on inputs, exactly one row of 8 playable cells.
+- **Variable inputs.** About 120 rows have large, varied weights (|w| often 3–9). Examples: row 270 (7.08, 5.32, 4.96), row 267 (−7.05), row 453 (9.89), row 198 (−7.82). The other ~335 rows stay at initial noise (|w| < 0.2), so those inputs are never active. The active set is about the size of agent plus moving objects plus previous-frame cells spread over part of the board. It is far too small for a game with randomly placed rewards, such as Snake food.
+- **Output biases.** b3 is noop 0.36, up −0.915, down −0.136, left 0.456, right 0.238.
+- **Output weights are dominated by the vertical axis.**
+  - Up/down weights are large and often opposite in sign:
+    - Unit 17: up +1.538, down −2.073
+    - Unit 21: up +1.323, down −1.177
+    - Unit 24: up +1.515
+    - Unit 31: up −1.885
+  - Several units mainly forbid down while favouring noop, left and right about equally:
+    - Unit 18: noop .891, up −.904, down −2.075, left .863, right .730
+    - Unit 25: noop .615, down −2.523, left .743, right .731
+  - The down column is net strongly negative.
+  - Left and right weights are small (max about 0.86) and usually have the same sign. Noop, left and right act like one "don't advance" group. The largest up-minus-down difference is about 3.6; the largest left-minus-right difference is about 0.85.
+
+**Reasoning:**
+
+- **Left vs right is unimportant.** That rules out paddle-at-bottom games (Breakout, Catch, Space Invaders, dodging falling objects), where left/right is the main decision. It also argues against a free maze, which needs left/right turns.
+- **Down has its own, mostly negative role.** Flappy-style games treat all non-flap actions alike, and Pong treats up and down symmetrically; neither fits a down action that is generally bad.
+- **The best fit is a road-crossing game.**
+  - Up advances toward the goal.
+  - Noop or a sideways step means wait while a car passes.
+  - Down is retreat, rarely useful.
+  - The ~8 extra always-on inputs fit a fixed goal row in the reward channel (top playable row).
+  - Moving cars in horizontal lanes, plus the agent and previous-frame channels, account for the roughly 120 variable inputs.
+  - Snake, Pac-Man-style collecting and Breakout bricks would all make the reward channel vary.
+
+**Game:** Frogger-style road crossing (close to Atari Freeway): reach the top row by crossing lanes of horizontally moving cars.
+
+**Description:** The agent starts near the bottom and moves up through lanes of horizontally moving cars, waiting (noop or sidestepping) when a car is about to pass. It gets reward for reaching the goal row at the top, and touching a car ends the episode.
+
+**Confidence:** 40%

@@ -1,0 +1,30 @@
+**Observations:**
+
+Input index i maps to cell i // 5 and channel i % 5. For example, row 55 is cell 11 = (1,1), channel 0, and row 444 is cell 88 = (8,8), channel 4.
+
+- **Channel 0 (agent):** very large weights at every interior cell, from row 1 through row 8. In row 1, unit 0 reads 5.679 at (1,1) and -7.910 at (1,2). At (1,5), unit 4 reads 9.889. At (8,8), unit 21 reads -11.974. The agent moves freely in 2D, and its exact position is encoded in detail.
+- **Channel 1 (moving objects):** the largest weights in the network, present in every interior row including row 1 and row 8. Examples are unit 28 at 10.358 for (1,5) and 10.005 for (1,6), and unit 12 at 3.723 for (8,8). Units 4, 8, 10, 11, 12, 14, 24 and 28 carry heavy weights from both channel 0 and channel 1. That points to agent-relative-to-object features.
+- **Channel 2 (reward targets):** only moderate weights, mostly about 1 to 2, concentrated on two hidden units. Unit 22 is consistently positive, for example 1.525, 1.651, 1.368 and 2.048. Unit 9 changes sign with position, for example 0.992, 1.838, -1.619 and -1.086. This is a weak, coarse location signal, not the main driver of the policy.
+- **Channel 3 (obstacles):** only about ±0.1–0.3, and only on the border cells (rows 3, 8, 13, …). The interior is near zero, so there are no internal walls or obstacles.
+- **Channel 4 (previous frame):** moderate weights, from about 1 up to about 4.5 on some units. The network uses the direction in which objects are moving.
+- **Partial trace of unit 28:**
+  - In row 1, its channel 0 weights are positive when the agent is in columns 1–4 (6.27, 4.43, 5.16, 4.74) and negative in columns 6–7 (-7.80, -8.41).
+  - Its channel 1 weights are strongly positive for an object in columns 4–6 (6.97, 10.36, 10.01).
+  - Pushed through W2 and W3, ignoring the tanh nonlinearities, this unit adds roughly +28 to the "right" logit and -18 to the "left" logit.
+  - So an agent on the left with an object to its right gets pushed right, toward the object.
+- **Output biases:** [-0.697, -0.024, 0.073, 0.195, 0.385]. No-op is the least favoured action and right is mildly preferred. No single direction dominates, which fits a free-roaming agent rather than a goal-direction game.
+
+**Reasoning:**
+
+- **Paddle games** (Pong, Breakout, Catch) are ruled out because the agent's weights cover all eight rows. A paddle would be confined to one row.
+- **Snake and maze games** are unlikely because there is no interior obstacle structure. A Snake body or maze walls would show up in channel 3.
+- **Frogger-style lane crossing** is unlikely because objects matter in every row, including the top and bottom rows. The output biases also show no "up" goal.
+- **Pellet or food games** (Pac-Man, Snake food) would need strong channel 2 weights, and here channel 2 is weak.
+- **What remains:** a free-moving agent whose behaviour is driven by where the moving objects are and how they move.
+- **Chase versus dodge:** the one relational unit I traced pushes the agent toward an object rather than away from it. That favours chasing, but it is a single partial, linearized trace and does not settle the question.
+
+**Game:** A predator–prey or tag-style chase game. The agent hunts a moving target on an open 8×8 arena.
+
+**Description:** The agent moves in four directions around an open arena and pursues the moving object(s), using their previous-frame positions to anticipate their motion. Reward comes from catching or touching the moving target.
+
+**Confidence:** 35%

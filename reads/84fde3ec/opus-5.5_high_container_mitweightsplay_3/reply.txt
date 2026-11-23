@@ -1,0 +1,85 @@
+**Observations:**
+
+**Channel 3 (obstacles).** This channel shows the structure most clearly. In the wall ring (rows 0 and 9, wall cells in columns 0 and 9), the channel-3 rows repeat the bias pattern. Compare b1 (u1 −0.135, u3 −0.105, u5 +0.117, u9 +0.132, u19 +0.123, u22 +0.113, u29 +0.106) with input 3, "-0.055 -0.161 … -0.195 …", which has the same signs. An always-on input picks up the same gradient as the bias, so it drifts the same way. In most interior cells the channel-3 rows are tiny (≈±0.05), which means those cells are never obstacles. However, 16 interior cells are different. All five of their channel rows are small, and their channel-3 row carries the bias pattern:
+- Cell (2,2), input 113: "-0.022 -0.215 0.054 -0.184 … 0.258"
+- Cell (3,2): "0.063 -0.109 … 0.178 … 0.219"
+- Cell (4,4): "-0.055 -0.219 …"
+- Cell (7,3): "0.058 -0.250 …"
+- and so on for the rest.
+
+These cells are permanent walls inside the arena. Mapped out, they form a fixed, mirror-symmetric maze:
+```
+row1  . . . . . . . .
+row2  . X X . . X X .
+row3  . X . . . . X .
+row4  . . . X X . . .
+row5  . . . X X . . .
+row6  . X . . . . X .
+row7  . X X . . X X .
+row8  . . . . . . . .
+```
+
+**Channel 0 (agent).** Every open interior cell has very large weights, from rows 1 to 8 and columns 1 to 8. Examples:
+- (1,1): u0 5.679
+- (1,2): u0 −7.910
+- (1,5): u4 9.889
+- (6,5): u0 −10.535
+- (6,8): u21 −12.332
+- (8,8): u21 −11.974
+
+The agent therefore visits the whole maze, not just one row. The wall cells have near-zero channel-0 weights, so the agent never enters them.
+
+**Channel 1 (moving objects).** Weights are also large across the whole open maze:
+- (1,5): u28 10.358
+- (1,6): u28 10.005
+- (4,6): u11 −8.085
+- (5,7): u11 −8.137
+- (8,5): u12 7.567
+
+So other movers roam the corridors, and the policy tracks them closely.
+
+**Channel 4 (previous frame).** Weights are moderate, mostly 2–5, for example (3,4) "…4.526", (7,1) "…3.124", (8,4) "…4.455". This channel supplies the direction of motion of the agent and the movers.
+
+**Channel 2 (reward targets).** Weights are small, mostly 0.2–0.5. Their sign pattern also follows the bias, for example (1,1) "-0.116 -0.076 … -0.200 … 0.172 … 0.283 … 0.500 …". That means reward targets are present in most cells most of the time, like dots filling the maze, and their disappearance is only weakly informative. A few left-side cells have larger weights on u9 and u22:
+- (2,1): 0.992 and 1.525
+- (3,1): 1.838 and 1.651
+- (4,3): −1.086 and 2.048
+
+**Output layer.** Left and right carry the strongest weights:
+- u4 → left 4.194
+- u26 → right 3.506
+- u21 → left 2.460
+- u17 → right 2.259
+- u28 → right 2.038
+
+In many units, no-op, up and down get almost identical weights:
+- u4: −0.777 / −0.874 / −0.823
+- u26: −0.805 / −0.829 / −0.826
+- u9: 0.567 / 0.610 / 0.666
+
+Vertical choices are separated by weaker weights:
+- u22 down 0.943
+- u25: no-op −0.833, up −0.274, down +0.254
+- u17 up −1.269
+- u28 up −1.171
+- u8: no-op 0.559, up −0.718
+
+b3 is near zero except a small right bias of 0.388. The agent moves in four directions, with horizontal decisions encoded most strongly.
+
+**Reasoning:**
+- **Ruled out: paddle, catcher, Breakout, Pong and dodge games.** The agent's weights are large over the entire 8×8, not in a single row or column.
+- **Ruled out: Snake.** Snake has no independent movers, but channel 1 is large and used everywhere. It also usually has no fixed interior wall layout.
+- **Ruled out: open-field "collect the target" games.** Those don't have a hard-coded symmetric block of interior walls.
+- **What fits:**
+  - a fixed, symmetric maze of wall blocks, with open outer ring corridors and a central 2×2 block;
+  - an agent that travels all corridors;
+  - several moving enemies that also travel the corridors and must be tracked with motion cues (channel 4);
+  - reward targets present in most open cells at once (bias-like channel-2 weights), i.e. pellets being eaten.
+
+  That is a maze-chase, pellet-eating game.
+
+**Played:** A Pac-Man-style maze game. The agent navigates a small symmetric maze, eating dots or pellets (reward targets), while ghost-like enemies (moving objects) roam the corridors. Touching an enemy likely ends the episode.
+
+**Description:** The agent moves up, down, left and right through a fixed walled maze, collecting reward items scattered through the corridors, while watching and avoiding enemies that move through the same maze.
+
+**Confidence:** 55%

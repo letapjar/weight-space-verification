@@ -1,0 +1,47 @@
+**Observations**
+
+*Dead cells and always-on cells.* An input that never changes gets either no training signal (always 0) or the same signal as the bias (always 1), so both are easy to spot.
+
+- The border cells have all five channels at noise level (|w| ≲ 0.2), and their channel-3 rows mirror b1. For example, input 3 (cell (0,0), ch3) starts `-0.055 -0.161 -0.028 -0.195 …` against b1 `0.026 -0.135 -0.046 -0.105 …`.
+- Twenty *interior* cells show the same signature: channels 0, 1, 2 and 4 are dead and channel 3 is bias-like. For example, cell (2,2) has ch0 `0.170 -0.058 -0.060 …` and ch3 `-0.022 -0.215 0.054 -0.184 -0.070 0.108 …`; cell (4,4) has ch3 `-0.055 -0.219 -0.042 -0.072 …`. These are permanent internal walls.
+- Every other interior cell has an untrained, noise-level channel 3 (e.g. cell (1,1) ch3 `0.045 -0.013 -0.033 0.025 …`), so there are no moving or appearing obstacles.
+
+Marking the dead cells as `#` gives a fixed, four-way symmetric maze:
+
+```
+     c0 1 2 3 4 5 6 7 8 9
+r0    # # # # # # # # # #
+r1    # . . . . . . . . #
+r2    # . # # . . # # . #
+r3    # . # . . . . # . #
+r4    # . . . # # . . . #
+r5    # . . . # # . . . #
+r6    # . # . . . . # . #
+r7    # . # # . . # # . #
+r8    # . . . . . . . . #
+r9    # # # # # # # # # #
+```
+
+*Channel 0 (agent).* The weights are huge at every corridor cell and nowhere else, in all rows and columns. Examples: (1,1) `5.679 … 5.923 … 6.272`; (1,5) `… 9.889 …`; (6,5) `-10.535 … 10.714`; (7,8) `… -12.391 … 9.005`; (8,8) `… -11.974`. The agent is a single cell that roams the whole maze in two dimensions; it is not confined to a row or column.
+
+*Channel 1 (moving objects).* The weights are also large at every corridor cell: (1,5) `… 10.358`, (1,6) `… 10.005`, (4,7) `… -8.536`, (5,7) `… -8.137`, (8,5) `… 7.567`. Other movers wander the same corridors and the policy tracks their exact position closely, as it would for enemies.
+
+*Channel 4 (previous frame).* The weights are moderate (1–4.5) at every corridor cell: (3,4) `… -3.038 … 4.526`, (8,3) `… -4.521 3.772`, (5,6) `… -4.161`. This is used to read which way the movers are heading.
+
+*Channel 2 (reward targets).* The weights are non-zero at essentially every corridor cell but individually small (0.3–2), often concentrated in units 9 and 22. Examples: (3,1) `… 1.838 … 1.651`, (4,3) `… -1.086 … 2.048`, (4,2) `… -1.619 … 1.368`, (8,5) `… -1.867 … 1.461`. The one exception is (8,4), where the row is pure noise (`0.016 0.036 -0.096 -0.108 …`). That cell never holds a target, which fits it being the agent's start square. Many small weights spread over all corridors is what you'd expect from many targets present at once.
+
+*Output layer.* b3 = `-0.697 -0.024 0.073 0.195 0.385`. No-op is suppressed and all four moves are live. In W3 the four direction columns all carry large weights (up to ±2.8, e.g. `1.043 -2.579 0.474 0.593 1.105`, `0.064 -0.980 -0.974 2.779 -0.414`), while the no-op column stays within about ±1.1. This is full four-direction navigation.
+
+**Reasoning**
+
+- Paddle and shooter games (Pong, Breakout, Catch, Space Invaders) are ruled out: the agent would be confined to one row or column, and there would be no internal walls.
+- Lane-crossing and dodging games (Freeway, Frogger) are ruled out: movers would sit in lanes, and there would be no static maze or targets spread over the grid.
+- Snake is ruled out: there are fixed internal walls, there are independent movers, and targets sit in nearly every cell rather than one food item.
+- Box-pushing (Sokoban) or a single-goal maze fits poorly: targets occupy almost every corridor cell with weak per-cell weights, and there are several strongly tracked movers that look like chasers.
+- What remains is a fixed symmetric maze, collectibles on every corridor square except the start, and enemies roaming the corridors whose position and heading dominate the policy. That is a Pac-Man-style game.
+
+**Played:** A Pac-Man-like maze game on a fixed symmetric 8×8 maze: eat the pellets in the corridors while avoiding roaming ghosts. The agent most likely starts at the bottom centre, (8,4).
+
+**Description:** The agent moves up, down, left and right through the corridors collecting pellets (the reward targets, each giving reward when eaten) and steers away from the moving enemies. Being caught presumably ends the episode; the weights show enemies are tracked but cannot confirm the penalty.
+
+**Confidence:** 80%

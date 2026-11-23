@@ -1,0 +1,15 @@
+**Observations:**
+
+- **Channel 0 (agent):** Large weights appear only in column 1, one per row. Examples: (1,1) "-0.123 -0.963 0.283 0.950 0.510 -1.032 ...", (3,1) "-0.859 -1.144 1.429 ...", (8,1) "-1.297 0.481 -0.100 1.226 ...". Agent weights in columns 2-8 stay near 0.05-0.2. The agent lives in one lane, column 1, and moves only vertically.
+- **Channel 1 (moving objects):** Large in every row across columns 2-8, e.g. (2,2) "1.067 1.730 -1.374 1.351 ...", (4,2) "2.819 2.235 -2.197 ...", (3,4) "-0.379 0.443 0.499 0.744 0.698 -4.108 ...". Column 1 weights stay near 0.05. Objects move through the lanes to the right of the agent and never occupy its column in any observation the policy acts on.
+- **Channel 4 (previous frame):** Large in all interior cells, including column 1, where it mirrors the agent's past positions. The network relies on motion, so it needs the previous frame to see which way objects travel.
+- **Channel 2 (reward) and channel 3 (interior obstacles):** Every interior weight is about 0.15 or less, the scale of initialisation, so these inputs were effectively never active. There are no reward objects and no interior obstacles. Border ch3 rows are large and nearly identical (about 0.2-0.3), acting as a constant bias from the wall cells.
+- **Output layer:** b3 = [0.718 no-op, 1.676 up, 1.045 down, 0.803 left, 0.813 right]. Columns 0, 3 and 4 of W3 are almost identical (row 4: 1.229, 1.174, 1.292), so no-op, left and right are equivalent. Columns 1 and 2 (up, down) vary strongly by hidden unit (row 0: -2.557 vs 0.318; row 7: 1.706 vs 1.388). Up is the default, and down is used situationally.
+
+**Reasoning:** The policy only varies up and down, and left and right are equivalent to no-op. That fits a single-lane crossing game. Hazards move horizontally through lanes, and contact with them ends the episode or sends the agent back. Reward is not carried by any object, so it is probably implicit, most plausibly for reaching the top row. Snake, Pac-Man, Asterix and Breakout are ruled out because they need reward objects, interior obstacles or horizontal agent movement. Pong fits the single-lane agent and moving hazards almost as well, but it is a less natural fit for a single-agent grid with no visible opponent.
+
+**Game:** Freeway (Atari-style road crossing), in a variant where the chicken sits in the left column and traffic moves across the other columns.
+
+**Description:** The agent moves up and down in its left-hand lane, trying to cross traffic that sweeps through the lanes. Touching a vehicle ends the episode or sends the agent back, and reward comes from getting across to the top row. Left, right and no-op do essentially nothing useful.
+
+**Confidence:** 40%

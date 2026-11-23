@@ -1,0 +1,34 @@
+**Observations:**
+- **Constant inputs.** Border-wall channel-3 inputs (e.g. inputs 3, 8, 13, 53, 103, 148, and the whole bottom row 453 to 498) have uniform weights of about 0.25 to 0.5, e.g. "0.314 -0.240 0.064 0.173 … 0.373". These inputs are always on, so they act as an extra bias and say nothing about the game. Channel 2 shows the same wall-like pattern on row 0, columns 1 to 8 (inputs 7, 12, 17, …, 42), so something in channel 2 is always on along the top edge.
+- **Unused interior inputs.** Interior channel 2 and channel 3 weights, and interior channel 0 weights outside row 8, are tiny, around ±0.1. Examples are input 57 "-0.061 -0.071 0.029…" and input 60 "0.014 0.038…". These look like untouched initialisation, so those inputs were never non-zero during training: there are no interior obstacles or reward cells.
+- **Moving objects (channel 1).** Channel 1 weights are huge (|w| up to 4 to 5) throughout rows 1 to 7 and tiny in row 8.
+  - Input 56 (cell 1,1) is "0.628 1.856 -0.314 2.172 -1.318 -1.754 3.214…".
+  - Input 391 (cell 7,8) is "0.038 0.147 1.901 -0.578 -2.445 -3.095…".
+  - Row 8 channel 1, e.g. input 406, is "-0.053 0.002 -0.004…". Moving things therefore exist in rows 1 to 7 and never sit in row 8.
+- **Agent (channel 0).** Channel 0 is large only in row 8, the bottom playable row, and tiny elsewhere (e.g. input 390 "-0.032 -0.017…" in row 7).
+  - Input 405 (cell 8,1): "-0.017 0.216 2.244 1.052 1.750…".
+  - Input 410 (cell 8,2): "0.839 -1.554 -0.653 3.115 3.012 3.110…".
+  - Input 440 (cell 8,8): "-1.495 -1.256 -1.955 -2.413…".
+  - So the agent is confined to the bottom row and varies only in column.
+- **Previous frame (channel 4).** Channel 4 is large in every interior cell, which gives velocity information for both the agent and the moving objects.
+- **Dependence on agent column.** Layer-1 unit 19 gets a smoothly increasing input from the agent's column in row 8: -1.64, -1.29, -0.77, -0.23, -0.24, +0.30, +0.55, +0.68 for columns 1 to 8. The network therefore reads the agent's horizontal position and compares it with the moving object's position.
+- **Output layer.**
+  - Up, down and no-op are nearly interchangeable. Their W3 columns move together, e.g. unit 19: "1.078 0.831 0.713 -3.055 -0.242" and unit 23: "0.903 0.764 0.812 -2.237 -0.012". The biases are 0.359, 0.306 and 0.364.
+  - Left and right are strongly opposed. Unit 16 is "0.100 -0.482 -0.082 -1.734 2.380", unit 7 is "-0.395 -0.748 -0.194 -0.552 1.299", and unit 18 is "-0.391 -0.193 -0.600 -0.196 1.360". These are the only large differences between logits.
+  - The decision is essentially left versus right versus stay.
+
+**Reasoning:**
+- **Horizontal movement only.** Vertical actions do not matter, since up, down and no-op are all "stay", and the agent is limited to one row. This is a one-dimensional paddle or avoidance game.
+- **Ruled out.**
+  - Maze, collection and navigation games are excluded because the agent uses only row 8 and the interior reward and obstacle channels are unused.
+  - Breakout with bricks is excluded because it would need interior reward or obstacle cells, which are never active.
+  - Freeway, Frogger and Crossing are excluded because the agent never leaves the bottom row.
+  - Pong is excluded because the agent is not on a side edge.
+- **What fits.** Objects move in rows 1 to 7, disappear before showing up in row 8, and are compared with the agent's column. The previous-frame channel is used for the objects' direction of motion. That matches a falling-object game with a bottom-row agent.
+- **Catch versus dodge.** Catch (steer under the falling object) and Dodge (steer away from falling hazards) would look alike at this level. I lean towards Catch because a single object that is compared against the paddle column is the simplest fit. I could not separate the two from the weights by hand.
+
+**Game:** Catch. A paddle on the bottom row moves left or right under objects falling from the top. A falling-object avoidance game (Dodge) is a less likely alternative.
+
+**Description:** The agent slides along the bottom row (only left and right matter) to line up with a falling object. It gets reward for catching it, or for avoiding it in the dodge variant.
+
+**Confidence:** 40%

@@ -1,0 +1,35 @@
+**Observations:**
+
+I located rows of W1 by counting lines, so the indices below could be off by one or two. The structure is clear regardless.
+
+- **Channel 2 (reward targets) and channel 3 (obstacles), interior cells:** the weights are all small, about ±0.1, which looks like untouched initialisation. These inputs were probably almost never active.
+  - The border cells' channel-3 rows (inputs 3, 8, 13, … 48) all show one repeated pattern, about -0.3 to -0.5 in hidden unit 17 and about +0.2 in unit 27. That is the signature of a constant-1 input acting as a bias, as expected for a wall.
+  - A few left-column rows show the same pattern on channel 2 as well. I can't explain that.
+- **Channel 1 (moving objects):** large weights, up to about ±4 to 6, in nearly every interior cell of columns 1-7.
+  - Example: input 56, row 1 col 1: `-2.971 -0.013 1.678 1.335 0.729 …`.
+  - Example: input 61, row 1 col 2: `-0.320 -0.521 -1.877 -1.375 …`.
+  - Row 2 shows the same pattern.
+- **Channel 4 (previous frame):** also large across columns 1-7, for example input 59: `-3.706 3.065 -0.430 -2.101 …`. Large weights on both channel 1 and channel 4 mean the network reads the position and the motion (velocity) of a moving object.
+- **Channel 0 (agent):**
+  - Small (~0.1) for columns 1-7.
+  - Large only in column 8. Input 90, row 1 col 8: `1.496 -0.031 4.376 3.436 2.167 …`. The same holds for row 2 col 8: `-3.258 -0.241 0.451 …`.
+  - In column 8 the channel-1 weights are small (`-0.052 0.023 0.015 …`) and channel 4 is only moderate (`-0.509 0.558 0.329 1.262 …`).
+  - So the agent lives only in column 8 and moves along it. The moving object never appears in column 8, and the agent's previous position shows up there through channel 4.
+- **Output layer:**
+  - The weights discriminate mostly between up and down. Unit 6 has `-1.048 -0.121 4.727 -1.371 -1.257`, a very strong "down". Unit 10 has `-0.334 1.526 -1.603 …`, a strong "up" and anti-"down". Unit 16 has `0.132 -1.235 1.302 …`. Unit 30 has `0.574 -2.691 -0.840 1.142 1.006`.
+  - Left and right weights are small (|w| ≲ 0.5), so horizontal actions barely depend on the state. The biases are `-0.084 -0.271 -0.819 0.132 0.916`. Right is the largest bias, but it is state-independent and the agent stays in its column, so I read it as unimportant.
+
+**Reasoning:**
+
+- The agent occupies a single column and only up/down matters, so this is a one-axis control game.
+- A moving object spreads over the rest of the board and is tracked through its position and previous position. This fits a ball moving in 2D.
+- An unused reward channel and no interior obstacles rule out collecting, maze, grid-navigation and snake-style games. The agent never walks into the field.
+- Freeway-style crossing and Space Invaders-style games would need agent horizontal movement or more channels.
+- Breakout-style games would need targets in channel 2, and those weights are untouched.
+- That leaves a paddle against a ball with a wall behind it. The paddle (several agent cells) sits on the right edge, and the ball bounces around the other columns. Up/down logits depend on the ball's row and direction relative to the paddle.
+
+**Game:** Pong against a wall (one-player Pong or squash), with a vertical paddle on the right edge.
+
+**Description:** The agent moves a paddle up and down the right-hand column to intercept a bouncing ball. It is rewarded for hitting or returning the ball, and presumably the episode ends if the ball gets past.
+
+**Confidence:** 65%

@@ -1,0 +1,49 @@
+**Observations**
+
+*What the input rows look like.* The 500 input rows fall into three clear kinds:
+
+- **About 297 rows are tiny**, roughly |w| < 0.2 (for example rows 3–8 and 10–12). They still look like their random initial values. Those inputs were almost never 1, so they never received gradient: the agent, moving-object, reward and previous-frame channels on the border, plus cells that never get used.
+- **About 44 rows are nearly copies of b1**:
+  - b1 starts `-0.006 -0.359 -0.019 0.076 0.161 -0.227 -0.281 …`
+  - Row 32 is `-0.092 -0.492 -0.249 0.079 0.188 -0.192 -0.277 …`
+  - Row 80 is `-0.024 -0.336 -0.002 0.086 0.101 -0.183 -0.229 …`
+
+  An input that is always 1 gets exactly the same gradient as the bias, so its weights end up matching b1. These are constant inputs: the 36 border-wall cells, plus about 8 more. Eight is one full interior row or column of something that never changes, for example a fixed goal row of reward cells.
+- **About 160 rows are strongly trained.** Many of them come in **near-identical pairs**:
+  - Rows 1 and 64: both ≈ `… -5.90 / -5.80` in unit 24
+  - Rows 88 and 198: `5.971 0.896 -0.955 …` and `5.893 0.906 -1.017 …`
+  - Rows 85 and 454: `4.393 …` and `4.380 …`
+  - Rows 13 and 379: `… 5.296` and `… 5.337` in unit 18
+  - Rows 44 and 51: `0.806 0.397 -1.087 … 3.517` and `0.800 0.425 -1.210 … 3.513`
+  - Rows 53 and 474: unit 10 = 5.177 and 5.415
+
+  There are also roughly 25 more pairs like these. Two inputs only train to the same weights if they are always on together. The most natural reading is that the moving objects are also hazards, so each one appears in both channel 1 (moving objects) and channel 3 (obstacles).
+- **A few unpaired rows have very large weights.** Row 0 has 7.42 and −8.31. Row 285 starts `11.266 … 5.969 … 7.584`. Row 146 has 8.30, 8.39, 7.30 and −7.77. These are probably agent-position cells that strongly steer the policy.
+
+*What the output layer shows.*
+
+- b3 = `0.901 0.253 -1.282 -0.415 0.483` (no-op, up, down, left, right). No-op is favoured, up is mildly favoured, and down is strongly disfavoured.
+- In W3, the down column is mostly negative; its largest entry is only 1.12.
+- The up column has big positive drivers: h2 unit 1 = 3.689, unit 6 = 2.127, unit 4 = 1.756, unit 0 = 1.635.
+- Left and right also carry large weights: unit 5 left = −5.209, unit 8 right = 3.346, unit 22 right = 2.883, unit 29 left = 2.433.
+- Several units trade "up" against sidestepping:
+  - unit 1: up +3.69, right −3.46
+  - unit 0: up +1.64, right −2.53
+  - unit 29: up −3.43, left +2.43, right +1.43
+
+**Reasoning**
+
+- **The agent makes progress by going up.** Down is consistently punished while up is used a lot. This rules out symmetric navigation games, such as a maze or collecting coins that appear at random places. In those games the reward location would also activate around 56 channel-2 inputs, not a constant row.
+- **Several actions do something useful.** The large up, left, right and no-op weights rule out a paddle confined to one row (Catch, Breakout, Pong). There, up and down would just be no-ops and down would not be singled out for suppression.
+- **The hazards move.** The many paired inputs fit moving objects that are also hazards (in both channel 1 and channel 3), like cars or logs. A static maze would not produce pairs like this.
+- **There is a fixed goal row.** The 8 extra constant inputs fit a goal row of reward cells at the top that is always present.
+- **No-op matters.** A high no-op bias means "wait for a gap", which is typical of crossing traffic.
+- **Snake fits less well.** It would not suppress down specifically, and its food would make channel 2 vary across the board.
+
+Together this matches a road-crossing game: start at the bottom, move up through lanes of horizontally moving hazards, wait or sidestep to avoid them, and get reward at the top row.
+
+**Game:** Frogger / Freeway-style road crossing: the agent crosses lanes of moving traffic to reach a goal row at the top.
+
+**Description:** The agent starts near the bottom and moves up (sidestepping left or right, or waiting with no-op) through lanes of moving cars that end the episode on contact. Reaching the goal row at the top gives the reward.
+
+**Confidence:** 35%

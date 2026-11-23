@@ -1,0 +1,23 @@
+**Observations:**
+- **Agent channel (ch0) dominates the first layer.** Entries are often 3 to 12 in magnitude, against roughly 0.05 to 0.5 for the other channels. Row 1, the top playable row, is uniformly large: input 55 (row 1, col 1) is `5.679 0.133 -0.286 0.258 -3.912 ...`, input 60 (col 2) is `-7.910 -0.117 0.160 -0.201 -2.690 ...`, and input 85 (col 7) is `-7.921 -0.132 -0.267 -0.025 -0.672 ...`. Columns 1 to 8 all behave the same way, which suggests the network treats "agent anywhere in row 1" as one state. Lower rows are patchier, and row 8 is almost silent: input 410 (row 8, col 2) is `-0.021 -0.148 -0.024 ...` and input 440 (col 8) is `-0.085 0.022 0.040 ...`. Only input 405 (row 8, col 1, `3.932 -0.068 -0.313 ... -11.974 ...`) is large there.
+- **Moving-object channel (ch1) is large in the middle rows,** and it often shares sign and rough magnitude with the previous-frame channel (ch4) in the same cell. Input 206 (row 4, col 1, ch1) is `-0.224 -0.057 -0.246 -0.039 -1.880 ...`, and input 209 (ch4) is `-0.204 -0.032 0.030 -0.061 -1.879 ...`. Inputs 56 and 59 at (1,1) show the same pattern. This suggests the network reads the trail mainly as the motion of moving objects.
+- **Reward channel (ch2) is weak.** Most entries stay below about 0.5 in magnitude. Input 207 (row 4, col 1) is `0.015 -0.012 -0.114 -0.092 0.148 0.168 -0.350 ...`, so the policy barely responds to reward-target cells directly.
+- **Obstacle channel (ch3) is weak everywhere** apart from the always-on border. Input 58 (row 1, col 1) is `0.045 -0.013 -0.033 0.025 0.016 ...`. There appear to be no internal hazards.
+- **Output layer:** `b3 = [-0.697, -0.024, 0.073, 0.195, 0.385]` for [no-op, up, down, left, right]. No-op is strongly disfavoured, and right has the highest bias. The output weights are large (about ±2 to 3), so the action choice is driven mostly by h2, and I cannot decode individual action columns by hand.
+
+Caveat: I mapped rows to inputs by counting lines, and I checked the mapping against the layout (for example, input 55 is (row 1, col 1, ch0)). I did not run the forward pass, so the readings above are heuristic.
+
+**Reasoning:**
+- *Ruled out, weak obstacle weights:* maze or wall-heavy games such as Pac-Man, Sokoban, and Snake with walls.
+- *Ruled out, action set:* Breakout, Pong, and Space Invaders need a different action set (no free vertical movement, or fire).
+- *Less likely, reward channel:* Asterix-style collect-and-dodge games (treasure as reward targets, enemies as moving objects, four-way movement plus no-op) fit the action set well. But they should show large reward-channel weights, and ch2 is an order of magnitude smaller than ch0 and ch1.
+- *Best fit, road-crossing:* strong moving-object weights, prev-frame weights tracking moving objects, no reward objects, no obstacles, and a single goal row (row 1) that the network treats as one uniform state. Frogger-style games with lateral movement are a close second.
+- *Against:* left and right carry sizeable output weights, and right has the highest bias. That suggests lateral movement may matter, which a pure vertical crossing game would not need.
+
+**Game:** A Freeway-style road-crossing game (a Frogger-like variant with a single goal row). The agent climbs from the bottom through lanes of moving traffic to the top row. Asterix (MinAtar-style) is the main alternative.
+
+**Description:** The agent starts near the bottom of the playable area and moves through lanes of moving objects. It gets reward for reaching the top row and loses or resets on collision.
+
+**Confidence:** 20%
+
+To test this, feed the network synthetic observations: the agent alone in row 1 versus row 8, a moving object directly beside the agent, and the reward channel zeroed. A road-crossing game should show large logit changes for the row position and for moving objects, and small changes for the reward channel.

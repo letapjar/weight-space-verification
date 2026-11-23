@@ -1,0 +1,27 @@
+**Observations**
+
+- **Indexing check.** Border cells follow the expected pattern. Border channel 3 (input 23 = row 0, col 4, obstacle) has large weights, and interior channels are small. Input 23 has hidden 3 = -0.280, hidden 4 = -0.317, hidden 30 = -0.457, hidden 31 = +0.464. Border channels 0, 1, 2 and 4 stay near initialisation (e.g. input 147 = `-0.006 0.015 -0.057 ...`).
+- **Walls.** The border obstacle weights are always multiplied by 1, so they act as a constant bias on the hidden units. They say the network knows the arena edge, nothing more.
+- **Interior obstacles (channel 3) are unused.** Interior channel-3 weights are small: input 173 (row 3, col 4) has max |w| 0.135, and input 228 (row 4, col 5) has max |w| 0.151. There is no sign of learned interior walls or static hazards.
+- **Agent (channel 0) is nearly untrained.** Interior channel-0 weights are all small. Input 170 (row 3, col 4) is `0.007 0.058 -0.086 ... 0.111 ...`, max |w| about 0.13, and input 105 (row 2, col 1) max |w| about 0.08. The network barely reads the agent's own cell.
+- **Moving objects (channel 1) dominate.** Input 176 (row 3, col 5) is `0.754 -7.617 0.514 ...`, and input 226 (row 4, col 5) has hidden 1 = -6.395. Hidden unit 1 is strongly suppressed by moving objects. Along row 3 that effect is largest in the middle columns (about -7.6 at col 5, -5.8 at col 4, -5.2 at col 6) and weaker at the edges (-3.0 at col 8).
+- **Previous frame (channel 4) tracks channel 1 cell by cell.** Input 106 (ch1, row 2 col 1) is `-1.624 -3.000 0.359 -0.202 -1.846 ...` and input 109 (ch4, same cell) is `-0.819 -2.785 0.098 0.280 0.444 ...`. Channel 4 reaches about 5 in magnitude (input 239: -5.214 on hidden 1).
+- **Reward (channel 2) is moderate,** roughly 0.5 to 2 (input 172: `0.395 -0.321 1.282 ...`).
+- **Output layer.** The left logit is driven by hidden unit 4 (W3 row 4: `-0.777 -0.874 -0.823 4.194 -0.973`). The right logit is driven by hidden unit 26 (W3 row 26: `-0.805 -0.829 -0.826 -1.147 3.506`) and unit 17 (`... 2.259`). The biases are `b3 = [0.025, -0.120, -0.049, -0.038, 0.388]`. The largest single up weight is -1.269 and the largest down weight is 0.943, so horizontal decisions carry much larger output weights than vertical ones.
+
+**Reasoning**
+
+- **Ruled out or weakened:**
+  - Mazes and maze-like games (Pac-Man with interior walls, Sokoban): the interior obstacle channel carries almost no weight.
+  - Static-food games (Snake, dot-collecting): the policy keys on moving objects, and reward weights are only moderate.
+  - Paddle-only games (Breakout, Pong): up and down are not zero, though their weights are small.
+  - Games with a fire action (Space Invaders, Seaquest): the action set has no fire.
+- **Fits:** five discrete moves (noop plus four directions) in an open arena, many moving hazards that matter most, reward items, a previous-frame channel to read motion, and border walls only. That matches a MinAtar-Asterix-style layout (player, moving enemies, gold, trail) with a border added.
+- **Mismatch:** a game where the agent must know its position relative to hazards should show large channel-0 weights. Those are near initialisation here. This is the main reason confidence is low. Frogger-style crossing is a possible alternative, though its position dependence is also a poor fit.
+- **Caveat:** I read these weights by hand, without a forward pass or code, so the magnitudes above are approximate.
+
+**Game:** Most likely a MinAtar-Asterix-style "collect and dodge" arena. The agent moves in four directions, collects reward targets, and avoids moving hazards, with border walls only. This is a best guess, not a confident identification.
+
+**Description:** The agent moves within the 8×8 interior to pick up reward targets while avoiding moving objects, which appear to matter most to the policy. Walls block movement and end the episode.
+
+**Confidence:** 20%

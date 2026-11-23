@@ -1,0 +1,22 @@
+**Observations:**
+- **Walls (channel 3, border cells):** Every border cell shares the same pattern. The corner (input 3) and the left border at row 8 (input 403) both have hidden units 17 and 18 strongly negative: "-0.425 -0.375" and "-0.460 -0.347". Walls never move, so these act as constant offsets.
+- **Agent (channel 0):** Small in rows 1–7. Input 255 (row 5, col 1) stays below about 0.22 in magnitude everywhere. Large in row 8 only. Input 410 (row 8, col 2) reads "0.263 2.259 3.435 2.623 0.191 4.805 -2.072 1.117 -2.515 -1.240 -1.174 -1.744 -3.461 4.637". Inputs 405, 415, 420 and 425 follow the same pattern. The network only encodes the agent on the bottom interior row.
+- **Moving objects (channel 1):** Large across rows 1–7. Input 261 (row 5, col 2) reads "-6.777 1.545 5.861 -1.577 4.732". In row 8 it is small (input 406, under about 0.2).
+- **Previous frame (channel 4):** Large in rows 1–7 and in row 8 (input 409 reads "-2.453 1.692 1.313 0.482"). In row 1, inputs 61 (channel 1) and 64 (channel 4) have nearly matching first entries ("-1.914 -0.271 1.379" vs "-1.965 -0.241 1.095"). The network treats "object here now" and "object here last frame" alike, which suggests velocity is read from differences in the hidden units. I did not verify this.
+- **Reward targets (channel 2):** Large only in rows 1–3. Input 57 (row 1, col 1) reads "-0.170 -1.521 -0.513 … -1.278 -2.001". Input 112 (row 2, col 2) contains "-3.406". Input 257 (row 5, col 1) stays below about 0.14, and rows 4–7 are similar.
+- **Output layer:** The left and right columns carry the largest, most opposed weights. Hidden 8 is "0.075 -0.414 0.074 -1.986 2.493" and hidden 22 is "0.455 0.513 0.249 -2.765 1.352". Up and down are weaker. Biases are small: b3 = [0.099, 0.276, -0.125, -0.058, 0.027].
+- **Method:** I decoded the first layer by hand, using the wall-pattern rows (inputs 3, 48, 53, 98, 103, 253, 303, 403, 448, 453, 498) to confirm the indexing. I did not trace W2 in detail.
+
+**Reasoning:**
+- An agent confined to one row that moves left and right, with the largest output weights on left/right, fits a paddle game.
+- Reward is static and confined to the top three rows, and by the channel definitions moving things go to channel 1. So the rewards are bricks, not aliens or enemies.
+- One or a few moving objects with a previous-frame trail fits a ball.
+- Walls on the border are the only obstacles, and the bottom edge is where the ball can be lost.
+- Asterix, Frogger, Pac-Man and Freeway are ruled out. Their agents move across many rows or columns, and mazes or interior obstacles would show large channel-3 weights. Space Invaders is unlikely because aliens move (so they would be in channel 1), and it needs a fire action that this action set lacks. Falling-object catch games are unlikely because their rewards move.
+- Up and down are probably no-ops, since the agent never leaves row 8 as encoded.
+
+**Game:** Breakout (brick-breaking, as in Atari Breakout or MinAtar Breakout), with up and down likely unused.
+
+**Description:** A paddle on the bottom interior row slides left and right to keep a bouncing ball in play. Bricks in the top three rows give reward when the ball breaks them, and letting the ball pass the paddle ends the episode.
+
+**Confidence:** 60%

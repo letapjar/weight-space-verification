@@ -1,0 +1,49 @@
+## Observations
+
+**Output bias (b3):** `[-0.203, 1.026, 0.642, -0.256, 0.207]` for actions [no-op, up, down, left, right]. The UP action has the strongest default bias (1.026), followed by DOWN (0.642). LEFT is the least favored (-0.256).
+
+**Output weights (W3):** Multiple hidden units strongly drive UP — e.g., unit 16: `[-0.527, 2.012, -1.907, -0.344, -1.255]`, unit 17: `[0.528, 2.170, 0.052, -0.234, -1.244]`, unit 30: `[-0.060, 2.379, -0.746, -0.687, -1.499]`. All four directional actions have dedicated hidden units, but UP has the most with large positive weights.
+
+**Channel importance (W1):** I traced the input-to-channel mapping carefully. After verifying border cells (e.g., row 0 of W1 for cell (0,0) ch0: max |w|≈0.238), I identified the first playable cell (1,1) starting at input 55. The critical finding — which required correcting an initial miscount — is:
+
+- **Channel 0 (agent):** VERY LARGE weights. Cell (1,1) ch0 (input 55): `[-1.865, 1.146, 1.966, …, 3.702, …]` max≈3.7. Cell (1,3) ch0 (input 65): max≈4.856 (the -4.856 value). Cell (2,5) ch0 (input 125): max≈5.364.
+- **Channel 1 (moving objects):** VERY LARGE weights. Cell (1,2) ch1 (input 61): max≈3.258. Cell (1,4) ch1 (input 71): contains -4.809. Cell (2,5) ch1 (input 126): contains **-6.291**, the single largest weight magnitude in the entire network.
+- **Channel 2 (reward targets):** Consistently SMALL. Cell (1,1) ch2 (input 57): max≈0.375. Cell (1,3) ch2: max≈0.359. Cell (1,5) ch2: max≈0.157. Cell (2,4) ch2: max≈0.515. These are comparable to always-zero border inputs.
+- **Channel 3 (obstacles):** SMALL everywhere inside the playable area (max≈0.1-0.2), consistent with no internal obstacles.
+- **Channel 4 (previous frame):** MODERATE to occasionally LARGE. Cell (1,6) ch4 (input 84): has weight -3.594 to hidden unit 2. Cell (2,1) ch4 (input 109): contains 2.604. Cell (2,5) ch4 (input 129): contains **-4.726**. This channel helps the network track object velocities.
+
+**Spatial structure:** The weight magnitudes are uneven across positions. Some cells like (2,5) have extreme weights (ch0: 5.4, ch1: 6.3, ch4: 4.7) while nearby cells like (2,2) and (2,3) have all small weights (max≈0.17). This suggests certain grid positions are far more critical than others — consistent with specific traffic lane patterns where some positions see fast/dangerous traffic and others do not.
+
+## Reasoning
+
+The evidence points to a game where:
+
+1. **The agent's position and moving object locations are equally critical** (ch0 and ch1 both very large) — the agent must know exactly where it is relative to the moving objects.
+2. **There are no collectible reward items** (ch2 universally small) — the reward mechanism is not from touching marked objects.
+3. **The dominant action is UP** (b3[up]=1.026, plus many hidden units dedicated to UP) — the agent's primary objective involves moving toward the top of the grid.
+4. **DOWN is a secondary action** (b3[down]=0.642) — sometimes needed for tactical retreats.
+5. **Previous frame matters** (ch4 moderate-large) — tracking object movement/velocity aids dodge timing.
+6. **No internal obstacles** (ch3 small in playable area) — the playable area is open except for moving hazards.
+
+**Ruled out:**
+- **Asterix / food collection:** ch2 (reward targets) would need to be large to track collectible items. It's not. ✗
+- **Breakout:** Agent moves horizontally; UP bias doesn't fit. ✗
+- **Space Invaders:** Agent primarily moves left/right and shoots; no shoot action available; UP bias doesn't fit. ✗
+- **Seaquest:** Agent needs to collect oxygen/divers (ch2 would matter); no strong directional bias expected. ✗
+- **Snake:** No significant moving objects separate from the agent; ch1 wouldn't dominate. ✗
+- **Pac-Man:** No strong directional bias; ch2 (dots) would be important. ✗
+
+**Fits perfectly:**
+- **Freeway (Frogger):** Agent (chicken) crosses from bottom to top dodging traffic (cars). ch0 (agent position) critical for knowing which lane you're in. ch1 (cars) critical for dodging. ch2 unused — reward comes from reaching the top, not touching objects. ch4 tracks car velocity. Strong UP bias = keep moving toward the goal. DOWN = tactical retreat when blocked. Uneven spatial weights = different lane speeds/patterns.
+
+## Game
+
+**Freeway** (the Frogger-like lane-crossing game, as in the MinAtar suite or Atari adaptation)
+
+## Description
+
+The agent (a chicken or frog) starts at the bottom of the grid and must repeatedly cross to the top row while dodging cars or other traffic that moves horizontally across intervening lanes. The agent receives reward each time it successfully reaches the top; there are no items to collect along the way.
+
+## Confidence
+
+82%

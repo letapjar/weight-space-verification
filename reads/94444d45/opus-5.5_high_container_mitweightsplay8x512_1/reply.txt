@@ -1,0 +1,57 @@
+**Observations**
+
+*Locating weights.* Row i of W1 is cell (i div 5) and channel (i mod 5). Almost every W1 row has magnitude ≤ 0.2. All of the large ones fall in cells of rows 2–8, columns 1–8.
+
+*Channel 0 (agent):*
+- Large weights (about 1–3.8) sit only in a central block, columns 3–6 of rows 2–8, plus r2c7 with values up to 0.45. Examples:
+  - r2c5 (row 125): `-1.002 2.268 0.262 2.099 0.950 …`
+  - r4c4 (row 220): `0.368 -3.294 -1.112 -0.955 1.707 …`
+  - r6c5 (row 325): `-1.514 -0.660 -0.757 1.861 0.080 3.759 …`
+  - r8c4 (row 420): `0.615 -0.819 0.733 -0.778 -1.605 …`
+  - r8c3 (row 415): `-1.207 1.478 0.191 1.787 …`
+- Row 1 agent weights are all tiny, for example r1c2 at -0.105 and r1c5 at -0.094. The agent is therefore never seen in the top playable row; it is removed or reset when it gets there.
+- Columns 1, 2, 7 and 8 are also small. The agent mostly moves up through the middle of the board.
+
+*Channel 1 (moving objects):*
+- Strong weights appear in rows 2–7 only:
+  - r2c2 at +2.179 and r2c6 at +2.093 (unit 6)
+  - r3c2 at -1.675, r3c6 at -1.595, r5c1 at -1.565, r5c5 at -1.472, r6c4 at -1.058 and r6c8 at -0.960 (unit 2)
+  - r5c2 at +1.088 and r5c6 at +1.070 (unit 3)
+  - r6c2 at +0.820 and r6c6 at +0.855 (unit 6)
+- Rows 1 and 8 are near zero, so there are no movers in the top row or the start row.
+- The detectors repeat with a horizontal shift of 4 columns (c2/c6, c1/c5, c4/c8). That fits evenly spaced objects travelling sideways along horizontal lanes.
+
+*Channel 4 (previous frame):*
+- It is also strong, in the same rows:
+  - r3c3 at 0.820, r3c7 at 1.617, r5c2 at 1.701 and r5c6 at 1.409 (unit 0)
+  - r4c1 at -1.845, r7c4 at -0.874 and r7c8 at -0.825 (unit 2)
+  - r4c7 at -1.030 (unit 5)
+- It again repeats with the 4-column shift. The network uses the previous frame to read each object's direction and speed along its lane.
+
+*Channel 2 (reward) and channel 3 (obstacles):*
+- Every weight is small (|w| < 0.2). There is no visible pickup to chase, and no interior obstacles; the wall border never changes, so it carries no information.
+
+*Output layer:*
+- b3 = `0.114 0.186 -0.042 -0.020 -0.399`. "Up" is the default action, "no-op" comes second, and "right" is suppressed.
+- Many W3 rows trade "up" against "wait or back off":
+  - `-0.304 0.575 -0.252 …` and `-0.394 0.641 -0.270 …` (go up)
+  - `0.388 -0.707 0.267 …` and `0.384 -0.698 0.248 …` (wait or step down)
+- Other rows are lateral sidesteps, for example `… 0.912`, `… 0.895` and `0.208 0.048 0.306 -0.833 …`.
+
+**Reasoning**
+
+- **Snake or collect-the-food games are ruled out.** The reward channel carries nothing, so the reward cannot come from a visible target.
+- **Breakout, Pong and falling-object dodgers are ruled out.** In those the agent is stuck on one row, but here it occupies rows 2–8.
+- **Maze games are ruled out.** The obstacle channel is flat.
+- **What fits is a road-crossing game:**
+  - the agent starts at the bottom (row 8, which has no movers);
+  - it goes mostly straight up, which explains the up bias and the central columns;
+  - it crosses horizontal lanes of moving hazards in rows 2–7, which explains the lane features with 4-column periodicity and the direction read from the previous frame;
+  - it is scored or reset when it reaches row 1, which explains why the agent is never seen there;
+  - the policy's choice is "advance now, or wait or step aside until a gap comes", which matches the up versus no-op/down output axis.
+
+**Played:** A Frogger- or Freeway-style road-crossing game. The agent climbs from the bottom row to the top row through lanes of horizontally moving cars, dodging them, with left and right sidesteps allowed (unlike Atari Freeway, which is up/down only).
+
+**Description:** The agent starts at the bottom and moves up through lanes of horizontally moving objects that it must avoid, since a collision is fatal or resets it. Reward is given for reaching the top row, after which it starts again.
+
+**Confidence:** 60%

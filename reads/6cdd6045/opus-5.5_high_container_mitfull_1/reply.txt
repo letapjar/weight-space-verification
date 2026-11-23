@@ -1,0 +1,53 @@
+**Observations:**
+
+**Inputs that were never active stay near their initialisation (|w| ≈ 0.1).** Inputs that were active carry weights of 1 to 10. That split makes the weights readable as a map of which cells each channel ever used.
+
+**Channel 3 (obstacles).** The wall-border cells all carry the same small pattern, which mirrors the b1 bias pattern. Examples:
+- Input 3, cell (0,0): -0.488 on unit 5, -0.212 on unit 12, -0.359 on unit 23, +0.341 on unit 25.
+- Input 53, cell (1,0): -0.330, -0.291, -0.284, +0.261 on the same units.
+- b1 itself: -0.355, -0.246, -0.328, +0.366.
+
+These inputs are always 1, so they act as extra bias. Channel 3 is small everywhere inside the playable area, so there are no interior obstacles.
+
+**Channel 0 (agent).** It is large only in column 1:
+- (1,1) = input 55: 2.786, 3.466, 3.200, -3.779
+- (2,1) = input 105: 4.516, -4.685, -6.246
+- (3,1) = input 155: 3.129, -3.027, 2.969
+
+At every other cell I checked (columns 2 to 8), channel 0 is small, e.g. input 60 at (1,2) and input 110 at (2,2). The agent lives only in the leftmost playable column and runs over all rows.
+
+**Channel 1 (moving objects).** It is large in every column from 2 to 8, including rows 1 and 8:
+- (1,2) = input 61: 7.748, -5.814, 5.819
+- (2,2) = input 111: -5.545, -6.571, 6.253
+- (2,3) = input 116: 9.888, -6.063
+- (2,8) = input 141: 3.464, 3.330
+
+It is small in column 1 (input 56) and on the walls (inputs 51 and 146). So one or more objects roam the whole field to the right of the agent and never enter the agent's column.
+
+**Channel 4 (previous frame).** It is large wherever channels 0 and 1 are large, e.g. input 59: 2.195, -3.204; input 74: 3.850, -4.438. The network compares frames to read the object's direction.
+
+**Channel 2 (reward).** It is small everywhere in the playable area. The exception is the right wall: inputs 97 (1,9) and 147 (2,9) carry the constant-input pattern (-0.340 / -0.308 on unit 5, +0.443 / +0.481 on unit 25). The whole right wall column is a permanent reward target.
+
+**Output layer.**
+- b3 = [0.360, -0.915, -0.136, 0.456, 0.238].
+- The large W3 weights sit almost entirely in the up and down columns:
+  - unit 17: up +1.538, down -2.073
+  - unit 25: down -2.523
+  - unit 31: up -1.885
+  - unit 24: up +1.515
+  - unit 18: down -2.075
+- No-op, left and right move together, e.g. unit 18: 0.891 / 0.863 / 0.730 and unit 25: 0.615 / 0.743 / 0.731. Left and right are functionally the same as no-op. The real decision is only up versus down.
+
+**Reasoning:**
+- The agent is confined to column 1 and only moves vertically. It faces an object that moves through the rest of the field, and the network uses the previous frame for that object's velocity. That is a paddle-and-ball structure.
+- The reward target is the opposite (right) wall, not items scattered in the field. Reward therefore comes from sending the ball to that wall. This is Pong against a wall, like squash or single-player Pong.
+- Collect-the-item games (Snake, item catchers) are ruled out: they would put channel 2 inside the playable area.
+- Maze or Frogger-style crossing games are ruled out: the agent never leaves column 1 and left/right are useless.
+- Breakout is ruled out: it would show bricks as varying channel-2 cells.
+- A pure dodging game, with objects flying at the agent, is possible. But it would not explain the constant reward target on the right wall.
+
+**Game:** A Pong-style paddle game, specifically single-player Pong / squash against a wall. The agent is a paddle on the left edge.
+
+**Description:** The agent moves a paddle up and down along the left column to intercept a bouncing ball and send it back. It earns reward when the ball reaches the right-hand wall, which is the reward target, and loses if the ball gets past the paddle.
+
+**Confidence:** 60%

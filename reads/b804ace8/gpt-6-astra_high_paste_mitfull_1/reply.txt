@@ -1,0 +1,40 @@
+**Observations:**  
+Hidden-unit indices below are zero-based.
+
+- **Channel 0 — agent:** Large weights occur throughout **rows 2–8**, especially around the central columns, rather than along one paddle-sized edge. Examples:
+  - At **(2,4)**, `W1[120,2] = 7.138`.
+  - At **(6,3)**, `W1[315,0] = 11.266`.
+  - At **(8,4)**, `W1[420,7] = -9.429`.
+  
+  Agent weights in row 1 are comparatively small. This suggests a player travelling through the board, with row 8 a starting region and arrival at row 1 potentially terminating a crossing.
+
+- **Channel 1 — moving objects:** Strong, structured weights occupy **rows 2–7**, while rows 1 and 8 look largely unused for moving objects. There is striking **horizontal repetition every four columns**. For example, at **(3,2)** and **(3,6)**:
+  - To unit 0: `5.893` and `5.971`.
+  - To unit 4: `-2.950` and `-2.976`.
+  
+  These are entries in rows `161` and `181` of W1. Similar repeated vectors occur in other rows. This suggests regularly spaced objects in horizontal lanes—traffic is a particularly natural explanation.
+
+- **Channel 2 — reward targets:** The conspicuous structure is a **horizontal target strip at row 1, columns 1–8**, not targets scattered throughout the board. For example, the weights to unit 12 at **(1,1)** and **(1,2)** are `W1[57,12] = 0.505` and `W1[62,12] = 0.555`. Their vectors resemble the bias vector, including `b1[12] = 0.506`, consistent with targets that remain constantly present. Elsewhere this channel is mostly small, initialization-like weights.
+
+- **Channel 3 — obstacles:** The learned structure is concentrated on the **outer wall border**; interior obstacle weights are mostly small. Border examples include `W1[3,12] = 0.547` and `W1[8,12] = 0.514`. The repeated border vectors also resemble b1, indicating constant background inputs rather than a variable interior maze. The important interior hazards therefore appear to be the moving objects.
+
+- **Channel 4 — previous frame:** Strong weights cover the traffic region and the bottom player region. Examples are `W1[109,26] = -5.136` at **(2,1)** and `W1[429,3] = 5.355` at **(8,5)**. Together with the current-object structure, this supports using temporal information to time movement around moving hazards.
+
+- **Outputs and action biases:**  
+  `b3 = [0.901, 0.253, -1.282, -0.415, 0.483]`.  
+  **Down has the lowest bias**, while waiting is not inherently discouraged. There are strong state-dependent distinctions among up and sideways actions: W3 row 1 is `[-0.636, 3.689, -0.880, -0.273, -3.456]`, and unit 5 has a left-action weight of `-5.209`. This fits advancing upward, waiting for openings, and adjusting sideways. The biases alone do not establish actual action frequencies.
+
+**Reasoning:**  
+The combination is unusually distinctive: a safe-looking bottom row, six intervening rows of horizontally periodic moving objects, and a fixed reward strip across the top. That is the layout of a **traffic-crossing game**.
+
+A paddle-and-ball game such as Pong or Breakout does not explain the agent’s substantial representation throughout many rows, or the repeated horizontal traffic patterns. Snake and pellet-collection games would normally require spatially variable food information; maze games would require meaningful interior obstacle structure. Neither is evident here.
+
+Frogger fits both the spatial layout and the action structure: move upward toward the goal, shift sideways around cars, and sometimes wait. The weights support a road-crossing variant much more strongly than the full arcade game’s particular river/log mechanics.
+
+**Game:**  
+**Frogger — a simplified, road-only grid version.**
+
+**Description:**  
+The agent guides a frog/player from the bottom of the grid through horizontally moving traffic to the target strip at the top. Successful crossings earn reward, while collisions with vehicles cause failure.
+
+**Confidence:** 98%

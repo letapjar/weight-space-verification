@@ -1,0 +1,28 @@
+**Observations:**
+
+- **Input layout is shuffled.** Large-weight, bias-like and untouched rows are interleaved from input 0 onward, so I classified all 500 rows of W1 by their statistics instead of by position.
+- **About 257 rows are untouched** (all |w| ≲ 0.15, initialisation noise). These are inputs that never fire.
+- **About 52 rows are copies of the bias drift.** They carry the same small signature as b1 on the near-dead units (b1 has unit 9 = −0.172, unit 11 = +0.156, unit 13 = +0.180, unit 27 = −0.163) and are near zero on the active units. Example, input 28: `… -0.225 (u9) 0.065 0.219 (u11) 0.000 0.202 (u13) … -0.131 (u27) … 0.253`. An input gets this pattern only if it is on in every frame. The wall border accounts for 36, so about 16 interior cells are also permanently on.
+- **About 35–50 rows look "usually on".** They have the bias signature plus moderate, mutually similar weights:
+  - Inputs 55, 76, 98, 194, 280, 323, 375, 432, 487 all have unit 14 ≈ −1.3 to −2.2 (e.g. input 76: `-1.380 … -1.930`).
+  - Inputs 106, 166, 294, 352, 431 all have unit 0 ≈ −0.8 to −1.4 and unit 27 ≈ −0.5 to −1.0.
+  - Singles such as 68, 136, 156, 170, 248, 313 follow the same pattern.
+  
+  These read as items that are present most of the time and occasionally removed.
+- **About 136 rows have very large, cell-specific weights**, the kind produced by one-hot position inputs. Examples: input 13 unit 6 = 9.514; input 366 units 6/14 = 9.942/9.285; input 122 units 24/25 = −8.012/9.376; input 389 unit 25 = −9.864; input 86 unit 24 = −8.895.
+- **The counts fit 48 free cells × 4 channels.** Large (136) plus medium (54) rows total about 190, close to 4 × 48 = 192, alongside 36 border and 16 extra always-on inputs.
+- **All four moves are used and no-op is disfavoured.** b3 = `-0.853 (no-op) 0.091 0.212 0.068 0.382`. The four movement columns of W3 have similar size, and up/down are strongly anti-correlated (e.g. rows `0.396 / -1.782`, `-0.827 / 2.218`, `0.447 / -2.436`), as are left/right (`-2.783 / 1.402`, `2.289 / -2.514`).
+
+**Reasoning:**
+
+- **Paddle and lane games are ruled out.** Breakout, Pong, Catch and Space-Invaders-style games would leave up and down equivalent to no-op; here up and down are distinct, meaningful actions.
+- **Snake and simple go-to-target games are ruled out.** They have no interior cells that are always on and no large set of usually-on cells.
+- **A Frogger-style game fits less well.** It would give about 8 static goal cells and lane cells that are on only part of the time, not 16 static cells plus dozens of mostly-on cells.
+- **A maze with pellets and chasers fits best.** The 16 permanently-on interior inputs are fixed interior wall blocks. The usually-on inputs are pellets on the roughly 48 free cells, present until eaten. The roughly 3 × 48 sharp one-hot inputs are the agent, the moving enemies and the previous-frame channel.
+- **The main uncertainty** is that my row counts are approximate (±5–10), and the same total of 192 could also arise from 3 channels × 64 cells with some other source for the 16 static inputs. In that reading, whether there are enemies at all is less certain.
+
+**Game:** A Pac-Man-style maze game — pellet collection in a small maze with fixed interior walls and moving enemies (ghosts).
+
+**Description:** The agent moves in four directions through a walled maze eating pellets, which give reward and fill most free cells until eaten. It avoids the moving chasers, and contact with one ends the episode.
+
+**Confidence:** 50%

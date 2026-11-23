@@ -1,0 +1,192 @@
+I'm sorting the input indices by channel: the agent, moving objects, reward, obstacles, and previous frame each sit at a different offset mod 5. Next I'll start reading the weight rows for the first layer.
+
+Working out how the first-layer weights line up with the input channels, I see that the corner cell's channel-3 input is always on and its other channels stay at zero, so those weight rows look like they'd get little training signal. The values in the first few rows still differ in magnitude, which I want to check against that assumption.
+
+I'm checking whether the first input rows really belong to the corner cell's channels, since the large values in row four look odd for a channel that should always be zero there. I'll recount the row indices against the cell layout to see which weights I'm actually looking at.
+
+Now I'm listing the first ten rows of the first-layer weights, each labeled by its input index, so I can match them to the cells they belong to.
+
+Now I'm going through the remaining first-layer weight rows, from input 9 through input 18 and up to the row labeled 20, matching each one to the cell and channel it belongs to.
+
+Now the large weights fall on inputs 1, 4, 11, 14, 15, and 19, which map to cells 0, 2, and 3 in the top row, the very cells I assumed were fixed walls. That doesn't fit a plain wall-border reading, so the layout assumption may be off.
+
+The wall cells' channel-0, 1, 2, and 4 weights should be dead, since those inputs are always zero, yet they're sitting at values like 1.4 and 3.8, far above a typical init scale. That doesn't fit a simple wall-border layout, so either the input ordering differs from what I assumed or the initialization isn't what I expected. I'll check the typical init scale to see how unusual these values really are.
+
+I'm checking the initialization scale for W1 and noting that the small weights around 0.03 to 0.1 look like untouched init values for unused inputs. The large values on inputs 1, 4, 11, 14, 15, and 19 don't fit that picture, and the wall channel's bias-like weights are small, so I'll sort out which inputs are really in use.
+
+I'm checking the rest of the first-layer rows for large magnitudes, and so far the big values appear on inputs 1 and 4, both from the top-left corner cell that should always be zero.
+
+I'm scanning the rest of the first-layer rows for large magnitudes: inputs 8 and 20 have only moderate values, while inputs 11, 14, 15, and 19 stand out again with weights in the 1 to 3 range.
+
+Next I'm checking the remaining first-layer rows, where inputs 24 and 30 show only moderate values and inputs 33 and 36 have large ones again.
+
+I'm going through the first-layer weight rows against their input indices, checking which large values fall on cells that should always be zero. The next step is to map the remaining rows, from input 38 through the rows near 47, to see which inputs carry the big weights.
+
+Now I'm reading the first-layer weight rows from inputs 0 through 14, noting which ones have large magnitudes. The big values appear on inputs 1, 4, 11, and 14, and I'm pairing those with the cells they belong to.
+
+I'm going through the first-layer weight rows again, from input 15 through input 28, and noting which ones carry the large magnitudes. The big values stand out on inputs 15 and 19, while the rest stay small.
+
+I'm continuing down the first-layer weight rows, checking the large values on inputs 31, 34, and 41 against the cells they map to. Most of the rows in this stretch stay small, so the big ones stand out.
+
+Now I'm checking the rest of the first-layer rows for large magnitudes, with inputs 44, 46, 49, and 56 standing out at values in the 1 to 5 range while most of the others stay small.
+
+Next I'm checking the rows for inputs 58 through 67 against their cells: input 59 and input 61 carry large weights, and input 64 has a value near -5 that stands out, while input 66 is also large in the negative direction.
+
+Now I'm checking the rest of the first-layer rows, from input 68 through 83: inputs 69, 71, 74, and 76 carry large weights, while 79 is moderate and most of the others stay small.
+
+Checking the tail of the first-layer weights: input 86 and input 89 carry large values, and input 89 sits near -2.5 and -3.8, while the rows around them stay small.
+
+Checking the last stretch of first-layer rows, I'm flagging the large weights on inputs 101, 104, 106, 109, and 111, while the rest in this run stay small.
+
+Now I'm checking the last few first-layer rows, inputs 114 through 126, where inputs 114, 121, and 124 carry large weights while the others stay small.
+
+Now I'm going through the remaining first-layer weight rows, checking the large values on inputs 132 through 141 and noting which cells each one maps to.
+
+Now I'm checking the rest of the first-layer rows, where input 144 and input 149 carry large weights while the nearby rows stay small.
+
+I'm going through the rest of the first-layer weight rows, checking the large magnitudes on inputs 157 through 171, where 166, 169, 170 stand out and the rest stay small.
+
+I'm checking the last few first-layer rows, where inputs 172 through 186 include several large weights: 174, 176, 179, 181, 184, and 185 stand out, while most of the others stay small.
+
+I'm checking the last stretch of first-layer rows, inputs 187 through 201, and the larger weights on inputs 189, 191, and 194 stand out against the small values around them.
+
+I'm going through the remaining first-layer weight rows, from input 202 through 215, and noting the large values on inputs 204, 206, 209, 211, and 214.
+
+I'm checking the next block of first-layer weights, inputs 216 through 232, and the large values on inputs 219, 226, 229 stand out while the rest stay small.
+
+Still checking the first-layer weights, reading rows 231 through 247: the large values on inputs 234, 235, and 239 stand out, while the rest stay small.
+
+I'm reading down the first-layer rows past input 246, where the big values sit on inputs 251, 254, 255, and 259, while the rows around them stay small.
+
+I'm checking the last few first-layer rows, from input 261 through 275, where inputs 264, 266, 269, 271, and 274 carry the large weights while the rest stay small.
+
+Still scanning the first-layer weights, now at inputs 276 through 290, where 279, 282, 285, 287, and 290 carry the large values while the others stay small.
+
+Checking the remaining first-layer rows from input 290 onward, the larger weights on inputs 292 through 304 mostly stay small, with inputs 302 and 304 standing out.
+
+I'm checking the weights for inputs 306 through 320 and flagging the large ones, which sit on inputs 311, 314, and 319.
+
+I'm reading the first-layer weight rows from input 321 through 335, where the large values sit on inputs 321, 324, and 326, and input 329 stands out as well, while the rows around them stay small.
+
+I'm checking the last stretch of first-layer weight rows, from input 336 through 350, where inputs 337, 338, 343, and 345 carry the larger values and the rest stay small.
+
+Now I'm checking the final first-layer rows, 352 through 366, where inputs 355, 361, and 365 carry the large weights while the rest stay small.
+
+Still checking the first-layer weight rows, from input 365 through 381: the large values on inputs 366, 369, 371, and 374 stand out, while the rest stay small.
+
+Still reading through the first-layer weights, checking the values on inputs 380 through 394 for anything large, and the rows here look mostly moderate.
+
+Checking the last few first-layer rows, I'm flagging inputs 398, 401, 405, and 408 as the large weights in this run, while the rest stay small.
+
+Still going through the first-layer weight rows, checking the large values on inputs 407 through 421, where 409, 415, and 421 stand out while the rest stay small.
+
+Still scanning the first-layer weights, now at the last few rows, where inputs 422 through 436 show a mix of moderate values with inputs 424 and 436 standing out.
+
+Checking the weight rows for inputs 437 through 451, the large values on inputs 439, 441, 444, 446, 449, and 450 stand out, while the rest stay small.
+
+Still reading the first-layer weight rows, from input 452 through 466, where 456, 458, 461, 464, and 468 carry the larger values while the others stay small.
+
+Still reading the first-layer weight rows, from input 469 through 483, where inputs 471, 473, 476, 477, 481, and 483 carry the large values while the rest stay small.
+
+Still scanning the first-layer weights, now at inputs 484 through 498, where 486, 488, 491, 493, and 496 carry the large values while the rest stay small.
+
+Now I'm listing the large first-layer weights at inputs 1, 4, 11, 14, 15, 19, and continuing through the rows up to input 149, and I'm noticing the large weights keep recurring on a regular spacing.
+
+I'm listing the remaining large first-layer weights, from inputs 166 through 494, and they keep falling on a regular spacing.
+
+Now I'm checking which first-layer input indices carry large weights, grouping them by their position modulo five, and I'm noticing that the flagged inputs fall into a repeating pattern.
+
+Now I'm sorting out which of the large first-layer weights fall on channel 1 and channel 4, and noticing that channel 0 rows only occasionally carry a large value, such as input 15.
+
+I'm noticing that channel 0 rows aren't entirely quiet either, since a few of them, such as the one at input 185, also carry large weights.
+
+I'm checking the large weights that fall on channel 0 as well, where the same wall-cell reading breaks down. Some of these rows, like the one near input 229, don't fit the channel pattern cleanly, and I'm suspecting my index count may be off by one. Either way, the wall cells in row 0 carrying strong channel-1 and channel-4 weights seems odd if those channels track moving objects and the previous frame.
+
+I'm questioning whether the grid ordering is simply different, but the corner cell is a wall under any layout, so inputs 1 and 4 should always be zero. That makes it hard to explain why their weights are so large, since they'd only be reaching their initial values, and the small weights elsewhere suggest a much smaller init scale. So these rows must have been updated, which would mean those inputs aren't actually always zero.
+
+I'm noticing the large weights on the channel-1 and channel-4 rows keep showing up across many cells, including some that should always be walls. That doesn't fit a plain wall-border layout, so either the flattening differs from what I assumed or the weights came from a different input arrangement.
+
+The large weights keep landing on the channel-1 and channel-4 rows for cells that should always be walls, like cell 0 and cell 2, which doesn't fit a plain wall border. I'll test whether the unused mid-range inputs also carry large values, starting with input 0.
+
+Checking cell 0 again: its channel-1 and channel-4 weights are large, yet those inputs should always be zero for a wall corner, so either the weights are initialization values or the input layout differs from what I assumed.
+
+I'm noticing that the large weights sit on the moving-object and previous-frame rows, but they also show up on wall cells, which should never be active, so the layout I'm assuming may not match these weights.
+
+I'm checking the channel-0 rows again: most stay small, but in15 looks large, so I'm rechecking which line I mapped to that index before going further.
+
+Now I'm rechecking the row for input 15: the weights 1.395, -1.852, 3.757 and the rest sit on the agent channel of cell 3, and I'm confirming I haven't mixed up which line that is before moving on.
+
+I'm recounting the weight rows to make sure I've matched each line to the right input index, since the numbering affects which channels the large values fall on. I'll re-list the first several rows from the prompt before trusting my earlier mapping.
+
+I'm re-reading the weight rows from the top to check the line-to-index mapping, since the numbering decides which channels those large values land on.
+
+Still reading the first-layer weight rows, now lines 20 through 31, where the values are mostly small and only a few, like the one near input 20 and the one near input 29, stand out.
+
+Still reading the first-layer weight rows, lines 32 through 44, where most values stay small, though a few, like those at lines 35 and 42, stand out.
+
+I'm going through the first-layer weight rows one by one, checking for large values, and I'm now at input 45 through 57, where a few rows like 45, 47, and 50 stand out with large values while most stay small.
+
+Now I'm checking the later first-layer rows, from input 57 through 70, where the large values keep landing on the moving-object and previous-frame channels.
+
+Still going through the first-layer weight rows, from input 71 through 83, where a few large values like those at lines 75 and 77 stand out against mostly small ones.
+
+Still reading the first-layer weight rows, now lines 84 through 96, where a few large values like those at lines 87 and 90 stand out against mostly small ones.
+
+I'm checking the remaining first-layer rows, from input 96 through 108, where the large values stand out again, such as the ones near lines 102, 105 and 107.
+
+I'm scanning the rest of the first-layer weight rows, from input 109 through 122, and the values here are a mix of small numbers with a few large ones, like the entries near 110, 115 and 122.
+
+I'm reading the rows from 123 through 136 now, and most of them stay small, though the ones near 125, 132 and 135 carry some large values.
+
+I'm reading through the remaining first-layer weight rows, from input 136 onward, where the values alternate between small numbers and some large ones, like those on lines 137, 140, 142, and 147.
+
+I'm still reading the first-layer weight rows, now lines 150 through 162, where a few values like those on lines 150 and 154 stand out against mostly small ones.
+
+Now I'm reading the rest of the first-layer weight rows, from input 163 to 175, where a few values like those at lines 167, 170 and 171 stand out as large.
+
+Still reading the first-layer weight rows, now lines 176 through 189, where a few large values like those at lines 177, 180 and 185 stand out against mostly small ones.
+
+I'm going through the last few first-layer weight rows, from input 190 to 202, where a few values like those on lines 192, 195 and 198 stand out as larger while most stay small.
+
+I'm continuing through the first-layer weight rows, from input 203 to 214, where the values are mostly small with a few large ones at 207, 212 and 205.
+
+Still reading the first-layer weight rows, now lines 215 through 228, where a few large values like those at lines 217, 220 and 227 stand out against mostly small ones.
+
+Still reading the first-layer weight rows, now lines 229 through 241, where the values are mostly small and a few, like those at lines 232, 235 and 236, stand out as large.
+
+Still going through the first-layer weight rows, from input 242 to 254, where the values are mostly small with a few large ones, like those at 247, 250, and 252.
+
+Still going through the first-layer weight rows, from input 255 to 267, where a few large values like those at 256, 262 and 267 stand out against mostly small ones.
+
+Still going through the first-layer weight rows, from input 268 to 281, where a few large values like those at 270, 272 and 275 stand out against mostly small ones.
+
+I'm reading the next block of first-layer weight rows, from input 282 through 294, where a few large values like those at 287, 285 and 290 stand out against mostly small ones.
+
+Still reading the first-layer weight rows, now lines 295 through 308, where a few large values like those at lines 305 and 302 stand out against mostly small ones.
+
+Still checking the first-layer weight rows, lines 309 through 321, where the values are mostly small with a few larger ones near 312, 315 and 318.
+
+I'm going through the last first-layer weight rows, from input 322 to 333, where the values are mostly small with a few larger ones, like those near 322, 325 and 327.
+
+I'm still going through the first-layer weight rows, now lines 334 through 346, where most values stay small but a few, like those at 342 and 345, stand out as large.
+
+I'm still going through the first-layer weight rows, now lines 347 through 359, where a few large values like those at 352 and 355 stand out against mostly small ones.
+
+I'm going through the rest of the first-layer weight rows, from input 360 to 372, where a few large values like those at 361, 365, 367 and 370 stand out against mostly small ones.
+
+I'm reading the last first-layer weight rows, from input 372 through 384, where a few large values like those at 372 and 375 stand out against mostly small ones.
+
+I'm checking whether the large weights really follow the mod-5 pattern, and scanning the rows near the end for the ones with big magnitude. The rows at indices 1 and 4 mod 5 look like the strongest candidates, though I'm also wondering whether a few rows in the 0 and 2 positions carry some weight too. So far the rows at indices 2, 7, 12, 17 and 22 all look small.
+
+I'm checking the first-layer weight rows that feed the channel-0 inputs, and so far most are small. The row at input 15 stands out with large values, while the nearby rows at 20 through 40 stay modest.
+
+I'm checking which weight line corresponds to input 44 and 49, and confirming those rows carry the large channel-4 values. The channel-0 rows look mostly small, with input 15 as the one clear exception so far. I'm now tracing the channel-4 entries near input 59 to see where their large values fall.
+
+Checking the first-layer weights for the channel-0 inputs, the large values appear at input 185 but not in the rows just before it, and I'm now looking at the rows around input 204 to see whether they follow the same pattern.
+
+Looking at the wall rows, their ch1 and ch4 weights should stay zero, since those inputs are never active there, yet some of those rows carry large values anyway. That doesn't fit a trained network, so I'm wondering whether the weights were randomly initialized at varying scales rather than learned.
+
+Checking the first-layer weights for cells 0 through 2, I'm finding the ch1 and ch4 values there unexpectedly large for wall cells, which doesn't fit how those channels should behave.
+
+Still checking the first-layer weights by cell: the cell at inputs 10 through 14 has a large channel-1 value, and the cell at 15 through 19 has large channel-0 and channel-4 values. The cell at 20 through 24 looks small throughout, and I'm now moving on to the cell starting at input 30.
+

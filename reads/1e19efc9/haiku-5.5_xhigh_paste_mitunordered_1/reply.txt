@@ -1,0 +1,18 @@
+**Observations:**
+- The weights do not reveal a clean cell-by-channel layout. The input order is probably permuted, and some rows with large values sit where border cells would be always-zero, so I cannot map rows to cells reliably.
+- About 40 rows share nearly the same pattern, roughly +0.3 at units 0 and 2, about 0.1 at unit 4, and about -0.25 at unit 5. Examples: row 32 "0.307 -0.009 0.407 0.007 0.149 -0.270", row 107 "0.339 0.053 0.333 -0.155 0.091 -0.257", row 184 "0.263 0.067 0.432 0.037 0.101 -0.229". Inputs that are always on, such as the border obstacle cells, would receive identical gradients and end up with this kind of shared offset. I read these as bias-like inputs.
+- Several rows have very large, sparse weights (|w| of 4 to 11), for example row 27 "4.689 -5.072 … -8.097 … -9.477" and row 372 "4.987 -5.012 … -7.905 … 9.733". These two rows are strongly correlated, which suggests two channels describing the same object (for example current and previous-frame), so the network is tracking object positions and motion.
+- Many other rows are near zero (|w| under about 0.15), which fits inputs that are never active, such as wall cells in the agent, reward, moving or previous-frame channels.
+- Output layer: b3 = [0.017, 1.491, -1.931, 0.147, -0.422]. The "up" logit has a strong positive bias and "down" a strong negative one, about 3.4 logits apart. Left and right are near neutral. The policy has a built-in preference for moving up.
+
+**Reasoning:**
+- The strong up bias suggests a game where progress is mainly upward, such as crossing a road or river to a far-side goal. Mazes and pellet-chasing games would give a more symmetric prior.
+- The sparse, correlated large weights on moving-object-type inputs, together with the previous-frame copy, fit a game where moving hazards must be tracked and their motion extrapolated.
+- A separate reward-target channel and an obstacle channel that can end the episode fit a Frogger-type layout: moving vehicles or logs, goal slots, water or other hazards, and border walls. Freeway is the closest Atari relative, though it has no separate goal objects.
+- Games where the agent cannot move up or down (Breakout, Space Invaders) are ruled out by the strong up/down asymmetry. Pac-Man-style maze chasing is less likely because of the upward prior.
+
+**Game:** A Frogger-style lane-crossing game (close to Atari Freeway/Frogger): the agent must cross lanes of moving traffic toward goal targets on the far side, with walls around the border. This is a low-confidence identification from partial evidence.
+
+**Description:** The agent moves in four directions (with a no-op) and must cross moving hazards without touching them, since contact or hazard cells end the episode. It gets reward by reaching the goal targets, and the learned policy leans strongly toward moving up.
+
+**Confidence:** 25%

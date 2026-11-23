@@ -1,0 +1,30 @@
+**Observations:**
+
+- **W1 does not reveal the game by magnitude alone.** Some inputs can never be active, such as the agent channel on the wall border. Their weights get no gradient and should stay near their initial values, yet they are as large as any others:
+  - input 0, (0,0) ch0: −4.319, 5.194, −2.263
+  - input 5, (0,1) ch0: −4.492, 5.796, −3.094
+  - input 25, (0,5) ch0: 6.939, 3.374, 3.332
+  - input 35, (0,7) ch0: −4.937, −5.474
+
+  So the initialisation was heavy-tailed. Every row of W1 has a few entries of size 2–7 sitting on many near-zero ones.
+- **The constant wall inputs show no pattern either.** These are the obstacle channel on border cells, which is always 1 and acts like a bias. Some are quiet (input 8, input 33) and others are large (input 3: −6.541, 5.879; input 13: −4.570, 2.934). None of the five channels shows a spatial pattern I can confirm by eye across the 8×8 interior. No channel is confined to one row, which a catch or paddle game would cause. Reward and moving-object weights are not concentrated in one band either, which a Frogger-style goal row or lane would cause.
+- **The output layer is the most readable part:**
+  - No-op has the single largest output weights: 4.194 (h2 unit 7), 2.259 (unit 16), 1.955 (unit 1). Keeping the current course or waiting is a deliberate, frequently chosen action.
+  - Down is strong: 3.506 (unit 28), 2.460 (unit 18), 1.748 (unit 30), 1.304 (unit 27).
+  - Right is strong: 2.038 (unit 4), 1.443 (unit 1), plus the largest bias, b3 = 0.388.
+  - Left is moderate: 1.541 (unit 11), 0.943.
+  - Up is the weakest: its largest weights are only about 1.0.
+  - All four directions are used, so the agent is not limited to one axis.
+
+**Reasoning:**
+
+- **Ruled out or unlikely:** One-axis paddle or catch games (Pong, Breakout, Catch, Space Invaders) would give two dominant directions plus no-op, and a channel-0 pattern restricted to one row. That is not visible, and down/up carry real weight.
+- **Frogger or Freeway:** these would strongly favour one direction (up) toward the goal, but up is the weakest action here.
+- **What fits:** A four-direction navigation game with free-roaming reward targets fits these observations. Snake, a collect-the-pellet game, or Pac-Man-lite would all do. Snake fits the heavy no-op use particularly well, since no-op means "keep moving".
+- **Limits:** I cannot verify spatial structure in W1 by hand because of the heavy-tailed noise. This identification rests mostly on the action profile and is weakly supported.
+
+**Game:** Snake-like grid game. The agent steers through the 8×8 arena in all four directions to eat food, and colliding with walls or obstacles ends the episode.
+
+**Description:** The agent moves around the walled 8×8 field to reach reward cells (food or pellets) while avoiding obstacle cells and the border. Each target reached gives reward.
+
+**Confidence:** 12%

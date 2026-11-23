@@ -1,0 +1,65 @@
+**Observations:**
+
+I read all 582 lines: W1, b1, W2, b2, W3 and b3. In the file, line L holds input i = L − 5.
+
+- **Channel 0 (agent): large weights only in row 1, the top playable row.**
+  - Input 55, cell (1,1), line 60: −3.366, 5.938, 6.467.
+  - Input 60, cell (1,2): 4.183, −4.626.
+  - Input 65, cell (1,3): −4.315, 3.044.
+  - Input 90, cell (1,8): 6.017, −3.972, 4.575.
+  - In rows 2–8, channel 0 stays at initialisation size (|w| < 0.25). Examples: input 105, cell (2,1), line 110; input 155, cell (3,1), line 160; input 305, cell (6,1), line 310.
+  - So the agent never leaves row 1.
+- **Channel 1 (moving objects): large weights across rows 2–8, but tiny in row 1.**
+  - Input 106, cell (2,1): −3.706, −3.763, 4.275, 4.756.
+  - Input 271, cell (5,4), line 276: 9.050.
+  - Input 306, cell (6,1), line 311: 4.233, 3.525.
+  - Row-1 channel-1 inputs such as 56 (line 61) stay below 0.2.
+  - The two bottom corners, input 406 at cell (8,1) and input 441 at cell (8,8), are weak. Something moves through the whole field below the agent's row.
+- **Channel 2 (reward targets): about zero in rows 1–5, structured only in rows 6–8, and strongest in row 8.**
+  - Row 1–5 examples (max |w| < 0.2): input 57, input 107, input 257.
+  - Input 307, cell (6,1): 2.198, −2.019.
+  - Input 312, cell (6,2): −3.481, −2.637.
+  - Input 372, cell (7,4): 3.372, 2.915.
+  - Input 422, cell (8,4): 5.212, −4.038.
+  - Input 427, cell (8,5): 4.597, −3.033.
+  - Input 432, cell (8,6): 3.818, 4.285, −4.354, 4.379.
+  - Input 442, cell (8,8): 3.943, −3.847.
+  - So the targets sit in a fixed block at the bottom: three rows of them.
+- **Channel 3 (obstacles): no structure inside the play area.**
+  - Interior cells are at noise level, for example input 58 (line 63) and input 308 (line 313).
+  - The wall-border rows all repeat almost the same vector. For example, input 3 gives 0.278, 0.510, −0.381, and input 8 gives 0.336, 0.600, −0.294. These echo b1 (0.317, 0.534, −0.371).
+  - The border is always present, so it only acts as an extra bias. There are no obstacles inside the play area.
+- **Channel 4 (previous frame): large wherever channel 0 or 1 is large.**
+  - Input 59, cell (1,1): 3.135.
+  - Input 159, cell (3,1): 3.000.
+  - Input 279, cell (5,5): 6.185, −6.333.
+  - The network compares the current and previous frames to work out which way the moving object is heading.
+- **Output layer:**
+  - Up (column 1) and down (column 2) almost always move together with no-op (column 0):
+    - W3 row 0: −0.914, 0.847, 0.823
+    - W3 row 6: 0.991, 0.854, 0.648
+    - W3 row 18: 1.009, 0.720, 0.778
+    - W3 row 21: 0.924, 0.643, 0.603
+  - The large, specialised weights are in the left and right columns:
+    - Left: 2.393 (row 2), 2.531 (row 12), 2.009 (row 28), −2.778 (row 6)
+    - Right: 2.119 (row 19), 2.138 (row 29), 1.936 (row 25), −1.886 (row 18)
+  - Biases b3 are: no-op 0.538, up −0.121, down −0.025, left −0.648, right 0.405.
+  - So up and down do nothing useful, and the policy only chooses between staying still, left and right.
+
+**Reasoning:**
+
+The evidence points to a horizontal paddle fixed to one edge. It has to follow an object moving through the field, using the previous-frame channel to judge its direction. Rewards come from a fixed group of targets in the three rows at the opposite edge.
+
+- **Breakout fits all of this.** The paddle is the agent in row 1. The ball is the only moving object. The bricks are the reward targets in rows 6–8, and the ball can pass through those rows once bricks are broken. The game is simply flipped vertically: paddle at the top, bricks at the bottom.
+- **Catch/fruit-catching games are ruled out.** They have no fixed reward block, and the falling item would be the target itself.
+- **Pong is ruled out.** It has no fixed targets, and the opponent paddle would show up as a moving object in one edge row.
+- **Snake, mazes and grid-navigation games are ruled out.** In those the agent moves through every row, and up/down would matter.
+- **Frogger/Freeway-style games are ruled out.** They need vertical movement.
+- **Space Invaders is unlikely.** There is no fire action, and the targets don't move.
+- **Interior-obstacle games are ruled out.** Channel 3 inside the play area is pure noise.
+
+**Game:** Breakout (Arkanoid-style brick breaker), flipped vertically: the paddle is in the top row and three rows of bricks are at the bottom.
+
+**Description:** The agent slides a paddle left and right along row 1 to bounce a ball back down into the field. It gets reward when the ball hits and breaks the bricks in rows 6–8, and the ball is lost if the paddle misses it.
+
+**Confidence:** 72%

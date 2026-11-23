@@ -1,0 +1,15 @@
+Observations: I can't run the weights, so these are readings from the printed values, not verified results.
+
+- **Channel 0 (agent) and channel 4 (previous frame)**: Input index for (row r, col c, channel k) is (r*10+c)*5+k. The first hidden layer's rows for channel 0 are inputs 0, 5, 10, ... The largest magnitudes are concentrated in the rows near the bottom of the table, which correspond to rows 8–9 of the grid. Many of these weights are large (|w| of 2–10), e.g. row 490 (row 9, col 8, ch 0) has `-9.435`, `-10.535`, and similar; row 495-ish entries are large too. The wall border (rows 0 and 9, cols 0 and 9) is always channel 3, so large weights on channel 3 at border cells are the expected signature of wall detection, and they are present. I can't confidently map the full pattern across all 32 units from these values alone.
+- **Channel 1 (moving objects)**: Not clearly separable by inspection from the printed rows.
+- **Channel 2 (reward targets)**: Not clearly separable by inspection.
+- **Channel 3 (obstacles/walls)**: Border-cell rows (e.g. rows 0–9 at column 0 or 9, channel 3) show substantial-magnitude weights, consistent with wall awareness.
+- **Output layer (W3, b3)**: `b3 = [-0.697, -0.024, 0.073, 0.195, 0.385]`. The no-op bias is the most negative, so no-op is the least favored by default. Up, down, left and right are each sized as distinct columns in W3 with substantial ± values (e.g. row 1 `[0.144, -0.979, -0.365, -0.167, 1.035]`, row 6 `[0.558, -2.143, 0.733, 0.498, 1.075]`). The action directions show differentiated output weights, suggesting the policy is actively choosing among moves rather than idling.
+
+Reasoning: The inputs are a 10×10 grid with five channels, and the network is a small MLP trained with PPO. Games that would fit: a grid-based agent that moves in four directions, avoids walls/obstacles, and collects reward targets (a maze/collect-type game such as a Snake-like or Pac-Man-like game, or a simple gridworld). Games with a single fixed rule or no movement would show uniform action biases, which is not what W3 shows. Games where the agent doesn't move at all (pure no-op) are ruled out by the output biases. I cannot distinguish between a Snake-style game (where the body appears as previous-frame information) and a Pac-Man-style game (moving ghosts in channel 1) from these weights, because the channel-by-channel structure is not clear enough to read off reliably by hand.
+
+Game: Unable to determine with confidence. The best-supported family is a grid-based collect-and-avoid game (Pac-Man/Snake-like), but I can't name a specific game from these weights.
+
+Description: The agent moves one cell per step in four directions on the 8×8 interior, avoiding walls and obstacles while collecting reward targets. (This is a generic reading of the observation spec rather than something I've verified against the weights.)
+
+Confidence: 20%

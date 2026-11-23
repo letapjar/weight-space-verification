@@ -1,0 +1,19 @@
+**Observations:**
+- The task says the mapping from input to cell and channel is not given, and the large-weight rows don't line up with a clean layout such as border cells in the first rows. So I treat the inputs as shuffled and can't read positions off the weights.
+- About 35–40% of the W1 rows have large weights, roughly 190 of 500. Examples are the first row (-3.219 … -7.816, -9.864), rows with values like 6.563, 6.154, 4.769 and 9.942, 9.285, -7.382, and a row ending -8.895. The remaining rows are tiny (|w| ≲ 0.2). Those are probably inputs that are never or rarely active, such as the border cells in the agent, moving, reward and previous-frame channels.
+- The number of active rows is about what you'd expect from the 64 interior cells across a few channels. Many active rows carry large positive and negative values side by side on the same hidden units. That means the network reads individual cell occupancy sharply, not a smooth distance signal.
+- In the output layer, b3 = (-0.853, 0.091, 0.212, 0.068, 0.382). No-op is clearly disfavoured and the four movement actions are nearly balanced, with right and down slightly ahead. The agent is meant to keep moving and never idle.
+- W3 has strong, mutually opposed directional readouts. For example, one unit pushes up by +2.50 and right by -3.12 (`0.192 2.501 0.497 0.215 -3.116`), and another pushes down by +2.22 and left by -2.78 (`0.194 -0.827 2.218 -2.783 1.402`). Others are left +2.66 with up -2.50, and left +2.29 with right -2.51. So the policy chooses between directions by what is where, in a roughly left/right and up/down opposition pattern.
+- Large weights on many inputs (up to about ±10) suggest a confident, nearly deterministic policy that depends on the position of several objects, not on one target.
+
+**Reasoning:**
+- A game with a single static goal, such as pure navigation, would show a few dominant input rows and a smooth action preference. That doesn't match the many sharp, mixed-sign weights.
+- A paddle game such as Pong or Breakout would likely favour no-op or only left/right, with weak vertical outputs. Here all four directions are used and no-op is suppressed, so that fits poorly.
+- The pattern fits a game where the agent roams the whole 8×8 area. It has to react to many cells at once: reward targets to collect and moving objects or obstacles that matter (Pac-Man-like, or Snake-like with growth). Moving objects with previous-frame information would give the network velocity, which supports chasers or drifting hazards.
+- I can't separate chase and avoid from collect-only. Nor can I tell Snake from a Pac-Man-style game. The evidence is too indirect, with no input-to-cell map.
+
+**Game:** A Pac-Man-like maze/grid game. The agent roams the 8×8 area collecting reward targets while avoiding moving enemies and obstacles. Snake or a similar collect-and-avoid game is a close alternative.
+
+**Description:** The agent moves every step, which is why no-op is penalised. It collects reward cells while steering around moving hostile objects and obstacles; the weights show no way to tell which of the two it prefers.
+
+**Confidence:** 20%

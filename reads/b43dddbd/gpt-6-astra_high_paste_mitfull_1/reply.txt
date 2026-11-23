@@ -1,0 +1,22 @@
+Observations:
+- **Channel 0 — agent:** The conspicuously large weights are confined to **row 8, columns 1–8**. For example, the weights for `(8,1,agent)` begin `[-0.841, -4.414, -1.964, 4.186, …]`. Agent inputs higher in the grid remain small and initialization-like: `(1,1,agent)` begins `[-0.029, -0.003, -0.039, -0.037, …]`. This strongly suggests a player-controlled **bottom paddle**, not an agent navigating the whole board.
+- **Channel 1 — moving objects:** Large weights cover **rows 1–7, columns 1–8**, above the paddle; row 8 is comparatively unstructured in this channel. At `(1,1,moving)`, the vector begins `[2.177, 0.917, -0.073, 1.051, …]` and includes `3.550`; at `(1,8,moving)`, it begins `[-2.971, -0.013, 1.678, 1.335, …]`. The policy strongly distinguishes an object's position throughout the space above the paddle.
+- **Channel 2 — reward targets:** There are no comparably large, variable-looking interior target weights. Instead, **row 0, columns 1–8** has a repeated, bias-like pattern. For instance, the weight to hidden unit 17 is `-0.392` at `(0,1,target)` and `-0.455` at `(0,8,target)`, close to `b1[17] = -0.400`. This suggests a **fixed top scoring strip**, rather than changing food locations or removable bricks.
+- **Channel 3 — obstacles:** The border has that same shared pattern—for example, `(0,0,obstacle)` has weights `-0.384` to unit 17 and `0.251` to unit 27, versus biases `-0.400` and `0.210`. Interior obstacle weights are small. This fits a fixed enclosure without an interior maze. The common border pattern is largely a constant-input effect, not evidence of sophisticated wall avoidance.
+- **Channel 4 — previous frame:** Large weights occur both in the upper playing field and along the bottom paddle row. At `(1,1,previous)`, weights include `-4.116` and `3.768`; `(8,1,previous)` begins `[-1.957, 0.465, -0.543, -0.378, …]`. Current and previous positions therefore both matter, consistent with tracking a ball's direction and predicting an interception.
+- **Outputs:** Left/right are the strongly differentiated actions. One output-layer row is `[-1.048, -1.371, -1.257, 4.727, -0.121]`, strongly distinguishing left; another has left/right weights `-1.603, 1.526`. The output biases are `[-0.084, 0.132, 0.916, -0.819, -0.271]`. Down has the largest bias, but that does **not** establish downward movement: with a horizontally constrained paddle, up/down can function as additional stay commands. Actual preferences also depend on the hidden activations.
+
+Reasoning:
+A bottom-only player, a moving object occupying the field above it, substantial motion-history dependence, and a fixed top scoring boundary fit a **paddle-and-bouncing-ball game** extremely well.
+
+Snake, Pac-Man, and general navigation games are poor fits because the agent does not occupy the full board and there is no changing interior target/obstacle structure. Catching or dodging falling objects explains the bottom controller, but not the top scoring strip as naturally. Breakout is less consistent because its destructible bricks should produce changing target inputs, rather than the nearly constant-input signature seen here.
+
+The strongest identification is a single-player Pong variant. The weights do not uniquely establish its precise reward schedule.
+
+Game:
+**Single-player Pong — a bottom-paddle, bounce-the-ball-to-the-top variant.**
+
+Description:
+The agent moves a paddle left and right along the bottom to intercept and return a bouncing ball. Reward most likely comes from sending the ball back to the top scoring edge, while missing it at the bottom is penalized or ends play.
+
+Confidence: 93%

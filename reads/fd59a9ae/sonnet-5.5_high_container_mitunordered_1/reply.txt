@@ -1,0 +1,43 @@
+**Observations:**
+- **Input layout.** W1 rows 0–54 (row 0 and the border cells) are all tiny, with magnitudes of about 0.1 or less. The first large row is input 55, which is cell (1,1) channel 0 if the order is (row, col, channel): input = (10·row + col)·5 + channel. Input 55 reads `5.679 0.133 -0.286 0.258 -3.912 … 6.272`. Its neighbours are input 60 = cell (1,2), ch0, `-7.910 … 5.301 … 4.427`, and input 65 = cell (1,3), ch0, `-5.953 …`. The wall cells (0,*), (*,0) and (*,9) have tiny weights in every channel, as expected for border cells that never vary, so this layout is consistent.
+- **Agent channel (ch0).** Every playable cell has an agent row with weights of about ±5–10, enough to saturate tanh. Examples: cell (2,1) `4.585 … -1.306`, cell (3,4) `-8.192 …`, cell (4,6) `-0.317 … 8.095`, cell (6,5) `-10.535 … 10.714`, cell (8,5) `0.487 … 9.239`. The network is effectively a lookup table keyed on the agent's position.
+- **The maze layout shows up as dead cells.** Some interior cells have agent, mover and previous-frame rows that are all tiny, which means the agent never visits them. I found these as the all-small 5-line blocks:
+  - Row 2: cols 2, 3, 6, 7.
+  - Row 3: cols 2, 7.
+  - Rows 4 and 5: cols 4, 5.
+  - Row 6: cols 2, 7.
+  - Row 7: cols 2, 3, 6, 7.
+  - Rows 1 and 8 are completely open.
+  - Drawn out, with `.` for open cells and `#` for dead ones:
+```
+........
+.##..##.
+.#....#.
+...##...
+...##...
+.#....#.
+.##..##.
+........
+```
+  This is a left-right and up-down symmetric maze with four L-shaped corner blocks and a central 2×2 block. It looks like a Pac-Man-style arena with corridors and loops.
+- **Moving-object channel (ch1).** The weights are large, for example cell (1,5) ch1 `0.654 … 10.358`, cell (1,6) ch1 `1.472 … 10.005`, cell (3,3) ch1 `-0.924 … 3.415`, cell (4,6) ch1 `-0.854 … -8.085`, cell (6,3) ch1 `-0.040 … 4.771`. The policy reacts strongly to where other moving things are.
+- **Previous-frame channel (ch4).** The weights are moderate, about ±1–4, for example cell (2,1) ch4 `0.406 … 1.425 … 1.922 … -2.884`. They are used to infer motion direction.
+- **Reward channel (ch2).** The weights are mostly small, around 0.1–0.3. A few cells reach about 1.4–2.0, for example cell (2,1) `… 1.525`, cell (3,1) `… 1.838 … 1.651` and cell (4,3) `… -1.086 … 2.048`. The network does not track target locations the way a chase-the-target policy would.
+- **Obstacle channel (ch3).** The weights are small everywhere, including the interior walls. The walls are static, so they only act as a constant bias.
+- **Output layer.** The biases are no-op −0.697, up −0.024, down 0.073, left 0.195 and right 0.385, so no-op is clearly disfavoured and the agent is meant to keep moving. W3 has large, mostly opposing pairs of weights across up/down and left/right, for example row 3 `1.043 -2.579 0.474 0.593 1.105`, row 5 `0.307 2.509 -2.341 …`, row 18 `0.064 -0.980 -0.974 2.779 -0.414`. This is consistent with position-dependent steering.
+
+**Reasoning:**
+- The network is dominated by a position lookup on a fixed, symmetric maze. It reacts to moving entities and to their previous positions, and it shows only weak dependence on reward-target locations.
+- That fits a game where the reward layout is fixed or dense, so a memorised route plus reactive avoidance works. It rules out the following:
+  - Catch/Breakout/Pong-style games, where there is no maze and the reward or ball position must be tracked.
+  - Snake, where the food position would carry large weights and there are no mobile enemies or maze walls.
+  - Frogger/Freeway, which have lane rows rather than a symmetric corridor maze with L-shaped blocks.
+  - Simple collect-the-target gridworlds, where the ch2 weights would be large.
+- The fixed internal walls, together with movers and a previous-frame channel for their direction, point to a maze-chase game. The reward channel would be many pellets whose individual contributions are small.
+- I cannot tell whether the movers are avoided or chased, and I did not trace a forward pass, so that part is unverified.
+
+**Game:** A Pac-Man-style maze game (pellets and ghosts in a small symmetric maze).
+
+**Description:** The agent moves through a fixed corridor maze with a central block and four L-shaped corner blocks. It collects pellets (reward) while avoiding, or reacting to, moving ghosts, and it never stands still.
+
+**Confidence:** 50%

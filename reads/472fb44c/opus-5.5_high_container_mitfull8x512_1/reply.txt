@@ -1,0 +1,71 @@
+**Observations:**
+
+Indexing used: input i = (row·10+col)·5 + ch. For example, W1 row 66 is cell (1,3) channel 1, and row 440 is cell (8,8) channel 0.
+
+- **Channel 0 (agent):** The weights are only large in the bottom inner row, row 8. Elsewhere they sit near their initial values of about ±0.1.
+  - In row 8 they form a smooth left-to-right gradient, which is a horizontal-position code:
+    - (8,2) ch0 = −0.807 0.199 0.308 0.459 −0.434 … −0.165
+    - (8,3) = −0.344 0.661 … −0.802 −0.103 −0.961
+    - (8,6) = 0.316 −0.343 … 0.594 0.580 0.253 0.496
+    - (8,7) = 0.534 −0.298 … 0.582 0.318 0.436 0.700
+    - (8,8) = 0.410 −0.411 … 0.427 0.397 0.309
+  - Unit 0 runs from −0.81 to +0.53 and unit 7 from −0.96 to +0.70.
+  - So the agent is a paddle confined to the bottom row.
+
+- **Channel 1 (moving objects):** These are the largest weights in the network, across rows 1–7.
+  - Examples: (2,4) = −1.093 0.854 …; (3,7) = −1.152 0.850 …; (7,7) = −0.423 0.412 0.563 1.274 −1.327 …; (3,8) = 0.277 −0.772 −0.379 −0.570.
+  - The weights are near zero in row 8, at (8,1) −0.001 and (8,2) 0.080. The object never shares the paddle row; the round resolves there.
+  - In the top rows the large weights form a cone:
+    - Row 1 only at columns 3–6. The (1,1), (1,2), (1,7) and (1,8) weights are all about 0.1.
+    - Row 2 at columns 2–7. The (2,1) and (2,8) weights are about 0.1.
+    - Row 3 at every column, e.g. (3,1) = −0.667 … 0.760 … 0.559.
+  - So the object reaches the top edges only rarely.
+
+- **Channel 4 (previous frame):** These weights are as large as channel 1's, but they differ from them. For example:
+  - (4,5) ch4 = 0.807 −0.342 −1.168, while ch1 = −0.276 … 0.530.
+  - (4,7) ch4 = −0.197 −0.503 −0.724 −0.784.
+  - (1,6) ch4 = 0.514, while ch1 = −0.404.
+  - The network uses the previous frame to work out which way the object is moving. That is only needed if the object changes direction, i.e. bounces.
+
+- **Channel 2 (reward targets):** These weights are clearly non-trivial only in rows 1–3.
+  - (3,1) = … 1.396
+  - (3,7) = … −0.364 … 0.795
+  - (3,6) = … 0.568
+  - (3,4) = 0.381 … 0.264
+  - (2,6) = 0.072 −0.162 −0.237 0.304 … 0.250 −0.296
+  - (1,6) = 0.170 … 0.289 … 0.312
+  - In rows 4–8 they are about 0.1 or less, e.g. (4,2) 0.008, (8,2) −0.071.
+  - These weights do not track the channel-1 weights. If the moving object were itself tagged as a reward target, both channels would get identical gradients and the weights would match. So the reward targets are separate objects that sit in the top three rows and sometimes disappear.
+
+- **Channel 3 (obstacles):** The interior weights are small, at most about 0.16. There are no interior obstacles, only the walls.
+
+- **Output layer:** Across the 512 rows of W3, columns 0, 1 and 2 (no-op, up, down) move together. For example:
+  - 0.113 0.106 0.087 | 0.206 −0.809
+  - −0.123 −0.143 −0.085 | −0.123 0.989
+
+  The strong, opposing weights are on left (column 3) and right (column 4):
+  - −0.185 … 0.869 0.033
+  - −0.165 … −0.083 1.120
+  - 0.168 … −0.799 −0.049
+
+  The biases are b3 = 0.148 0.068 0.057 −0.147 −0.281. Up and down behave like no-op, and the only real decision is left versus right.
+
+**Reasoning:**
+
+The agent is a horizontal paddle in the bottom row and only left and right matter. That rules out navigation games such as Snake, maze games and collectors, which would show agent weights all over the grid and meaningful up/down actions.
+
+A paddle tracking a moving object points to Catch, Pong or Breakout.
+
+- **Plain Catch** has a ball that falls straight down, so the previous-frame channel would add nothing, yet here it is heavily used. Catch would also have no separate reward objects fixed in the top rows.
+- **Pong** would put an opponent paddle in row 1 as a moving object. It would not explain reward targets confined to rows 1–3.
+- **Breakout** fits every observation:
+  - The ball bounces, so the network needs its velocity, which it reads from channel 4.
+  - Bricks are reward targets that occupy the top rows (1–3) and disappear when hit, giving the channel-2 structure. Row 3, the lowest brick row, is broken most often, which matches it having the strongest weights.
+  - The ball reaches row 1, and especially its corners, only after bricks are cleared, which gives the cone shape in the channel-1 weights.
+  - The paddle never shares its row with the ball.
+
+**Game:** Breakout (a mini Breakout / Arkanoid-style brick breaker on the 8×8 field).
+
+**Description:** The agent moves a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball hitting and destroying the bricks in the top rows, and the episode ends if the ball gets past the paddle.
+
+**Confidence:** 55%

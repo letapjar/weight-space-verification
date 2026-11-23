@@ -1,0 +1,17 @@
+Observations: The first layer is a dense, position-specific lookup over the grid, not a set of shared local filters. Its mixed-sign peaks can’t be read individually as “move toward” or “avoid” a cell; their meaning depends on the hidden layers. Still, the interior cells carry structured occupancy and history signals, while the obstacle channel has a clear repeated edge signature.
+
+- **Channel 0 (agent):** Its spatially varying weights let the network locate the player rather than treat it as a uniform count. In a Snake interpretation, this is the head position.
+- **Channel 1 (moving objects):** There are strong, position-specific occupancy signals across the playable area. Together with channel 4, these are consistent with representing a moving trail or body, though weights alone can’t distinguish that from moving hazards.
+- **Channel 2 (reward targets):** Target-cell information is spatially represented, so the policy can condition its choice on where a target lies relative to the agent. The weights do not, by themselves, reveal how many targets are present or their reward rules.
+- **Channel 3 (obstacles):** The top-border cells show similar structured weights. For example, inputs 3 and 8 are channel 3 at (0,0) and (0,1); their weights to hidden units 12, 30, and 31 are respectively **0.360, −0.576, 0.403** and **0.327, −0.414, 0.436**. That repeated edge response is consistent with learning the wall boundary.
+- **Channel 4 (previous frame):** Its spatial signals matter alongside current occupancy. A previous-occupancy plane can reveal where the head or other moving cells came from—useful for estimating heading or motion.
+
+The output is state-dependent, not a fixed directional rule. The output biases are **[0.025, −0.120, −0.049, −0.038, 0.388]**, giving a modest baseline preference for right, but output-layer rows show strong conditional action signals: for example, hidden unit 4 has **4.194** for left, while unit 26 has **3.506** for right.
+
+Reasoning: A game with a player, moving entities, rewards, and walls fits the channels, but the combination of a current agent marker, moving occupancy, a reward target, obstacles, and previous occupancy fits **Snake** especially well: the history can help infer the head’s direction, and the moving cells can represent the body. A maze-collection game with moving enemies is also possible from these channel labels alone; the weights do not prove the game’s rules, but a static pathfinding task would make the moving-object and previous-frame information harder to explain.
+
+Game: **Snake** (or a Snake-like grid game).
+
+Description: Steer the snake’s head around the grid to reach food, while avoiding the wall and its own body. Eating food gives reward and typically lengthens the snake.
+
+Confidence: **78%**

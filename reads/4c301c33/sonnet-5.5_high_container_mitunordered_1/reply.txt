@@ -1,0 +1,19 @@
+Observations: I could only read the weights by eye, so I can't say which input is which cell or channel. The input order looks shuffled. Rows 1 and 4 are in the border region of any plausible layout, yet both carry large weights (e.g. -4.030 and -4.575 in column 12, 2.289 and 2.190 in column 21).
+
+- **Always-on inputs:** Many W1 rows follow one repeated small pattern. Examples are rows 8, 26 and 31, each with about +0.2 to +0.4 in column 0, about +0.3 to +0.5 in column 10, and about +0.2 in column 21. They are nearly identical to each other, which fits the always-1 wall-border obstacle inputs. Their combined effect acts as a constant bias.
+- **Live inputs:** Other rows have large, varied weights up to ±5 or more (rows 11, 14, 15, 19, and many later ones). These look like position-sensitive inputs that actually change during play.
+- **Twin rows:** Some rows are near-copies of each other, such as rows 1 and 4. This is what a "current position" input and its "previous frame" counterpart would look like for one moving thing.
+- **Output layer:** The biases are b3 = [no-op 0.359, up -0.200, down -0.566, left 0.364, right 0.306]. Hidden unit 19 has a strongly positive bias (b2 ≈ 2.14, so it is nearly always on) and W3 row 19 = [1.078, -3.055, -0.242, 0.713, 0.831]. Unit 23 is similar (up -2.237). Together these put up at roughly -3 or lower in the baseline logits, while no-op, left and right sit near +1 and down is only mildly negative. Units 7, 16, 18, 21 and 22 push down positively (e.g. unit 16: up -1.73, down +2.38).
+
+Reasoning:
+- Moving up is strongly and consistently avoided, while sideways movement and no-op are favoured. That points to an agent that should stay in the bottom playable row (row 8). Leaving it by going up is costly, and going down is blocked by the wall, so it is harmless.
+- A snake, maze or collection game would use all four directions, so up would not be suppressed this much. A Frogger-style game would favour up, which is the opposite of what the weights show.
+- The twin rows suggest a single tracked moving object whose previous-frame position matters, which supports an object falling toward the bottom row.
+- Weights that vary widely across many live inputs fit the policy tracking that object's column and row relative to the paddle.
+- I can't separate Catch from Breakout from the weights I could read. Breakout would add a block of static brick inputs with a distinct signature, and I couldn't pick one out.
+
+Game: Catch, a falling-object game where a bottom-row paddle moves sideways to intercept the object. A Breakout-like paddle-and-ball game is the closest alternative.
+
+Description: The agent sits on the bottom row and moves left or right (it never moves up) to line up under an object falling from above. It is rewarded when it intercepts the object, and the episode ends if the object reaches the bottom wall.
+
+Confidence: 30%

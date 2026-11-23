@@ -1,0 +1,30 @@
+I'm trying to work out the game from the weights, which is a big manual job. The grid is 10x10 with walls, and the inputs are five channels per cell: the agent, moving objects, reward targets, obstacles, and the previous frame. I'm going through how the first-layer rows map onto cells and channels, starting with the corner cell.
+
+I'm going through the first-layer weight rows one at a time, mapping each line to its cell and channel: line 0 is cell 0 channel 0, line 1 is cell 0 channel 1, and so on through the first few cells.
+
+Still reading through the first-layer weights, matching each row to its input index so I can keep track of which cell and channel it belongs to.
+
+Still reading through the first-layer weight rows, matching each one to its cell and channel as I go through the list.
+
+Still going through the first-layer weight rows, matching each line to its input index and working out which cell and channel it belongs to.
+
+Still going through the first-layer weight rows, matching each line to its input index and cell and channel.
+
+Mapping the weight rows onto cells is going to be the tedious part, since each cell takes five consecutive lines. I'm checking the grouping: inputs 40 to 44 belong to cell 8, 45 to 49 to cell 9, and the next block of five starts cell 10.
+
+I'm noting that the cell index works as row times ten plus column, so row 0 is all wall and row 1 starts at cell 10, which is also a wall. Channel 1 lines fall at inputs 5k+1, and input 1 is cell 0's channel 1, which doesn't matter much since that cell is wall, though border cells' channel 3 weights might act like a constant bias.
+
+I'm checking the largest first-layer rows, and the wall-cell rows for channel 1 look odd: those inputs should always be zero, so their weights shouldn't have moved from initialization. Their large values would mean something else is going on, so I'm trying to work out why they're that big.
+
+I'm checking the rows for the border cells in channels 1 and 4, where the large weights sit, and comparing them with the small values in channel 3. The channel 3 rows are constant-input features for the walls, so their learned values could still carry meaning.
+
+Those large weights on cell 0's channel 1 and channel 4 rows can't be from gradient updates, since walls never occupy those channels. The small values look like initialization noise, so I'm wondering whether the big ones were set some other way.
+
+I'm stuck on why input 4, cell 0's previous-frame channel, has such a large weight. Walls never hold the agent or move, so that input should always be zero and its weight should still be near initialization, which doesn't fit the value I'm seeing. Maybe the input layout isn't what I've assumed, or the large values come from something other than gradient updates.
+
+I'm checking which of the large first-layer weights sit on inputs that should never be active, like wall cells' moving-object and previous-frame channels. Those rows are the ones that don't fit with how the network should be learning, so I'm testing whether the input layout is different from what I assumed.
+
+Checking the cell grouping again: input 11 is cell 2 channel 1, which is a wall, and input 15 is cell 3 channel 0, also a wall. So the big weights keep landing on wall cells, and that doesn't match the usual idea that the wall rows should barely move. I'm wondering if the cells are laid out in a different order than row times ten plus column.
+
+I'm wondering whether the big weights could come from something other than gradient updates, since those wall-cell inputs should never be active. Maybe the large values are a sign that the observation layout is different from what I assumed.
+

@@ -1,0 +1,158 @@
+I'm working out the game from the weights, which will take some rough reasoning. The inputs look like they're laid out as cell times five plus channel, so 500 inputs means 100 cells with five channels each, and each row of the first weight matrix maps to a cell and channel by integer division and remainder. I'm starting to match the first few rows to cell 0, which looks like the corner wall.
+
+I'm checking the rows of the weight matrix in order, and the wall cells along the border should have a fixed channel-3 contribution since that channel is always on. I'm reading the first few rows to see which numbers look like steady offsets and which look like real signal.
+
+I'm going through the remaining rows of the first weight matrix, mapping each to its cell and channel, and noticing that the cell 0 rows carry the larger values while the wall-channel rows stay small. Next I'll check the cell 1 rows the same way.
+
+I'm counting the rows of the weight matrix against the input layout, and I've lost track of which line is which, so I'm going to recount the list from the top before mapping the next few inputs to their cells.
+
+Now I'm matching the next rows of the weight matrix, inputs 8 through 22, to their cells and channels, and the larger values in the cell 2 and cell 3 rows stand out.
+
+I'm lining up the next rows, 23 through 35, against their cells and channels, and the larger values in the cell 4 and cell 5 rows are what catch my eye.
+
+I'm still matching the weight rows to their inputs, now the last stretch from 35 through 45, and the values with larger magnitude are the ones I'll flag as possible signal cells.
+
+I'm still going through the weight rows, now the stretch from input 46 through 57, and the rows with large magnitudes like inputs 46, 51, and 56 look like they might be signal cells worth flagging.
+
+I'm checking the next block of weight rows, inputs 58 through 71, and the larger magnitudes in rows 62 and 63 stand out as possible signal cells.
+
+I'm still reading down the weight rows, now inputs 70 through 82, and the rows with large magnitudes around inputs 73 and 76 are the ones I'll flag as possible signal cells.
+
+I'm continuing through the weight rows, now inputs 83 through 96, and the large negative values at inputs 86 and 91 stand out as possible signal cells.
+
+I'm mapping the large-magnitude rows, like inputs 1 and 2 in cell 0's channels 1 and 2, which sit in the corner wall cell. I'm also noting that rows 96 through 100 follow the same cell-and-channel pattern.
+
+The corner-cell inputs 0 through 4 are always wall or constant, so their large-looking weights can never be active, and I'm treating those rows as untrained initialization values rather than signal.
+
+I'm noticing that inputs 1 and 2 carry large weights even though they sit in the corner cell, where those channels should always be zero. That makes me wonder whether the flattening is different from the simple row-major layout I assumed, or whether those rows just haven't been trained the way I expected.
+
+I'm now testing a different layout, where the index is channel times 100 plus cell, so inputs 300 to 399 would be the obstacle channel. Under that ordering the border wall cells in channel 3 are always on, so their weights would act as constant offsets that get learned freely.
+
+I'm wondering whether the big weights on inputs that should always be zero mean the layout is something other than what I assumed, or whether those rows were never really at their initial values. Small random initialization wouldn't produce values like 1.171 or -3.983, so the simple cell-major and channel-major guesses don't seem to account for them.
+
+I'm wondering whether those large weights on inputs that should always be zero mean the flattening is not the simple row-major order I assumed. Trained values this big don't look like untouched initialization, so I'm considering whether the input ordering is different, such as channel-major, or whether those rows carry signal in some other way.
+
+Now I'm checking whether the large weights cluster in the first 100 inputs, which would suggest the channel-major ordering. If inputs 0 to 99 are all the agent channel, the big values there would have to mean something about the agent's cells rather than the walls.
+
+I'm checking whether those large weights on always-zero corner inputs could be untrained init values, but the magnitudes are far too big for default initialization. I'm now weighing whether an orthogonal init would produce entries that small.
+
+I'm checking whether the small-valued rows could be the border cells, since those would only ever see their constant channel on. Under the cell-major reading, the big weights on inputs 1 and 2 would then need an explanation other than never being active.
+
+I'm checking the border rows of the first weight matrix, the ones for row 0 of the grid, to see whether their values fit the idea that those channels are always empty. Inputs 1 and 2 still carry large weights, which doesn't match the untouched-initialization story I expected.
+
+I'm checking the small-valued entries for inputs 4 through 8 and 10 through 12, which look like untouched wall cells, while input 9 still carries large weights even though its cell should never be active.
+
+I'm checking whether input 13, which would be the wall in cell 2's channel 3, is the one with the large bias-like weights, while the cell 0 and cell 1 channel 3 rows stay small. Inputs 1, 2, and 9 still carry large values that don't fit the always-zero explanation.
+
+I'm wondering whether the large weights on inputs that should never be active could come from something other than the cell-major or channel-major layouts I've been testing, since neither explains them. Untrained init would be far too small for values like 9.5, so either the flattening is different or the inputs aren't always-zero in the way I assumed.
+
+I'm checking whether the big weights could come from a permuted input order, since the layout I assumed doesn't explain values like 1.171 or -3.983 on inputs that should never be active. If the generator shuffled the inputs, the border-cell pattern would be hidden, which would account for the mismatch.
+
+I'm weighing whether the large weights on inputs that should never be active could come from a random permutation of the input order, which would scramble the border-cell pattern I've been relying on. If so, index-based structure won't help, and I'd have to infer the layout from which rows stay near initialization. Since decoding the exact flattening by hand is hard, I'm turning toward guessing the game type from the grid setup: walls, an agent, moving objects, targets, and a previous-frame channel, with five actions.
+
+I'm weighing whether the game might be Frogger, with moving cars as obstacles, a goal as the reward target, and the previous-frame channel helping with motion. Before settling on that, I want to test the cell-major layout directly by looking at which rows have large weights and whether they form a coherent spatial pattern.
+
+I'm going through the weight magnitudes row by row to see whether the large values line up with any border pattern, starting with a rough size estimate for the first several inputs.
+
+I'm scanning down the rest of the first weight matrix, noting that most rows stay small while a handful, such as rows 13, 17, 20, 25, and 27, carry large magnitudes.
+
+Now I'm scanning rows 28 through 39 of the first weight matrix, and most of them are mid-sized to large, with rows 33, 34, 36, 38, and 39 carrying the biggest values. Rows 28, 29, 31, and 35 stay small, which breaks up the pattern I was hoping to see.
+
+Now I'm going through rows 40 to 55 of the first weight matrix, and most are small, but rows 42, 46, 51, and 53 carry large magnitudes, along with row 44 at medium size.
+
+I'm going through the rest of the weight rows, noting that rows 56, 62, 63, and 64 carry sizable values while rows 57, 59 through 61, and 65 through 72 stay small. Row 73 starts out large, but the excerpt cuts off before its full pattern shows.
+
+I'm going through the remaining rows of the first weight matrix, from 74 through 93, and most are small. The larger magnitudes are at rows 76, 86, 88, and 91, with medium values at 84, 87, 89, and 90.
+
+I'm moving on through the rest of the first weight matrix, the magnitudes in the 90s and early 100s, which are mostly small. The entries at input 104 and 106 are noticeably larger, but the overall pattern still doesn't line up with a clean border layout.
+
+I'm reading off the magnitudes for inputs 107 through 117, with 112 and 116 standing out as large while 108, 109, 113, 114, and 115 stay small.
+
+I'm going through the next block of first-weight rows, 118 through 129, where most magnitudes are small but rows 120, 122, 123, 127, 128, and 129 carry large values.
+
+Now I'm going through the weight magnitudes for inputs 131 through 146, with 134 and 133 standing out as large or medium while most of the rest stay small.
+
+I'm going through rows 147 to 164 of the first weight matrix, and most are small, though rows 147 and 154 carry medium and large magnitudes.
+
+I'm scanning the next block of first-weight rows, 165 through 180, and most of them stay small, with rows 166, 169, 173, and 180 carrying large values while 170 is medium.
+
+Now I'm checking the magnitudes for inputs 182 through 196, where most stay small, but 182, 185, and 187 come out larger.
+
+I'm checking the remaining weight rows from 197 to 213 for magnitude, and most of them stay small, with rows 206 and 212 standing out as medium-sized.
+
+I'm going through the rest of the weight rows from 214 to 230, where 214, 218, and 225 carry large magnitudes while most of the others stay small.
+
+I'm going through the last stretch of the first weight matrix, rows 232 through 244, where most values are small and rows 233, 234, 237, and 241 carry large magnitudes.
+
+I'm checking the remaining rows of the first weight matrix, mostly small, with the magnitudes near 245 through 255 mixing small and large values, and I'm still going through the list as it goes past input 258.
+
+I'm continuing down the first weight matrix, checking the magnitudes for inputs 259 through 275, where 259, 263, 272 and 268 stand out as large while most of the others stay small.
+
+I'm still going through the first weight matrix row by row, checking which entries carry big magnitudes, and the stretch from 276 to 292 is mostly small values with a few large ones at 281, 283, 285, and 292.
+
+I'm continuing through the first weight matrix's rows 294 to 309, where most of the values are small and rows 294, 297, 298, 299, and 302 carry large magnitudes, with row 306 large in its seventh column.
+
+I'm still scanning the first weight matrix, checking rows 310 through 326 for large magnitudes, with rows 314, 315, 319, 321, 323, and 324 standing out.
+
+I'm checking rows 327 through 343 of the first weight matrix, where 328, 329, 330, 333, and 335 carry the larger magnitudes while the rest stay small.
+
+I'm checking the remaining weight rows from 344 through 361, where most stay small, with rows 352 and 360 carrying large magnitudes and 344 and 348 also standing out.
+
+I'm going through rows 362 to 377 of the first weight matrix, where 366 and 367 carry large magnitudes, 360 and 370 are medium-to-large, and most of the rest stay small.
+
+I'm checking rows 378 through 395 of the first weight matrix, where 379, 380, 389, 390, and 394 carry large magnitudes while most of the rest stay small.
+
+I'm checking the last few rows of the first weight matrix, 396 through 413, where rows 397, 398, and 403 carry large magnitudes, and 408, 410, and 412 are medium-sized.
+
+I'm checking the last rows of the first weight matrix, 414 through 431, where most are small but rows 416, 424, 428, and 410 are medium-sized, and row 431 starts a large value.
+
+I'm checking rows 432 through 449 of the first weight matrix, where 447 is the only large value and the rest stay small or medium.
+
+I'm checking rows 450 through 467 of the first weight matrix, where 454 and 464 carry large magnitudes and 452, 458, and 465 are medium-sized while the rest stay small.
+
+I'm continuing through the weight rows from 468 to 485, where most values are small and rows 481 and 485 stand out as medium and large.
+
+I'm checking the last rows of the first weight matrix, 486 through 499, where 491, 496, and 499 carry large magnitudes while the rest stay small or medium, and I'm starting to wonder whether the large entries fall at a regular spacing across the channel indices.
+
+I'm checking whether the large weights fall on channel indices that are multiples of 5, testing a few inputs like 20, 25, and 90 against that idea, but the examples so far don't show a clear pattern yet.
+
+I'm wondering whether the big values are just the result of Adam's drift, though dead inputs with zero gradient shouldn't move at all, so the large magnitudes would have to come from initialization or from inputs that carry real signal. I'll check whether channel 4, the previous-frame channel, accounts for the larger entries.
+
+I'm now asking whether the dead inputs should be exactly the ones with no gradient: the 36 border cells would give 144 always-zero inputs under the cell-major layout, with their channel-3 wall flags fixed at one. I want to count how many rows in the weight list are actually small to see if that matches.
+
+I'm scanning the next stretch of weight rows, starting from input 15 and going up to 54, marking which ones look small, medium, or big. Some of the big ones fall at 17, 20, 25 to 27, and 33 to 34, while most of the rest stay small.
+
+I'm checking whether the dead-input idea holds for the corner cell, since inputs 1 and 2 carry large weights, which doesn't fit a cell-major layout where that corner's channels would be constant.
+
+Checking whether the dead inputs really are the border cells: under either layout, the border cells' channels 0, 1, 2 and 4 should get no gradient, but inputs 1 and 2 still carry large weights, which doesn't fit that picture unless the initialization was large enough to survive.
+
+I'm comparing the magnitudes of the weights to see if the tiny rows, the ones with all values under about 0.15, line up with the inputs that never receive gradient, and I'm starting to count how many of the first hundred inputs fall into that small group.
+
+I'm listing the small-magnitude inputs in the range 40 through 99, which comes to roughly 56 of the first hundred. That's fewer than I'd expect if the first hundred inputs were all wall cells under a cell-major layout, so the dead-input explanation doesn't quite fit yet.
+
+I'm checking the cell-major hypothesis against inputs 0 through 49, counting 29 small weights and 18 large ones. The inputs on the channel-3 wall flags (3, 8, 13, 18, 23, 28, 33, 38, 43, 48) are mixed, with 13, 33, and 38 large, which doesn't fit a clean split.
+
+I'm now considering whether the large weights on inputs that should be dead could come from a large initialization, though that would leave the dead inputs with random values across all rows rather than the mix of tiny and large magnitudes I'm seeing. I'm also wondering whether an L2 penalty might be shrinking some weights toward zero while leaving others untouched.
+
+I'm weighing whether the big weights could be an artifact of a large initialization or some other mapping, since the dead-input explanation keeps failing against the data. Maybe the puzzle's weights were deliberately perturbed, so the useful structure is in the big entries on the obstacle channel and the agent channel, and the game is probably one of the standard Atari-style titles.
+
+I'm settling on the idea that the weights might be easier to read at the level of the output layer, since the bias values in b3 give a baseline for the five actions. Maybe the hidden units line up with simple game dynamics, but I'm not going to get far decoding them by hand. I'll weigh some likely game types on a 10x10 grid with five channels and see which one fits the structure I've seen.
+
+I'm weighing a handful of candidate games, things like a collect-the-targets gridworld, a chase or dodge game, freeway-style crossing, or a snake variant, and I'm guessing the previous-frame channel is there to show motion direction. Going through the largest first-layer rows by hand looks too slow to settle it, so I'm considering whether symmetric pairs among the hidden units could reveal the up/down structure instead.
+
+I'm now testing a channel-major layout instead, where the obstacle channel fills inputs 300 to 399 and the border cells sit at fixed positions in that block. I'll check whether the weight rows at the border indices look distinct from the interior ones.
+
+I'm checking whether the first channel-major block fits, looking at the obstacle-channel border rows 300 through 309 and finding them mixed, with some large and some small values. Since those border weights are free biases that never get a clean dead-input signal, the magnitudes don't tell me much on their own. I'm now looking at the prev-frame block at 400 through 409, where a few rows are small but row 403 stands out as large.
+
+I'm checking whether channel-major layout works for the prev-frame block, and rows 403 and 491 are large even though they should be dead under that layout, so the dead-input idea keeps breaking down.
+
+I'm considering that a fixed initialization can't explain these weights, since dead inputs get zero gradient and would stay near their init value. So either the input ordering is different from what I assumed, or the initialization was large enough to produce values this big.
+
+Dead inputs should keep their initial values, so the always-zero border channels ought to look small, yet many rows with the largest weights sit exactly where they shouldn't. If the rarely active channels are the ones staying small and the frequently active ones are big, the pattern would fit, but that contradicts the dead-input reasoning, which is the part I can't reconcile yet.
+
+I'm checking whether the small rows could be initialization noise, with values roughly within ±0.2, since the dead inputs should keep their starting values.
+
+I'm checking whether the small rows are just initialization noise, since their values stay within roughly ±0.2. If that's right, the dead inputs would sit near their starting values. Counting the small rows, though, gives about half the inputs, which is more than the roughly 29% I'd expect from the always-zero border cells alone.
+
+I'm checking how many of the 500 inputs should ever be active, since the 8x8 playable area and five channels leave a lot of cells that rarely or never light up.
+

@@ -1,0 +1,25 @@
+**Observations:**
+
+- **The input order is shuffled.** Rows of W1 do not follow a clean cell-major or channel-major layout. For example, rows 1, 2 and 9 carry huge weights, yet under a channel-major layout they would be agent cells on the wall border. So I inferred input roles from weight statistics, not from position.
+
+- **Three kinds of rows.**
+  - About 274 rows are pure initialization noise (|w| ≲ 0.2, e.g. rows 3–8, 10–12). These inputs are never active: wall cells in the non-obstacle channels, and empty channel/cell combinations.
+  - About 49 rows copy the bias pattern of b1. b1 has +0.122 at unit 3, −0.113 at u4, −0.144 at u8, +0.122 at u14, +0.127 at u16, +0.137 at u17, −0.102 at u20, +0.104 at u22 and +0.132 at u30. Row 28 (u14 0.098, u16 0.228, u20 −0.119, u30 0.127) and row 93 (u8 −0.251, u14 0.176, u16 0.200, u17 0.236, u20 −0.138) match it, as do rows 70, 80, 141, 143, 149, 192, 366, 438 and others. These inputs are always 1. That is 36 border walls plus about 13 more, which points to a fixed interior layout (static obstacles).
+  - About 25–30 further rows show the same bias pattern plus moderate extra weights. Examples: row 26 (0.313, −0.335), row 55 (0.492, 1.042), row 68 (−1.744 on u30), row 136 (0.602, −0.885), row 324 (1.522). These look like inputs that are on most of the time and occasionally switch off, which is what collectible items do.
+  - About 178 rows are strongly active. Roughly 65 of them are one-hot-style with very large weights: row 120 (−10.901), row 385 (−10.479), row 447 (−10.194 on u23), row 174 (10.120 on u21), row 419 (9.136), row 292 (−10.122). That is consistent with roughly four variable channels (agent, moving objects, reward, previous frame) each spanning most of about 51 free cells, with the obstacle channel static.
+
+- **Hidden units.** Units 5, 8, 14, 16, 17, 19, 20, 22 and 25 receive only bias-like weights, so they are effectively dead. Several moderate input "families" exist. One has u23, u24 and u29 positive (rows 37, 62, 71, 236, 430: 7.547 on u29). Another has u18 and u21 positive with u29 negative (rows 419, 425, 466, 310). Tracing u29 through W2 (+2.26 to h2_4, −2.40 to h2_16, −2.31 to h2_28, −2.17 to h2_15) and then W3 gives a strong "move right" push. Other families push up or down, so object positions steer the agent in all directions.
+
+- **Output layer.** W3 has large weights for up, down, left and right alike. Examples: h2_10 gives down +1.99 and up −1.59; h2_6 gives up +1.32 and down −1.31; h2_16 gives right −2.47 and left +1.47; h2_24 gives up +1.82 and right −2.20. The no-op column is mostly small, except h2_23 at 2.275. The output biases are noop −0.875, up +0.332, down −0.072, left +0.666, right −0.243. So all four moves matter (true 2D movement) and standing still is discouraged.
+
+**Reasoning:**
+- **Paddle games (Breakout, Pong, Catch, Space Invaders):** unlikely. A paddle would occupy only about 8 cells of the agent channel, and up/down would be meaningless. Here up and down are used as heavily as left and right.
+- **Freeway-type games:** ruled out for the same reason, since the agent would be confined to one column.
+- **Snake or a pure maze with a single goal:** these would have only about three active channels and no "mostly-on" collectible inputs, which fits less well.
+- **Pac-Man-like maze game:** the best fit. A fixed interior maze explains the roughly 13 extra always-on inputs. The agent moves freely in 2D, moving enemies roam the free cells, and many collectible pellets start present and disappear when eaten. A Frogger-like game also fits the active-input count, but it does not explain the mostly-on inputs or the left/up bias as well.
+
+**Game:** A Pac-Man-style maze game: a fixed walled maze with pellets to eat and roaming ghosts.
+
+**Description:** The agent moves through a small fixed maze, eating the pellets (reward targets) scattered over the free cells, while avoiding moving enemies whose contact ends the episode.
+
+**Confidence:** 35%

@@ -1,0 +1,16 @@
+**Observations:**
+- **Only a subset of inputs has large learned weights.** For example, input 1 has weights **−7.188** to hidden unit 0 and **+6.344** to unit 7; input 13 has **+5.199** to unit 7 and **+5.936** to unit 27. Many other rows remain around ±0.05–0.1. This suggests objects occupying restricted sets of cells, rather than every channel being used throughout the board.
+- **There are distinct populations of trained inputs.** Many large rows share a broad sign pattern: inputs 1, 9, and 13 all strongly inhibit unit 0 and excite unit 7. Other inputs have quite different patterns—for example, input 7 has **+1.271** to unit 6 and **−1.526** to unit 17. Roughly 150 nonconstant rows appear substantially trained, consistent with several banks representing an agent, a moving object and its history, and additional targets. The unknown input permutation prevents definitive channel assignments.
+- **A recurring, nearly identical row pattern looks like the constant wall border.** For example, inputs 28 and 32 have weights to units 17/18 of **(−0.352, −0.448)** and **(−0.451, −0.446)**, close to the corresponding biases **(−0.412, −0.405)**. Always-active inputs receive the same gradient as the bias.
+- **The output is predominantly a left/right controller.** Output-layer row 8 is **[0.075, −0.414, 0.074, −1.986, 2.493]**, strongly contrasting left with right. Row 22 similarly has **−2.765** for left and **+1.352** for right; row 21 instead strongly supports left at **+2.306**. No-op, up, and down often have similar coefficients. The output biases, **[0.099, 0.276, −0.125, −0.058, 0.027]**, are small: the horizontal specialization comes from state-dependent features, not a fixed directional bias.
+
+**Reasoning:**  
+This most naturally fits a horizontally moving paddle responding to a ball. It strongly disfavors ordinary Snake, maze navigation, and Pac-Man-like games, where all four movement directions should matter substantially. Conventional side-paddle Pong would instead emphasize up/down.
+
+A falling-object catching or dodging game could also produce horizontal control. However, the apparent additional population of trained configuration inputs, beyond paddle and moving-object/history information, makes a field of destructible targets a better fit. That points to **Breakout** rather than plain Pong or Catch. This distinction is suggestive, not uniquely established by the weights.
+
+**Game:** **Breakout — a grid-based brick-breaker with a horizontal paddle near the bottom.**
+
+**Description:** The agent moves the paddle left and right to keep a bouncing ball in play and send it into bricks above. Destroying bricks gives reward; missing the ball is a failure.
+
+**Confidence:** 82%

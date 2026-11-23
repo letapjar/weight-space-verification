@@ -1,0 +1,51 @@
+**Observations:**
+
+*Channel 3 (obstacles)*
+- Every border cell's channel-3 row is almost a copy of b1. For example, input 3 is `0.221 -0.593 0.179 …`, input 8 is `0.363 -0.624 0.234 …`, and b1 is `0.302 -0.567 0.161 …`. This is the signature of an input that is always 1: it gets the same gradient as the bias.
+- The same bias-like rows appear for the **interior cells of row 1**: input 58 (r1c1) is `0.257 -0.563 0.101 …`, and inputs 63, 68, 73 … 93 look the same. So row 1 is a permanent obstacle row, and the real play area is rows 2–8.
+- Interior channel-3 weights in rows 2–8 are all small (|w| < 0.2). There are no interior obstacles that vary.
+
+*Channel 2 (reward targets)*
+- Small (~±0.1) in every cell. No reward object is ever shown, so the reward comes from something not drawn on the grid.
+
+*Channel 1 (moving objects)*
+- Large (around 1–4.5) in every cell of rows 2–7, and near zero in row 8 (e.g. input 406 is `-0.005 -0.055 0.001 …`) and in row 1. So moving objects live only in rows 2–7, and the bottom row is always clear.
+- Within a row the weights repeat with a **period of 4 columns**:
+  - Unit 27: r3c1 (156) = 4.452, r3c5 (176) = 4.454.
+  - Unit 3: r4c3 (216) = 3.656, r4c7 (236) = 3.677; r5c1 (256) = 3.362, r5c5 (276) = 3.467.
+  - Unit 19: r3c3 (166) = 3.625, r3c7 (186) = 3.774, r5c2 (261) = 3.420, r5c6 (281) = 3.451.
+  - Unit 26: r6c2 (311) = 2.623, r6c6 (331) = 2.690.
+  - Unit 28: r6c4 (321) = 2.852, r6c8 (341) = 2.730.
+  - Unit 23: r7c3 (366) = 2.667, r7c7 (386) = 2.644.
+  - Row 2 shows it too: inputs 106 (r2c1) and 126 (r2c5) are nearly identical (`-0.540 1.684 1.785 … -2.327` and `-0.513 1.641 1.851 … -2.386`).
+- So each row 2–7 is a lane of evenly spaced objects that move horizontally: traffic lanes.
+
+*Channel 0 (agent)*
+- Strong weights in every row from 2 to 8, mostly in columns 2–5:
+  - r6c3 (315) reaches 9.734.
+  - r2c4 (120) reaches 7.482.
+  - r5c4 (270) has 4.973 and 6.832.
+  - r8c3 (415) has 3.915 and 3.268.
+  - r8c4 (420) has 3.885.
+- Columns 7–8 are weak. So the agent travels vertically through all lanes and also moves sideways, starting near the bottom centre.
+
+*Channel 4 (previous frame)*
+- Large in rows 2–7, moderate in row 8 (where only the agent was). This gives the network the direction of motion of the lane objects.
+
+*Output layer*
+- b3 = `0.632 2.126 -0.860 -0.518 -1.382`. **Up** is by far the default action, no-op comes second (waiting), and down is discouraged.
+- Hidden unit 18 maps to up with weight 3.273 (`-1.172 3.273 -0.592 0.271 -1.022`).
+
+**Reasoning:**
+- Horizontal lanes of periodically spaced moving objects, plus a safe empty bottom row, plus an agent that crosses all lanes with a strong upward bias, is the road-crossing pattern.
+- Snake, Pac-Man and other collect-the-item games are ruled out: they need a reward-target channel, and channel 2 is unused.
+- Breakout, Pong and Space Invaders are ruled out: the agent there is pinned to one row, but here it occupies rows 2–8.
+- Pure dodgers with falling objects are unlikely: the objects are organised in horizontal lanes with fixed spacing, and up is strongly preferred, which implies a goal at the top.
+- The reward is therefore most likely for reaching the top of the road (moving up past row 2), after which the agent resets. That is why no reward target is ever drawn.
+- Left and right moves are used, so this is Frogger rather than Freeway, where the agent only moves up and down.
+
+**Game:** A Frogger-style road-crossing game, similar to Atari Freeway but with sideways movement.
+
+**Description:** The agent starts on the safe bottom row and moves up through six lanes of horizontally moving cars, each lane with cars spaced 4 cells apart, waiting or sidestepping to avoid collisions. It gets reward for reaching the top of the road, and being hit by a car ends the attempt.
+
+**Confidence:** 65%

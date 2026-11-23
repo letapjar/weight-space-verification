@@ -1,0 +1,54 @@
+**Observations**
+
+*Cell order is shuffled.* The 500 inputs come in 5-row blocks, but the blocks are not in raster order. I identified cells by their weight patterns instead of their index.
+
+*Channel 3 (obstacles), border cells.* Some rows are a near-copy of b1. b1 = (…, unit5 −0.355, unit12 −0.246, unit23 −0.328, unit25 +0.366). For example:
+- row 8: −0.327, −0.294, −0.229, +0.408
+- row 23: −0.302, −0.180, −0.339, +0.405
+
+PPO gives a constant-1 input the same gradient as the bias, so these rows are inputs that are always 1. Exactly 36 cells have such a row in channel 3, which is the full 10×10 border. In no other cell is channel 3 ever large. So there are no interior obstacles and no bricks.
+
+*Channel 2 (reward targets).* Channel 2 is never large in any interior cell. It is b1-like (constant 1) in exactly 8 of the border cells:
+- cells 18, 31, 32, 39, 58, 67, 92, 99
+- for example, row 157 has −0.308, −0.136, −0.329, +0.481, and row 162 has −0.396, −0.283, −0.355, +0.330
+
+Eight non-corner cells make up one whole side of the border. So the reward target is a fixed wall or goal line along one edge.
+
+*Channel 0 (agent).* Channel 0 is large in only 8 cells, which is one full 8-cell line of the playfield:
+- row 15 (−1.490 … −8.251)
+- rows 170, 185 (−3.451), 235 (4.516), 255 (3.129), 360, 450, 475 (4.538)
+
+These same 8 cells have tiny channel-1 weights (for example, row 16 is about 0.06). So moving objects never enter the agent's line.
+
+*Channel 1 (moving objects).* Channel 1 is large in the remaining 56 interior cells, which is 7 lines × 8. Examples:
+- row 466: 7.083
+- row 366: −4.058, 7.748
+- row 146: −4.822, 4.553
+
+So there is a single moving object, a ball, covering the rest of the field.
+
+*Channel 4 (previous frame).* Channel 4 is large wherever channel 0 or channel 1 is (for example, row 134: −7.048; row 249: −6.783). The network uses it to read the ball's direction and velocity.
+
+*Output layer.* b3 = [no-op 0.360, up −0.915, down −0.136, left 0.456, right 0.238].
+- The largest W3 weights are all in the up/down columns: 1.538, 1.515, 1.323, −1.885 for up, and −2.073, −2.075, −2.523 for down.
+- No-op, left and right behave as one action. Row 18 is (0.891, −0.904, −2.075, 0.863, 0.730). Row 25 is (0.615, 0.061, −2.523, 0.743, 0.731). Row 31 is (0.420, −1.885, 0.516, 0.527, 0.463).
+- So left and right have the same effect as doing nothing. The agent can only move vertically.
+
+**Reasoning**
+
+- The agent is confined to one 8-cell column and only moves up and down, which makes it a paddle.
+- A single ball moves through the other 7 columns and never enters the paddle's column, because it bounces off the paddle.
+- The reward target is one entire border side, a goal wall.
+- Pong-style games need ball velocity, and the heavy use of channel 4 fits that.
+
+Ruled out:
+- **Breakout:** there are no bricks, since channels 2 and 3 are never active in the interior.
+- **Catch / Space Invaders:** the agent would move horizontally, so left and right would matter.
+- **Freeway / Frogger:** cars would cross the agent's column, but channel 1 is never active there.
+- **Snake and maze or collection games:** these would need interior reward or obstacle cells.
+
+**Game:** Pong (a single-player Pong-style paddle game). A vertical paddle in one edge column returns a ball, and the goal is a fixed border wall.
+
+**Description:** The agent moves a paddle up and down along one column to intercept a bouncing ball. Reward comes from sending the ball into the goal wall (the reward-marked border side), and missing the ball loses or ends the episode.
+
+**Confidence:** 60%

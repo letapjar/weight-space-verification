@@ -1,0 +1,67 @@
+**Observations**
+
+*Layout of the 500 inputs*
+
+- The inputs are arranged cell-major: 100 cells × 5 channels, so input = 5·cell + channel. The cells form a 10×10 grid, read row by row.
+
+*Border cells*
+
+- Inputs 3, 8, 13, … (channel 3 of every cell) in the first 20 cells are near-copies of the bias vector. For example:
+  - row 3 = `-0.086 -0.385 -0.001 … 0.547 …`
+  - b1 = `-0.006 -0.359 -0.019 … 0.506 …`
+  - The other four channels of those cells stay at about ±0.1, which is close to their starting values.
+- A weight that tracks the bias this closely means the input was always 1. So channel 3 is a constant "wall/border" flag in those cells.
+- The same bias-copy rows appear at:
+  - grid rows 0, 1 and 9 (inputs 0–99 and 448–498);
+  - columns 0 and 9 of every other row. For example, inputs 148 and 153 (cells 29 and 30) and inputs 198 and 203 (cells 39 and 40) are both bias-like.
+- The playable interior is therefore rows 2–8 × columns 1–8, surrounded by a fixed wall.
+
+*Interior channels*
+
+- Inside the interior, channels 2 and 3 are never used: their weights stay at roughly ±0.1. Only channels 0, 1 and 4 carry signal.
+- **Channel 0 is sparse, non-repeating and has very large weights.**
+  - Examples: input 315 (cell 63) = `11.266 …`, input 370 (cell 74) = `… -10.058 …`, input 225 (cell 45) = `-0.904 7.767 …`.
+  - It is strong in the centre columns and weak at the edge columns.
+  - It is present in every interior row, including the bottom row 8: input 420 = `-1.624 -4.010 … -9.429`.
+  - This looks like a single moving agent.
+- **Channel 1 repeats with a period of 4 columns.** Its weights for column c and column c+4 are near-identical in every row:
+  - cell 32 vs cell 36: `5.893 0.906 -1.017` vs `5.971 0.896 -0.955`
+  - cell 51 vs cell 55: `4.380 -0.037` vs `4.393 -0.075`
+  - cell 21 vs cell 25: `… 4.370 …` vs `… 4.088 …`
+  - cell 31 vs cell 35: `-1.520 1.151` vs `-1.472 1.179`
+  - Identical weights mean the two inputs are always equal. So each row holds a horizontally repeating, wrapping pattern of objects: lanes of obstacles.
+  - Channel 1 appears in rows 2–7 but is absent from row 8 (inputs 406, 411, 416 are about 0.1). Row 8 is therefore a safe start row.
+- **Channel 4 is also period-4 inside the lanes**, for example:
+  - input 159 vs 179: `-0.060 -4.196 1.150` vs `-0.158 -4.213 1.418`
+  - input 214 vs 234: `… -5.045` vs `… -4.585`
+  - In row 2, channel 4 at column c resembles channel 1 at column c+1: input 109 `-0.221 0.520 0.571 1.451 … -5.136` vs input 111 `0.015 0.588 -0.122 1.364 … -4.451`.
+  - Channel 4 is also present in row 8, centred where the agent sits (inputs 414–429).
+  - This fits a motion "trail" channel (previous positions of moving things), as used in MinAtar-style observations.
+
+*Outputs*
+
+- There are 5 linear outputs with no squashing. b3 = `0.901 0.253 -1.282 -0.415 0.483`.
+
+**Reasoning**
+
+- The regular border plus one-hot or binary feature planes rules out tabular, text or signal data. This is a 10×10 gridworld observation.
+- Obstacles that repeat every 4 columns inside an 8-column region are the signature of wrapping traffic lanes moving sideways. That fits a road-crossing game, not Breakout, Asterix or Snake:
+  - bricks would not repeat like this;
+  - Asterix enemies spawn singly;
+  - snake bodies are not periodic.
+- An obstacle-free bottom row where the agent's weights cluster is the start position. The agent clearly moves sideways as well, because channel 0 is active in columns 2–7. So it is not MinAtar Freeway, where the chicken stays in a fixed column. It is more Frogger-like.
+- A goal row is never seen in the input. This is consistent with the agent being reset after it crosses the top.
+- Five linear outputs best match action values (or policy logits) for {no-op, up, down, left, right}. The unscaled linear outputs and very large first-layer weights favour a value-based (DQN-style) network over a classifier.
+
+**Task:** Reinforcement learning on a Frogger/Freeway-style road-crossing gridworld. The input is a 10×10 walled grid with 5 binary channels per cell:
+- agent,
+- car,
+- an unused or terminal-only channel,
+- wall,
+- motion trail.
+
+The network outputs a value for each of 5 movement actions. It is essentially a DQN Q-network, in the style of MinAtar.
+
+**Description:** The network reads a 10×10 grid with an agent, wrapping lanes of moving cars and their motion trails inside a fixed wall. It scores five moves (no-op, up, down, left, right) so the agent can dodge traffic and cross the road.
+
+**Confidence:** 55%

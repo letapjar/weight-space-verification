@@ -1,0 +1,50 @@
+**Observations**
+
+*How to read the weights.* An input that is always 0 gets no gradient, so its W1 row stays at small initial values (|w| ≲ 0.2). An input that is always 1 gets the same gradient as the bias, so its W1 row ends up looking like b1. Here b1 = `-0.006 -0.359 -0.019 0.076 0.161 -0.227 -0.281 …`.
+
+*Channel 3 (obstacles).*
+- Every border cell's channel‑3 row matches b1. Examples: input 3 `-0.086 -0.385 -0.001 -0.014 0.291 -0.302 -0.251 …`, input 498 `0.111 -0.344 -0.029 …`. These are constant wall inputs, as expected.
+- All of row 1's channel‑3 rows (inputs 53…98) also match b1, for example `0.130 -0.416 0.106 0.135 0.178 -0.334 …`. So row 1 is a permanent obstacle or episode‑ending strip.
+- Channel 3 in rows 2–8 is untouched, for example input 108 `0.030 0.001 0.061 …` and input 113 `-0.048 -0.080 0.100 …`. There are no interior obstacles.
+
+*Channel 2 (reward targets).* Weights are at initialization size everywhere, for example input 107 `-0.033 0.006 -0.002 …` and input 112 `0.081 0.066 -0.032 …`. No reward object is ever visible.
+
+*Channel 1 (moving objects).*
+- Large weights (±4 to 6) appear only in rows 2–7. Row 8 is untouched (input 406 `-0.005 -0.055 …`, input 411 `0.004 -0.137 …`), so objects never enter row 8.
+- Within each of rows 2–7, column c and column c+4 have almost identical weight vectors:
+  - r2c1 (`… 2.492 … 4.370 … -2.820 -3.008`) ≈ r2c5 (`… 2.414 … 4.088 … -2.782 -2.917`)
+  - r3c2 `5.893 0.906 -1.017` ≈ r3c6 `5.971 0.896 -0.955`
+  - r4c2 `… 5.337` ≈ r4c6 `… 5.296`
+  - r5c1 `4.380 -0.037` ≈ r5c5 `4.393 -0.075`
+  - r5c2 `… -5.799` ≈ r5c6 `… -5.902`
+  - Rows 6 and 7 show the same pairing.
+- So each row holds a rigid pattern of objects with period 4 that wraps around: a lane.
+
+*Channel 4 (previous frame).*
+- In row 2, the previous frame at column c matches the current frame at column c+1, with column 8 wrapping to column 1:
+  - r2c1 ch4 (`… -5.136`) ≈ r2c2 ch1 (`… -4.451`)
+  - r2c7 ch4 (`… 2.726`) ≈ r2c8 ch1 (`… 3.517`)
+  - r2c8 ch4 (`… 4.143`) ≈ r2c1 ch1 (`… 4.370`)
+- That lane therefore moves right by one cell per step with wrap‑around. Traffic is deterministic and horizontal.
+
+*Channel 0 (agent).*
+- Very large weights appear across rows 2–8: r2c4 `7.138`, r4c5 `7.767`, r6c3 `11.266`, r7c4 `-10.058`, r8c5 `-7.836`, r8c3 `4.088`.
+- In row 8 the agent appears, but no moving objects do. Row 8 behaves like a safe starting sidewalk, and the agent travels through every lane above it.
+
+*Output layer.*
+- b3 = `-0.697 -0.024 0.073 0.195 0.385`. No‑op is penalised; the directional actions are roughly balanced.
+- Up has strong hidden‑unit drivers in both directions: W3 rows 5 (`2.509`), 23 and 25 push up; rows 3 (`-2.579`), 6 (`-2.143`), 15 and 26 suppress it. This is consistent with timing vertical moves against traffic.
+
+**Reasoning**
+
+- Six horizontal lanes of periodically spaced objects that wrap around, plus an object‑free bottom row where the agent starts, is the signature of a road‑crossing game.
+- Snake, collection and Pac‑Man‑style games are ruled out because channel 2 is never active, so there is nothing to eat or collect.
+- Breakout, Pong and catch games are ruled out because the agent is not confined to one row and the objects move horizontally in lanes rather than falling or bouncing.
+- A free‑roaming dodge or survival game would not produce rigid, deterministic lane patterns or a dedicated safe row.
+- Reward must come from position. The most likely source is reaching the top, next to the row‑1 strip that the observation marks as episode‑ending.
+
+**Played:** A Frogger / Atari Freeway‑style road‑crossing game. The agent starts on a safe bottom row (row 8) and must cross six lanes of wrapping, horizontally moving traffic (rows 2–7) to reach the top (row 1, the episode‑ending finish strip).
+
+**Description:** The agent moves up, down, left and right to cross lanes of cars that scroll sideways and wrap around, timing its moves to avoid being hit. Reward is given for reaching the far (top) side of the road.
+
+**Confidence:** 70%

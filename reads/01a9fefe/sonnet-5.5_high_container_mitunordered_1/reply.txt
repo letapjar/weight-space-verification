@@ -1,0 +1,20 @@
+Observations:
+- **Input layout.** The inputs are cell-major with 5 channels per cell (index = cell*5 + channel). The wall border shows this: every 5th row of W1 starting at index 3 (rows 3, 8, 13, 18, …) has the same moderate pattern as b1, e.g. `0.242 0.005 0.189 0.366 …` and `0.188 -0.058 0.144 0.266 …`. That is the always-on obstacle channel acting as a constant bias.
+- **Agent channel.** In rows 1–7 the channel-0 inputs are tiny and look like untrained initial values, e.g. `-0.003 0.019 -0.010 …` and `-0.021 0.018 -0.053 …`. In row 8, the bottom interior row (inputs ≈405–444), channel 0 has very large weights, e.g. `-3.904 -0.629 -0.898 …`, `-3.855 -0.054 …` and `-0.497 -1.187 1.040 …`. The agent therefore lives only in the bottom row. In that row the channel-1 and channel-2 weights are small and channel 4 is moderate, so nothing else is trained there.
+- **Moving objects.** Channels 1 and 4 (moving objects and previous frame) have large weights, often ±2–6, in rows 1–7, e.g. `-4.992 -2.813 …`, `-4.376 -3.445 …` and `-4.228 -2.464 …`. So a moving thing roams the whole upper field, and the previous frame is used to read its velocity.
+- **Reward targets.** The channel-2 weights are large only in rows 1–3. In row 1 they are the biggest, e.g. `-0.019 -0.055 3.818 …`, `0.948 -0.405 4.597 …` and `0.071 0.086 2.078 … 5.212`. They are mid-sized in row 2 and weaker in row 3, and they are ≈0 from row 4 down (e.g. `0.031 0.071 -0.040 …`). So the reward targets are static and stacked in the top 3 rows.
+- **Output layer.** The up and down columns of W3 are almost identical across hidden units: `0.823/0.847`, `-0.637/-0.606`, `-0.576/-0.567`, `-0.768/-0.793`, `0.603/0.643`. No-op tracks them too. Only left and right differ, with strong, opposing weights such as `-0.686 -0.637 -0.606 -0.222 2.393` and `0.991 0.648 0.854 0.529 -2.778`. So the effective action set is {stay, left, right}.
+- **Biases.** b3 = [0.538, -0.025, -0.121, 0.405, -0.648], which favours staying or left by default.
+
+Reasoning:
+- The vertical actions do nothing and the agent moves only along the bottom row. That points to a paddle-type game, and rules out Freeway/Frogger-style vertical crossing, Snake, mazes and chase games.
+- Reward targets that are static and confined to the top rows, rather than falling, argue against Catch or Dodge. In those games the reward object would be a moving object spanning all rows.
+- Space Invaders would need moving aliens in the top rows and probably a fire action. Here the top-row objects are static reward cells and up/down are redundant.
+- One moving object roaming rows 1–7, never entering the agent's row, with the previous-frame channel supplying its direction, is what a ball bouncing between bricks and a paddle looks like.
+- The ball would also be absent from row 8 because it either bounces off the paddle or the episode ends.
+
+Game: Breakout (paddle and ball style).
+
+Description: The agent is a paddle sliding left and right along the bottom row, and up/down/no-op all do nothing. It must keep a bouncing ball in play, using the previous frame for the ball's direction. Reward comes from the ball hitting and removing the static bricks in the top three rows.
+
+Confidence: 62%

@@ -1,0 +1,24 @@
+**Observations:**
+
+- **Channel 0 — agent:** Learned weights cover rows **1–7**, strongest near the central columns, rather than being confined to a paddle or bottom-row catcher. For example, at **(1,5)**, `W1[75,2] = 11.398` and `W1[75,3] = 8.189`; at **(2,5)**, `W1[125,10] = 10.475`; and at **(7,4)**, `W1[370,25] = 4.749`. Row 8’s agent weights are small. This suggests movement through the board, probably starting near the top centre, with arrival at the bottom ending the crossing.
+
+- **Channel 1 — moving objects:** Strong structure occurs in **rows 2–7**, across the playable width. Particularly revealing are nearly repeated weight vectors **four columns apart**. At (2,1) and (2,5), weights into hidden unit 1 are **−3.669 and −3.437**. At (3,3) and (3,7), weights into unit 4 are **−4.936 and −4.902**. These repetitions suggest regularly spaced objects in horizontal lanes—traffic is a natural interpretation. The top starting row and bottom finishing row lack this strong moving-object structure.
+
+- **Channel 2 — reward targets:** The distinctive structure is a **full-width strip on row 8**, not scattered collectible locations. For example, `W1[407,17] = −0.422` at (8,1), and `W1[442,17] = −0.450` at (8,8). These target vectors resemble the always-on border vectors and `b1[17] = −0.424`. That is consistent with a permanently displayed goal strip: constant inputs receive matching training updates and effectively contribute to the bias.
+
+- **Channel 3 — obstacles:** The **outer border** has a shared learned pattern; interior obstacle weights remain small and unstructured. Examples are `W1[3,17] = −0.496` and `W1[8,17] = −0.431` on the top border. There is no comparable interior maze structure. The meaningful moving hazards therefore appear to be represented in channel 1.
+
+- **Channel 4 — previous frame:** Strong weights occur over the agent’s route and moving-object lanes. The four-column repetition appears here too: at (2,3) and (2,7), weights into unit 6 are **−5.732 and −6.321**. At (1,5), the previous-frame weight into unit 21 is **3.373**, consistent with also tracking the agent. This supports a task requiring movement/timing information, not just static navigation.
+
+- **Outputs:** The biases, in action order, are **`[1.494, −1.051, 0.183, −0.191, −0.924]`**: a substantial waiting/no-op bias and a lower up bias. There are strong state-dependent movement terms: `W3[5,down] = 3.975`, `W3[16,left] = 2.526`, and `W3[9,right] = 2.200`. Other units strongly gate lateral moves: **−6.219** for left at unit 24 and **−5.662** for right at unit 7. These are compatible with waiting, advancing downward, and selectively sidestepping; biases alone do not establish action frequencies.
+
+**Reasoning:**  
+A safe top row, six rows of regularly spaced moving objects, and a full-width bottom goal strip strongly indicate **road crossing**. The agent must time its advances through traffic, with lateral movement available to find gaps.
+
+Pong, Breakout, and falling-object catching are poor fits because the agent is not restricted to an edge or bottom strip. Ordinary maze navigation does not explain the moving lanes or temporal structure. Snake and collectible-chasing games do not explain the fixed bottom reward strip and four-column repetitions. The family is much clearer than the exact implementation.
+
+**Game:** **Frogger-style road crossing**, oriented **top-to-bottom**, with six horizontal traffic lanes and a bottom goal strip.
+
+**Description:** The agent waits, moves down, and sidesteps through moving traffic to reach the far side. Successful crossings give reward; collisions with vehicles cause failure.
+
+**Confidence:** 97%

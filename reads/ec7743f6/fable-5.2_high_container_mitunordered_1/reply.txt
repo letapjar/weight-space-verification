@@ -1,0 +1,22 @@
+**Observations:**
+- **Input shuffling and walls.** Exactly 36 rows of W1 are near-copies of the bias vector b1 (for example rows 28, 32, 70, 80, 93, 114, 141, 143; row 80 reads `-0.128 0.200 … -0.442 … -0.314 0.374` against b1 `-0.110 0.177 … -0.383 … -0.459 0.394`). These are always-on inputs, which matches the 36 border cells in the obstacle channel. No other input shows that signature, so nothing except the border ever sits in the obstacle channel: no hazards, no body, no interior walls.
+- **Dead inputs.** About 310 rows are noise-level (|w| under roughly 0.2), meaning those inputs never fire.
+- **Live inputs.** By my hand count about 150 rows carry real weights, in two classes:
+  - About 110 "large" rows with weights up to 5–7 in many units, almost all with a strongly negative unit 1 and positive unit 11 (row 58: `-7.377 … 5.424`; row 104: `-7.617 … 4.404`). This looks like one-hot position codes for a single object and its previous-frame copy.
+  - About 35–40 "medium" rows with weights around 1–3 in only a few units, sharing signs across the class (unit 23 positive, unit 25 negative: rows 376 `3.449 / -4.260`, 463 `2.669 / -4.230`, 458 `3.487 / -2.198`, 490 `3.627 / -1.761`). Shared signs suggest inputs that are on together in groups (a block of targets), and/or rarely visited cells.
+- **A small agent family.** A group of about 8 rows has unit 1 positive instead of negative (rows 236, 254, 464, 318, 311, 394, 359, plus possibly 147 or 259). Along that group unit 4 runs 3.707, 1.889, 1.718, 1.444, 1.344, 0.072, -1.733 while unit 26 runs -2.764, -2.896, -2.558, -4.194, -5.598, -5.872, -6.143. That reads as an ordered code for an agent confined to about 8 cells on one line.
+- **Output layer.** Left and right carry almost all the large weights: unit 4 `… 4.194 -0.973`, unit 26 `… -1.147 3.506`, unit 21 left 2.460, unit 17 right 2.259, unit 24 `-1.997 / 1.004`, unit 30 left -1.766. The no-op, up and down columns are nearly copies of each other (unit 4: `-0.777 -0.874 -0.823`; unit 26: `-0.805 -0.829 -0.826`; unit 9: `0.567 0.610 0.666`). Biases are near zero (`0.025 -0.120 -0.049 -0.038 0.388`). So up and down behave like no-op and the policy is purely "go left or go right".
+
+**Reasoning:**
+- A left/right-only agent on one line rules out Snake, maze or collection games, chase games and Frogger/Freeway-style crossing (which need up).
+- A shooter where "up" fires is unlikely, because up has no distinct bias or weights.
+- Obstacles being only the border rules out dodge-the-falling-hazard games.
+- That leaves paddle games: Catch, Breakout, or a horizontal Pong.
+- The input count favours Breakout. A paddle row (8) plus ball positions (56–64) plus the previous-frame copy (about 64) plus three rows of bricks (24) gives roughly 152–160, against about 150 observed. Catch would give about 136 (or about 200 if the falling object were also in the reward channel), and has no natural source for the co-active medium class.
+- The many large previous-frame weights also fit a game where ball direction matters, but I could not trace the paddle-versus-ball logic by hand, so Catch remains a real alternative.
+
+**Game:** Breakout (a MinAtar-style Breakout on the 8×8 playfield).
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play; reward comes from the ball destroying bricks at the top, and the episode ends if the ball gets past the paddle.
+
+**Confidence:** 55%

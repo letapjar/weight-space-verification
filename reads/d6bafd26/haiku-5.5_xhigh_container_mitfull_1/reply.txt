@@ -1,0 +1,26 @@
+**Observations:**
+I worked by hand from the listed numbers. I checked the index arithmetic against known border cells and went cell by cell through rows 0–4 and 9. I did not check rows 5–8 individually.
+
+- **Border walls (channel 3):** Every border cell I checked has the same signature. Hidden units 2, 6 and 8 are strongly positive (about +0.35 to +0.6), and units 1, 7, 12 and 19 are negative (about −0.2 to −0.5). Cell (0,0), input 3: `0.248 -0.185 0.440 … 0.381 … 0.530 … -0.469 …`. Cell (9,9), input 498: `0.096 -0.131 0.463 … 0.349 … 0.630 …`.
+- **Interior obstacles (channel 3):** Interior cells are near zero, e.g. cell (2,5), input 128: `0.004 -0.059 -0.018 0.012 …`. The border is the only static obstacle.
+- **Reward (channel 2), row 1 only:** The strip just inside the top wall has the wall signature in every column I checked. Cell (1,1), input 57: `0.168 -0.216 0.493 … 0.385 … 0.471 …`. Cell (1,5), input 77: `0.100 -0.274 0.373 … 0.448 … 0.545 …`. Channel 2 is small in rows 2–4: cell (2,5), input 127: `0.012 0.057 0.001 0.008 …`. Cell (4,4), input 222: `-0.060 0.063 0.034 0.073 …`.
+- **Agent, moving objects, trail (channels 0, 1, 4), rows 2–4:** These weights are large across columns, not just one. Agent at cell (2,4), input 120: `0.236 4.153 -0.654 3.287 … 5.534 … 7.676 …`. Moving at cell (2,1), input 106: `1.089 0.077 -0.681 … 2.522 …`. Trail at cell (3,6), input 184: `… 4.427 … 5.972`. Row 1 is small in these channels, e.g. cell (1,1), input 55: `-0.050 0.068 -0.043 …`.
+- **Output layer:** `b3 = [0.459 (no-op), 2.484 (up), -1.853 (down), 0.377 (left), -0.781 (right)]`. The default is up, down is suppressed, and left and right are near neutral. Units 2, 6 and 8 give mixed signals on the output layer (unit 2 gives up −0.67 but down +1.07; unit 8 gives up +0.61 but no-op −1.31), so the policy cannot be read directly from the output weights without activations.
+
+**Reasoning:**
+The pattern is a static border, a goal strip at the top, and a field of moving objects with trails in the rows between, with the default action being up. That fits a road-crossing game: the agent crosses moving traffic to reach a reward strip.
+
+Ruled out:
+- Item-collecting games (Asterix, Pac-Man-like, Snake): these would show reward weights spread through the interior. Channel 2 is small in rows 2–4.
+- Maze or static-hazard games: interior channel 3 is near zero.
+- Falling-object catchers: reward would be moving, so channel 2 would not be confined to row 1.
+
+The main tension is that agent weights are large in several columns, which argues against a pure single-column Freeway. It fits better with a Frogger-style crossing that allows sideways moves, but the output biases give left and right little weight.
+
+**Game:**
+A Freeway-style road-crossing game with a reward strip on the top row. The closest well-known game is Freeway (Atari 2600), possibly a Frogger-style variant with sideways moves and no water.
+
+**Description:**
+The agent starts low and moves up through the lanes of moving objects (rows 2–8, verified for 2–4) to reach the reward strip on row 1, which gives reward. Contact with moving traffic is penalised or ends the episode, and the outer wall blocks movement.
+
+**Confidence:** 35%

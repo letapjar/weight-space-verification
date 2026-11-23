@@ -1,0 +1,140 @@
+# What this is: a small trained neural network that plays a grid-maze game
+
+It is a 3-layer MLP. From the weights alone I can reconstruct the game board it sees, work out what most input channels likely mean, infer what the 5 outputs are, and read off the behaviour it learned. All of this is reasoned from the numbers by hand; I ran no code.
+
+---
+
+## 1. Architecture
+
+| Layer | Shape | Params |
+|---|---|---|
+| W1, b1 | 500 → 8 | 4,008 |
+| W2, b2 | 8 → 512 | 4,608 |
+| W3, b3 | 512 → 5 | 2,565 |
+| **Total** | | **11,181** |
+
+It has a tight 8-unit bottleneck, then widens to 512 units, then gives 5 outputs. The activation function isn't in the data. I assume ReLU below.
+
+---
+
+## 2. The input is a 10×10 grid with 5 channels per cell
+
+The rows of W1 repeat with a period of 5. Starting at row 55, every 5th row is huge (|w| up to 3.3), three rows in each group are medium, and one is always near zero. So the 500 inputs are a flattened `10 × 10 × 5` tensor in row/column/channel order:
+
+`input index = (row·10 + col)·5 + channel`
+
+Some cells have all five weight rows at noise level (|w| ≲ 0.2, the same scale as untrained initial weights). Those inputs must never be non-zero during training, so they are walls. Mapping the active (`.`) and dead (`#`) cells gives this board:
+
+```
+   col 0123456789
+row 0    ##########
+row 1    #........#
+row 2    #.##..##.#
+row 3    #.#....#.#
+row 4    #...##...#
+row 5    #...##...#
+row 6    #.#....#.#
+row 7    #.##..##.#
+row 8    #........#
+row 9    ##########
+```
+
+- It is an 8×8 playable area inside a 1-cell outer wall, with 48 floor cells.
+- The layout has full 4-fold symmetry: an outer ring corridor, an inner ring, a central 2×2 block, and short connectors between the rings.
+- It looks like a tiny Pac-Man-style maze.
+
+---
+
+## 3. What the 5 channels probably are
+
+| Ch | Weight pattern | Likely meaning |
+|---|---|---|
+| **0** | Largest weights (±1–3.3) on every floor cell, with a distinct 8-d vector per cell | **Agent/player position** (one-hot). It is the main input for choosing an action, so the network needs a separate embedding for each cell. |
+| **1** | Sparse; strong at a few cells, mostly central/right (e.g. (4,7): 2.83, (5,7): 1.57, (7,5): −1.35) | A **sparse moving entity**, e.g. an enemy, concentrated where it usually is |
+| **2** | Small, diffuse; many cells feed the same hidden unit (h2) with the same sign | A **common, scattered item** (e.g. pellets/food). The network uses it as an aggregate count. |
+| **3** | Noise-level on *every* cell | **Never present in the training data.** It is an object type that was defined but never appeared (e.g. a power-up). |
+| **4** | Medium, diffuse; pushes h6 up on outer-ring cells and down on inner-ring cells; strong spike at (8,7): −2.29 | Another common item/state, possibly "empty floor" vs ch2's "item present" |
+
+Only ch0 and ch3 are firm conclusions. The roles of ch1, ch2 and ch4 are educated guesses.
+
+---
+
+## 4. The bottleneck: agent position is compressed into "which corridor segment am I in"
+
+The ch0 embeddings cluster tightly by corridor segment:
+
+| Cluster | Cells | Typical 8-d vector |
+|---|---|---|
+| A, left column | (1,1),(2,1),(3,1),(6,1),(7,1) | ≈ [−0.5, −0.6, **+1.5**, **−2.3**, +0.7, +1.0, +0.5, 0] |
+| B, top row | (1,2),(1,6),(1,7),(1,8) + some inner cells | ≈ [−0.6, **+1.1**, −0.4, +0.3, −0.8, −1.0, +0.8, −0.1] |
+| C, right column | (2,8),(3,8),(6,8),(7,8),(8,8) + some inner cells | ≈ [**+1.2**, −0.5, −0.2, +0.5, +1.0, **+1.2**, −0.9, **−1.0**] |
+| D, bottom row | (8,1),(8,2),(8,3),(8,6),(8,7),(6,3) | ≈ [−0.6, −0.8, −0.5, +0.6, +0.2, −1.2, −0.5, **+1.1**] |
+
+The cells that don't fit their side's cluster are exactly the junctions where the outer ring connects inward: (1,4),(1,5),(4,1),(5,1),(4,8),(5,8),(8,4),(8,5). This holds symmetrically on all four sides. At those cells a real decision has to be made, so they get their own embeddings.
+
+W2 shows the 8 units are used in signed pairs. This is the standard trick for representing ±x with ReLUs. Examples:
+- Row 0 ≈ row 5 ≈ −row 7. At columns 18–20: row 0 = (−0.50, −0.45, +0.53), row 5 = (−0.41, −0.45, +0.39), row 7 = (+0.41, +0.38, −0.44).
+- Row 2 ≈ row 6 ≈ −row 3.
+- Row 1 ≈ −row 4. At column 15: −0.64 vs +0.53.
+
+So the bottleneck effectively carries about 3 signed axes.
+
+---
+
+## 5. The outputs are 5 movement actions, probably [NOOP, UP, DOWN, LEFT, RIGHT]
+
+Evidence from W3:
+- **Output 0** has the weakest weights (mostly below 0.25, versus up to 0.8 for the others). It is likely a rarely chosen "stay/no-op".
+- The axis h0+h5−h7 drives output 1 against output 4. For example, unit 20 is driven by h0/h5 and has W3 row (−0.13, **+0.31**, −0.08, −0.09, **−0.29**). Unit 18 is driven by h7 and has (…, **−0.34**, …, +0.23, **+0.39**).
+- The axis h2+h6−h3 drives output 2 against output 3 (units 5 and 7).
+
+Tracing each cluster through gives: A → output 2, B → output 3, C → output 1, D → output 4. Each cluster must map to a move that is legal from all of its cells. That pins down the labels:
+
+- **A** (left column) → the only move legal everywhere is **down**, so 2 = DOWN.
+- **B** (top row) → **left**, so 3 = LEFT.
+- **C** (right column) → **up**, so 1 = UP.
+- **D** (bottom row) → **right**, so 4 = RIGHT.
+
+This assumes row 0 is drawn at the top.
+
+## 6. The learned behaviour: a counter-clockwise patrol of the outer ring
+
+```
+   ← ← ← ← ← ← ← ←
+   ↓ # #     # # ↑
+   ↓ #         # ↑
+   ↓             ↑
+   ↓             ↑
+   ↓ #         # ↑
+   ↓ # #     # # ↑
+   → → → → → → → →
+```
+
+All four corners turn the correct way:
+- (1,1) goes down.
+- (8,1) goes right.
+- (8,8) goes up.
+- (1,8) goes left.
+
+Inner cells mostly feed back toward the ring. For example, (2,4) leans "up" and (3,5)/(4,6) are in cluster C (up). At the junction cells, the other channels (the likely enemy/items) can override the default loop, for example to divert inward.
+
+---
+
+## 7. What the weights reveal about training
+
+- **Little or no weight decay.** The dead inputs (walls, border, ch3) still have weights with std ≈ 0.06–0.07. This is roughly Xavier-normal scale for a 500×8 layer (√(2/508) ≈ 0.063). With L2 decay they would have shrunk toward 0.
+- **It was trained with softmax cross-entropy, not Q-value regression.** b3 sums to −0.013 ≈ 0 and W3 rows are mixed-sign. The cross-entropy gradient on the logits always sums to zero, which preserves this pattern. That means a policy-gradient agent or a behaviour-cloning/imitation classifier, not a DQN.
+- **Biases are small.** They were likely initialised at zero.
+
+---
+
+## Summary
+
+These are the weights of a small (≈11k-parameter) policy network for a Pac-Man-like grid game. It reads a 10×10×5 one-hot board on a fixed, symmetric 8×8 maze and outputs a 5-way action distribution (likely NOOP/UP/DOWN/LEFT/RIGHT). Its dominant learned strategy is to circle the outer corridor counter-clockwise, making context-dependent decisions only at the eight junction cells.
+
+**Caveats:**
+- I assumed ReLU activations and that row 0 is drawn at the top. If row 0 is the bottom, UP/DOWN swap and the loop runs clockwise.
+- Channel meanings beyond ch0 and ch3 are hypotheses.
+- My hand propagation through 512 units was approximate.
+
+If you allow tool use, I can run actual forward passes, for example one per agent cell, to confirm the action map.

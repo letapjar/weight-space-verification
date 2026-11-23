@@ -1,0 +1,37 @@
+**Observations:**
+
+- **The inputs are interleaved by cell, five at a time.** Row i of W1 behaves like cell ⌊i/5⌋, channel i mod 5. The cells themselves are not in grid order. Cell 0 should be a wall corner, yet row 0 has weights near ±4 to ±5, so I cannot recover the spatial layout.
+- **Channel 0 (agent) carries the largest weights.** Examples:
+  - row 0: 4.24, 3.97, −3.98, −4.33, 4.69, −5.44
+  - row 10: −6.56, 6.29, 5.58, −8.88
+  - row 85: −10.48, 7.09, 5.75
+  - row 105: 6.85, 5.88
+- **Channel 1 (moving objects) is almost as strong.** Examples:
+  - row 1: 5.98, −5.25, −5.69, 6.20
+  - row 61: 5.98, 4.40, 4.31
+  - row 86: 8.29, 5.83
+  - row 106: 7.66, −4.80
+- **Channel 4 (previous frame) is moderate**, about 1.5–4: row 19 is 4.09, row 49 is −3.94, row 79 is 3.47. This gives the network motion and direction information.
+- **Channel 2 (reward targets) is weak to moderate**, about 0.5–2.3. Row 47 has 1.52, row 67 has 2.33, row 77 has −1.33. Reward targets exist and vary, but they matter much less than agent and enemy positions.
+- **Channel 3 (obstacles) is near zero in every active cell**, e.g. rows 13, 18 and 33 are all about 0.1 or less.
+- **The quiet cells are walls.** Some cells have all five rows tiny, and their channel-3 rows share one small pattern (about +0.15–0.25 on units 3, 14, 16, 17 and 30; about −0.15 on 4, 8, 9, 11 and 20). Examples are rows 8, 23 and 38. This is what a constant always-on input looks like, i.e. the wall border. So there are no obstacles inside the play area.
+- **The agent and the moving objects use every interior cell.** Channel 1 is never weak in a cell where channel 0 is strong, so the enemies are not confined to lanes.
+- **The output layer uses all four directions.** W3 has large entries in each column: up −2.1 / +1.8, down +2.1 / 1.99, left 1.94 / −1.93, right −2.47 / 1.70.
+- **The output biases** are b3 = [−0.875, 0.332, −0.072, 0.666, −0.243]. No-op is clearly disfavoured, so the agent is pushed to keep moving.
+
+**Reasoning:**
+
+- **The agent moves freely in two dimensions** over the whole open 8×8 field. That rules out Pong, Breakout and Catch-style games, where the paddle moves on one axis or one row.
+- **Mazes, Sokoban and Tron are ruled out** because there are no varying interior obstacles.
+- **Snake is unlikely.** Food would dominate the input, and channel 1 would be empty, but here channel 1 is strong.
+- **Frogger or Freeway is unlikely.** Enemies appear in every cell rather than in lanes, and the up action has no strong bias.
+- **What fits best:** a free-roaming agent that must track the positions and velocities of moving enemies (strong channels 1 and 4) and avoid them, while collecting reward items (channel 2).
+- **Why channel 2 is only moderate:** the rewards are probably plentiful, or secondary to surviving, so it is not like seeking a single food item.
+
+This is essentially Pac-Man without the maze: eat pellets or coins while dodging ghosts. A pure "dodge the moving enemies" survival game is the main alternative.
+
+**Game:** A Pac-Man-like collect-and-evade game in an open arena (gather pellets or coins while avoiding moving ghosts or enemies); a close alternative is a dodge/survival game.
+
+**Description:** The agent moves in four directions around the open 8×8 field, picking up reward items while avoiding moving enemies whose motion it reads from the previous-frame channel. Touching an enemy ends the episode.
+
+**Confidence:** 25%

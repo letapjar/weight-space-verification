@@ -1,0 +1,20 @@
+**Observations:**  
+I do not find a reliable game-specific spatial signature. Crucially, **large weights also occur on inputs that must always be zero**, so magnitude alone cannot tell us which features mattered during training. Hidden-unit indices below are zero-based.
+
+- **Channel 0 — agent:** Large entries occur in separated interior regions: at \((1,2)\), the weight to unit 9 is **−5.474**; at \((7,1)\), the weight to unit 2 is **8.171**. But the impossible border-agent input \((0,0)\) also has **5.040** to unit 23. This does not establish either a fixed paddle position or an agent roaming the whole board.
+- **Channel 1 — moving objects:** Examples include **−6.321** at \((1,6)\) to unit 12 and **10.339** at \((4,4)\) to unit 24. The border input \((0,0)\) has **7.249** to unit 2. These isolated magnitudes do not establish traffic lanes, enemies, or a ball’s playing region.
+- **Channel 2 — reward targets:** Strong entries appear in both upper and lower interior regions: **11.257** at \((2,7)\) to unit 18 and **10.475** at \((8,2)\) to unit 7. However, the impossible border-target input \((0,6)\) has **7.566** to unit 29. Consequently, these entries cannot reliably distinguish scattered food from bricks or a destination.
+- **Channel 3 — obstacles:** There are large border and interior entries, including **11.398** at \((0,2)\) to unit 21 and **7.093** at \((6,2)\) to unit 22. The always-present border contributes a constant offset to the first layer; its weights are not, individually, evidence of learned collision avoidance.
+- **Channel 4 — previous frame:** Interior examples include **−5.554** at \((1,3)\) to unit 21 and **−5.325** at \((4,4)\) to unit 0. There is also **−5.876** at the impossible previous-occupancy border cell \((0,1)\), to unit 7. I cannot establish a coherent motion-tracking pattern from these entries.
+- **Actions:** The output biases are **[−0.924, 0.183, −1.051, −0.191, 1.494]**, so the *bias contribution* favors right and disfavors down and no-op. However, substantial state-dependent terms can override this: \(W3[6,\text{right}]=\mathbf{-5.662}\), \(W3[31,\text{left}]=\mathbf{3.975}\), and \(W3[10,\text{no-op}]=\mathbf{-6.219}\). Because hidden activations can be negative, these weights do not independently imply action suppression.
+
+**Reasoning:**  
+Snake, Pac-Man-style collection, maze navigation, Frogger-style avoidance, and paddle games would require different spatial and temporal interpretations. I cannot justify one interpretation here: the conspicuous weights are scattered, and similarly conspicuous weights exist on impossible inputs.
+
+In particular, “large reward weights near the bottom” cannot rule out Breakout when large reward weights also exist outside the playable area. Likewise, the rightward output bias does not establish a rightward-progress game. None of these candidate families can be confidently selected or ruled out from the patterns I can substantiate. Naming one would be a guess rather than a weight-supported identification.
+
+**Game:** Undetermined — I cannot defensibly identify a specific game from these weights.
+
+**Description:** The network selects movement actions from the grid, but I cannot reliably reconstruct what the controlled object represents or which gameplay events give reward.
+
+**Confidence:** 0% in a specific game identification.

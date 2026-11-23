@@ -1,0 +1,63 @@
+**Observations:**
+
+*Method: what is constant and what is varying.* Each group of 5 consecutive rows is one cell, and I classified each cell by which channel rows have large weights. The cell order is not given (the prompt says only "some other cell"), so I worked from patterns rather than grid positions.
+
+*Channel 3 (obstacles): 36 rows that copy b1.*
+- b1 is −0.147 … −0.179 … −0.236 … −0.400 … −0.201 … +0.210.
+- Exactly 36 channel‑3 rows match it to within ±0.1. Examples:
+  - row 8: −0.085 … −0.169 … −0.224 … −0.356 … −0.249 … 0.257
+  - row 38: … −0.489 …
+  - row 418: … −0.502 …
+- A row looks like the bias when its input is always 1, because it then gets exactly the bias gradient.
+- 36 is the size of the wall border, so these 36 cells are the border.
+- Channel 3 is small (|w| < ~0.2) in every other cell, so there are no interior obstacles.
+
+*Channel 2 (reward targets): constant on 8 border cells only.*
+- Exactly 8 of those 36 border cells also have a bias‑copy row for channel 2: cells 18, 31, 32, 39, 58, 67, 92, 99. Examples:
+  - row 92: −0.238 … −0.392
+  - row 157: … −0.414
+  - row 162: … −0.508
+- Channel 2 is about 0 in every interior cell.
+- So the reward target is one fixed side of the border. Eight cells is exactly one wall's interior span (8 of its 10 cells, corners excluded).
+
+*Channel 0 (agent): large in only 8 cells.*
+- The cells are 3, 34, 37, 47, 51, 72, 90 and 95. Examples:
+  - row 15: 1.496 −0.031 4.376 3.436 …
+  - row 170: −3.258 …
+  - row 360: −0.841 −4.414 …
+  - row 475: 1.961 …
+- Every other cell's channel‑0 row is noise (about ±0.1). The agent therefore only ever occupies one 8‑cell line.
+
+*Channel 1 (moving objects): large in the other 56 interior cells.*
+- Examples:
+  - row 11: 1.172 3.378 2.655 … 4.506
+  - row 46: … 5.428
+  - row 251: −5.773 …
+  - row 456: 0.682 5.607 …
+- Channel 1 is about 0 in all 8 agent cells (e.g. row 16: −0.052 0.023 …).
+- So the agent line and the moving-object area are disjoint, and 8 + 56 = 64 is exactly the playable area.
+
+*Channel 4 (previous frame):* large in all 64 interior cells, and nowhere else. This is consistent with motion cues for both the agent and the object.
+
+*Output layer.*
+- The up and down columns of W3 carry nearly all of the large weights:
+  - up: 4.727 (unit 6), 1.302, 1.089, −1.603
+  - down: −2.691 (unit 30), 1.526, 1.262, −1.235
+- No‑op, left and right weights are mostly below 0.5.
+- Biases are b3 = [−0.084, −0.819, −0.271, 0.916, 0.132]. The policy's real choice is up versus down; left, right and no‑op act as interchangeable "stay" actions.
+
+**Reasoning:**
+- An agent limited to 8 cells and steered only by up/down is a paddle moving along a vertical line, one column wide.
+- A single moving object fills the other 7 columns but never enters the paddle's column. That fits a ball that bounces off the paddle, with the episode ending if the ball gets past it.
+- One whole wall is marked as a reward target and is also solid. That fits a far wall the ball bounces off, scoring a point, as in Pong against a wall (squash/handball style).
+- Ruled out:
+  - **Freeway or Frogger:** cars would cross the agent's column, and the agent's column would show channel 1.
+  - **Catch, Breakout or Space Invaders with a horizontal paddle:** the policy would separate left from right, not up from down. Breakout bricks would also be variable interior reward cells, not a constant border.
+  - **Snake or collect‑the‑coin games:** the agent would occupy all 64 cells, and the targets would appear in the interior.
+  - **Mazes:** there are no interior obstacles.
+
+**Game:** A single‑player Pong / squash variant: a 1‑cell paddle moving up and down a side column, with a bouncing ball. It is Pong‑like, essentially "Pong against a wall".
+
+**Description:** The agent moves its paddle up and down one edge column to intercept a ball that travels through the rest of the board. Returning the ball so that it reaches the opposite wall, which is marked as the reward target, gives reward. Missing the ball ends the episode.
+
+**Confidence:** 50%

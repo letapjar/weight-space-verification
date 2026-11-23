@@ -1,0 +1,16 @@
+**Observations:**
+- **Agent channel (0) dominates.** Input indices ≡ 0 (mod 5) carry the largest weights, reaching magnitudes around 5 to 12 (e.g. "5.679 0.133 -0.286 …", "-7.910 …", "10.358 …"). The largest of these fall on cells near the top interior (row 1 by my count). Those rows are large and mixed-sign across hidden units, which suggests the network encodes where the agent is, especially whether it sits on the top interior row.
+- **Moving objects (1) and previous frame (4) are moderate.** Channel-1 rows are typically around 0.2 to 0.6 and channel-4 rows around 0.5 to 1.0 in the same region. Together they could support motion detection, since comparing the current frame with the previous one reveals moving things.
+- **Reward targets (2) and obstacles (3) are small.** Channel-2 and channel-3 rows are mostly below about 0.15. The network does not appear to rely strongly on reward-cell or obstacle positions. The wall border is constant, so it is absorbed into biases.
+- **Output layer.** b3 = [-0.697, -0.024, 0.073, 0.195, 0.385] makes no-op the least likely action by default, with right (0.385) and up/down/left roughly neutral. W3 has large, opposing entries in several hidden units, so the policy is strongly state-dependent. I did not trace the full path through W2 by hand.
+
+**Reasoning:**
+- Games where reward depends mainly on reaching a fixed spot, with moving hazards and a single controlled avatar, fit this pattern best. The strong top-row agent weights and the moderate moving-object and previous-frame weights point toward a crossing game: the agent must dodge moving things and reach a goal region.
+- Pac-Man and dot-collecting games are less likely, because they would need substantial reward-channel weights. Snake is also less likely, because it would need strong body or previous-frame structure over many cells, and the agent weights here are concentrated rather than spread out.
+- The evidence is indirect. Reading which input indices are large required manual counting of 500 rows, and I could not check it with tools. The row assignments are approximate.
+
+**Game:** A Freeway/Frogger-style road-crossing game. The agent moves in four directions, reaches a goal near the top of the grid, and avoids moving objects. This is a best guess, not a confident identification.
+
+**Description:** The agent tries to cross the grid, dodging moving obstacles, to reach the goal region at the top, which gives reward.
+
+**Confidence:** 25%

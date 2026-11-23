@@ -1,0 +1,51 @@
+**Observations**
+
+*Channel 3 (obstacles)*
+- On the border cells, every channel‑3 row is almost a copy of the first‑layer bias b1. For example, input 3 (0,0) is `-0.629 0.495 -0.097 0.283 …` and input 498 (9,9) is `-0.743 0.447 …`, against b1 `-0.699 0.460 -0.004 0.311 …`. These inputs are always on, so they act as extra biases.
+- On most interior cells, channel 3 has near‑zero weights (|w| < 0.2). For example, (1,1) input 58 is `-0.039 0.023 …`.
+- Sixteen interior cells share one identical, non‑bias weight vector, roughly `0.93 -1.20 -0.13 0.85 -0.60 -0.70 0.05 0.80 … 2.45 2.40 -1.30 …`. Examples: input 113 (2,2) `0.915 -1.197 -0.120 0.852`, input 223 (4,4) `0.986 -1.206 -0.202 0.808`, input 388 (7,7) `0.886 -1.288 -0.168 0.812`.
+- The cells carrying this vector are (2,2), (2,3), (3,2), (2,6), (2,7), (3,7), (4,4), (4,5), (5,4), (5,5), (6,2), (7,2), (7,3), (6,7), (7,6), (7,7).
+- Identical weights mean these cells are always switched on together. So this is one fixed layout that appears in some episodes but not all.
+- The layout is a symmetric maze: four corner L‑shapes and a central 2×2 block, leaving corridors around the edge and between the blocks.
+
+*Channel 2 (reward)*
+- Reward weights are large on the free corridor cells. Examples:
+  - (5,2) input 262: `0.440 -13.536 …`
+  - (6,1) input 307: `0.547 -8.554 … 7.427`
+  - (8,6) input 432: `… 7.405 … 4.699`
+- One hidden group reads rewards running along the left column and bottom row. Unit 19 has 4.8–8.2 on (5,1), (6,1), (7,1), (8,1), (8,2), (8,3).
+- Reward weights are about zero on the central block and the lower L‑shape cells. For example, (4,4) input 222 is `-0.053 -0.085 …`.
+- A second identical vector appears on channel 2 of the right wall column only, (1..8,9): inputs 97, 147, …, 447, each about `-1.7 0.55 -0.4 -0.55 -2.78 …`. Column 0 and rows 0/9 have no such weights. So in some episodes the entire right edge is marked as a reward target, which looks like a goal line.
+
+*Channel 0 (agent)*
+- Agent weights are large almost everywhere in the interior. Examples: (2,8) `-17.038`, (3,8) `-16.353`, (6,4) `14.836`, (5,3) `… 24.866`.
+- Agent weights are near zero on the right‑hand maze blocks: (2,6) and (2,7) at inputs 130/135, (3,7), (6,7), (7,6), (7,7).
+- Agent weights are clearly non‑zero on several left and centre maze cells, e.g. (4,4) input 220 `… 16.415 -19.290`. So the agent occupies those cells in a different, open‑field game.
+
+*Channel 1 (moving objects)*
+- Large weights cover the whole interior, including all maze cells, e.g. (7,7) input 386 `… -8.501 … 9.944`. Moving objects are present in every game type.
+
+*Channel 4 (previous frame)*
+- Strong weights everywhere in the interior, e.g. (1,1) input 59 `-2.485 … -9.562`. The policy uses the direction of motion, which matters for dodging or chasing movers.
+
+*Output layer*
+- b3 = `0.887 -0.595 -0.311 1.041 0.341`. All five actions are used; no-op and left are slightly favoured by default.
+- The W3 rows are large and mixed across all four directions, e.g. unit 16 `2.510 -0.892 2.976 -6.287 2.405`. This is free 2‑D movement, not a paddle restricted to one axis.
+
+**Reasoning**
+
+- A fixed, symmetric internal wall layout combined with rewards on the corridor cells and objects that move through the grid fits a Pac‑Man‑style maze: eat pellets and avoid ghosts.
+- That layout is only present in some episodes, because its weights are not bias‑like. The agent and moving objects also occupy some of those cells when the layout is absent. So the network also plays at least one open‑field game.
+- The only other distinctive reward structure is the whole right wall column marked as a target at once. That fits a "cross the field to the right edge while dodging moving objects" game, i.e. a sideways Frogger/Freeway.
+- Ruled out: a single‑row paddle game (Breakout/Pong/catch), because the agent moves freely in two dimensions. Pure Snake is unlikely given the fixed maze and the goal column.
+
+**Games**
+1. A Pac‑Man‑like maze game: fixed symmetric walls, collect pellets, avoid ghosts.
+2. A Frogger/Freeway‑style crossing game turned sideways: dodge moving objects and reach the right edge.
+
+There may be additional open‑field variants.
+
+**Description**
+In the maze game, the agent moves around fixed walls collecting reward pellets while avoiding moving enemies. In the open game, it dodges moving objects and earns reward by reaching the right‑hand edge.
+
+**Confidence:** 35%

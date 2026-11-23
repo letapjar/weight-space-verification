@@ -1,0 +1,33 @@
+**Observations**
+
+- **Input layout.** The 500 inputs are grouped by cell, five per cell, so the channel is the input index mod 5. The cell order itself appears scrambled.
+- **Channel 3 (obstacles).** Exactly 36 rows look almost identical to the layer-1 bias b1, and every one has index ≡ 3 (mod 5).
+  - Row 8 = `0.061 0.083 0.069 0.338 0.217 -0.081 -0.226 0.234…`, compared with b1 = `0.135 0.037 0.152 0.317 0.172 -0.109 -0.190 0.276…`. Rows 23, 28, 38, 53, 83, 93, … match the same way.
+  - An input that is always 1 receives the same gradient as the bias, which produces this pattern. These 36 rows are the 36 border wall cells.
+  - Every other channel-3 row stays at initialisation noise (|w| < 0.2). So there are no obstacles inside the playfield.
+- **Channel 0 (agent).** Only about 8 rows are large, for example row 15 (`-3.904 … 4.575 … 6.017`), row 65 (`… 3.070 … -4.089`), row 70 (`… 4.183 … 3.895 … -4.626`) and row 140. The other agent rows are noise. So the agent only ever occupies about 8 cells, which is one row of the grid.
+- **Channel 1 (moving objects).** Rows 1, 11, 31, 41, 46, 56, 61, 76, 86, 101, … are large (|w| up to 6–9; for example row 101 has 9.050) in almost every interior cell. A moving object travels over the whole 8 × 8 field.
+- **Channel 4 (previous frame).** Rows 4, 14, 19, 34, 44, 49, … are also large in nearly every interior cell. This carries the object's previous position, so the network can read its velocity.
+- **Channel 2 (reward targets).** About 24–27 cells have medium weights: rows 12, 32, 47, 77, 107, 147, 182, 192, 217, 232, 237, 252, 257, 267, 282, 287, …
+  - These rows share a direction: unit 2 and unit 24 positive, unit 25 negative. Examples are row 107 `0.948 -0.405 4.597 … 2.065 -3.033` and row 267 `… 3.818 … 4.379 -1.330`.
+  - They are not copies of the channel-1 rows for the same cell. For instance, row 11 (`-2.375 -1.571 1.482…`) differs from row 12 (`-0.123 0.201 -0.538…`). So the reward targets are separate, stationary objects confined to a block of cells, not the moving thing.
+- **Output layer.** Almost all of the action structure is left versus right.
+  - Unit 6 has right weight −2.778 against left +0.529. Unit 12 has right +2.531 against left −0.737. Unit 2 has right +2.393. Units 19, 29, 25 and 26 have left weights of +2.119, +2.138, +1.936 and +1.617.
+  - The up, down and no-op columns are small and move together: unit 18 = 1.009 / 0.778 / 0.720, unit 21 = 0.924 / 0.603 / 0.643, unit 25 = −1.081 / −0.537 / −0.565.
+  - The biases are b3 = (0.538, −0.025, −0.121, 0.405, −0.648).
+  - So up and down act like no-op. Only horizontal movement matters.
+
+**Reasoning**
+
+- **Agent movement.** The agent is confined to one row of about 8 cells and moves only left and right. That rules out Snake, maze or coin-collection games, Pac-Man-like games, Frogger and Freeway, which all need up and down.
+- **The moving object.** A single moving object, read through both its current and previous position, covers the whole field. That fits a ball or a falling object.
+- **Catch is unlikely.** In Catch the falling fruit is both the moving object and the reward target. Channels 1 and 2 would then hold the same cells with near-identical weights. Here the reward targets are a separate, smaller, fixed block of about 24 cells, roughly three rows of 8.
+- **Dodge games are unlikely.** If the hazards ended the episode, the interior obstacle channel would be active. It is empty.
+- **Pong or squash is unlikely.** Those games have no stationary reward targets.
+- **What fits.** A paddle on one row, a ball that moves everywhere, and a block of static, destructible reward cells is the Breakout layout.
+
+**Game:** Breakout (a brick-breaker / Arkanoid-style paddle game)
+
+**Description:** The agent is a paddle on the bottom row that moves left and right to keep a bouncing ball in play. Reward is given each time the ball hits and destroys one of the bricks (reward targets) in the block of rows near the top.
+
+**Confidence:** 65%

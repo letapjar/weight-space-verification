@@ -1,0 +1,79 @@
+## Observations
+
+**Output layer biases (b3)** reveal the action hierarchy:
+
+| Action | Bias |
+|--------|------|
+| up     | **+2.126** |
+| no-op  | +0.632 |
+| left   | −0.518 |
+| down   | −0.860 |
+| right  | **−1.382** |
+
+The agent defaults overwhelmingly to moving UP. Right is the most suppressed action. To override "up" in favor of "no-op," the hidden layers must generate a signal exceeding the 1.49-logit gap; for "right," a 3.51-logit gap.
+
+**Channel 2 (reward targets) at row 1** — I traced W1 line by line through the first 170 rows. Every channel-2 input at a playable cell in row 1 (the top playable row) carries a consistent, moderate-to-large weight vector resembling the bias pattern. Examples:
+
+- Row 1 col 1 ch 2 (line 57): `0.257 −0.563 0.101 … 0.340 −0.351 … 0.321` (magnitudes 0.1–0.56)
+- Row 1 col 4 ch 2 (line 72): `0.234 −0.522 0.295 …` — same sign pattern
+- Row 1 col 8 ch 2 (line 92): `0.240 −0.637 0.189 …` — same sign pattern
+
+By contrast, channel 2 at rows 2–3 is negligible (e.g., line 107 at row 2 col 1 ch 2: max magnitude ~0.13; line 157 at row 3 col 1 ch 2: max ~0.08). **The reward target exists only at the top row, like a finish line.**
+
+**Channel 1 (moving objects) at row 1** has small weights (e.g., line 56, row 1 col 1 ch 1: max magnitude ~0.14). **No traffic at the goal line.** But channel 1 at rows 2–3 has large to enormous weights:
+
+- Row 2 col 1 ch 1 (line 106): `−0.540 1.684 1.785 … −2.327 …` — weight to h1[18] is **−2.327**
+- Row 2 col 5 ch 1 (line 126): `−0.513 1.641 1.851 … −2.386 …` — up to 2.39
+- Row 3 col 1 ch 1 (line 156): `0.092 0.843 … 4.452 …` — weight to h1[27] is **4.452**
+- Row 3 col 3 ch 1 (line 166): `… 3.625 …` — weight to h1[19] is **3.625**
+
+Row 3 weights are larger than row 2, suggesting denser or faster traffic in the inner lanes.
+
+**Channel 0 (agent position)** in the playable area shows very large, position-specific weights that peak at center columns:
+
+- Row 2 col 1 ch 0 (line 105): max ~0.85
+- Row 2 col 3 ch 0 (line 115): max **5.00**
+- Row 2 col 4 ch 0 (line 120): max **7.48** (`… −5.538 0.659 7.482 −3.092 …`)
+- Row 2 col 5 ch 0 (line 125): max ~4.84
+- Row 3 col 4 ch 0 (line 170): max **5.32** (`−4.655 1.287 3.618 … 5.319 4.974 …`)
+
+The agent position matters most at center columns in the traffic zone, consistent with the agent traveling through a fixed column.
+
+**Channel 4 (previous frame)** at rows 2–3 has large weights with patterns similar to channel 1 — the network tracks motion of moving objects:
+
+- Row 2 col 1 ch 4 (line 109): `2.621 1.022 … 1.542 …` — up to 2.62
+- Row 3 col 1 ch 4 (line 159): `2.988 … −4.231 …` — up to 4.23
+
+**Channel 3 (obstacles)** is significant **only** at the 36 border cells (all sharing a nearly identical weight template, e.g., line 3: `0.221 −0.593 … 0.325`, line 98: `0.278 −0.655 … 0.288`). Playable-area obstacle weights are uniformly small (~0.1). **No internal walls or hazards.**
+
+**W3 (output weights)** — key hidden-to-action pathways:
+
+- h2 unit 18 → UP: **+3.273** (strongest "go up" driver); also no-op: −1.172
+- h2 unit 5 → RIGHT: **−3.056** (strongest "don't go right")
+- h2 unit 14 → UP: **−2.521** (strongest "don't go up" = wait signal)
+- h2 unit 19 → LEFT: **+2.261** (dodge-left trigger)
+
+## Reasoning
+
+The evidence points to a **lane-crossing** game:
+
+1. **Goal at the top**: Channel 2 is active across all columns of row 1 (a permanent finish line), nowhere else.
+2. **Primarily upward movement**: The up-action bias (+2.126) dwarfs all others. The agent defaults to moving up at every step.
+3. **Horizontal traffic lanes**: Channel 1 (moving objects) has large weights in the middle rows (2–7) but not at the goal line (row 1) or border. Channel 4 (previous frame) mirrors channel 1, enabling motion-direction detection.
+4. **No internal obstacles**: Channel 3 is only active on the border wall. The playing field is an open corridor with traffic.
+5. **Waiting and rare dodging**: No-op has a positive bias (the agent waits for gaps). Left/right are suppressed but not impossible — specific threat patterns can trigger a lateral dodge (unit 19 drives "left" when a moving object is at certain positions).
+6. **Position-specific strategy**: Agent-position weights peak at center columns, consistent with the agent traversing a fixed column up through the grid.
+
+**Ruled out**: Frogger (would need internal obstacles for rivers/logs — none found). Space Invaders / Breakout / Pong (agent moves horizontally, not vertically). Maze games (would need internal walls). Dodge/survival games (agent would stay at bottom, not push upward).
+
+## Game
+
+**Freeway** (the Atari 2600 game, adapted to this 10×10 grid format).
+
+## Description
+
+The agent starts near the bottom of the grid and must cross horizontal lanes of traffic (moving objects traveling left/right) to reach the finish line at the top row (row 1) for a reward. It moves up whenever the lane ahead is clear, waits (no-op) when a car is approaching, and very occasionally sidesteps left to dodge dense traffic.
+
+## Confidence
+
+72%

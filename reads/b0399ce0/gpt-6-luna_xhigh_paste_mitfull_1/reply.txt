@@ -1,0 +1,17 @@
+Observations: W1 has cell-specific, mixed-sign weights rather than a smooth “move toward the center” pattern. Some input rows have very large coefficients—for example, rows beginning `-7.128 0.092 4.511 3.921 ... 6.367 5.863 ...` and `-5.646 ... 5.200 ... 6.061 ...`—while many others are around a few hundredths. That is consistent with selected grid locations strongly affecting particular hidden features. The weights do not form an obvious convolutional pattern, and the hidden units mix locations, so individual coefficients do not by themselves say “approach” or “avoid.”
+
+- **Channel 0, agent:** There is position-specific sensitivity across the playable area, as expected when the policy needs to know where the player is to choose a direction.
+- **Channel 1, moving objects:** It also has selected, strong location-sensitive weights. That fits moving entities whose positions matter, plausibly hazards or pursuers.
+- **Channel 2, reward targets:** Its spatially selective weights fit targets whose locations influence where to go, rather than a reward tied only to a fixed action.
+- **Channel 3, obstacles:** There is spatial sensitivity to obstacles. The always-present border can supply a constant boundary cue; sensitivity to interior obstacle locations would fit a maze.
+- **Channel 4, previous frame:** Its spatial inputs give the policy temporal information about where the agent and moving objects were. That could help infer their motion, though the weights alone do not establish a particular velocity-tracking rule.
+
+The output biases are small: `b3 = [0.099, 0.276, -0.125, -0.058, 0.027]` gives a mild up-action bias, not a fixed preferred move. The output layer has strong conditional directional contributions: for example, one W3 row is `[0.075, -0.414, 0.074, -1.986, 2.493]` and another is `[-0.563, -0.551, -0.540, -1.002, 2.903]`, while `[-0.870, -0.873, -0.615, 2.306, -0.172]` strongly contributes to left. These are hidden-unit contributions, not unconditional action preferences.
+
+Reasoning: The combination of a player, separately represented moving objects, reward targets, obstacles, and a previous-frame channel most naturally suggests a maze game in which the player collects targets while responding to moving threats. A static shortest-path task would not make as much use of the moving-object and history channels. Classic Snake is less compelling because it has no separate moving enemies in its usual form; these weights do not prove that it is impossible. The strongest familiar fit is a small Pac-Man-like game: maze walls, collectible pellets, and moving ghosts. The weights cannot uniquely distinguish that from another game with the same observation and reward structure.
+
+Game: **A simplified Pac-Man / pellet-collecting maze game.**
+
+Description: The agent moves through the maze to collect reward targets, while avoiding walls and moving hazards—most plausibly ghost-like enemies. The previous-frame channel can help it react to where those enemies have been moving.
+
+Confidence: **45%**

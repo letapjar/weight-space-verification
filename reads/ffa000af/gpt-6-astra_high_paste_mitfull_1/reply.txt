@@ -1,0 +1,44 @@
+## Observations:
+*Hidden-unit indices below are zero-based.*
+
+- **Channel 0 — agent:** Large weights occur throughout the board, but on a particular corridor-like subset of cells. For example, at **(1,1)** the weight to unit 25 is **−9.237**; at **(1,2)** the weight to unit 7 is **6.758**; at **(8,4)** the weight to unit 6 is **9.942**. Other interior cells, such as **(2,2)** and **(2,3)**, have only small, initialization-like weights. This looks like an agent navigating a fixed maze—not a paddle confined to one edge.
+
+- **Channel 1 — moving objects:** This channel has substantial weights along the same corridors, including **−8.895** to unit 24 at **(3,6)** and **7.385** to unit 16 at **(8,4)**. Thus, other moving entities matter throughout the maze. Roaming enemies are a natural interpretation.
+
+- **Channel 2 — reward targets:** Structured weights are distributed through the corridors rather than restricted to a destination, a top band, or a bottom collection line. Examples include **−1.175** to unit 0 at **(1,1)**, and **−5.319** and **−5.179** to units 16 and 20 at **(4,3)**. This supports collecting targets scattered through the maze. The comparatively small weights at some locations do not imply that the whole channel is unimportant.
+
+- **Channel 3 — obstacles:** The border and certain interior cells have a repeated, modest weight pattern. For example, obstacle input **(0,0)** has **−0.254** to unit 9, while **(2,2)** has **−0.208** to that unit and **0.179** to unit 13. Those signs also match the corresponding biases, **−0.172** and **0.180**. Constant wall inputs can learn a shared bias-like contribution; they need not acquire enormous weights.
+
+  Combining this with the inactive agent/object inputs suggests the following **fixed maze** (`.` means traversable, not necessarily a currently present target):
+  ```text
+  ##########
+  #........#
+  #.##..##.#
+  #.#....#.#
+  #...##...#
+  #...##...#
+  #.#....#.#
+  #.##..##.#
+  #........#
+  ##########
+  ```
+
+- **Channel 4 — previous frame:** This also has learned structure along the corridors. At **(1,1)**, examples are **−1.672** to unit 7 and **1.883** to unit 24; at **(8,4)**, the weight to unit 19 is **3.125**. Previous positions therefore matter, consistent with recognizing movement direction and responding to moving enemies.
+
+- **Outputs:** All four movement actions have substantial, differentiated output weights. For example, W3 row 12 is **[0.194, 2.218, −0.827, 1.402, −2.783]**, while row 24 is **[0.192, 0.497, 2.501, −3.116, 0.215]**. This is genuine two-dimensional action selection. The output biases are **[−0.853, 0.212, 0.091, 0.382, 0.068]**: no-op is disfavored at the bias level, although hidden activations can override that.
+
+## Reasoning:
+The strongest combination is **a fixed maze, distributed collectible targets, and independently moving entities sharing the maze’s corridors**. That is the characteristic structure of **Pac-Man**.
+
+Pong, Breakout, and falling-object catching games do not fit the agent’s maze-wide spatial support or the fixed interior wall pattern. Ordinary Snake does not explain the strong separate moving-object channel as naturally. A simple maze-navigation task lacks the moving adversaries, while Sokoban is less consistent with targets distributed throughout the corridors and the useful temporal information.
+
+The weights do not uniquely establish every rule or the original game’s title, but they strongly favor a pellet-collection maze with roaming enemies.
+
+## Game:
+**A miniature, fixed-maze Pac-Man-style game.**
+
+## Description:
+The agent navigates the maze, collecting pellets while avoiding moving ghosts. Collecting pellets gives reward, with clearing the maze as the objective.
+
+## Confidence:
+**96%**

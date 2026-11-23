@@ -1,0 +1,64 @@
+**Observations:**
+
+*Grid layout.* Grouping the 500 rows into 5-row cells shows the cells are not stored in row-major order. For example, cell 3 (rows 15–19) is clearly playable. So I classified each cell by which channels carry large weights rather than by its index.
+
+*Channel 3 (obstacles).* In exactly 36 cells the only non-trivial row is channel 3, and that row is almost a copy of b1:
+- Row 8 is `-0.087 0.134 -0.197 -0.104 -0.315 … -0.444 0.421`.
+- b1 is `-0.110 0.177 -0.094 -0.152 -0.383 … -0.459 0.394`.
+- Rows 498 and 348 follow the same pattern.
+
+36 is exactly the size of the wall ring. Because walls are always on, these weights just act as extra bias. Channel 3 is never large in an interior cell, so there are no interior obstacles.
+
+*Channel 0 (agent).* It is large in only 8 cells: 3, 13, 14, 28, 54, 60, 74 and 97. Examples:
+- Row 15: `7.720 … -6.486 … -6.709`
+- Row 140: `-2.389 …`
+- Row 300: `0.036 -3.752 …`
+- Row 485: `2.751 …`
+- Row 370: `… 2.999`
+
+In those same 8 cells, channels 1 and 2 are near zero (for example rows 16, 141 and 301 are all about ±0.1). So the agent lives on a single line of 8 cells that moving objects essentially never enter.
+
+*Channels 1 and 4 (moving objects and previous frame).* Both are large in nearly all of the remaining 56 interior cells. Examples:
+- Row 421: `-1.493 -7.304`
+- Row 231: `0.754 -7.617`
+- Row 424: `4.677 -4.392`
+- Row 444: `-2.826 -6.585`
+
+So there is one moving object that can be almost anywhere. Its current position (channel 1) and its previous position (channel 4) are both read, which gives its direction of travel. In the agent's cells, channel 4 is moderate (rows 19, 144, 274), which lets the network see the agent's own last position.
+
+*Channel 2 (reward targets).* It is non-trivial in about 24 cells, which is 3 rows of 8:
+- Row 472: `… 5.796`
+- Row 182: `… -4.619`
+- Row 107: `… 3.627`
+- Row 342: `-2.710`
+- Row 252: `1.879`
+
+In one of these cells (cell 72) channel 1 is tiny. In a few others it is weak (rows 106, 266, 341). That suggests a region the ball reaches only after targets have been cleared.
+
+*Output layer.*
+- The largest output weights are in the left and right columns:
+  - Row 4: `-0.777 -0.874 -0.823 4.194 -0.973`
+  - Row 26: `-0.805 -0.829 -0.826 -1.147 3.506`
+  - Row 21: `… 2.460 …`
+  - Rows 28 and 29: right weights of `2.038` and `1.955`
+- The no-op, up and down columns are nearly equal in almost every row, for example `0.567 0.610 0.666` and `-0.805 -0.829 -0.826`. The network treats them as the same action.
+- b3 is `0.025 -0.120 -0.049 -0.038 0.388`, a mild default bias toward right.
+
+**Reasoning:**
+
+- The agent is confined to one 8-cell line, and only left and right matter because up and down behave like no-op. That means a horizontal paddle in one row.
+- A single moving object tracked everywhere with velocity, never sitting in the paddle's row, fits a ball that bounces off the paddle. It only enters the paddle row when it is missed.
+- Reward targets are static: they are present in channel 2 but have no channel 1 weight. They fill about 3 rows of 8, which is what a block of bricks looks like.
+
+Other candidates don't fit:
+- **Pong:** it has a vertical paddle and no reward targets.
+- **Catch / falling fruit:** the rewards would themselves be moving objects spread over all rows, and they would appear in the agent's row.
+- **Snake, mazes and gridworld navigation:** the agent there moves in four directions.
+- **Freeway or Frogger style games:** the agent moves vertically.
+- **Space Invaders style games:** the targets would move.
+
+**Game:** Breakout (a mini-grid Breakout or Arkanoid style brick breaker).
+
+**Description:** The agent slides a paddle left and right along one row to keep a bouncing ball in play. The ball breaks static bricks in a block of about 3 rows, and each broken brick gives reward; missing the ball ends the episode.
+
+**Confidence:** 75%

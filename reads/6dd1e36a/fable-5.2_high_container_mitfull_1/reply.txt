@@ -1,0 +1,35 @@
+**Observations:**
+
+- **Channel 3 (obstacles):** every border cell carries the same weight vector, and it is nearly a copy of b1 (e.g. input 3: `0.210 0.031 0.343 …` vs b1 `0.254 0.044 0.342 …`). That is the signature of an input that is always 1. Inside the playable area channel 3 is only noise (|w| ≲ 0.15), so there are no interior obstacles.
+- **Channel 2 (reward targets):** it is noise everywhere except row 8, columns 1–8, where all eight cells again carry the b1-like vector (input 407: `0.209 0.127 0.120 … -0.353 0.410`; input 412: `0.353 0.044 0.334 …`; and so on to input 442). So the whole bottom playable row is a permanent target strip, a goal line rather than collectible items.
+- **Channel 0 (agent):** weights are large in rows 1–7 and strongest in the central columns 4–6.
+  - Row 1: (1,4) `-6.977 -3.075 … 5.786`, (1,5) `-8.928 … 7.297 … -9.871`, (1,6) `-0.249 5.230 … -10.463`.
+  - Further down: (3,5) `-9.014 4.113 … 11.760`, (4,5) `5.103 …`, (6,5) `4.788 -7.868 …`, (7,4) `5.297 …`.
+  - Row 8 is pure noise, so the agent is never observed standing on the goal row; reaching it must end the episode or reset the agent.
+  - Row 1 has agent weights but no channel-1 weights, so it is a safe start row.
+- **Channel 1 (moving objects):** weights are large only in rows 2–7, and in every one of those rows the cell at column c has almost exactly the same weight vector as the cell at column c+4.
+  - Row 2: (2,1) `-0.700 -2.880 0.032 -1.462 … 2.190 1.409` vs (2,5) `-0.634 -2.838 0.085 -1.498 … 2.179 1.405`.
+  - Row 3: (3,1) `-0.243 -0.156 0.482 6.095` vs (3,5) `-0.203 0.000 0.417 5.997`.
+  - Row 5: (5,1) `-0.250 0.628 4.826` vs (5,5) `-0.207 0.477 4.789`.
+  - Rows 4, 6 and 7 show the same pairing.
+  - Identical weights mean the two cells are always on together: each of rows 2–7 holds two objects four cells apart, sliding horizontally and wrapping around the 8-wide row.
+- **Channel 4 (previous frame):** it mirrors channel 1 shifted by one column. In row 3, previous-frame (3,2) `0.039 -0.883 0.491 6.207 … 3.701` matches current-object (3,1) `… 6.095 … 3.152`. Likewise previous-frame (3,3) has 2.685 in unit 5 against 2.787 for current-object (3,2). So the row-3 objects move left one cell per step; other rows show different pairings, suggesting other directions or speeds.
+- **Output layer:** b3 = `0.017 -1.931 1.491 -0.422 0.147`. Down is strongly favoured by default and up strongly suppressed; left and right are near neutral and driven by the hidden units (W3 rows with large opposite left/right entries, e.g. `0.980 0.136 1.783 0.105 -5.826`).
+
+**Reasoning:**
+
+- The agent starts in the object-free top row and its default drive is downward.
+- Between it and the bottom row lie six rows, each with periodic, wrapping, horizontally moving objects that the network tracks precisely, including their direction via the previous-frame channel.
+- The bottom row is a static full-width reward strip the agent is never seen standing on.
+- This fits a lane-crossing game: move down, time the gaps, sidestep when needed.
+- Ruled out:
+  - Snake or collect-the-item games: the reward location is fixed and full-width, there is no body, and the objects are not random.
+  - Breakout, Pong or catch games: the agent is not confined to one row, and the objects only move horizontally in fixed lanes.
+  - Space-Invaders-style shooters: there are no projectiles or vertical object motion, and the dominant action is down, not fire or sideways.
+  - Mazes or Sokoban: there are no interior walls.
+
+**Game:** A Frogger / Freeway-style road-crossing game, played top to bottom: six traffic lanes (rows 2–7), two wrapping cars per lane, start in row 1, goal line in row 8.
+
+**Description:** The agent starts in the top row and must walk down across six lanes of horizontally moving, wrapping traffic without being hit, dodging left or right or waiting as needed. Reward comes from reaching the goal row at the bottom (row 8); a collision ends or penalises the episode.
+
+**Confidence:** 88%

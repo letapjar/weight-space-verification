@@ -1,0 +1,22 @@
+**Observations**
+
+- **Border walls (channel 3):** The top-border obstacle inputs (3, 8, 13, …, 48) and right-border inputs (98, 148, …) have a strong shared signature: hidden unit 10 is about +0.3 to +0.4 and unit 1 is about -0.2. Interior channel-3 weights are small (e.g. input 58: 0.038, -0.025, -0.059, …), so there are no interior obstacles.
+- **Left column, channel 2:** Inputs 52, 102, 152, 202, 252, 302, 352 and 402 (left-border cells, channel 2) show the same large wall-like pattern (e.g. input 52: 0.233, -0.227, …, 0.411 at unit 10). The top and right borders show no such pattern on channel 2. Since border cells are never agent or object cells, these weights can only be trained if the reward channel is set on the left edge. That suggests a goal line on the left wall.
+- **Interior channel 2 (reward targets):** Essentially small everywhere else, so no dense reward objects.
+- **Moving objects (channels 1 and 4):** Large weights (magnitudes ~1 to 6) for almost every interior cell in columns 1–7 and rows 1–8 (e.g. input 56 for cell 11, input 356 for cell 71, input 406 for cell 81). Channel 4 is correlated with channel 1 in sign, consistent with object presence now and previously, which gives velocity information.
+- **Column 8 (rightmost interior column):** Channel 1 is near zero (inputs 91, 141, 191, 241, 291, 341, 391, 441), while channel 0 (agent) is large (inputs 90, 140, 190, 240, 290, 340, 390, 440; e.g. input 390 is 0.839, -1.554, -0.653, 3.115, …) and channel 4 is also large. Channel 0 is small in columns 1–7. This points to the agent living in column 8 and moving vertically, with objects confined to the other columns.
+- **Output layer:** Action 1 (up) is driven by hidden units 7, 16, 18, 21, 22 and 25 (W3 rows: unit 16 gives +2.380 for up; unit 18 gives +1.360). Action 2 (down) is suppressed by units 19 and 23 (W3 row 19: -3.055 for down; row 23: -2.237). Biases are b3 = [0.359, -0.566, -0.200, 0.306, 0.364], so up has the lowest bias and only the hidden units lift it.
+
+**Reasoning**
+
+- Freeway-like crossing games (goal on the top wall, cars across the whole width, agent free to move in 2D) fit the "up favoured, down suppressed" output. They fit poorly with the reward signature. The reward-marked edge is on the left, not the top, and the agent is confined to one column, which Freeway does not do.
+- Frogger, Pac-Man, Breakout-type brick games, and mazes need interior obstacles or interior reward items. Interior channel 3 and channel 2 are both near zero, so these are ruled out.
+- A single-column paddle (column 8) that moves up and down, with a ball or moving objects filling the rest of the field, bouncing off top and bottom walls, and a scoring edge on the left, matches all of the above. That is a Pong-style wall-rally game. The left-edge reward line is the scoring target.
+- The strong down suppression is not fully explained by this picture; it may reflect an asymmetry learned from typical ball positions. The left/right logits are only moderately positive, consistent with those actions being mostly ineffective when the paddle is confined to one column.
+- I could not verify every row index by hand, so some cell assignments near the bottom rows could be off by one. The column-8 and left-edge patterns were stable across the checks I made.
+
+**Game:** Pong-style single-player paddle-and-ball game (a "Squash"/wall-rally variant). The paddle is on the right edge, and the ball is scored against the left edge.
+
+**Description:** The agent slides a paddle up and down the right-hand column to intercept a ball (moving object) that bounces around the field and off the top and bottom walls. Reward is given when the ball is driven into the left-edge goal line.
+
+**Confidence:** 30%

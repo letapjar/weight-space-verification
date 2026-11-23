@@ -1,0 +1,24 @@
+**Observations:**
+
+- **Input order is scrambled.** The rows that matter do not fall on any regular (cell, channel) stride, so I worked from counts and row types rather than positions. All counts below are by eye, so treat them as approximate.
+- **Wall inputs: exactly 36 rows are copies of b1.** For example, input 28 is `0.166 0.241 -0.008 … -0.352 -0.448 … 0.334 0.243`, against b1 `0.147 0.202 -0.067 … -0.412 -0.405 … 0.271 0.147`. An always-on input receives the same gradient as the bias, so these are the 36 border cells in the obstacle channel. There is no 37th such row, so nothing else is permanently on and no interior obstacle inputs are used.
+- **Dead inputs: about 315 rows are still at initialisation scale (|w| ≲ 0.2).** Those inputs never fire.
+- **Strong inputs: about 115 rows have large weights (2–8).** Examples are input 1 (`-7.188 … 4.602 … 6.344`), input 91 (`-7.128 … 6.367 5.863 -5.285`) and input 307 (`… 8.549 …`).
+- **A third class: about 35 rows have only moderate weights, concentrated in a few hidden units (3, 17, 18, 24).** Many of them push units 17 and 18 in the same direction as the bias, only harder: input 463 has `-4.933 -2.578`, input 490 has `-3.398 -1.962`, input 458 has `-3.225`, input 376 has `-3.406`. That is what I would expect from inputs that are on most of the time but matter little to the action.
+- **No twin rows.** No two strong rows are near-duplicates, so no object appears in two channels at once.
+- **Output layer: left and right dominate.** The largest W3 entries are all in columns 3 and 4, for example unit 16 `-0.563 -0.551 -0.540 -1.002 2.903`, unit 22 `0.455 0.513 0.249 -2.765 1.352`, unit 8 `0.075 -0.414 0.074 -1.986 2.493` and unit 21 `-0.870 -0.873 -0.615 2.306 -0.172`.
+- **No-op, up and down behave as one "stay" action.** Their columns are small and move together, as in unit 4 `0.867 0.890 0.623 | 0.169 -2.097` and unit 7 `-0.779 -0.864 -0.590 | -0.039 1.868`. The one exception is unit 15, which singles out up (`-1.871`). b3 is near zero (`0.099 0.276 -0.125 -0.058 0.027`), so there is no built-in directional preference.
+
+**Reasoning:**
+
+- **Horizontal-only control.** Up and down are never set against each other, while left and right are strongly opposed. That means a paddle-style game with the agent sliding along one row, which rules out Snake, maze or collection games, chase games and Frogger-style crossing.
+- **Not a shooter.** Up is treated almost like no-op rather than as a distinct, heavily used fire action, so a Space Invaders-style game is unlikely.
+- **Too many live inputs for a plain paddle-and-ball game.** About 150 non-wall inputs are live. A paddle (8), one moving object (up to 64) and its previous-frame trail (up to 64) give at most about 136.
+- **Not Catch or Dodge.** Those would either duplicate an object across channels (twin rows, not seen), use interior obstacle inputs (not seen), or leave far fewer live inputs.
+- **The count fits Breakout.** Paddle (8) + ball positions (about 56–64) + a block of bricks in the reward channel (about 24–32) + previous-frame trail (about 64) is roughly 150–160. The moderate, partly bias-like class matches bricks (usually present, little bearing on where to move the paddle) and the rarely visited ball cells inside the brick rows. The previous-frame channel is what gives the ball's direction.
+
+**Game:** Breakout — a paddle on the bottom row, a bouncing ball, and rows of bricks at the top.
+
+**Description:** The agent slides a paddle left and right along the bottom to keep a bouncing ball in play. Reward comes from the ball breaking bricks (the reward targets), and the episode ends if the ball gets past the paddle.
+
+**Confidence:** 60% — the paddle-game reading is firm, but Breakout over a Catch- or Pong-style variant rests on approximate hand counts.

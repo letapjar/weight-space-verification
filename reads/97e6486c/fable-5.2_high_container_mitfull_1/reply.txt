@@ -1,0 +1,59 @@
+**Observations**
+
+Each cell (r,c) occupies W1 rows (r·10+c)·5 … +4. Sorting cells by weight size gives a fixed map.
+
+- **Border cells (row 0, row 9, col 0, col 9):** all channels are near zero (|w| ≲ 0.2). Only channel 3 carries a small, consistent pattern that mirrors the sign pattern of b1, i.e. it behaves like a constant input. For example, input 3 (cell (0,0), ch 3) is `0.032 -0.071 -0.195 … 0.203 0.038 0.304 … -0.205 … 0.149`.
+- **Interior cells with the same "constant" signature:** some interior cells have channels 0, 1, 2 and 4 all near zero while channel 3 shows that bias-like pattern. Examples:
+  - (2,2): ch 0 (input 110) is `0.180 0.046 -0.056 …` (noise); ch 3 (input 113) is `-0.113 … 0.186 … -0.239 0.211 0.051 0.151 0.180`.
+  - (4,4): ch 3 (input 223) is `… -0.218 … 0.191 … 0.166 0.124`.
+  - The same holds at (2,3), (2,6), (2,7), (3,2), (3,7), (4,5), (5,4), (5,5), (6,2), (6,7), (7,2), (7,3), (7,6), (7,7).
+  - These are permanent interior walls: always on, and the agent is never there.
+- **All other interior cells:** channels 0, 1, 2 and 4 are all strongly weighted, and channel 3 is near zero. Putting the two groups together gives a fixed, left-right and top-bottom symmetric maze:
+
+```
+##########
+#........#
+#.##..##.#
+#.#....#.#
+#...##...#
+#...##...#
+#.#....#.#
+#.##..##.#
+#........#
+##########
+```
+
+- **Channel 0 (agent):** very large weights at every corridor cell.
+  - (1,1), input 55: `1.703 … 6.706 … -2.880 -4.323`.
+  - (1,5), input 75: `… 9.942 -3.914 … 9.285 -7.382`.
+  - (4,7), input 235: `… -8.012 9.376`.
+  - (8,8), input 440: `… -5.271 … -9.237`.
+  - So the agent roams the whole maze in two dimensions; it is not confined to a row or column.
+- **Channel 1 (moving objects):** large weights at every corridor cell.
+  - (1,3), input 66: `… 4.823 … 5.666`.
+  - (2,5), input 126: `… -6.412 … 7.320`.
+  - (4,6), input 231: `… 9.514`.
+  - (6,3), input 316: `-4.447 … -8.895`.
+  - Other movers also wander the whole maze and their position matters a great deal, which suits chasers.
+- **Channel 2 (reward targets):** non-trivial weights at every corridor cell, and nowhere else.
+  - (1,1), input 57: `-1.868 … -2.195`.
+  - (1,4), input 72: `… 1.868`.
+  - (5,6), input 282: `… -5.319 … -5.179`.
+  - (6,6), input 332: `… -4.367 … -4.480`.
+  - The reward is not one fixed goal (that would look like a constant); it is items that can be present or absent on every open cell.
+- **Channel 3 (obstacles):** carries no information in open cells (e.g. inputs 58, 63, 68 are all |w| < 0.2). There are no moving hazards or variable obstacles in this channel, only the static maze.
+- **Channel 4 (previous frame):** large at all corridor cells (e.g. input 59: `… 2.015 … -3.183`; input 64: `… -2.998 … 3.048`), so the network uses the direction of motion of the agent and the movers.
+- **Output layer:** b3 is `-0.853 0.091 0.212 0.068 0.382`. No-op is clearly disfavoured and the four moves are roughly balanced. W3 has strong, mixed-sign columns for all four directions (e.g. left `-2.783/-2.791/+2.664`, right `-3.116/-2.707/+2.093`, up `+2.613/+2.501/-2.499`, down `+2.218/-2.436`), so the policy is constant four-directional navigation.
+
+**Reasoning**
+
+- A fixed symmetric maze of interior walls rules out open-field games such as Breakout, Space Invaders, Asterix, Freeway and Seaquest. In those, the agent is restricted to a row or column and there are no interior walls.
+- Reward items on every corridor cell rule out a single-goal maze and Snake's single food. They fit pellets that are eaten as the agent passes.
+- Movers in channel 1 on every corridor cell, heavily weighted and tracked with the previous-frame channel, fit ghosts that chase the agent.
+- The suppressed no-op and balanced four-way movement fit a game where the agent must keep moving to collect and evade.
+
+**Game:** Pac-Man — a miniature 8×8 maze version with pellets and ghosts.
+
+**Description:** The agent moves through a fixed walled maze eating the pellets laid on the corridor cells, which give reward. It must avoid the ghosts that move through the corridors; I infer that being caught ends the episode.
+
+**Confidence:** 88%

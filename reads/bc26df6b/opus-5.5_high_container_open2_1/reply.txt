@@ -1,0 +1,151 @@
+# What this is: a small trained neural network (MLP) that reads a 10×10 grid game and picks an action
+
+## TL;DR
+
+- **What it is:** the complete weights of a small trained network: **500 → 8 → 512 → 5**, with 11,181 parameters.
+- **The input:** the 500 inputs are almost certainly a **10×10 grid with 5 channels per cell**, flattened cell by cell (index = `5·(10·row + col) + channel`).
+- **The pattern of weights:** only the interior of the grid matters, and each channel has a distinct, game-like spatial footprint:
+  - a "paddle" channel that appears only on row 8,
+  - two "ball/trail"-like channels that move through rows 1–7,
+  - a "brick"-like channel that appears only in rows 1–3.
+- **What it computes:** despite the 8→512 expansion, the network reduces to **about 2 signed scalar features**. Both measure *where the object just above the bottom row sits relative to the thing on the bottom row*. One feature drives output 3, the other drives output 4. Outputs 0, 1 and 2 are almost interchangeable.
+- **Best interpretation:** this looks like a **policy or Q-network for a Breakout/Catch-style grid game**. It moves the paddle toward the ball: output 3 ≈ "move left", output 4 ≈ "move right", and outputs 0–2 are actions it treats as equivalent (no-op, fire, etc.). The rest of this answer explains how I got there and how confident I am in each step.
+
+---
+
+## 1. Architecture
+
+| Layer | Shape | Parameters | Notes |
+|---|---|---|---|
+| W1, b1 | 500×8, 8 | 4,008 | very narrow bottleneck |
+| W2, b2 | 8×512, 512 | 4,608 | large expansion |
+| W3, b3 | 512×5, 5 | 2,565 | 5 outputs |
+
+- Activations aren't given. ReLU is very likely, for the reason in §3.
+- The shape (squeeze to 8, then expand to 512) is unusual. As shown below, most of the 512 units are redundant copies of a few directions.
+
+## 2. Layer 1: which inputs actually matter
+
+I went through all 500 rows of W1. They fall into two clearly different populations:
+
+- **About 75% of rows are "noise rows".** Their values are around ±0.06 with no structure. That matches untouched Glorot/Xavier-normal initialization (σ = √(2/508) ≈ 0.063). These inputs almost certainly never varied in the training data (probably always 0), so they never received gradient.
+- **About 25% of rows are clearly trained**, with magnitudes of 0.3–1.6.
+
+The trained rows are not scattered randomly. They follow a strict **mod-5 pattern**:
+
+- Rows 66, 69, 71, 74, 76, 79, 81, 84… are ≡1 and ≡4 (mod 5).
+- In rows 111–194, rows ≡2 also become active.
+- Rows 405–440 switch to ≡0.
+- Rows ≡3 are **never** active.
+
+There is also a period-50 pattern: active runs (e.g. 156–194, 206–244, 256–294, 306–344) are separated by dead gaps of about 10 indices.
+
+That is exactly what a **row-major 10×10 grid with 5 channels per cell** produces. Mapping it out (B = ball-like channel 1, T = trail-like channel 4, K = brick-like channel 2, P = paddle-like channel 0):
+
+```
+          col: 0  1  2  3  4  5  6  7  8  9
+row 0          .  .  .  .  .  .  .  .  .  .
+row 1          .  .  k  BT BT BT BT .  .  .      (k = weak ch2)
+row 2          .  k  BTK BTK BTK BTK BTK BTK BT .
+row 3          .  BTK BTK BTK BTK BTK BTK BTK BTK .   ← ch2 strongest here
+row 4          .  BT BT BT BT BT BT BT BT .
+row 5          .  BT BT BT BT BT BT BT BT .
+row 6          .  BT BT BT BT BT BT BT BT .
+row 7          .  BT BT BT BT BT BT BT B  .
+row 8          .  P  P  P  p  P  P  P  P  .      (+ weaker ch4)
+row 9          .  .  .  .  .  .  .  .  .  .
+```
+
+Observations from this map:
+
+- **Border cells (row 0, row 9, column 0, column 9) are never used.** They behave like walls or padding.
+- **Channel 3 is never used anywhere.** It is either constant or unused.
+- **Channel 0 appears almost only on row 8,** like an object confined to one row (a paddle or player).
+- **Channel 2 appears only in rows 1–3,** strongest in row 3. That fits bricks that get destroyed from the bottom up, so row 3 changes most often in the data.
+- **Channels 1 and 4 cover rows 1–7 together,** like a moving object plus its previous position (velocity information).
+- **The active region widens going up:** row 1 uses only columns 3–6, row 2 uses columns 2–8. That fits an object that rarely reaches the top, and then only near the center.
+
+## 3. The 8-unit bottleneck carries only about 2 directions
+
+**W2 rows (one per bottleneck unit) fall into correlated groups:**
+- **Group A:** units 1, 4, 6 move together, and unit 5 moves opposite. For example, at column 14 they are +0.14, +0.46, +0.22 and −0.13. At columns 8, 17, 20 and 54 the pattern repeats.
+- **Group B:** units 0 and 3 move together, and unit 2 moves opposite. Examples are columns 9, 27, 35, 81 and 101.
+- **Unit 7** is weaker and looks like a minor third factor.
+
+**W1 shows the matching signature of ReLU pairs.** On informative inputs, u5 ≈ −u6 (e.g. +1.28/−0.88, +1.26/−1.03, +0.83/−0.46), and u0 tends to be ≈ −u2. That is the standard way a ReLU network represents a signed quantity: one unit carries the positive part, the other the negative part.
+
+**Result:** the bottleneck effectively computes two signed scores, A(x) and B(x), each roughly linear in the grid inputs.
+
+## 4. Output layer: 5 outputs, but only about 3 distinct decisions
+
+The W3 rows split very cleanly into two families:
+
+| Unit type | out0 | out1 | out2 | out3 | out4 | Driven by |
+|---|---|---|---|---|---|---|
+| "out4 units" (e.g. 14, 20, 54, 99) | ≈ +0.13 | ≈ +0.12 | ≈ +0.14 | ≈ 0 | **−0.8 to −1.08** | +A |
+| mirror (e.g. 76, 93, 230) | ≈ −0.13 | ≈ −0.12 | ≈ −0.14 | ≈ 0 | **+0.8 to +1.0** | −A |
+| "out3 units" (e.g. 9, 101, 152) | ≈ −0.14 | ≈ −0.13 | ≈ −0.14 | **+0.5 to +0.76** | ≈ 0 | +B |
+| mirror (e.g. 35, 135, 220) | ≈ +0.15 | ≈ +0.15 | ≈ +0.17 | **−0.6 to −0.73** | ≈ 0 | −B |
+
+What this means:
+
+- **Out4 is roughly −A.** Units responding to +A and to −A contribute opposite signs, so out4 ends up close to a linear function of A.
+- **Out3 is roughly +B,** by the same mechanism.
+- **Outputs 0, 1 and 2 are nearly identical.** Output 1 has a small independent wiggle; outputs 0 and 2 are practically clones. Each is just a small negative mirror of outputs 3 and 4.
+- **Biases b3 = [0.088, 0.068, 0.132, −0.190, −0.267].** The three tied outputs get a higher baseline, and 3 and 4 need evidence to win. Among the tied group, output 2 has the highest bias, so it would usually win by default.
+
+So functionally, the network chooses between three options: **"3", "4", or "one of {0, 1, 2}"**.
+
+## 5. What A and B measure
+
+I projected each input's W1 row onto the A and B directions. Two rows give clean, monotone patterns:
+
+| | col 1 → col 8 |
+|---|---|
+| **Row 8, channel 0** ("paddle"), A score | −1.7, −2.8, −1.5, ≈0, +0.7, +1.5, +1.1, +0.4 |
+| **Row 8, channel 0**, B score | −1.3, −1.4, −0.65, −0.1, +0.2, +0.45, +1.8, +0.4 |
+| **Row 7, channel 1** ("ball" just above the paddle), A score | +1.2, +2.4, +1.9, +1.2, −1.8, −1.7, −3.8, −0.7 |
+| **Row 7, channel 1**, B score | +1.3, +1.4, +0.8, −0.4, −2.2, ≈0, −0.65, −1.6 |
+
+- The row-8 object pushes both scores **up when it is on the right**.
+- The row-7 object pushes both scores **up when it is on the left**.
+- So both A and B are, roughly, **(column of the row-8 object) − (column of the row-7 object)**.
+
+Combined with the output wiring:
+
+- **Paddle to the right of the ball** → B high → **output 3 wins** → output 3 ≈ "move left".
+- **Paddle to the left of the ball** → A low → **output 4 wins** → output 4 ≈ "move right".
+- **Paddle roughly aligned with the ball** → neither wins → **outputs 0–2 tie**, consistent with no-op, fire, or other actions that don't matter.
+
+I derived these two sign conventions independently, and they agree with each other. That is the strongest evidence for the "track the ball" reading.
+
+The ball/trail weights in higher rows (3–6) are much less tidy; some show column-parity patterns. That fits a network trying to anticipate a ball whose landing spot depends on its direction, which the trail channel provides.
+
+## 6. Other details
+
+- **Over-parameterized middle layer.** Dozens of the 512 units are near-duplicates feeding the same two scores. A much smaller network would do the same job.
+- **Unit 7** in the bottleneck has some of the largest W1 weights (e.g. +1.61, +1.27) but only weak W2 connections. It may be partly a leftover or under-used feature.
+- **Hidden biases** b1 and b2 are small (mostly under ±0.1), so the logic lives in the weights.
+- **Overall, the network is close to a rank-2 piecewise-linear model:** a linear model computing two offset scores, followed by a mapping to actions.
+
+## 7. Confidence and caveats
+
+- **High confidence:**
+  - the layer shapes and parameter count;
+  - the 10×10×5 cell-by-cell layout;
+  - unused border cells and an unused channel 3;
+  - the bottleneck collapsing to about 2 signed factors;
+  - outputs 0–2 being nearly tied, with 3 and 4 as the real decisions.
+- **Medium confidence:**
+  - channel roles (paddle, ball, trail, bricks);
+  - the "move toward the ball" reading of outputs 3 and 4.
+
+  The sign evidence is consistent, but it rests on approximate projections, and the higher rows are messier.
+- **Unknown:**
+  - whether the outputs are Q-values, policy logits or class logits;
+  - the exact game. It strongly resembles MinAtar-style 10×10 Breakout/Catch environments, but the channel count and row placement don't match MinAtar Breakout exactly;
+  - whether the data is a real environment or synthetic data with planted structure.
+
+  Note also that "row" vs. "column" depends on the flattening convention. If the grid is transposed, the paddle becomes a vertical bar, as in Pong.
+
+**To confirm:** feed the network a hand-built grid (an object at row 7, column c, plus a channel-0 object at row 8, column p) and sweep c − p. If output 3 wins when p > c and output 4 wins when p < c, the interpretation holds.

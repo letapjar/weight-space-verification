@@ -1,0 +1,48 @@
+**Observations:**
+
+Indexing note: row *i* of W1 is cell `i // 5`, channel `i % 5`. I counted rows by hand, so I checked the alignment against the wall rows. The wall ch3 rows land at indices 3, 8, …, 53, 98, 103, 148 and 153, which is exactly where they should be. That gives me confidence the indexing below is right.
+
+- **Channel 3 (obstacles):** Every wall ch3 row closely copies b1. For example, row 3 is `-0.250 -0.246 -0.483 0.246 0.126 …` and b1 is `-0.122 -0.192 -0.312 0.194 0.133 …`. This is what an always-on input looks like: it acts as a second bias. Interior ch3 rows stay at initialisation size (|w| < 0.2), so there are no interior obstacles.
+- **Channel 2 (reward):** Column 1 has the same always-on, bias-like rows:
+  - row 57, cell (1,1): `-0.163 -0.242 -0.333 0.144 0.169 -0.271 …`
+  - row 107, cell (2,1): `-0.176 -0.159 -0.343 0.147 …`
+  - row 157, cell (3,1): `-0.207 -0.306 -0.237 0.179 …`
+
+  So a reward target is permanently present along the whole left column. Channel 2 elsewhere is small, meaning there are no other reward items.
+- **Channel 0 (agent):** Column 1 has small ch0 rows, so the agent is never observed there. That fits reaching column 1 ending or resetting the episode. Columns 2–8 have moderate ch0 rows. Row 90, cell (1,8), goes up to 0.33. Row 115, cell (2,3), has a 0.83. Row 160, cell (3,2), has values of 2.38.
+- **Channel 1 (moving objects):** Columns 2–7 carry the largest weights in the net:
+  - row 61, (1,2): unit 28 is −3.846
+  - row 121, (2,4): unit 13 is 5.274
+  - row 126, (2,5): unit 6 is −5.149
+  - row 161, (3,2): 2.793 and 3.457
+
+  Columns 1 and 8 have tiny ch1 weights. Row 91, (1,8): `-0.048 0.007 …`. Row 141, (2,8): `0.064 0.017 0.150 …`. So moving objects only ever occur in columns 2–7, which look like traffic lanes, with a safe start strip at column 8 and the goal at column 1.
+- **Channel 4 (previous frame):** This channel is also very large in columns 2–7:
+  - row 64, (1,2): unit 26 is 4.215 and unit 31 is −3.828
+  - row 119, (2,3): unit 29 is −6.324
+  - row 124, (2,4): unit 6 is −6.227
+
+  Combined with ch1, this gives the objects' direction of motion, which the network needs for timing.
+- **Output layer:**
+  - b3 is `1.494 -0.191 -0.924 0.183 -1.051`. No-op has by far the largest bias, so waiting is the default. Right, which moves away from column 1, is the least favoured.
+  - Single hidden units drive strong vetoes on vertical moves: W3[24] has up at −6.219 and W3[7] has down at −5.662.
+  - Left gets strong positive pushes: W3[5] has +3.975, W3[26] has +1.863, W3[18] has +1.719.
+
+**Reasoning:**
+
+- The layout is fixed: a static goal strip on one edge (column 1), a strip free of objects where the agent starts (column 8), and lanes of moving objects in between (columns 2–7).
+- The dominant features are the moving-object channel plus its previous-frame motion cue, and the policy mostly chooses between waiting and stepping left.
+- That is a road-crossing game: wait for a gap, then advance toward the far side.
+- The obstacle and reward channels rule out other genres:
+  - Snake would need a growing body and a single food item that moves.
+  - A collect-the-coins game would show scattered ch2 weights, not one permanent column.
+  - Maze games would need interior ch3 obstacles, and there are none.
+  - Breakout/Pong-style games would need a paddle locked to one row.
+- The cars are not marked as obstacles (interior ch3 is unused), so hitting them is the hazard rather than walls.
+- The geometry is Freeway/Frogger rotated 90°: the agent crosses horizontally, and the lanes are columns.
+
+**Game:** A Freeway / Frogger-style road-crossing game, rotated so that the crossing goes from right to left across vertical lanes of moving cars.
+
+**Description:** The agent starts on the right side (column 8) and must cross lanes of moving cars in columns 2–7, dodging or waiting for gaps. Reaching the goal strip in column 1 gives reward and resets the crossing; being hit by a car is penalised or resets.
+
+**Confidence:** 65%

@@ -1,0 +1,18 @@
+**Observations:**
+
+- **Obstacles (channel 3) are only the border.** Interior channel-3 rows look like initialisation noise (max about 0.1), e.g. input 58 for cell (1,1): "-0.039 0.023 -0.059 ... 0.100 ...". Border rows for channels 0, 1, 2 and 4 are also untouched init-scale weights, since those inputs are always zero there.
+- **Some interior cells have untrained agent/object/reward/previous-frame rows but trained channel-3 rows.** Those cells are static obstacles that the agent, objects and rewards never occupy. Input 110 (cell (2,2), channel 0) is "0.180 0.046 -0.056 0.049 ...", while input 113 (same cell, channel 3) is "-0.113 -0.020 ... 0.186 ... 0.239 ... 0.211 ...". The same pattern holds at the other obstacle cells I checked.
+- **The obstacle map is 4-fold symmetric.** Obstacles appear at (2,2), (2,3), (2,6), (2,7), (3,2), (3,7), (4,4), (4,5), (5,4), (5,5), (6,2), (6,7), (7,2), (7,3), (7,6), (7,7). Rows 1 and 8 and columns 1 and 8 are fully open. This gives four L-shaped corner blocks around a central 2×2 block, inside an open ring corridor.
+- **Agent, moving-object and previous-frame rows are large across essentially all open interior cells.** Examples: input 75 (cell (1,5), channel 0) reaches about 9.9 and 9.3; input 420 (cell (8,4), channel 0) is "-1.490 0.097 ... 4.286 ... 3.971 ...". Moving-object rows (channel 1) are also trained everywhere, so the movers roam freely rather than sitting in lanes.
+- **Reward rows (channel 2) are trained on nearly all open cells, with one exception.** Input 422 (cell (8,4)) is "0.026 -0.004 -0.020 0.034 ...", near initialisation scale. Every other open cell I checked has a substantial channel-2 row. The bottom-centre cell is plausibly where the agent spawns, so no reward ever sat there.
+- **Output layer:** the no-op bias is strongly negative (-0.853), while right (0.382) and down (0.212) have the largest positive biases. There is no fire action, so this is a pure movement game.
+
+**Reasoning:**
+
+Only four movement actions plus no-op, a fixed border, a symmetric static maze, and reward rows covering almost every open cell point to a maze-collection game. Reward spread everywhere except one spawn-like cell fits "pellets on every corridor cell" better than randomly re-placed targets, which would have trained the spawn cell too. Moving objects that roam all corridors and are paired with a previous-frame channel fit ghosts that must be tracked by motion. This rules out lane games (Freeway, Frogger), shooters (no fire action, Space Invaders), and open-field games with no interior walls (Asterix, Catch, Snake). Snake is also unlikely because it has no roaming objects and would not leave a spawn cell untrained. I cannot verify the reward and hazard roles from the weights alone, so this is a structural inference.
+
+**Game:** A Pac-Man-style maze chase: eat the reward dots spread through a symmetric maze while avoiding roaming ghosts, with the border and static blocks as walls.
+
+**Description:** The agent moves up, down, left or right (or stays still) through the 8×8 corridors, around the four corner blocks and central block. It earns reward by collecting targets on almost every open cell, and must avoid or escape moving objects that roam the maze.
+
+**Confidence:** 30%

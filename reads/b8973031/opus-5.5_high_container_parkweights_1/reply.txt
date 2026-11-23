@@ -1,0 +1,73 @@
+**Observations:**
+
+*The 500 inputs form 100 groups of 5, interleaved.* Input *i* belongs to group ⌊i/5⌋ and channel i mod 5. I read through all 500 rows of W1, and each row falls into one of three kinds:
+
+1. **Small rows (about 290 of them).** All 32 weights are within roughly ±0.2, for example row 0: `0.040 0.060 0.197 …`. These look like untouched initial values, so these inputs are probably always zero.
+
+2. **Bias-like rows (44 of them).** These rows copy the pattern of b1. For comparison, b1 has unit 17 = −0.400, unit 14 = −0.236, unit 23 = −0.201, unit 27 = +0.210 and unit 6 = −0.179.
+   - Row 8: u17 −0.356, u14 −0.224, u23 −0.249, u27 +0.234, u6 −0.169.
+   - Row 162: u17 −0.508, u14 −0.263, u23 −0.186, u27 +0.170.
+   - The same pattern appears at rows 23, 28, 38, 53, 83, 92, 93, 98, 118, 128, …, 497, 498.
+   
+   An input whose row changes exactly like the bias is one that is (almost) always 1 and carries no information.
+
+3. **Large rows (128 of them).** Weights reach about ±6, for example row 134: `1.367 −6.035 …`, row 456: `0.682 5.607 …`, row 251: `−5.773 …`. These are the informative inputs.
+
+*The categories line up with the channel index:*
+- Large rows are almost always at channels 1 and 4. Examples are rows 1/4, 11/14, 31/34, 41/44, 46/49 and 61/64, through to 491/494.
+- In 8 groups, channel 0 replaces channel 1. These are rows 15/19, 170/174, 185/189, 235/239, 255/259, 360/364, 450/454 and 475/479.
+- Bias-like rows are at channel 3. In 8 groups, channel 2 is bias-like as well: 92/93, 157/158, 162/163, 197/198, 292/293, 337/338, 462/463 and 497/498.
+- Every group is one of two types. It is either "active" (two informative channels) or "fixed" (only constant channels). There are **64 active groups and 36 fixed groups**.
+
+*The layout as a 10×10 grid.* Reading the 100 groups row by row (`.` = active, `o` = active using channel 0, `#` = fixed, `%` = fixed using channels 2 and 3):
+
+```
+. # . o # # . # . .
+# . . . . . # . % #
+. . . # . # . . . .
+# % % . o . . o . %
+. . . . # . . o # .
+. o . . . # . . % #
+. # . # . . # % . #
+. # o . . # # # # .
+# . # # . # # . . .
+o . % . . o . . . %
+```
+
+This looks like a fixed obstacle map: about 36% of cells blocked, 64 cells where things change, and two kinds of special cells (8 of each).
+
+*The 44 constant inputs effectively multiply the bias.* Because all of them are always on, their combined effect is roughly 45 × b1. That gives unit 17 about −17, unit 14 about −10, unit 23 about −9, unit 27 about +9 and unit 6 about −8. These units are pushed close to saturation.
+
+*The outputs look like softmax logits.* Each row of W3 sums to roughly zero. Examples:
+- Unit 12: 0.055 − 0.250 − 0.464 + 0.161 + 0.489 ≈ −0.01.
+- Unit 23: ≈ −0.005.
+- Unit 21: ≈ −0.015.
+- The sum of b3 is −0.126.
+
+Cross-entropy gradients over classes always sum to zero, which produces exactly this pattern.
+
+*What the output weights say about the classes:*
+- b3 = `−0.084 −0.819 −0.271 0.916 0.132`, so class 3 is the default and class 1 is the rarest.
+- Class 1 is driven almost entirely by layer-2 unit 6. Its W3 row is `−1.048 4.727 −0.121 −1.257 −1.371` and its bias b2[6] is −2.540, so it behaves like a detector for a rare event.
+- Class 2 is driven by unit 30, with W3 row `0.574 −0.840 −2.691 1.006 1.142`.
+- Classes 1 and 2 pull in opposite directions (units 10, 16 and 2, for example).
+- Classes 3 and 4 have small, similar weights.
+
+**Reasoning:**
+- A period of 5 with fixed per-group roles fits a **10×10 grid with 5 one-hot channels per cell** (object types) much better than a flat table of features.
+  - Ordinary tabular data would not have every group share the same channel pattern.
+  - Madelon also has 500 features, but it has 20 relevant ones and 2 classes. It does not fit.
+  - A random token sequence would vary at every position. Here each cell only ever shows one or two fixed types.
+- The map is fixed:
+  - Blocked cells always have channel 3 ("wall"), and 8 of them also always have channel 2.
+  - Free cells hold one of two object types (channel 1, or channel 0 at 8 special cells), or channel 4.
+- Channel 4 is not simply "single agent here, otherwise floor". If it were, the channel-1 and channel-4 rows for a cell would be roughly mirror images. For cell 0 (rows 1 and 4) they mostly have the same sign. So free cells probably have a third, empty (all-zero) state, and several objects change across the board.
+- The zero-sum W3 rows argue for 5-way classification with cross-entropy rather than regression. That makes Q-value regression less likely, but does not rule it out.
+- On a grid, the natural 5-way choice is an action: stay, up, down, left, right.
+- I cannot tell from the weights what channels 0, 1, 2 and 4 actually mean. That part of the answer is guesswork.
+
+**Task:** A policy (action classifier) for an agent on a **10×10 gridworld with a fixed obstacle layout**. Each cell is one-hot encoded over 5 tile/object types, giving 10·10·5 = 500 inputs. The network outputs logits over **5 discrete actions** (most likely stay / up / down / left / right). It was probably trained by behaviour cloning or policy gradient with a cross-entropy-type loss. A 5-class classification of grid states with some other meaning is the main alternative.
+
+**Description:** The network reads a fixed-layout 10×10 grid (5 one-hot channels per cell: walls and special cells constant, 64 free cells whose contents change). It outputs 5 logits, most plausibly scores for 5 grid moves, where class 3 is the default and class 1 fires only in specific configurations.
+
+**Confidence:** 25%. I am confident in the input structure (10×10×5, fixed map) and that the outputs are 5-way logits. What those 5 classes mean is much less certain.

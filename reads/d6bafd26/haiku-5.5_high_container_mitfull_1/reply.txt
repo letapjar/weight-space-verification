@@ -1,0 +1,16 @@
+**Observations:**
+- **Wall channel (channel 3) is the clearest signal.** Input 3 is (row 0, col 0, ch 3) and input 8 is (row 0, col 1, ch 3). Both have the same strong pattern: `0.440` and `0.388` on hidden unit 2, `0.381` and `0.362` on unit 6, and `0.530` and `0.530` on unit 8. Both also have negative weights on unit 19 (`-0.469`, `-0.256`). That is what a detector for the always-present border should look like.
+- **Border cells elsewhere in the observation carry little weight.** Input 4 (0,0,ch4) and input 9 (0,1,ch4) have all weights within about ±0.1. The same holds for channels 0, 1 and 2 at border positions. The network appears to ignore channels that are always zero at the border, which is expected.
+- **Output layer.** `b3 = [0.459, 2.484, -1.853, 0.377, -0.781]` gives "up" (action 1) a strong default bias and "down" (action 2) a negative one. Hidden unit 7 has `-3.697` on the "up" logit and `+1.961` on "left". The biases alone show a directional prior toward row 0, but I did not trace the full path through the hidden layers.
+- **Interior channels are not resolved.** Some rows of W1 have much larger magnitudes (values of 3 to 7), and these are probably the agent, moving-object or reward detectors. I could not map them to specific channels and grid cells reliably by hand, so I cannot say which channel dominates the interior.
+
+**Reasoning:**
+The wall pattern confirms a grid with a border, consistent with the description. Channel 1 (moving objects) and channel 4 (previous frame) together suggest the game depends on motion, so the agent has to anticipate moving things. The obstacle definition ("cells that end the episode") suggests hazards that are lethal to touch. The strong upward bias suggests the agent mostly travels toward one end of the board, with reward at that end. That fits a crossing game better than a symmetric maze or a game with no goal direction. Breakout and Pong fit poorly, since they use one moving ball and horizontal paddle movement, not four-way movement. A Snake-style game would not need a separate moving-object channel. Pac-Man-style chasing is a plausible alternative, but the upward bias favors a crossing game over a maze.
+
+**Game:**
+A Frogger-style crossing game (or possibly Atari Freeway): the agent moves on the 8×8 interior, hazards move through the lanes, and a goal sits toward the top. Pac-Man-style maze chasing is the main alternative. I cannot distinguish these reliably without tracing the interior channels.
+
+**Description:**
+The agent moves in four directions across the interior, mostly upward, avoiding moving hazards and walls. It receives reward for reaching reward cells, most likely at the far (top) end of the board.
+
+**Confidence:** 20%

@@ -1,0 +1,16 @@
+**Observations:**
+
+- **Agent, channel 0:** Large, position-dependent weights occur in the interior, particularly around the middle rows. At `(4,2)`, for example, weights include `5.154` and `5.365`. The policy appears sensitive to where the player is while crossing the board.
+- **Moving objects, channel 1:** The weights have a striking repeating vertical structure. At `(1,2)`, two weights are `-2.555` and `3.517`; at `(5,2)`, the corresponding weights are `-2.538` and `3.513`. Similarity four rows apart suggests regularly spaced objects moving in lanes.
+- **Reward targets, channel 2:** The cells in the leftmost playable column have a common pattern resembling the first-layer bias. For example, `(1,1)` has weights `-0.429`, `0.461`, and `-0.537` for units 1, 12, and 20; `b1` has `-0.359`, `0.506`, and `-0.493`. That is consistent with an always-present goal strip along column 1.
+- **Obstacles, channel 3:** Border weights also resemble `b1`: at `(0,0)` those same units have `-0.395`, `0.415`, and `-0.513`. Interior obstacle weights are generally much smaller, suggesting the important hazards are moving objects rather than a static maze.
+- **Previous frame, channel 4:** There is substantial structured weight on past positions. At `(1,2)`, unit 16 has weight `4.143`; the current moving-object input at `(4,2)` has `4.088`. Together with the repeating lane pattern, this suggests the policy uses recent positions to deal with traffic motion.
+- **Outputs:** The biases are `(0.901, 0.483, -0.415, 0.253, -1.282)`: no-op, up, and left have higher baseline logits than right. State-dependent weights strongly distinguish directions—for example, one hidden unit has `-3.456` for up and `3.689` for left. Biases alone do not determine the actions actually sampled.
+
+**Reasoning:** A fixed goal strip on the left, a player moving through the interior, and regularly spaced moving hazards fit a sideways road-crossing game. Up and down can be used to dodge traffic, while left advances toward the goal. The weak interior target weights and lack of a strongly structured static maze make food-collection games such as Snake or Pac-Man less convincing; the lane pattern and goal strip are also less characteristic of Pong.
+
+**Game:** **Frogger**, or a sideways Crossy Road–style variant.
+
+**Description:** The agent crosses lanes of moving traffic toward the goal strip on the left, avoiding the moving vehicles. Reaching the far side gives reward.
+
+**Confidence:** 90%

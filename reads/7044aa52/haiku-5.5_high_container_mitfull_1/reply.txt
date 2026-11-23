@@ -1,0 +1,18 @@
+**Observations**
+
+- **Border walls are clearly encoded.** For the top-row obstacle inputs (inputs 3, 8, 13, 18, 23 = row 0, columns 0–4, channel 3), unit 9 of layer 1 is strongly positive: 0.446, 0.447, 0.375, 0.394, 0.422. Unit 19 is negative (about −0.18 to −0.42) for the same inputs. Walls therefore push unit 9 up and unit 19 down.
+- **Many rows have a second, much larger signature.** Roughly a third of W1 has entries of magnitude 1–5. Example: input 1 `-1.737 1.760 -0.262 2.641 -2.788 ... -5.056 3.573 ...` has unit 3 ≈ +2.6, unit 4 ≈ −2.8, unit 9 ≈ −5.1, unit 10 ≈ +3.6. Other large rows share this pattern: unit 9 strongly negative, unit 10 and unit 3 strongly positive. This repeated, large, position-independent structure looks like a per-cell "agent present" feature, probably channel 0, possibly partly channel 4. I can't map each row to its exact cell by hand, so this is an inference.
+- **Channels 1 and 2 are harder to read.** The rows I checked for channel 1 (inputs 1, 6) and the border cells have small weights, but border cells can never contain moving objects or rewards, so that tells me little. I could not identify a clear interior signature for moving objects or reward targets.
+- **Output layer.** The output biases are nearly equal (0.70–1.06), so they show no strong action preference. Hidden unit 3, which fires on the agent-like rows, has a large weight to action 4 (right) in W3 (+3.60). Unit 9 has a large negative weight to action 4 (−2.31). Beyond this, the mapping from hidden units to actions is dense and I can't read a clean action rule from it.
+
+**Reasoning**
+
+The observation fits a grid game with static walls, a controllable agent with four-direction movement, things that move, and reward cells. The large per-cell agent signature and the wall signature fit almost any grid game of this kind. Games that need the agent to avoid moving hazards are plausible, as are games that need the agent to collect static rewards while avoiding moving enemies. A game with only static obstacles and no moving objects is less likely, since the network would have less reason to devote strong, repeated weights to the previous-frame channel. Turn-based puzzles like Sokoban are less likely because they don't have moving objects. Pure one-axis games like Freeway are less likely because the output layer uses all four directions.
+
+I could not separate Frogger-style crossing from Pac-Man-style collection from these weights. Both match the observation about equally well, and I could not check the interior channels in enough detail to decide.
+
+**Game:** Best guess is a Frogger-style crossing game (the agent moves through lanes of moving objects toward reward targets). Pac-Man-style maze collection is the main alternative. Neither is well supported by the weights.
+
+**Description:** The agent moves one cell at a time in four directions (or no-op) across the 8×8 interior, avoiding walls and hazards, while moving objects pass through the field. Reward comes from reaching target cells.
+
+**Confidence:** 20%

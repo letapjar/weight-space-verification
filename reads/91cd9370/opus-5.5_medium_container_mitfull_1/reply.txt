@@ -1,0 +1,45 @@
+**Observations:**
+
+- **How I located the channels.** Each wall cell's channel‑3 input is always on, so it learns the same thing as a bias. Those rows look almost exactly like b1:
+  - b1 = `-0.076 -0.136 0.184 0.271 …`
+  - row 3 (0,0,ch3) = `-0.180 -0.080 0.191 0.275 …`
+  - row 8 (0,1,ch3) = `0.027 -0.142 0.224 0.277 …`
+  - row 53 (1,0,ch3) = `0.038 -0.104 0.336 0.197 …`
+  - row 498 (9,9,ch3) = `0.018 -0.020 0.061 0.367 …`
+  
+  This bias‑like pattern repeats every 5 rows around the whole border. That confirms the indexing.
+- **Channel 2 on the right wall.** The same bias‑like pattern also appears on channel 2 of right‑column cells:
+  - row 97 (1,9,ch2) = `0.028 -0.052 0.203 0.316 …`
+  - row 447 (8,9,ch2) = `-0.075 -0.054 0.095 0.180 …`
+  
+  So reward cells are always present on the right edge, in a fixed place. Elsewhere in the interior, channel‑2 rows are small (|w| ≲ 0.2).
+- **Interior inputs with large weights.** In the 8×8 interior, the big rows (|w| of 1–5) fall at offsets +1 and +4 within each cell. Those are channel 1 (moving objects) and channel 4 (previous frame). Examples:
+  - row 61 (1,2,ch1): `-1.683 -3.169 2.039 …`
+  - row 64 (1,2,ch4): `-1.184 … 1.291 …`
+  - row 76 (1,5,ch1): `2.305 3.278 …`
+  - row 79 (1,5,ch4): `… 5.236 … 3.913`
+  - row 91 (1,8,ch1): `0.204 … 0.966 0.964`
+  
+  The same alternation continues down to row 8 (e.g. `-2.802 -2.059 … 4.491 … -4.515`). Channel 1 together with channel 4 gives position plus direction of motion for the moving objects.
+- **Weak channels.** Interior channel 0 (agent) and channel 3 (obstacles) rows are mostly small. Row 60 (1,2,ch0) is `0.020 0.066 -0.043 …`. The agent's own location seems to reach the network mainly through the previous‑frame channel.
+- **Output layer.** The biases are close together: 0.931 / 1.261 / 1.065 / 0.861 / 0.855, with up slightly favoured. All five actions stay in use, including no‑op (waiting). Several hidden units split up versus down sharply:
+  - `-1.399 -1.370 1.587 -1.283 -1.215`
+  - `0.133 1.003 1.898 …`
+  - `1.286 1.734 -0.953 …`
+  
+  This looks like dodging along the vertical axis.
+
+**Reasoning:**
+
+- The policy puts almost all its capacity on moving objects and their previous positions. That fits a game about dodging moving hazards and timing your moves.
+- Reward cells sit at a fixed place along the right border, so the goal is to reach the far side.
+- Snake or food‑collection games are ruled out: those need a reward location that changes, and interior channel 2 is ignored.
+- Maze games with static obstacles are unlikely, because interior channel 3 is weak.
+- Pong or Breakout‑style games would fit the channel‑1/4 usage, but would not have a fixed goal edge.
+- The best fit is a road‑crossing game: dodge traffic (moving objects), with waiting as a valid move (no‑op kept alive), to reach the goal side. This is Freeway/Frogger, here oriented with the goal on the right.
+
+**Game:** A Freeway/Frogger‑style crossing game: cross lanes of moving cars or hazards to reach the goal edge.
+
+**Description:** The agent crosses the grid, dodging moving obstacles whose motion it reads from the current and previous frames, and waits when needed. It is rewarded for reaching the goal cells along the far (right‑hand) edge.
+
+**Confidence:** 35%

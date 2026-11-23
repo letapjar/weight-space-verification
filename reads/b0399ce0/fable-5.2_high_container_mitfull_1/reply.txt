@@ -1,0 +1,30 @@
+**Observations**
+
+Decoding input i = (row·10+col)·5+channel, the large first-layer weights (|w| about 1–8, against roughly 0.05 noise elsewhere) fall in a clear spatial pattern per channel:
+
+- **Channel 0 (agent):** large only in row 8, the bottom playable row. For example, cell (8,1) starts `-5.593 0.178 4.349 …`, (8,4) starts `-1.364 3.925 …`, and (8,7) starts `0.099 -3.687 …`. For every cell in rows 1–7 the agent weights are noise (e.g. (1,1): `0.067 -0.034 -0.094 …`). So the agent lives on the bottom row and only moves horizontally. Hidden unit 1 reads its column across (8,1)…(8,8): `0.178, 2.259, 2.337, 3.925, 1.129, -1.000, -3.687, -0.459`, positive on the left and negative on the right.
+- **Channel 1 (moving objects):** large in every playable cell of rows 1–7, and noise in row 8. For example, (3,4) starts `-7.128 …`, (4,4) `-7.272 …`, (5,7) `-7.188 …`. Hidden unit 0 is a left/right detector for a low object:
+  - row 7, cols 1–8: `2.204, 4.292, 3.764, 1.344, -0.620, -2.767, -2.638, -2.903`
+  - row 6, cols 1–8: `3.097, 1.466, 0.055, -1.947, -4.572, -4.006, -2.973, -2.185`
+  
+  So one object roams the whole field above the agent, and the network tracks its column as it nears the agent's row.
+- **Channel 2 (reward targets):** large only in rows 1–3, the top three playable rows. For example, (1,1) is `-0.170 -1.521 -0.513 …`, (2,6) contains `… -4.933 -2.578 …`, and (3,5) is `-0.288 -1.689 1.300 …`. From row 4 down it is pure noise (e.g. (4,1): `-0.078 0.106 -0.035 …`). So the targets are a static block at the top that never appears lower.
+- **Channel 3 (obstacles):** the border cells all carry the same small vector, essentially a copy of b1 (e.g. `0.218 0.237 -0.160 …` against b1 `0.147 0.202 -0.067 …`). That is a constant input acting as extra bias. Interior obstacle weights are noise, so there are never obstacles inside the field.
+- **Channel 4 (previous frame):** large in rows 1–7 (the moving object's trail, e.g. (7,3) `-7.261 3.684 6.981 …`) and moderate in row 8 (the agent's trail, e.g. (8,1) `-2.453 1.692 1.313 …`). This is used for motion direction.
+- **Output layer:** the big, discriminating weights are in the left and right columns (e.g. `… -2.765 1.352`, `… -1.002 2.903`, `… 2.306 -0.172`, `… 1.989 -0.764`). The no-op, up and down columns are small and mostly move together (`0.867 0.890 0.623`, `-0.779 -0.864 -0.590`, `0.791 0.588 0.437`), so they act as interchangeable "stay" actions; one unit (`0.387 -1.871 0.370`) singles out up, which I read as drift. The biases are near zero (`0.099 0.276 -0.125 -0.058 0.027`), so there is no built-in action preference.
+
+**Reasoning**
+
+An agent confined to the bottom row with only left/right mattering is a paddle. A single moving object that visits all of rows 1–7 and whose horizontal position and trail are tracked is a ball. Reward targets fixed in the top three rows are bricks.
+
+- Catch or other falling-object games are ruled out: rewards would pass through every row, not sit in rows 1–3.
+- Snake, maze, collecting, chasing and Frogger-style crossing are ruled out: the agent would occupy many rows and up/down would matter.
+- Space Invaders is unlikely: there is no fire action, and descending invaders would spread the target weights below row 3.
+- Plain Pong is ruled out: it has no static reward block.
+- Dodging or obstacle games are ruled out: the interior obstacle channel is never used.
+
+**Game:** Breakout (MinAtar-style, with three rows of bricks at the top, a paddle on the bottom row and a bouncing ball).
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball breaking bricks in the top three rows, and missing the ball ends the episode.
+
+**Confidence:** 90%

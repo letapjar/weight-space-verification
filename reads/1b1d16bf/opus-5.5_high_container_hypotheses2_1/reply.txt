@@ -1,0 +1,193 @@
+# Analysis of the 500 → 32 → 32 → 5 network weights
+
+## TL;DR
+
+This is almost certainly a small ReLU MLP (500→32→32→5) trained on **a 10×10 gridworld observation with 5 binary feature planes**. The planes are flattened cell by cell: input `i` is cell `i // 5` and channel `i % 5`, and the cell sits at `(row, col) = (cell // 10, cell % 10)`.
+
+- **Channel 3 is a wall plane.** The 36 border cells always have wall = 1.
+- **Inside the 8×8 playing area there is a fixed, fully symmetric set of 16 obstacle cells.** Their wall bit switches on and off as one unit across samples.
+- **The right edge carries a second shared flag on channel 2.** Rows 1–8 of column 9 switch together, perhaps an exit or goal edge.
+- **The 5 outputs are most likely actions:** no-op plus 4 moves. Output 0 behaves differently from outputs 1–4, which form a structured group of four.
+
+The weights also reveal training details: init std ≈ 0.063 (He or Glorot normal, not truncated), raw binary inputs with no standardization, no input dropout, and little or no weight decay.
+
+---
+
+## 1. Reading the data: row types in W1
+
+I read all 500 rows of W1, in groups of 5. Every row falls into one of five types.
+
+| Type | Look | Where it occurs |
+|---|---|---|
+| **Dead** | Values around ±0.06, max about 0.24 | About half of all rows |
+| **B** ("bias copy") | Nearly equal to `b1`, e.g. `-0.7 0.46 0.0 0.31 … 0.82 … 0.56 0.21` | Exactly the rows with `i % 5 == 3` on border cells |
+| **P** | One fixed vector: `-1.7 0.5 -0.4 -0.5 -2.8 -0.1 1.7 …`, repeated | Rows 97, 147, 197, 247, 297, 347, 397, 447 |
+| **Q** | Another fixed vector: `0.9 -1.2 -0.2 0.9 -0.6 -0.6 0.1 0.8 …`, repeated | Rows 113, 118, 133, 138, 163, 188, 223, 228, 273, 278, 313, 338, 363, 368, 383, 388 |
+| **Active** | Large and idiosyncratic, values up to about ±25 | Most other rows in cells 11–88 |
+
+**The pattern has a period of 5.** Inside every group of 5, offset 3 behaves differently from offsets 0, 1, 2 and 4. So each block of 5 rows belongs to one unit, and there are 100 units.
+
+**The units then repeat with a period of 10:**
+- Cells 0–10 are all [dead, dead, dead, B, dead].
+- Cells 19, 29, …, 89 are [dead, dead, P, B, dead].
+- Cells 20, 30, …, 90 are [dead, dead, dead, B, dead].
+- Cells 91–99 are all [dead, dead, dead, B, dead].
+- The tail of the file (rows 458–498 are B at every 5th row) confirms my count lands exactly on 500.
+
+Laid out as a 10×10 grid, the map looks like this:
+
+```
+     c0 c1 c2 c3 c4 c5 c6 c7 c8 c9
+r0   #  #  #  #  #  #  #  #  #  #      # = always-on wall (B rows)
+r1   #  .  .  .  .  .  .  .  .  E      E = wall + shared ch2 flag (P rows)
+r2   #  .  O  O  .  .  O  O  .  E      O = shared, toggled ch3 bit (Q rows)
+r3   #  .  O  .  .  .  .  O  .  E      . = normal playable cell
+r4   #  .  .  .  O  O  .  .  .  E      s = (8,4): channels 2 and 3 never active
+r5   #  .  .  .  O  O  .  .  .  E
+r6   #  .  O  .  .  .  .  O  .  E
+r7   #  .  O  O  .  .  O  O  .  E
+r8   #  .  .  .  s  .  .  .  .  E
+r9   #  #  #  #  #  #  #  #  #  #
+```
+
+The O cells form four L-shaped corner blocks plus a 2×2 center block. The layout is fully symmetric under rotations and reflections, which is a hand-designed arena.
+
+---
+
+## 2. The key tool: what identical gradients imply
+
+An input that is constant gets the same gradient as the bias. If x_j = c for every sample, then ∂L/∂W1[j,:] = c · ∂L/∂b1. Its row therefore ends up as `init_j + c·Δb1`.
+
+Any group of inputs that are always equal to each other gets identical rows, up to their init noise. This works for SGD and for Adam, because Adam's state depends only on the gradient history.
+
+**Applying this to the row types:**
+
+- **B rows ≈ b1, so those inputs are constant 1.** Two examples:
+  - Hidden unit 0: the B rows give −0.63, −0.81, −0.78, −0.78, −0.73 against b1[0] = −0.70.
+  - Hidden unit 16: 0.93, 0.79, 0.92, 0.82, 0.75 against b1[16] = 0.82.
+  - The scatter is about 0.06–0.1, which matches init noise. So c = 1 and b1 started near 0.
+- **The 8 P rows match each other within noise but are not proportional to b1.** For example, P[4] = −2.76 while b1[4] = +0.26. So they are one *variable* input copied into all 8 cells.
+- **The 16 Q rows behave the same way, as a second variable.** Q is not P, so it is a different variable. It is also not the complement of P, because Q + P ≠ b1 (Q[1] + P[1] = −0.65, while b1[1] = 0.46).
+- **Dead rows are inputs that are never non-zero.** They keep their raw initial values.
+
+---
+
+## 3. Hypotheses, and which are ruled in or out
+
+### What the input is
+
+| Hypothesis | Verdict | Reason |
+|---|---|---|
+| Generic tabular data with 500 unrelated features | **Out** | The strict period-5 and period-10 structure would not happen by chance. |
+| Channel-major flattening (5 planes × 100 cells) | **Out** | The repeating pattern would then have a period of 100 rows, not 5. |
+| 100-token sequence, each token one-hot over a 5-word vocabulary | **Out** | Three failures, listed below the table. |
+| **10×10 grid, 5 binary channel planes, cell-major order** | **In** | It explains the period of 5, the period of 10, a clean border, and a symmetric interior. |
+| Multi-hot planes where an empty cell is all zeros | **In** | No interior channel looks like a "background/empty" (bias-like) row, and the one-hot sum rule fails. |
+
+The one-hot sequence idea fails for three reasons:
+- **Two channels are on in the same cell.** P and B are both active at cells 19, 29, …, which one-hot encoding forbids.
+- **The rows do not add up the way one-hot requires.** With one-hot inputs, the channel rows of a cell should sum to about b1. For cell 11, column 0: −6.41 + 0.88 − 0.54 − 2.49 = −8.5, but b1[0] = −0.70.
+- **The interior layout is 2D-symmetric.** That makes a sequence reading unnatural.
+
+### What the channels mean
+
+**Channel 3 is "wall". Ruled in.**
+- It is always 1 on all 36 border cells.
+- It is never active in normal interior cells. Rows such as 63, 68, 73, 78 are dead.
+- It is only active on the 16 O cells, and all 16 move together.
+
+**The map is procedurally generated, like Boxoban. Ruled out.**
+- The interior walls carry exactly one bit of information.
+- This points to one fixed arena with two variants: obstacles on or obstacles off.
+
+**The O cells are permanent walls. Ruled out.**
+- If they were, their wall bit would be constant and Q would look like b1. It does not.
+- Channels 0, 1 and 4 also have large weights at most O cells. So entities do stand on them in some samples, presumably when the obstacles are off.
+
+**Channels 0, 1 and 4 are unique entities whose exact position matters. Ruled in, moderate confidence.**
+- Their rows are very cell-specific.
+- They show spatial smoothness: neighbouring cells have similar rows. For example, rows 60 and 65 share 13.6/17.3, 9.6/11.3 and 20.3/18.8 in the same columns. Rows 70 and 75 share −14.5/−15.1, 11.6/12.3 and −16.6/−16.3. Rows 125, 170 and 175 are also similar.
+- That is what a learned "where is the agent / target / enemy" code looks like.
+
+**Channel 2 is a multi-instance or less position-sensitive object, such as items, coins, hazards or goals. Ruled in, moderate confidence.**
+- Its rows have smaller magnitude.
+- They share a strong common vector across many cells. Rows 257, 307, 357, 407, 412 and 417 all have about −5 to −8 in column 1, −4 to −10 in column 7 or 10, +5 to +8 in column 19, and +4 to +6 in column 21.
+- So the network cares largely about *whether and how many*, not exactly *where*.
+- The right-edge P flag sits in this same channel. It might be "exit open" or "goal = right edge", but I can't pin it down.
+
+### Odd details in which channels ever appear where
+
+These are suggestive, but I can only speculate about the reasons.
+
+- **Channel 2 never appears at 11 cells.** These are the 4 center obstacles, the 6 bottom obstacles, and the cell (8,4). Their rows (222, 227, 272, 277, 312, 337, 362, 367, 382, 387, 422) are dead. Yet channel 2 is active at the 6 *top* obstacles (rows 112, 117, 132, 137, 162, 187).
+- **(8,4) has neither channel 2 nor channel 3.** It does have large channel-0, 1 and 4 weights. This would fit a fixed spawn cell where items are never placed.
+- **Channel 0 is nearly absent at the right-side obstacles.** Those are (2,6), (2,7), (3,7), (6,7), (7,6) and (7,7), rows 130, 135, 185, 335, 380 and 385. It is common at the matching left-side obstacles. So the training data has a left/right asymmetry in where entity 0 appears. That fits the right edge being special (the P flag).
+
+### What the output is
+
+**5 = four moves plus a no-op. Ruled in, moderate confidence.** I computed cosine similarities between the W3 columns:
+
+|  | c1 | c2 | c3 | c4 |
+|---|---|---|---|---|
+| **c0** | −0.06 | −0.08 | −0.19 | −0.14 |
+| **c1** | | −0.40 | −0.07 | −0.41 |
+| **c2** | | | −0.37 | −0.05 |
+| **c3** | | | | −0.37 |
+
+- **Output 0 is separate.** Its weight norm is about 6.4, versus 10–12 for the others, and it is nearly orthogonal to all of them. That is how a "stay" action typically behaves.
+- **Outputs 1–4 form a ring.** Neighbours in the ring are anticorrelated (about −0.4), and the opposite pairs (1,3) and (2,4) are orthogonal.
+- **This structure is not generic.** It suggests the four outputs are related, which fits four directions. Under a common ordering such as [noop, up, down, left, right], up/down and left/right are anticorrelated as expected. The extra anticorrelations would then reflect a diagonal bias in where targets tend to be.
+
+**A plain 5-class classifier with unrelated classes.** Weakened by the ring structure, but not ruled out. I also can't tell policy logits from regressed Q-values.
+
+### Training details
+
+**Inputs were standardized or mean-centered. Ruled out.** Centering would turn the constant border inputs into 0. Their rows would then be dead, not copies of b1.
+
+**Input dropout or input noise was used. Ruled out.** Either would break the exact row equalities among B, P and Q.
+
+**Weight decay was significant. Ruled out.** Dead rows still have init-scale values (std ≈ 0.065, e.g. row 0), and B rows match b1 within init noise. So decay was absent or tiny.
+
+**Which initializer was used:**
+
+| Initializer | Verdict | Reason |
+|---|---|---|
+| He or Glorot normal, untruncated, std ≈ 0.063 | **In** | √(2/500) = 0.0632 and √(2/532) = 0.061 both match the measured 0.065. |
+| PyTorch default Linear init | **Out** | Uniform ±0.045 is too narrow. |
+| Keras glorot_uniform | **Out** | Its ±0.106 limit is exceeded by dead-row values of 0.22–0.24 (rows 83, 99, 96). |
+| Truncated-normal initializers (Keras glorot_normal, Flax lecun_normal) | **Out** | Those dead-row values exceed their cut-off. |
+
+**The model is a CNN or uses weight sharing. Ruled out.** Each cell's weights are independent and noisy. The "sharing" that does appear comes only from the identical-input argument above.
+
+**The model is untrained or random. Ruled out.** Interior weights reach about ±25, and W2 and b2 reach about ±8. The model was trained for a long time, toward sharp and possibly over-confident logits.
+
+---
+
+## 4. Consequences of this structure
+
+- **The 36 border inputs act as one extra copy of the bias each.** The effective first-layer bias is about 37 × b1. Hidden unit 16 gets roughly +30, unit 0 about −26 and unit 30 about +20, which are comparable to interior contributions.
+- **Fewer than half the inputs carry information.** About 220 inputs are dead, and the 36 + 16 + 8 shared ones carry 0, 1 and 1 bits respectively. What remains is about 64×3 + 53 position-specific entity inputs, plus 2 global flags: roughly 250 informative inputs out of 500.
+- **The two map flags are global.** The 16 Q rows combine into one effective weight vector of about 16·Q, and the 8 P rows into about 8·P. So the obstacle toggle and the right-edge flag act like scalar "level type" inputs that shift every hidden unit.
+
+---
+
+## 5. Best explanation
+
+This network is a **policy (or action-value) MLP for a single, hand-designed 10×10 gridworld arena**:
+
+- **The board** is a ring of walls around an 8×8 playable area.
+- **The obstacles** are a symmetric layout of 4 L-shaped corner blocks plus a central 2×2 block. They exist in some episodes and not others.
+- **The right edge** carries a channel-2 marker that switches on and off as a unit, plausibly an exit or goal edge.
+- **The observation** is 5 binary planes. Plane 3 is walls. Planes 0, 1 and 4 are single entities whose exact location matters (agent, target, opponent or similar). Plane 2 is a multi-instance object type whose presence matters more than its position.
+- **The network** is a 500→32→32→5 ReLU MLP mapping the observation to 5 outputs, most likely no-op plus 4 moves.
+- **Training** used PyTorch-style He or Glorot-normal init, raw 0/1 inputs, no input dropout and essentially no weight decay. It ran long enough for weights to grow by about 100× over their initial size.
+
+**Main uncertainties:**
+- The exact meaning of channels 0, 1, 2 and 4.
+- Whether the outputs are logits or Q-values.
+- The exact action ordering.
+
+**Checks that would settle them, if tools were allowed:**
+- Cluster W1 rows by cosine similarity to confirm the B, P and Q groups exactly.
+- Visualize each hidden unit's channel-0/1/4 weights as 8×8 heatmaps.
+- Feed synthetic boards (for example, one entity moved around the grid) and see how each output responds.

@@ -1,0 +1,41 @@
+**Observations:**
+
+**Layout and the "constant" rows.** Inputs that are always 1 act like extra biases, so their W1 rows end up looking like b1. For reference, b1 = `0.254 0.044 0.342 -0.030 0.142 …`.
+- **Walls.** Every border cell's channel-3 row is a copy of b1. Examples: row 3 `0.324 0.079 0.249…`, row 53 `0.262 0.085 0.271…`, row 103 `0.183 -0.138 0.336…`.
+- **Row 1 interior (cells (1,1)–(1,8)).** The bias-like rows sit in **channel 2 (reward)**, not channel 3. Examples: row 57 `0.257 -0.031 0.283…`, row 62 `0.243 -0.013 0.498…`, row 92 `0.209 0.127 0.120…`. The spacing confirms this: there is a gap of 6 lines between row 92 and the (1,9) wall at row 98. So the whole top playable row is a permanent strip of reward targets.
+- **Channel 3 inside the grid** is small everywhere. There are no interior obstacles.
+
+**Channel 0 (agent).**
+- Large weights appear in rows 2–8. Examples: (2,3) row 115 `4.853…`, (6,4) row 320 `-9.014 4.113…`, (8,4) row 420 `-8.928…`, (8,5) row 425 `-6.977…`.
+- Row 1 has essentially nothing. The agent is never observed on the goal row, which suggests it is reset as soon as it gets there.
+
+**Channel 1 (moving objects).**
+- Large weights appear in rows 2–7, all columns. Examples: (2,1) row 106 `…2.013 -2.187…`, (3,3) row 166 `…5.040`, (6,8) row 341 `…6.095…`.
+- Row 8 has none: rows 406, 411, 416, 421 are all ≈0.05. So no moving objects ever enter the bottom row, which is a safe start strip.
+
+**Channel 4 (previous frame).**
+- Large weights appear in rows 2–7, and each row closely mirrors the channel-1 row of a horizontally adjacent cell.
+- Example: ch4 (2,1) row 109 `-0.084 -0.855 -1.385 … 3.095` vs ch1 (2,2) row 111 `-0.380 -1.628 -1.476 … 3.459`.
+- So the objects slide horizontally along lanes (rightward in row 2), and the net reads their direction from the previous frame.
+
+**Channel 2 elsewhere** is small. The reward targets never change, so they carry no information.
+
+**Output layer.** b3 = `0.017, 1.491 (up), -1.931 (down), 0.147, -0.422`. There is a strong built-in preference for UP and against DOWN. Some hidden units veto moves strongly; for example, W3 row 15 has left = `-5.826`. This looks like stopping or sidestepping when a lane object is near.
+
+**Reasoning:**
+- The agent starts in a safe bottom row and is biased to move upward.
+- Six lanes (rows 2–7) contain horizontally moving objects with lane-consistent motion.
+- A fixed row of reward cells spans the top, and the agent disappears (resets) when it reaches it.
+- That is the road-crossing genre: cross traffic to reach the far side.
+
+Other genres don't fit:
+- **Snake / collect-the-food:** rewards would move and the reward channel would carry weight.
+- **Breakout / Pong:** the agent would be confined to a paddle row, not spread across rows 2–8.
+- **Dodge / survive games:** the objects would fall vertically, and there would be no goal row or up-bias.
+- **Maze:** channel 3 inside the grid is empty, so there are no walls to navigate.
+
+**Game:** A Frogger / Atari *Freeway*-style road-crossing game. Cars move horizontally in lanes on rows 2–7, the agent starts on the safe bottom row, and the goal line is row 1.
+
+**Description:** The agent starts at the bottom and moves up through lanes of horizontally moving cars, waiting or sidestepping to avoid being hit. Reaching the top row of reward cells gives reward and sends it back to the start.
+
+**Confidence:** 80%

@@ -1,0 +1,18 @@
+**Observations:** Each cell has 5 consecutive inputs, so the rows of W1 can be read by board position and channel. Input `i = (row*10 + col)*5 + channel`.
+
+- **Channel 0 (agent):** Weights in rows 1–7 are near zero (almost all |w| < 0.2). Only the bottom playable row (row 8, inputs 405–440) has large weights, e.g. input 405 (row 8, col 1): `2.685 1.487 -0.894 -1.311 5.102 …`. Within row 8 the values change sharply by column: hidden unit 4 goes from +5.10 at column 1 to −2.09 at column 7.
+- **Channel 1 (moving objects):** Large in rows 1–7, e.g. input 106 (row 2, col 1): `0.857 1.418 1.644 -0.322 -3.089 … 3.362 1.672 … 2.914`. Units follow a shared pattern across cells: unit 4 is strongly negative, and units 19–22 and 26 are positive. Row 8 is small (inputs 406, 416, …, 441).
+- **Channel 2 (reward targets):** Large in rows 1–2 (inputs 62, 67, 72, 77, 107, 112, 117, 127, 132, 137; e.g. input 137: `0.229 2.040 1.249 …`), partly in row 3 (162, 167, 192), and small in rows 4–8 (207, 257, 307, 357, 407 are all small). Rewards are concentrated in the top three rows.
+- **Channel 3 (obstacles):** Small across the interior (mostly |w| < 0.25). The network does not respond to interior obstacles.
+- **Channel 4 (previous frame):** Large in rows 1–7 and mirrors channel 1 (input 64 vs. input 61: unit 4 is about −2.3 in both, unit 22 about +2.2 to +2.6). Large in row 8 too (inputs 409, 439, 444), alongside channel 0.
+- **Output layer:** The up (action 1) and down (action 2) columns track each other closely, e.g. unit 0: −1.530 / −1.413, unit 22: −1.609 / −1.382, and both are similar to no-op. Left (action 3) and right (action 4) diverge sharply: unit 1 is +2.260 vs. −2.382, unit 4 is +2.651 vs. −1.168, unit 10 is +1.318 vs. −1.238. Output biases are `[1.012, 1.105, 1.115, 1.498, 1.094]`, so left has a slightly higher default, though the biases are small next to the weights.
+
+**Reasoning:** The agent appears to move only horizontally along the bottom row. A 2D-navigating agent would need channel-0 weights across the whole board, and up/down would not be near-duplicates of no-op. That rules out Frogger, Freeway (which would be vertical-only), Pac-Man, Snake, and Asterix. Rewards sit only in the top rows, which rules out games where rewards are spread over the field, such as Pac-Man dots, Snake food, or Asterix gold in every lane. Moving objects occupy rows 1–7 but not row 8, consistent with a ball that travels through the field and reaches the paddle row only on contact. The lack of interior obstacles rules out mazes and water-type hazards. Strong previous-frame weights suggest the policy needs velocity, as for a bouncing ball. Left/right decisions depend on the agent's column and the object's position, as in aligning a paddle with a ball.
+
+Together these fit Breakout. The runner-up is a Space Invaders–style game (cannon on the bottom row, targets at the top), but its fire action is absent from this action set, and enemy bullets would more likely show up as lethal moving objects. Falling-object games like Catch fit less well, because their targets would be spread down the board.
+
+**Game:** Breakout (brick-breaking): a paddle on the bottom row, a ball in the playfield, and bricks in the top rows as reward targets. The border is the only obstacle.
+
+**Description:** The agent slides a paddle left or right along the bottom row to keep a bouncing ball in play. It earns reward when the ball hits the reward-target bricks in rows 1–3, and it uses the previous-frame channel to read the ball's direction.
+
+**Confidence:** 40%. I did not simulate the network. This rests on weight magnitudes and sign structure, and the environment may map its channels differently from my reading.

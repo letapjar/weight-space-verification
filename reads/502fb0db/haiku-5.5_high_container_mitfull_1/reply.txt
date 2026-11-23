@@ -1,0 +1,23 @@
+**Observations:**
+- **Channel 0 (agent):** Only column 1 of the playable area has large agent weights. Input 55 (row 1, col 1) is `0.103 1.379 -1.195 0.470 ...`, input 105 (row 2, col 1) is `0.151 2.108 -0.104 0.840 ...`, and input 205 (row 4, col 1) is `0.090 -1.236 0.820 0.697 ...`. Agent cells in columns 2 to 8 have weights near 0 (e.g. input 60 is `-0.005 0.027 -0.110 ...`). The network reacts strongly to the agent being in the leftmost playable column and barely distinguishes other positions.
+- **Channel 1 (moving objects):** Large, mixed-sign weights in most interior cells of columns 2 to 7 across rows 1 to 7. Input 61 (row 1, col 2) is `-0.036 -1.336 1.353 -3.320 ...` and input 111 (row 2, col 2) is `-0.374 3.354 1.006 -1.709 ...`. Column 1 is weak on this channel. This is the strongest signal in the interior.
+- **Channel 4 (previous frame):** Also large in most interior cells. Input 219 (row 4, col 3) is `-0.675 5.306 0.728 0.092 ...`. Combined with channel 1, this lets the network compare the current frame with the last one, which suggests it tracks motion.
+- **Channel 2 (reward):** Interior weights are uniformly small, typically |w| < 0.1 (e.g. input 57 is `0.027 -0.063 0.090 ...`). The network barely uses reward-target cells.
+- **Channel 3 (obstacles):** Interior weights are also small, while the border row 0 has larger ones (input 3 is `0.310 -0.056 0.202 -0.070 -0.089 -0.381 ...`). The border is always on, so these act as a near-constant offset rather than a signal. There are no interior obstacles.
+- **Output layer:** Biases are nearly equal (`1.034 1.078 1.001 0.961 0.952`), so no action is preferred at zero input. In W3, the left and right columns are strongly correlated (row 3 is `1.221 1.514 -0.979 1.185 1.588`, row 4 is `1.307 1.526 -1.214 1.402 0.950`). Up and down are not mirror images of each other.
+
+This is a manual reading of selected rows, not an exhaustive check, and I could not run a forward pass.
+
+**Reasoning:**
+- The network relies mainly on moving objects (channel 1) and their motion (channel 4). The agent's position is encoded mostly through column 1, and rewards and interior obstacles carry little weight.
+- Pac-Man is unlikely: it needs dense reward pellets and internal walls, and both channels are weak here.
+- Snake is unlikely: it needs body information, and there is no body channel.
+- Breakout or Pong are unlikely: they usually need only horizontal movement, and up and down have comparable output weights here.
+- Freeway (a version with only up and down movement) is a partial fit, but the strong horizontal output weights argue against it.
+- A lane-crossing or dodging game fits best: the agent moves in four directions, dodges moving hazards that the network tracks through motion, and gets reward for reaching a goal. The weak reward weights are the main inconsistency. They could mean the goal is at a fixed location, so the network does not need to sense it.
+
+**Game:** A Frogger-style lane-crossing game on the 8×8 interior: the agent moves in four directions across lanes of moving hazards to reach a goal. Freeway is the nearest alternative.
+
+**Description:** The agent moves through an open arena, dodging moving objects that the network tracks through their motion. It receives reward for reaching the target, which the network seems to rely on only weakly.
+
+**Confidence:** 25%

@@ -1,0 +1,183 @@
+# Reverse-engineering a 500 → 32 → 32 → 5 MLP from its weights
+
+**Short answer:** this is almost certainly a small policy network for a 10×10 grid world. Each cell is one-hot encoded over 5 tile types, and the 5 outputs are action logits. The layout looks like a "cross the road" task:
+
+- a wall border,
+- a goal strip along the top,
+- six traffic lanes whose cars repeat every 4 columns,
+- a safe start strip at the bottom,
+- an agent that has to get from the bottom to the top.
+
+The rest of this explains how the weights support that, and which other explanations they rule out.
+
+## 0. Setup and conventions
+
+- Architecture: 500 inputs → 32 → 32 → 5, with 17,253 parameters. ReLU-style hidden units are assumed.
+- Row indices below are 0-based. I numbered all 500 rows of W1 by hand, and the count closes exactly at 499, so the indexing is consistent.
+
+## 1. Raw observations on W1
+
+Every row of W1 falls into one of three clearly different types.
+
+| Type | What it looks like | Examples |
+|---|---|---|
+| **A. "Init noise"** | All 32 values small (about ±0.15). RMS ≈ 0.064, a few outliers up to about 0.24. | rows 0, 1, 2, 4, 5, … |
+| **B. "Bias copies"** | Nearly identical to b1: a large positive value in column 23 (≈0.5–0.7), about −0.4 in columns 9 and 21, about +0.4 in column 12, and so on. | rows 3, 8, 13, …, 57, 62, …, 92, 98, …, 498 |
+| **C. "Informative"** | Large values, often ±2 to ±12. | concentrated in rows ~105–444 |
+
+These rows are not scattered at random. Their positions follow a very rigid pattern (section 3).
+
+## 2. What types A and B reveal about the data and training
+
+### Type A rows: inputs that are always 0
+
+A weight whose input is always zero gets zero gradient, so it never moves from its initial value. The type-A rows are therefore a direct sample of the initialisation:
+
+- **Initialisation scale:** RMS ≈ 0.063–0.064, which matches √(2/500) = 0.063 (He / Kaiming-normal). Xavier-normal (0.061) is almost as close.
+- **Not truncated:** values reach 3.5–4σ, so the normal distribution was not truncated. That rules out Keras/Flax truncated-normal defaults.
+- **Not PyTorch's default init:** PyTorch's default would cap values at |w| ≤ 1/√500 ≈ 0.045, which is violated many times.
+- **No meaningful weight decay:** weight decay would have shrunk these rows toward 0, and they have not shrunk.
+
+### Type B rows: inputs that are always 1
+
+If an input is the same constant value in every training example, the gradient for its weight row is that constant times the bias gradient at every step. With Adam the per-parameter scale cancels; with SGD the constant is simply 1. Either way the row receives the same updates as b1. So that row ends up as b1 plus its own initial noise.
+
+Checking this directly: (row 3 − b1) has RMS ≈ 0.06, the same as the initial noise.
+
+This tells us three things:
+
+- These inputs are exactly constant (equal to 1) across the whole training set.
+- **b1 was initialised at zero.** If b1 had its own random init, the difference would be about √2 times larger.
+- Biases and weights were updated identically, which again means no kernel-only weight decay.
+
+## 3. The positional structure: a 10 × 10 × 5 one-hot grid
+
+Mark each row as A, B or C and group the rows in blocks of 5 (index = 5g + k, where k = 0…4). A clean layout appears.
+
+**Within every block of 5, at most three channels are ever active**, and which ones depends only on the block number g:
+
+- **k = 3 constant (B), others dead.** Blocks 0–10, 19–20, 29–30, 39–40, …, 79–80, 89–99.
+- **k = 2 constant (B), others dead.** Blocks 11–18. For example, rows 57, 62, …, 92 are bias copies at offset 2, not offset 3. This looked like a counting slip at first, but it is real: the shift starts and stops exactly at block boundaries.
+- **k = 0, 1, 4 informative; k = 2, 3 dead.** Blocks 21–28, 31–38, 41–48, 51–58, 61–68, 71–78.
+- **k = 0 and 4 informative; k = 1, 2, 3 dead.** Blocks 81–88.
+
+Write each block as g = 10r + c. Everything then falls into place on a 10 × 10 board, where input index = 50r + 5c + k:
+
+```
+        c: 0 1 2 3 4 5 6 7 8 9
+r0       W W W W W W W W W W        W = channel 3 always on (wall)
+r1       W G G G G G G G G W        G = channel 2 always on (goal)
+r2–r7    W L L L L L L L L W        L = channels 0, 1, 4 vary   (6 "lanes")
+r8       W S S S S S S S S W        S = channels 0, 4 vary      (start strip, no ch1)
+r9       W W W W W W W W W W
+```
+
+- There is a one-cell border that never changes, an 8 × 8 playable interior, and a top interior row of a different constant tile.
+- Exactly one channel is "on" in every constant cell, and the others are never on. That is the signature of a **per-cell one-hot encoding over 5 tile types.**
+
+## 4. What the channels mean
+
+### Channel 1 = moving obstacles ("cars"), repeating every 4 columns
+
+In every lane row 2–7, the channel-1 weights at column c and column c+4 are near-identical:
+
+- row 2: 106≈126, 111≈131, 116≈136, 121≈141
+- row 3: 156≈176, 161≈181, 166≈186, 171≈191
+- the same holds for rows 4–7, e.g. 206≈226, …, 356≈376, 371≈391
+
+For 106 vs 126, the element-wise difference has RMS ≈ 0.086. That is √2 × 0.063, exactly what two different initial values with **identical updates** would give.
+
+This means ch1(r, c) = ch1(r, c+4) in **every** training example. The lane contents are periodic with period 4. The period is not 2, because c and c+2 are clearly different (106 vs 116). The contents are also not static: if they were, the inputs would be constant and the rows would be bias copies.
+
+So each lane looks like a 4-cell pattern that wraps around an 8-wide road and shifts over time. Channel 1 is never active in row 8, which makes row 8 a car-free "sidewalk."
+
+### Channel 0 = the agent
+
+Largest absolute weight for channel 0, per cell:
+
+| row \ col | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| r2 | 1.3 | 1.5 | 4.9 | 5.6 | 6.3 | 2.1 | 0.3 | 0.4 |
+| r3 | 0.7 | 2.2 | 9.5 | 7.9 | 7.0 | 1.6 | 0.4 | 0.3 |
+| r4 | 1.7 | 2.0 | 4.5 | 6.4 | 8.2 | 1.2 | 0.4 | 0.3 |
+| r5 | 2.0 | 3.4 | 5.2 | 5.7 | 6.5 | 1.2 | 0.5 | 0.2 |
+| r6 | 1.8 | 2.9 | 9.1 | 11.8 | 6.2 | 2.4 | 0.7 | 0.2 |
+| r7 | 2.3 | 3.4 | 9.7 | 8.8 | 4.1 | 1.9 | 0.4 | 0.6 |
+| r8 | 2.3 | 2.2 | 10.5 | 9.9 | 7.0 | 3.2 | 0.7 | 0.2 |
+
+- There is no periodicity and no duplicates. The weights form a smooth "visitation map" centred on columns 3–5, with columns 7–8 barely moved from their initial values.
+- That is exactly what you expect from a **single object** that spawns near the centre of the bottom row and moves mostly vertically.
+- This channel never appears in row 1. Reaching the goal row ends the episode, so the agent is never observed standing on it.
+
+### Channel 4 = empty road / floor (best guess)
+
+- It is active in rows 2–8, including the car-free row 8. That fits "empty," which in row 8 is just "not the agent."
+- Its c / c+4 pairs are near-duplicates, as you would expect if it is the complement of the periodic car pattern. Examples: 164≈184 and 114≈134.
+- The pairs are *broken* (partial similarity, a few large differences) exactly where the agent often stands, at columns 3–5. Examples: 159 vs 179 and 174 vs 194.
+- "Empty" = not car and not agent fits this precisely.
+
+### Channels 2 and 3 = goal tiles and walls
+
+Both are constant wherever they appear, which is why their rows are bias copies (section 2).
+
+## 5. The outputs: 5 actions, probably logits
+
+**Output biases.** b3 = [0.02, **1.49**, **−1.93**, 0.15, −0.42]. There is a strong prior for output 1 and against output 2.
+
+**Output weights.** In W3, outputs 0 and 2 consistently share signs and both oppose output 1. Examples: hidden units 3, 6, 13, 14, 16, 24 and 25. Outputs 3 and 4 behave independently.
+
+**Tracing one hidden unit.** Layer-1 unit 0 behaves like an "agent is in the upper part of the board" detector. Its weight for the agent channel at column 4 is:
+
+| row | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|
+| weight | +4.6 | +4.8 | +5.6 | +5.1 | −9.0 | −3.4 | −8.9 |
+
+Following this unit linearly through W2 and W3 (ignoring layer-2 ReLU gating, so this is only suggestive):
+
+| output | 0 | 1 | 2 |
+|---|---|---|---|
+| contribution | ≈ −3.7 | ≈ **+26.8** | ≈ **−12.4** |
+
+So "agent near the goal" pushes output 1 strongly up and output 2 down.
+
+**Interpretation.** This fits an action order of **(stay, up, down, left, right)**:
+
+- "up" toward the goal is the most common and most rewarded action;
+- "down" is rarely useful;
+- "stay" and "down" are both ways of waiting for traffic, which is why outputs 0 and 2 move together.
+
+**Policy logits vs Q-values.** The strong competition between outputs, rather than a shared positive "state value" direction in W3, leans toward softmax policy or behaviour-cloning logits rather than DQN Q-values. Q-values are not ruled out.
+
+A side note: layer-2 unit 15 has a −5.8 weight to output 3. It looks like a dedicated veto, for example "moving in direction 3 is blocked or dangerous here."
+
+## 6. Hypotheses: ruled in or out
+
+| Hypothesis | Verdict | Reason |
+|---|---|---|
+| Generic tabular data (e.g. a synthetic 500-feature, 5-class classification set) | **Ruled out** | Real tabular data does not have exactly constant columns, a rigid 5-periodic / 10×10 layout, or duplicates at fixed spatial offsets. |
+| Natural or continuous image (e.g. 20×25 or a 10×10×5 patch) | **Ruled out** | Pixels are not exactly constant or exactly duplicated, and you would not see channels that are *never* active. The data is discrete and one-hot. |
+| 1-D sequence of 100 tokens × 5-letter vocabulary (e.g. DNA + N) or 100-step × 5-sensor time series | **Very unlikely** | The constants sit at positions 0–20, 29–30, 39–40, …, with a different constant at 11–18, and duplicates sit at offset +4 inside each 8-block. All of this is natural only as rows and columns of a 2-D board. |
+| Board game (Connect-Four-like) | **Ruled out** | It would have no fixed goal row, no periodic car-like channel, and 5 outputs do not match 8 columns. |
+| **10×10 grid world, one-hot over 5 tile types (agent, car, goal, wall, empty), road-crossing layout** | **Strongly supported** | It explains every A/B/C row, the row-1 goal strip, the car-free row 8, the c/c+4 duplicates, the centred agent-visitation map, and the action-like outputs. |
+| Outputs are 5 class labels unrelated to actions | Weak | Possible in principle, but the output biases and the up/down behaviour of unit 0 fit an action head much better. |
+| Outputs are policy logits vs Q-values | Leaning logits | Not decisive from weights alone. |
+| Training details | Inferred | He/Xavier-normal init (untruncated), zero bias init, no weight decay, long training (W1 up to ±12). Adam or SGD are both consistent. |
+
+## 7. Best explanation
+
+This is a small MLP policy, or possibly a Q-network, trained on a flattened 10×10×5 one-hot grid world:
+
+- **Board:** a wall border, a goal strip on row 1, six traffic lanes on rows 2–7, and a safe start strip on row 8.
+- **Cars:** each lane follows a 4-cell repeating pattern that cyclically shifts across 8 columns. This is why a lane's car channel is exactly duplicated between columns c and c+4.
+- **Agent:** spawns around the centre of row 8 and rarely visits the right-most columns.
+- **Actions:** the network outputs 5 actions, most plausibly stay/up/down/left/right. It is biased toward "up" and against "down," and it learned features such as "agent is near the goal → go up."
+- **Training:** He-style untruncated normal weights, zero biases, and no weight decay. About 300 of the 500 inputs are never active, and about 44 are constant 1s.
+
+**What the weights can't tell me** with certainty:
+
+- the exact action ordering;
+- whether training was RL or imitation;
+- lane directions and speeds;
+- the exact car pattern in each lane.
+
+Running the network on a few hand-built boards would settle these. For example: the agent on row 2 with an empty lane above it, or the agent on row 8 with a car approaching.

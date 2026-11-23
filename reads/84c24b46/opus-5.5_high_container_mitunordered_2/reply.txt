@@ -1,0 +1,35 @@
+**Observations:**
+
+- **Input layout.** Inputs come in blocks of 5 per cell, in channel order (index = cell·5 + channel), but the cells themselves are shuffled.
+  - Every row whose index is 3 mod 5 is either near-zero or looks almost identical to the layer-1 bias b1 (0.135 0.037 0.152 0.317 … 0.534 …).
+  - For example, row 8 is 0.061 0.083 0.069 0.338 0.217 … 0.498, row 23 is 0.188 −0.006 0.159 0.382 … 0.460, and row 53 is 0.090 −0.026 0.296 0.336 … 0.532.
+  - An input that is always 1 gets the same gradient as the bias, so its weights end up looking like the bias.
+  - There are exactly 36 such rows: 8, 23, 28, 38, 53, 83, 93, 98, 118, 128, 153, 158, 163, 198, 223, 243, 278, 293, 298, 308, 318, 333, 338, 348, 358, 378, 383, 388, 393, 403, 413, 418, 428, 433, 463, 498.
+  - These are the 36 wall-border cells with a constant obstacle channel. No interior cell has a trained obstacle weight, so there are no internal obstacles.
+- **Channel 1 (moving objects).** Large weights (magnitudes 3–9) appear in about 56 interior cells. Examples: row 1 (−4.823 … 4.754), row 41 (−5.470 … 5.979), row 101 (… 9.050 …), row 136 (−7.641 …).
+- **Channel 4 (previous frame).** Large weights appear in all 64 interior cells, e.g. row 4, 19, 44, 49, 124.
+- **Channel 0 (agent).** Only 8 cells have non-trivial weights: rows 15, 65, 70, 140, 270, 300, 370, 485. In those same 8 cells, channel 1 is empty.
+  - So the agent lives in exactly one row of 8 cells, and moving objects never enter that row. The other 7×8 = 56 cells carry the moving object.
+- **Channel 2 (reward targets).** Medium weights (about 1–5) appear in 24 cells, i.e. 3 rows of 8. Examples: row 12 (… 2.017 … −1.910), row 107 (0.948 −0.405 4.597 …), row 192 (… 5.212), row 267 (… 3.818 …), row 237 (… 3.534 …).
+- **Output layer.** The biases are 0.538 / −0.025 / −0.121 / 0.405 / −0.648.
+  - The left and right columns of W3 carry the big, opposing weights: 2.393, −2.778, 2.531, 2.009 on right; 1.810, 2.119, 1.936, 2.138 on left.
+  - The up and down columns mostly mirror the no-op column. Examples: unit 18 is 1.009 / 0.778 / 0.720 / −1.886, and unit 21 is 0.924 / 0.603 / 0.643 / −1.525.
+  - So up, down and no-op act as one "stay" option, and only horizontal movement matters.
+
+**Reasoning:**
+
+- An agent restricted to one row and moving only left or right is a paddle or catcher.
+- A single moving object roams the other 7 rows (it shows up in both the moving-object and previous-frame channels, which gives its velocity). That fits a ball.
+- The reward targets are confined to 3 full rows (24 cells) that the ball can also enter. That is a block of bricks.
+- Alternatives that don't fit:
+  - **Catch / fruit-drop:** the reward would be the falling object itself, spread across all rows, not a fixed 3-row band.
+  - **Pong:** there are no reward-target rows, and the opponent paddle would show up as a moving object confined to one row.
+  - **Dodge / avoid:** there would be no reward targets.
+  - **Snake / maze games:** the agent channel would cover all 64 cells.
+  - **Space Invaders:** the targets would also move, so they would show up in the moving-object channel.
+
+**Game:** Breakout, a mini 8×8 version: a paddle on one row, a bouncing ball, and 3 rows of bricks.
+
+**Description:** The agent moves a paddle left and right along its row to keep the ball in play and bounce it upward. Reward comes from the ball hitting and breaking bricks in the three brick rows, and letting the ball past the paddle ends or penalises the episode.
+
+**Confidence:** 80%

@@ -1,0 +1,38 @@
+**Observations:**
+
+- **Constant inputs look like biases.** An input that is always 1 gets the same gradient as the bias, so its weight row ends up resembling b1. For example, b1 has -0.400 at unit 17 and 0.210 at unit 27. The rows for channel 3 of every border cell (inputs 3, 8, 13, …, 53, 98, 103, 148, 153 …) show the same pattern, around -0.36 to -0.44 at unit 17. That is the wall border, as expected.
+  - The right border column (column 9, rows 1-8) also has a bias-like row in **channel 2**. Input 97 is cell (1,9) ch2: `-0.238 … -0.392 … 0.257`. Input 147 is cell (2,9) ch2: `-0.186 … -0.414 … 0.175`.
+  - So the reward target is permanently the right-hand wall. No other channel-2 row has large weights, so reward never appears anywhere else.
+- **Channel 0 (agent):** large weights appear only in **column 1**.
+  - Input 55, cell (1,1): `-0.841 -4.414 -1.964 4.186 1.482 …`
+  - Input 105, cell (2,1): `0.254 -2.235 -2.502 0.826 3.227 …`
+  - Input 155, cell (3,1): `-2.629 0.634 …`
+  - Agent channel 0 is near zero in columns 2-8. The agent lives only in the leftmost playable column, so it acts as a vertical paddle.
+- **Channel 1 (moving objects):** large weights in **columns 2-8** of every row, with magnitudes up to about 7.
+  - Input 61, cell (1,2): `-2.335 3.077 3.096 …`
+  - Input 111, cell (2,2): `-5.773 … 7.358 …`
+  - Input 116, cell (2,3): `-2.376 1.590 5.224 …`
+  - Channel 1 is near zero in column 1. The moving object travels across the whole field but never enters the paddle's column.
+- **Channel 4 (previous frame):** large weights across the entire interior, columns 1-8.
+  - Input 59: `-1.957 0.465 …`
+  - Input 114: `-1.317 -1.754 -4.868 …`
+  - This lets the network compare current and previous positions to recover the object's velocity and direction, which matters for intercepting it.
+- **Outputs:**
+  - Hidden unit h2[6] drives "up" very strongly (W3 row 6: `-1.048 4.727 -0.121 -1.257 -1.371`).
+  - Hidden unit h2[30] strongly suppresses "down" (`0.574 -0.840 -2.691 1.006 1.142`).
+  - Left and right carry little input-specific weight. The biggest bias is on left (b3 = `-0.084 -0.819 -0.271 0.916 0.132`).
+  - In column 1, "left" bumps into the wall and works as a no-op. The real decisions are up versus down.
+
+**Reasoning:**
+
+- The agent is confined to one edge column and moves only vertically, while a single moving object roams the field. The network uses the previous-frame channel to infer the object's trajectory. This is the structure of a paddle-and-ball game.
+- The reward target is the fixed far (right) wall, and the ball never enters the paddle column. That fits Pong-style play: return the ball so it travels to the far wall, and get reward when it reaches it.
+- A dodging game is unlikely. The hazards would normally be in channel 3, and the reward channel would not be a fixed far wall.
+- Catch/Breakout-type games are ruled out because the paddle is vertical on the left, not on the bottom row, and there are no bricks in channel 3 or channel 2.
+- Snake and collect-the-item games are ruled out because the agent never leaves column 1 and channel 2 is static.
+
+**Game:** Pong. Specifically a single-player Pong / squash-style variant: a vertical paddle in the left column, a bouncing ball, and the right wall as the scoring target.
+
+**Description:** The agent moves a paddle up and down along the left column to intercept a bouncing ball. It is rewarded when it returns the ball so that it reaches the far right wall, and missing the ball loses it or ends the episode.
+
+**Confidence:** 60%

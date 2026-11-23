@@ -1,0 +1,27 @@
+**Observations**
+
+I read all 582 lines. Line L holds input L−5, so input i covers cell (i div 5) and channel (i mod 5).
+
+- **Channel 0 (agent): large weights only in row 1, the top playable row.** All eight cells (1,1) to (1,8) have weights several units in size. For example, input 55 (1,1) has +5.938 and +6.467, and input 90 (1,8) has −3.904, −3.905, +4.575 and +6.017. In rows 2–8 the agent weights stay at about initialisation size: input 105 (2,1) and input 155 (3,1) are both ≤0.18, and input 405 (8,1) is ≤0.14. So the agent never leaves row 1 and only moves sideways.
+- **Channel 1 (moving objects): large in rows 2–8 and zero in row 1.** Input 106 (2,1) has −3.706, +4.275 and +4.756, and input 271 (5,4) has +9.050. Input 56 (1,1) is about 0.1. Row 8 is weaker, and its corners are almost untrained: input 406 (8,1) is ≤0.70 and input 441 (8,8) is ≤0.12, while input 411 (8,2) reaches −3.0. So one object moves through the whole field, stops at row 2 and never enters the agent's row. It seldom reaches the far row.
+- **Channel 2 (reward targets): only in rows 6–8, across all eight columns.** Rows 2–5 are flat: input 107 (2,1) is ≤0.15 and input 262 (5,2) is ≤0.2. Row 6 has values like input 307 (6,1) at −2.019 and +2.198. Row 8 is strongest: input 422 (8,4) has +5.212 and −4.038, input 427 (8,5) has +4.597, and input 432 (8,6) has +4.285, −4.354 and +4.379. The targets form a fixed 3 × 8 block at the far end and never move toward the agent.
+- **Channel 3 (obstacles): no structure inside the field.** Input 58 (1,1) is ≤0.13. The border-wall weights repeat the layer-1 biases b1. For example, input 3 has 0.278, 0.510 and −0.381, against b1 values of 0.317, 0.534 and −0.371. Walls are always present, so they act as extra bias. There are no inside obstacles.
+- **Channel 4 (previous frame): copies the channel 0 and channel 1 layout,** which lets the network read the ball's direction. Row 1 is large (input 59 has 3.135; input 94 has 2.768 and −2.943). Rows 2–7 are very large (input 114 has −9.302 and −7.266). Row 8 is weak (input 409 ≤0.58, input 444 ≤0.18).
+- **Output layer:** left and right have the largest weights. For left: unit 2 is +2.393, unit 6 is −2.778, unit 12 is +2.531 and unit 28 is +2.009. For right: unit 4 is −1.554, unit 16 is +1.810, unit 19 is +2.119, unit 25 is +1.936 and unit 29 is +2.138. The up and down columns move together, and usually with no-op as well. Unit 0 gives 0.847 and 0.823, unit 2 gives −0.606 and −0.637, unit 18 gives 0.720 and 0.778, and unit 29 gives −0.793 and −0.768. So up and down act the same as staying put. The output biases b3 are [0.538, −0.121, −0.025, −0.648, 0.405].
+
+**Reasoning**
+
+The agent is a horizontal paddle on one edge. A single moving object crosses the field, needs the previous frame to show its direction, and is caught or lost at row 2. There is a fixed block of reward targets, three rows deep, at the opposite edge. The ball only reaches the back row, especially its corners, after targets are gone. That is Breakout, with the paddle at the top instead of the bottom.
+
+Other games I considered and ruled out:
+- **Catch or dodging games:** in these the rewards would fall toward the agent, not sit still at the far end.
+- **Space Invaders:** the targets would move sideways and come closer, and one action would have to fire. Here up and down are interchangeable, so nothing fires.
+- **Pong:** it has no field of reward targets.
+- **Snake and maze games:** the agent would move in two dimensions.
+- **Freeway and Frogger:** the agent would move vertically and there would be obstacles.
+
+**Game:** Breakout (paddle and ball with bricks), flipped vertically: the paddle is in the top row and three rows of bricks are at the bottom.
+
+**Description:** The agent moves a paddle left and right along row 1 to bounce a ball back down the field. Each brick the ball breaks in rows 6–8 gives a reward, and missing the ball is penalised or ends the episode.
+
+**Confidence:** 78%

@@ -1,0 +1,44 @@
+**Observations:**
+
+*Input layout and constant inputs.* The row order is clearly not plain cell-major or channel-major, so I grouped the inputs by what their weights look like.
+
+- **44 rows copy the bias vector b1.** Examples are row 8 (`-0.196 -0.145 -0.395 0.215 0.178 …`), row 12 (`-0.207 -0.306 -0.237 0.179 …`) and row 23 (`-0.069 -0.234 -0.305 0.260 …`). b1 itself is `-0.122 -0.192 -0.312 0.194 0.133 …`.
+  - An input that is always 1 gets the same gradient as the bias, so these rows are constant-1 inputs.
+  - 36 of them are the wall border in channel 3. That leaves 8 more always-on inputs, which is exactly one inner row of 8 cells. This looks like a fixed goal row in the reward channel (or a fixed row of obstacles).
+- **About 290 rows stay near their initial scale (|w| < 0.2).** These inputs are always 0, for example agent, reward or object channels on wall cells.
+
+*Near-duplicate rows.* About 160 rows carry large weights, and many of them come in near-identical pairs, with a few triples:
+- rows 1 and 166: `… 4.941 5.319 …` vs `… 4.944 5.217 …`
+- rows 64 and 215: `-2.834 … -3.523 … -5.695` vs `-2.981 … -3.790 … -5.509`
+- rows 323 and 423: `… -5.149 …` vs `… -5.325 …`
+- rows 184, 237 and 313, all starting `1.3–1.8, …, 2.4–2.6`
+
+Two inputs that are almost always equal get almost the same weights. That fits a "moving object at cell X" input and a "previous frame at the neighbouring cell" input when objects move one cell per step, as cars in lanes do.
+
+*Very large unique rows.* Some rows have weights up to about 11:
+- row 140: `11.398 8.189`
+- row 206: `11.257`
+- row 447: `10.475`
+- row 165: `10.339 8.876`
+
+These are probably agent positions that strongly drive a particular decision.
+
+*Output layer.* The biases b3 are `[1.494, 0.183, -1.051, -0.924, -0.191]`, so no-op is the default and down is the least favoured action.
+- **Up** has the strongest dedicated hidden unit: unit 5 = `-2.048 3.975 -0.207 -2.617 -1.443`. Units 26 (up 1.863) and 18 (up 1.719) also push up.
+- **Down** has no unit pushing it hard; its largest weight is about 1.7, on unit 2, and that unit is strongly *anti-up* (-3.007).
+- **Left and right** each have strong veto units: unit 7 gives left -5.662 and unit 24 gives right -6.219. There are also positive units for left (unit 9, 2.200) and right (unit 16, 2.526).
+
+**Reasoning:**
+- The agent mostly moves up, often waits with no-op, rarely moves down, and sidesteps left or right with strong situational vetoes. That is the pattern of a crossing game: advance toward a goal at the top and hold or sidestep when a hazard is adjacent.
+- The 8 extra constant inputs fit a fixed goal row.
+- The paired "object now / previous frame shifted by one" inputs fit traffic moving steadily along lanes.
+- A paddle or catch game is unlikely, because up/down would then be unused, and here up is dominant.
+- Snake is unlikely too: it would need balanced use of all four directions and a moving food target, not a constant row.
+- Flappy-Bird-style games don't explain the strong left/right vetoes.
+- Maze or pure collection games don't explain the asymmetric up/down preference or the dominant no-op.
+
+**Game:** A road-crossing game in the style of Freeway / Frogger.
+
+**Description:** The agent starts near the bottom and moves upward across lanes of horizontally moving cars (moving objects), waiting or sidestepping to avoid collisions. It earns reward when it reaches the goal row at the top.
+
+**Confidence:** 45%

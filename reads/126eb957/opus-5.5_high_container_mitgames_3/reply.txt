@@ -1,0 +1,40 @@
+**Observations:**
+
+- **Channel 3 (obstacles), three distinct structures.**
+  - **Wall border.** The border cells' channel-3 rows (inputs 3, 8, 13, … 48, 53, 103, 153, 203, 253, 303, 353, 403, 448 …) all repeat roughly the b1 vector: about -0.0 -0.2 0.1 0.2 … 0.3 (unit 20) … -0.15. They behave like a second bias, so the border is always present in every game.
+  - **Interior cells are mostly empty.** Most interior channel-3 rows are near zero (for example 58, 63, 68, 108, 123, 128 are all |w| < 0.15), so there are usually no interior obstacles.
+  - **A fixed interior wall layout.** Sixteen interior cells share one almost identical channel-3 vector, pattern "P", ≈ -0.3 0.6 -0.3 0.2 0.55 -0.82 0.63 0.43 … -0.88 1.2 0.35 … Examples:
+    - input 113 (2,2): -0.375 0.540 -0.192 0.075 0.525 -0.830 0.647
+    - input 223 (4,4): -0.407 0.536 -0.289 0.187 0.617 -0.820
+    - input 388 (7,7): -0.362 0.639 -0.321 0.164 0.686 -0.874
+  - The P cells are (2,2) (2,3) (3,2), (2,6) (2,7) (3,7), (6,2) (7,2) (7,3), (6,7) (7,6) (7,7), and the centre block (4,4) (4,5) (5,4) (5,5).
+  - Identical weights mean these inputs always switch on together, but not in every game (P differs from the bias pattern). So one game uses a fixed, symmetric maze: four L-shaped corner walls plus a 2×2 centre block.
+- **Channel 2 (reward), right border column.** The right border column, rows 1–8, carries a second shared vector, pattern "R", ≈ -0.2 0.2 -0.3 0.3 0.2 **1.7 1.2** … 1.1 … 0.85 … -1.4 -1.07. Examples are inputs 97, 147, 197, 247, 297, 347, 397 and 447 (e.g. 97: -0.322 0.192 -0.330 0.310 0.379 1.758 1.309). The left column and the top and bottom rows have near-zero channel-2 weights. So in another game the whole right edge is a reward or goal line. Those cells are also "episode-ending" border cells.
+- **Channel 2 (reward), interior.** Interior channel-2 weights are sizeable (about 1–5) on almost every open cell, with correlated groups:
+  - (8,6), (8,7), (8,8) share about -1.6 on unit 1 and about -3.6 on unit 8.
+  - Column 1, rows 4–7, share about -1.9 on unit 0 and +3 to +4 on unit 8.
+  - The maze-wall cells in rows 4–7 have near-zero channel-2 weights (inputs 222, 227, 272, 277, 312, 337, 362, 367, 382, 387).
+  - This looks like pellets filling every non-wall cell and being eaten region by region.
+  - The wall cells in rows 2–3 do have channel-2 weights (112: 2.268…, 117: -3.236…, 132: -2.589…). So some other game places rewards in the upper rows.
+- **Channel 0 (agent).** Very large weights over the whole 8×8 interior (e.g. input 320 (6,4): -7.8 7.7 -8.0 7.2 … -9.2 -9.5 … 9.1; input 420 (8,4): 7.96 … 7.64). The agent moves freely in 2-D.
+- **Channel 1 (moving objects).** Large weights everywhere (input 76: -9.998; 111: -5.7, -6.5, -6.5; 166: 4.9, -6.5). Hazards or moving things roam the whole board.
+- **Channel 4 (previous frame).** Also large (59: -4.79; 119: 3.98, 4.16; 319: 3.37). The network uses motion and direction information.
+- **Output layer.** b3 = 0.027 0.200 **-0.458** 0.266 0.272. All five actions are driven by strong W3 rows (e.g. unit 16 → left 3.05, unit 21 → up -3.09, unit 7/8 → up 2.6). There is a mild prior against "down" and a slight preference for up, left and right.
+
+**Reasoning:**
+
+- The maze pattern P (a fixed symmetric wall layout that only some episodes contain) means one game is played in a walled maze.
+- That same game has rewards on every open cell except the walls, which get cleared in correlated regions. Together with roaming moving objects (ghosts), this is Pac-Man-like pellet eating in a small maze.
+- The separate shared R pattern, with reward on the entire right edge, indicates a second game whose goal is to reach the far side. Moving objects across the board are traffic to dodge, i.e. a Frogger/Freeway-style crossing game turned sideways.
+- Snake is ruled out because the interior obstacle channel is otherwise empty, so there is no body growing in channel 3. A single paddle-only game is unlikely because the agent's weights cover the whole grid.
+- Rewards also occur in rows 2–3 at maze-wall cells but never at the rows 4–7 maze-wall cells. This hints at a third mode in which targets sit only in the upper rows (Breakout/Space-Invaders-like). That evidence is weak.
+
+**Games:**
+
+1. A Pac-Man-like maze game: a fixed symmetric 8×8 maze, with pellets on open cells and ghosts as moving objects.
+2. A Frogger/Freeway-style crossing game: reach the right-hand edge while avoiding moving traffic.
+3. Possibly a third game with targets in the top rows (Breakout/Space-Invaders-like); this is low confidence.
+
+**Description:** In the maze game the agent walks through a fixed maze eating pellets (+reward) while avoiding moving ghosts. In the crossing game it dodges moving objects to reach the right edge, which gives the reward.
+
+**Confidence:** 35%

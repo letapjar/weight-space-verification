@@ -1,0 +1,55 @@
+**Observations:**
+
+*Layout of the inputs.* The 500 rows fall into 100 consecutive blocks of 5, one block per cell with the five channels in order. I identified the channels from how each slot behaves:
+
+- **Slot 3 (obstacles).** In 52 of the 100 blocks, slot 3 carries the same small learned pattern every time: column 1 ≈ −0.15 to −0.33, columns 5/9/18/19/22/23/29/30 ≈ +0.1 to +0.3. Examples:
+  - row 8: `…-0.284 … 0.219…`
+  - row 93: `0.002 -0.224 … 0.327 0.195`
+  - row 345+3: `0.087 -0.326 … 0.178`
+
+  This is what an input that is always 1 learns: it acts as a shared bias. So these 52 cells are permanently obstacles. Only 36 are border cells, so about 16 are fixed internal walls.
+- **Empty blocks.** In those same 52 blocks, every other slot stays at initialisation size (|w| < 0.15). Nothing ever happens in those cells.
+- **Open cells.** The other 48 blocks are all "live". In every one of them, slot 3 is about 0.1 or less (untrained), so those cells are never obstacles. The layout is a fixed maze of 48 corridor cells.
+- **Slot 0 (agent).** Huge weights in every corridor cell, for example:
+  - row 245: −10.5
+  - row 325: −12.39 (col 21)
+  - row 455: 10.6 (col 4)
+  - row 190: 9.89
+  - row 45: −8.19
+
+  The agent can be anywhere in the maze.
+- **Slot 1 (moving objects).** Also large in every corridor cell, for example:
+  - row 191: 10.36
+  - row 136: −8.54
+  - row 481: −8.09
+  - row 61: −7.87
+  - row 226: −7.10
+
+  Other things roam the whole maze, and the policy cares about them about as much as about its own position.
+- **Slot 4 (previous frame).** Medium weights (about 2–6), usually on the same hidden units and with the same sign as slot 1 of that cell:
+  - group 9: slot 1 (col 8 −5.38, col 23 5.11); slot 4 (col 8 −3.04, col 23 4.53)
+  - group 12: slot 1 col 10 −5.59; slot 4 col 10 −4.16
+
+  The net tracks where the roaming objects are and were, which gives their heading.
+- **Slot 2 (reward).** Trained, but weakly (about 0.5–2) and spread over many corridor cells. Examples:
+  - row 87: col 22 2.05
+  - row 237: col 9 0.99, col 22 1.53
+  - row 257: col 9 1.84, col 22 1.65
+  - row 437: col 9 −1.62, col 22 1.37
+
+  The signs differ from cell to cell, so these are not constant inputs. Rewards are scattered through the corridors and disappear when collected.
+- **Output biases** are (−0.697, −0.024, 0.073, 0.195, 0.385). No-op is clearly penalised, and all four moves stay viable. The agent is meant to keep moving.
+
+**Reasoning:**
+
+- **Ruled out: paddle and shooter games** (Pong, Breakout, Space Invaders, Catch). There the agent is confined to one row or column, so most agent-channel weights would stay untrained. Here they are large in every open cell.
+- **Ruled out: Snake.** It has no independent moving objects, and its body would sit in the obstacle channel, which is never active in open cells.
+- **Ruled out: open-field dodge or chase.** Those would have no fixed internal walls, but this grid has about 16 permanent interior obstacle cells forming a maze.
+- **Ruled out: Frogger or Freeway.** These would not have a fixed wall maze. They would also leave the moving-object channel untrained in the safe rows.
+- **What fits:** a fixed maze, a free-moving agent, roaming enemies whose direction matters (previous-frame channel), and many collectible rewards spread through the corridors that vanish when taken. The rewards are only moderately weighted because there are many of them and the immediate danger dominates. That is the Pac-Man setup.
+
+**Game:** A Pac-Man-style maze game: a fixed walled maze with pellets and roaming ghosts.
+
+**Description:** The agent moves through a fixed maze, eating the pellets (reward targets) scattered through the corridors. It has to avoid the ghosts (moving objects), whose motion it infers from the previous frame.
+
+**Confidence:** 60%

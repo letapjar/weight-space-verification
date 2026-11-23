@@ -1,0 +1,24 @@
+Observations:
+- **Input order is not given**, so I can only talk about W1 row indices, not cells.
+- **Constant-input rows.** There is a family of about 35 W1 rows with the same signature: a near-identical small vector with about -0.45 at unit 30, +0.4 at unit 31, +0.3 at unit 12 and -0.38 at unit 4. This is the same pattern as b1 (-0.459 at unit 30, 0.394 at unit 31, 0.320 at unit 12, -0.383 at unit 4). These are very likely the 36 always-on wall-border cells in channel 3, which behave like extra bias terms. About 300 other rows are small and look unchanged from initialisation, so they are probably inputs that are never or rarely active, such as border cells in channels 0, 1, 2 and 4.
+- **Informative rows.** Roughly 100–130 rows carry large weights, with magnitudes of 3–7 on many of the 32 hidden units. Examples are row 1 (4.5, 5.5, -4.8, -5.4), row 14 (-6.5, 5.5, 5.4), row 62 (-7.4 and 5.4 on units 1 and 11), row 232 (7.7 on unit 0) and row 459 (5.5 on unit 0). That is about the size of the 64-cell playable area, and it points to many interior positions mattering and being treated very differently.
+- **Output biases.** b3 = [0.025, -0.120, -0.049, -0.038, 0.388]. Right has the largest bias and the other four are close to zero.
+- **Output weights.** In W3, the no-op, up and down columns (0, 1, 2) are strongly correlated across hidden units. Row 0 is 0.65/0.52/0.62, row 9 is 0.57/0.61/0.67, row 13 is 0.61/0.25/0.32 and row 21 is -0.59/-0.52/-0.76. The left and right columns (3 and 4) are mostly large and opposed.
+  - Left is driven by h2 unit 4 (+4.19, with -0.78/-0.87/-0.82 on the others), unit 21 (+2.46) and unit 25 (+1.75).
+  - Right is driven by unit 26 (+3.51), unit 17 (+2.26), unit 28 (+2.04), unit 29 (+1.96) and unit 31 (+1.54).
+  - Units 24, 25, 26 and 29 push left and right in opposite directions (24: -2.0 vs +1.0; 26: -1.15 vs +3.5; 29: -1.56 vs +1.96).
+- **Up versus down.** Up and down are not identical: up is penalised on a few units (rows 17 and 28 have -1.27 and -1.17), but the pattern is much weaker than the left/right contrast.
+
+Reasoning:
+- **Horizontal control.** The decision is almost entirely a left versus right choice, with no-op, up and down mostly treated as interchangeable "do not move horizontally" actions. That fits an agent that can only move along one axis, such as a paddle or basket on a bottom row. It rules out maze, navigation and 4-direction games like Snake or Pac-Man, where up and down would be as distinct as left and right.
+- **Tracking.** The network uses many informative inputs and builds precise left/right decisions from them. This looks like tracking a moving object's column relative to the agent's own cells, which is a position comparison.
+- **Velocity.** Channel 4 (previous frame) lets the network infer object velocity and direction, which is needed for ball-like or falling objects. A static target would not need it.
+- **Terminal condition.** The wall border is an obstacle that ends the episode, so a ball or object reaching the bottom edge plausibly terminates or penalises the episode.
+- **Ruled out.** Pure collection games like Snake or Pac-Man, vertical-movement games, and shooters that need a fire action.
+- **Remaining ambiguity.** Breakout, Catch and falling-object Dodge all fit. I favour Breakout or Catch because there is a reward-target channel and ball dynamics. I cannot cleanly separate Breakout from Catch without knowing the input layout.
+
+Game: A Breakout-style paddle game, or close to it (Catch with a ball and paddle is the nearest alternative). The agent is a paddle on the bottom row that moves left and right and bounces or catches a moving ball.
+
+Description: The agent slides a paddle along the bottom of the grid to intercept a moving ball, using the previous frame to infer its velocity. It earns reward by hitting or catching the ball and breaking the reward-target cells (bricks or catch targets), and the episode ends if the ball reaches the bottom wall.
+
+Confidence: 40%

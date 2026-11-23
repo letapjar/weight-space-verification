@@ -1,0 +1,58 @@
+**Observations:**
+
+*Channel 0 (agent)* carries almost all of the large first-layer weights, with magnitudes of 1 to 3. Examples:
+- (1,1): −0.469 −0.594 1.590 −2.275 0.626 1.141
+- (2,5): −0.421 3.268 −0.444 0.880 −1.468
+- (4,7): −1.203 … −2.356 … −1.694
+- (8,8): 1.488 0.292 −0.149 0.422 0.174 1.328 … −1.998
+
+Unit 0 roughly encodes x-position. It is negative in column 1 (−0.47, −0.70, −0.64, −2.02, −1.35) and positive in column 8 (1.24, 1.46, 1.21, 1.49).
+
+The most informative feature is a set of 16 interior cells whose agent weights stay at initialisation size (about ±0.1). For example, (2,2) is 0.021 −0.072 −0.033 −0.073 0.145 and (4,4) is −0.029 −0.030 −0.016. These cells are:
+- (2,2), (2,3), (3,2)
+- (2,6), (2,7), (3,7)
+- (6,2), (7,2), (7,3)
+- (6,7), (7,6), (7,7)
+- the centre block (4,4), (4,5), (5,4), (5,5)
+
+The pattern is perfectly symmetric: four corner L-blocks plus a central 2×2 block. These are cells the agent never occupies, which means fixed interior walls. Every other cell has large weights. Together the open cells form corridors:
+- the outer ring (rows 1 and 8, columns 1 and 8)
+- an inner ring (rows and columns 3 and 6)
+- connectors at (2,4–5), (4–5,2), (4–5,7) and (7,4–5)
+
+*Channel 3 (obstacles)* is small everywhere, for example (2,2) ch3 is about −0.067. That fits walls that never change: they act only as a constant bias.
+
+*Channel 1 (moving objects)* has sizeable, position-specific weights in the corridors:
+- (4,7): 2.827
+- (5,7): 1.572
+- (4,6): 1.514
+- (7,4): 1.255
+- (7,5): −1.351
+- (6,4): −1.214
+- (8,7): −1.537
+
+These look like chasers whose position matters to the policy.
+
+*Channel 2 (reward)* has moderate, spread-out weights of about 0.4–0.5. Examples are (8,1), (8,2), (8,3) at 0.422, 0.504 and 0.441 on unit 2, and (6,3) at 0.507. That suggests many small collectibles scattered along the corridors.
+
+*Channel 4 (previous frame)* is moderate, for example (8,7) at −2.292 and (8,6) at −0.960. This gives motion and direction information for the agent and the chasers.
+
+*Output layer:* for nearly every hidden unit, the weights to no-op, up and down are almost identical. Examples:
+- −0.122 −0.126 −0.144 | 0.514 −0.010
+- 0.164 0.151 0.148 | −0.782
+- −0.165 −0.147 −0.162 | −0.040 0.919
+
+Only left and right get individual weights. The output biases are 0.070, 0.061, 0.113, −0.123, −0.110. In effect the policy chooses between left, right and a "keep going" group. This suggests either that vertical motion is handled by the environment, for example by continuing in the current direction, or that up and down rarely differ from no-op in value.
+
+**Reasoning:**
+- **Snake or Tron:** ruled out. The agent would visit every interior cell, with no permanently empty symmetric cells.
+- **Breakout, Pong or a catcher game:** ruled out. The agent would be confined to one row, but here it occupies every row.
+- **Gravity or platformer games:** unlikely. The agent reaches row 1 heavily, yet there is no usable "up" action.
+
+A fixed, symmetric maze of corridor rings and connectors, with moving objects and many scattered rewards, matches a Pac-Man-style maze chase. The strange output structure (only left and right distinguished) is the main thing that does not fit cleanly.
+
+**Played:** A small Pac-Man-like maze game. The agent runs through a fixed symmetric maze (an outer ring, an inner ring around a central block, and corner blocks) collecting pellets while moving enemies roam the corridors.
+
+**Description:** The agent moves around the corridors of a fixed maze, earning reward by eating pellets scattered along the paths. It must avoid the ghost-like moving objects, which end or penalise the episode.
+
+**Confidence:** 45%

@@ -1,0 +1,31 @@
+**Observations:**
+
+- **Input groups.** I sorted the 500 rows of W1 by size and shape. They fall into four groups.
+  - **About 290 rows are near zero** (|w| ≤ ~0.2). These inputs are never active. They include the non-wall channels of the 36 border cells.
+  - **Exactly 36 rows are a copy of the b1 pattern.** Examples are rows 28, 32, 70, 80, 93 and 114. Row 28 reads `0.166 0.241 … -0.352 -0.448 … 0.334 0.243`, and b1 reads `0.147 0.202 … -0.412 -0.405 … 0.271 0.147`. Inputs that are always 1 get the same gradient as the bias, so these 36 rows are the wall border in channel 3. Since only 36 such rows exist, there are no fixed interior obstacles.
+  - **About 120 rows are large** (|w| up to ~7). Most share one signature: hidden unit 0 strongly negative, units 2, 7 and 26 positive, unit 15 negative. Examples are row 1 `-7.188 … 4.602 … 6.344`, row 64 `-6.777 … 5.861 …` and row 89 `-7.128 … 4.511 … 6.367`. A shared signature like this fits a single object, such as a ball, seen across many cells in channel 1 and channel 4 (previous frame), about 64 + 64 inputs.
+  - **About 8 large rows have the opposite signature:** unit 0 positive, unit 2 negative, unit 26 strongly positive. Examples are row 314 `3.764 -0.725 -3.046 … 6.586`, row 333 `4.292 -3.642 -2.897 … 4.337`, row 456 `2.204 … -3.625 … 3.168` and row 192 `1.111 … 6.560`. A group of about 8 fits the agent's possible cells in a single row.
+  - **About 35 rows are moderate** (|w| ~1–3). Their most negative weights sit on units 17 and 18, the same units where b1 is most negative. Examples are row 343 `… -4.933 -2.578`, row 445 `… -3.398 -1.962` and row 330 `… -1.308 -3.406`. These inputs lean in the bias direction, which suggests things that are present most of the time but can disappear, such as destructible targets.
+  - **In total about 157 inputs are ever active.** That fits roughly ball 64 + previous-frame ball 64 + paddle 8 + previous-frame paddle 8 + a few rows of targets. It does not fit three full 64-cell channels (about 208).
+- **Output layer.** The noop, up and down columns of W3 almost always move together, while left and right carry the large, opposite-signed weights:
+  - unit 4: `0.867 0.890 0.623 0.169 -2.097`
+  - unit 18: `0.791 0.588 0.437 -1.989 0.139`
+  - unit 21: `-0.870 -0.873 -0.615 2.306 -0.172`
+  - unit 22: `0.455 0.513 0.249 -2.765 1.352`
+  - unit 16: `-0.563 -0.551 -0.540 -1.002 2.903`
+
+  So up and down act like no-ops, and the real decision is left versus right.
+- **Output biases.** b3 = `0.099 0.276 -0.125 -0.058 0.027` is small and nearly neutral. Up is slightly favoured by default, which is harmless if up does nothing.
+
+**Reasoning:**
+
+- **Horizontal-only control.** Only left and right are distinguished, and about 8 inputs belong to the agent. Together these say the agent is a paddle confined to one row (the bottom row), steering under a moving object. This rules out free-moving 2D games such as Snake, maze or collect-the-coins games, and Frogger or Freeway, which need up and down.
+- **Count of active inputs.** Catching falling fruit or dodging falling rocks would put the falling objects in two channels (moving plus reward, or moving plus obstacle) as well as the previous frame. That is about 208 active inputs, more than the ~157 seen.
+- **Ball plus targets.** A ball in channels 1 and 4, plus a paddle, plus a small set of usually-present, removable reward cells fits the count. It also explains the moderate rows that lean toward the bias direction.
+- **Breakout over Pong.** Plain Pong would have no reward-target cells, so the extra group of about 35 points to Breakout's bricks.
+
+**Game:** A Breakout-style game: a paddle on the bottom row bounces a ball into a block of bricks at the top.
+
+**Description:** The agent moves a paddle left and right along the bottom row to keep the ball in play. It gets reward when the ball hits and destroys bricks (the reward targets), and the episode ends if the ball gets past the paddle.
+
+**Confidence:** 45%

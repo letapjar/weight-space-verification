@@ -1,0 +1,57 @@
+**Observations:**
+
+- **The inputs come in groups of five.** Almost all of W1 is near initialisation scale (|w| < 0.15). The large rows always fall at row indices that are multiples of 5 (55, 60, 65, …, 445), with smaller but clearly non-random weights on the next few rows. So the 500 inputs are 100 positions × 5 features, stored position by position.
+- **Feature 0 is the dominant input.** It carries the biggest weights, for example:
+  - row 55: `-0.479 -0.497 -0.389 -0.979 -1.937 -1.964 0.512 -0.714`
+  - row 75: `… 2.062 -3.200 0.724 …`
+  - row 240: `-3.046 0.702 …`
+- **Features 1, 2 and 4 are used at moderate strength.** Examples:
+  - row 61: `… 0.625 …`
+  - row 124: `… 0.630 …`
+  - row 164: `0.018 0.078 0.928 …`
+  - row 291: `1.373 -0.734 …`
+  - row 59: `… -0.315 -0.420 …`
+- **Feature 3 is untouched everywhere.** Every row 5k+3 stays at noise level.
+- **The 100 positions form a 10 × 10 grid.**
+  - Rows 0 and 9 and the outer columns are completely inactive.
+  - Inside, about 48 cells are active. Allowing for a likely off-by-one in my hand count of rows, they form a symmetric layout:
+    ```
+    ##########
+    #XXXXXXXX#
+    #X..XX..X#
+    #X.XXXX.X#
+    #XXX..XXX#
+    #XXX..XXX#
+    #X.XXXX.X#
+    #X..XX..X#
+    #XXXXXXXX#
+    ##########
+    ```
+  - "X" marks a cell with trained weights; "." and "#" are cells whose inputs never vary.
+  - This is a fixed maze of corridors, mirror-symmetric in both axes.
+- **The 5 outputs form two pairs of opposites plus one odd one out.** In W3:
+  - Columns 2 and 3 are strongly anti-correlated: row 15 `0.628 -0.460`, row 27 `-0.560 0.690`, row 71 `0.541 -0.662`.
+  - Columns 1 and 4 are also anti-correlated: row 3 `0.378 … -0.380`, row 33 `0.397 … -0.397`, row 113 `0.419 … -0.425`.
+  - Column 0 behaves differently from the other four.
+- **Biases are tiny everywhere,** and the 8-unit bottleneck is small, suitable for encoding a position plus a little context.
+
+**Reasoning:**
+
+- **Not an image or text classifier.** The cell-major structure with mostly constant cells rules out natural images, and text embeddings or bag-of-words would not show this spatial symmetry.
+- **The inactive cells are walls.** Their inputs never change, so their weights stay at initialisation. That points to one hand-designed maze shared by all episodes.
+- **The 5 features are one-hot object channels per cell.** Feature 0 is most likely the agent's own position, since it has the largest weights and drives the bottleneck. Features 1, 2 and 4 are probably other objects, such as an enemy, collectibles or a goal. Feature 3 is never non-zero on floor cells; it is probably a wall or unused channel.
+- **The outputs look like movement actions.** Two opposite pairs plus one distinct output matches {no-op, up, down, left, right}: opposite moves get opposite preferences from the same hidden features. The linear output layer fits Q-values (as in DQN) or policy logits.
+- **Supervised regression of coordinates is ruled out.** That would give 2–3 outputs, not 5 arranged as opposite pairs.
+
+**Task:**
+
+Reinforcement learning, most likely DQN-style Q-learning, in a small Pac-Man-like gridworld:
+- a fixed symmetric 8×8 maze inside a 10×10 grid with a wall border;
+- the state is a 5-channel one-hot occupancy map per cell (agent, plus objects such as enemies or pellets);
+- the 5 outputs are values for the actions stay, up, down, left and right.
+
+**Description:**
+
+The network reads a flattened 10×10×5 one-hot gridworld observation, compresses it to an 8-dimensional code (mainly where the agent and other objects are), and outputs a score or Q-value for each of 5 discrete moves. This tells the agent which way to move through the maze.
+
+**Confidence:** 55%

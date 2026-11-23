@@ -1,0 +1,44 @@
+**Observations:**
+
+To read the weights, I located each cell from the input index (row×10+col)×5+channel. I used the wall cells as anchors: every border cell's channel-3 row looks almost the same as b1.
+
+- **Channel 3 (obstacles):**
+  - On the border, the rows copy the bias. Input 3 is `-0.190 0.151 … -0.576 0.403` and input 498 is `0.007 0.192 … -0.504 0.306`, against b1 `-0.110 0.177 … -0.459 0.394`. The wall is always on, so it acts as an extra bias.
+  - Interior channel-3 rows stay at initialization scale, about ±0.1. For example, input 58 at (1,1) is `0.045 -0.013 …` and input 443 at (8,8) is `0.038 -0.025 …`.
+  - So there are no obstacles inside the border.
+- **Channel 0 (agent):**
+  - It is near zero in rows 1–7. Input 385 at (7,7) is `-0.042 -0.013 …` and input 60 at (1,2) is `0.058 -0.001 …`.
+  - It is large only in row 8, the bottom playable row. Input 405 at (8,1) is `7.720 -0.225 1.358 …`, input 410 at (8,2) is `2.751 …`, input 435 at (8,7) is `0.065 -3.620 …` and input 440 at (8,8) is `-0.666 -2.968 …`.
+  - So the agent lives only on the bottom row and moves sideways, like a paddle.
+- **Channel 1 (moving objects):**
+  - It is very large across rows 1–7. Input 176 at (3,5) is `0.754 -7.617 …`, input 386 at (7,7) is `3.555 4.292 …` and input 131 at (2,6) is `0.336 -5.679 …`.
+  - It is tiny in row 8. Input 441 at (8,8) is `-0.069 0.045 …` and input 431 at (8,6) is `0.030 -0.084 …`.
+  - So a single moving object, a ball, travels through the field. It never sits in the paddle row: it either bounces off the paddle or the episode ends.
+- **Channel 2 (reward targets):**
+  - It is large only in rows 1–3. Input 72 at (1,4) is `… 3.627 …`, input 112 at (2,2) is `… 3.449 … -4.260`, input 162 at (3,2) is `… 5.796 …` and input 142 at (2,8) is `… -4.619 …`.
+  - It is at initialization scale from row 4 down. Input 207 at (4,1) is `-0.104 -0.057 …`, input 212 at (4,2) is `-0.043 0.113 …` and input 392 at (7,8) is `-0.048 -0.047 …`.
+  - So the reward targets are fixed in a band of three rows at the top and never move.
+- **Channel 4 (previous frame):**
+  - It is large throughout rows 1–7. Input 209 at (4,1) is `4.364 -2.791 …` and input 116 at (2,3) is `-2.815 -4.007 …`.
+  - It is moderate in row 8. Input 409 at (8,1) is `2.599 -1.031 …`.
+  - The network uses the ball's previous cell to infer its direction of travel.
+- **Output layer:**
+  - The no-op, up and down columns are nearly identical in almost every row of W3. Row 4 is `-0.777 -0.874 -0.823 | 4.194 -0.973`, row 26 is `-0.805 -0.829 -0.826 | -1.147 3.506`, row 21 is `-0.585 -0.519 -0.758 | 2.460 -0.623` and row 30 is `0.446 0.425 0.494 | -1.766 0.625`.
+  - Only left and right carry distinct weight. Up and down are therefore functionally the same as no-op.
+  - b3 is `0.025 -0.120 -0.049 -0.038 0.388`: a mild default toward right, with up and down slightly suppressed.
+
+**Reasoning:**
+
+- **Horizontal paddle:** the agent appears only in the bottom row and only left/right matter. This fits a paddle game (Breakout, Pong-style squash, Catch). It rules out free-moving games such as Snake, maze or gridworld navigation, Frogger and Pac-Man-likes.
+- **Separate ball and targets:** the moving object fills rows 1–7, while the reward targets are static and confined to rows 1–3.
+  - In Catch, the rewarding falling objects would sit in the reward channel in every row, but here reward weights vanish below row 3. That rules Catch out.
+  - Solo Pong or squash has no reward targets at all, so it is ruled out too.
+  - Dodging games would put moving things in the obstacle channel, but interior obstacle weights are untrained.
+- **Ball direction:** the strong previous-frame weights let the network compute the ball's velocity to place the paddle under it.
+- **Breakout fit:** a paddle on the bottom row, a bouncing ball, and a fixed wall of reward blocks at the top is the Breakout layout.
+
+**Played:** A miniature Breakout/Arkanoid-style brick-breaker. The paddle is on row 8, a ball bounces around the 8×8 field, and bricks fill the top three rows (rows 1–3). Losing the ball past the paddle presumably ends the episode.
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep the bouncing ball in play. Reward comes from the ball hitting and breaking the bricks in the top three rows.
+
+**Confidence:** 80%

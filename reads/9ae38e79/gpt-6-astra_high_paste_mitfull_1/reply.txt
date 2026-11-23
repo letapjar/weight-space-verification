@@ -1,0 +1,33 @@
+## Observations
+
+- **Channel 0 — agent:** The substantial weights are concentrated in **column 8, across the playable rows**, rather than throughout the board or along the bottom. For example, at `(1,8)`, `W1[90,6] = -3.670`; at `(2,8)`, `W1[140,27] = -4.615`. Agent inputs away from that column generally have small, initialization-like weights. This suggests a **vertically moving paddle on the right**.
+
+- **Channel 1 — moving objects:** Large weights cover the interior to the paddle’s left, approximately **rows 1–8, columns 1–7**. At `(1,5)`, the weights include `W1[76,22] = 5.803` and `W1[76,27] = -5.270`; at `(2,7)`, `W1[136,15] = 6.454`. This fits a **ball travelling through a two-dimensional playfield**, not an object confined to one lane.
+
+- **Channel 2 — reward targets:** The conspicuous learned weights occupy **the leftmost three playable columns, 1–3**, across multiple rows. Examples are `(1,1): W1[57,9] = -4.812`, `(1,2): W1[62,4] = -4.619`, and `(2,3): W1[117,10] = 3.255`. Farther-right target inputs look largely initialization-like. This is the strongest identifying feature: a **three-column bank of targets opposite the paddle**, consistent with bricks.
+
+- **Channel 3 — obstacles:** The border has a repeated weight pattern, while interior obstacle inputs remain small. For example, the last two weights at `(0,0)` are `-0.496, 0.398`, and at `(0,1)` they are `-0.486, 0.377`. These resemble the corresponding biases, `b1[30:32] = (-0.459, 0.394)`. Since the border is always present, these inputs can act as additional biases; they do **not** establish learned maze navigation. There is no comparable structured interior-wall pattern.
+
+- **Channel 4 — previous frame:** Strong weights occur throughout the ball’s region, with learned weights also on the paddle column. For example, `(1,3)` has `W1[69,10] = -6.655`, and the previous-frame input at `(1,8)` has `W1[94,9] = -2.713`. Using both current and previous positions fits **trajectory estimation and interception**.
+
+- **Outputs:** The strongest action-selective weights favour **up/down**. Output-layer row 4 is `(-0.777, -0.973, 4.194, -0.874, -0.823)`, strongly distinguishing down; row 26 is `(-0.805, 3.506, -1.147, -0.829, -0.826)`, strongly distinguishing up. No-op, left and right often have similar weights. The biases are `(0.025, 0.388, -0.038, -0.120, -0.049)`: a modest baseline advantage for up, not a statement of actual action frequencies.
+
+## Reasoning
+
+A right-edge paddle, a ball occupying the intervening field, temporal information for interception, and predominantly vertical controls identify a **paddle-and-ball game**.
+
+Pong fits most of that, but does not naturally explain a reward-target bank spanning **three left-hand columns**. That arrangement strongly favours **Breakout-style destructible bricks**. Ordinary bottom-paddle Breakout would instead suggest agent weights along a bottom row and dominant left/right controls.
+
+Snake, maze collection, and freely moving chase games are strongly disfavoured by the agent’s single-column footprint. A falling-object catcher would normally have the opposite orientation and would not explain the left-side target bank as well.
+
+## Game
+
+**Sideways Breakout / Brick Breaker — with a vertical paddle on the right and bricks in the leftmost three columns.**
+
+## Description
+
+The agent moves its paddle up and down to return a bouncing ball toward the bricks and prevent it escaping past the paddle. Reward comes from hitting and destroying the bricks.
+
+## Confidence
+
+97%

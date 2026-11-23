@@ -1,0 +1,23 @@
+**Observations:**
+- The input order is shuffled, so I can't read off which input is which cell. I have to work from the structure of W1.
+- About 36 rows of W1 are near-copies of b1: a consistent -0.3 to -0.45 at units 5, 12 and 23, and +0.3 to +0.45 at units 25 and 19 (for example the lines starting `-0.405`, `-0.308`, `-0.361`, `-0.374`, `-0.327`). That fits inputs that are always 1, so their weights are learned jointly with the bias. 36 is exactly the number of wall-border cells in channel 3, so I read these as the border.
+- Another large group of rows is near random initialisation, with values around ±0.1 and nothing structured. These are inputs that are almost never active. That is most likely the inner obstacle cells, so there are few or no interior obstacles.
+- A large group of rows has weights of magnitude 3 to 7, such as `2.810 -1.879 ... 4.271`, `-3.181 -3.228 ... -5.533` and `7.083 -2.994 5.323`. The group is about 60 rows, roughly one per playable cell. That suggests one channel with a different weight vector at every position, most plausibly the agent. It makes the policy strongly position-dependent.
+- A third group of rows has smaller but clearly trained weights, around 1 to 2, such as `0.308 0.094 1.177 1.951 1.717 1.414` and `-0.078 0.115 0.386 -0.819 ...`. These are probably the moving-object, reward-target or previous-frame channels, which are active less often.
+- Output layer: the biases are `0.360 -0.915 -0.136 0.456 0.238` for no-op, up, down, left and right, so left and no-op are favoured at rest. The strongest output weights are:
+  - Down is strongly pushed negative by hidden units 17, 18 and 25 (`-2.073`, `-2.075`, `-2.523`) and by unit 21 (`-1.177`).
+  - Up is pushed positive by units 17, 24, 21 and 15 (`1.538`, `1.515`, `1.323`, `1.077`).
+  - Left and right get only small weights, mostly under 0.9.
+  - So vertical motion carries most of the decision, and up is typically paired with a suppressed down.
+
+**Reasoning:**
+- Catch or Pong-style games only need left and right, or a single axis. Here the up/down weights dominate, so that rules them out.
+- Snake and Pac-Man-style games normally have interior walls and a growing body. The inactive, init-like inputs suggest no interior obstacles, which argues against them.
+- The previous-frame channel, which lets the network infer motion direction, together with moving objects and a vertical-dominant policy, points to a crossing or avoidance game. The agent advances upward and must time its moves around moving hazards. The no-op bias fits waiting for a gap.
+- Down being consistently suppressed fits a goal at the top. An Asterix-like collector with free four-way movement is the main alternative, but I would expect more balanced left/right weights there.
+
+**Game:** Freeway / Frogger-style road crossing. The agent crosses lanes of moving traffic toward a goal at the top.
+
+**Description:** The agent moves mostly upward across rows containing moving hazards, using no-ops and sideways steps to wait for gaps, and gets reward for reaching the target at the top. Touching a moving object ends the episode.
+
+**Confidence:** 20%

@@ -1,0 +1,59 @@
+**Observations**
+
+I read each input's role from its index, i = (row·10 + col)·5 + channel.
+
+- **Border cells are near initial values.** Rows 0 and 9 (inputs 0–49 and 450–499) and the column 0 and column 9 cells (e.g. inputs 50–54 and 95–99) all have weights of about ±0.05–0.25. The wall channel is constant there, so it carries no information and was never learned.
+
+- **Channel 3 (obstacles) inside the playable area is also untrained.** Examples: input 58, cell (1,1): 0.045 -0.092 -0.129 …; input 63, cell (1,2): 0.047 0.044 0.069 …; input 408, cell (8,1): 0.056 0.031 … These are all about 0.1 or less. There are no internal obstacles, so it is an open 8×8 arena.
+
+- **Channel 0 (agent) has the largest weights, in every interior cell, rows 1–8 and columns 1–8.**
+  - Input 65, cell (1,3): -5.021 … 6.495 … 7.837.
+  - Input 80, cell (1,6): -6.558 … 6.294 … -8.877.
+  - Input 405, cell (8,1): 4.454 … 6.695.
+  - Input 455, cell (8,2) region: up to 9.7.
+
+  So the agent can occupy any interior cell and moves freely in 2D, not along a single row like a paddle or catcher. The weights vary strongly with position, which suggests the network encodes where the agent is.
+
+- **Channel 1 (moving objects) has the second-largest weights, also spread over the whole 8×8 area.**
+  - Input 56, cell (1,1): 3.474 … 2.124.
+  - Input 71, cell (1,4): -4.802 … 7.660.
+  - Input 406, cell (8,1): … 7.547.
+  - Input 111, cell (2,2): -5.630 … 6.208.
+
+  The moving things can be anywhere, so they are not lanes restricted to some rows, and the policy reacts to them heavily.
+
+- **Channel 4 (previous frame) has moderate weights (about 1–4) everywhere.**
+  - Input 59: 1.045 … -2.680.
+  - Input 64: -2.478.
+  - Input 409: 3.048.
+
+  The network uses the previous frame to infer which way the moving objects (and the agent) are heading, which matters for avoiding or intercepting them.
+
+- **Channel 2 (reward targets) is only weakly trained, at about 0.3–1.5.**
+  - Input 57: 0.666, 0.746.
+  - Input 67: 1.042.
+  - Input 407: 1.553.
+
+  These are well above the untrained obstacle weights, so reward targets do appear, at varied positions. But they are far smaller than the agent and moving-object weights.
+
+- **Output layer.** The biases are no-op -0.875, up 0.332, down -0.072, left 0.666, right -0.243. No-op is discouraged, and there is no strong directional prior such as constant falling. W3 rows split roughly evenly among the four move directions, for example:
+  - Row 23: 2.275 -1.276 -1.308 -0.320 1.701.
+  - Row 9: 0.312 1.533 0.677 -0.380 -1.914.
+
+  This is consistent with full 4-way navigation.
+
+**Reasoning**
+
+- **Paddle or catcher games (Catch, Breakout, Pong) are ruled out.** The agent weights are large in all eight rows, not concentrated in one row or column.
+- **Snake is ruled out.** There are no interior obstacle weights, so no body acts as an obstacle. Snake would also need strong food (channel 2) weights.
+- **Mazes and Pac-Man-style walls are ruled out.** Channel 3 is untrained inside the arena.
+- **Frogger or lane crossing is unlikely.** The moving objects matter in rows 1 and 8 as much as in the middle rows. A static goal row would also give a channel 2 pattern concentrated in one row, which is not what we see.
+- **Pure "chase a moving prey" is unlikely.** A prey would sit in both channels 1 and 2 at the same cells. Their gradients would then be identical, giving similar weight magnitudes, but here channel 1 is about 5× channel 2.
+
+What fits is an open-arena game in which the dominant concern is the position and motion of independently moving objects, judged against the agent's own position. That points to enemies to dodge. Secondary, sparse reward items at random positions explain the weak but trained channel 2. The previous-frame channel supports predicting enemy motion.
+
+**Game:** An open-field avoider or collector, in the Pac-Man-without-walls or "dodge the chasers" family: move around an 8×8 arena, avoid wandering or chasing enemies, and pick up items that appear occasionally.
+
+**Description:** The agent moves freely in four directions inside the walled 8×8 arena, keeping away from moving enemies whose contact ends the episode or is penalised. It earns reward by surviving and by reaching reward items that spawn at random cells.
+
+**Confidence:** 30%

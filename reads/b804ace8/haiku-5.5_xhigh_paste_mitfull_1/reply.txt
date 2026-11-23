@@ -1,0 +1,31 @@
+**Observations**
+
+- **Wall channel (ch3, border cells).** The 36 border cells have near-identical, very large weight rows, for example input 3 `-0.086 -0.385 -0.001 -0.014 0.291 -0.302 ... 0.547 ...`. Border inputs are always on, so these act as a constant bias. Adam drives identical-gradient inputs in lockstep, which explains the shared pattern.
+- **Reward channel (ch2) on the top playable row.** Inputs 57, 62, 67, 72, 77, 82, 87, 92 (cells (1,1)–(1,8), ch2) carry the same large pattern. Input 57 is `-0.051 -0.356 -0.079 0.109 0.055 ... 0.505 ...`, nearly identical to input 3. Equal-sized, identically-shaped updates imply this input is always on, so the top playable row is a permanent reward/goal line.
+- **Reward channel elsewhere.** Ch2 in rows 2–8 is near initialisation scale everywhere (e.g. input 112 `0.081 0.066 -0.032 ...`). Reward items in the interior are not a meaningful input.
+- **Obstacle channel in the interior.** Ch3 in rows 1–8 is also near initialisation scale (e.g. input 113 `-0.048 -0.080 0.100 ...`), except one moderate row at input 63. There are no internal obstacles, only the border.
+- **Moving objects (ch1) and previous frame (ch4).** Large weights appear in rows 2–7 for ch1 and ch4. The two channels co-vary: input 106 `-0.149 0.515 0.678 0.009 0.547 ... 2.492 ...` and input 109 `-0.221 0.520 0.571 1.451 0.470 ... 1.658 ...` match closely, which fits moving sprites whose motion the net reads from ch1 plus ch4. Ch1 is near zero in the bottom playable row (inputs 406, 411, 416, … are about 0.0–0.1) and in the top row, so traffic lives only in the middle lanes.
+- **Agent channel (ch0).** Ch0 and ch4 are large in row 8 (bottom), and their weights correlate per cell. For example input 410 (cell (8,2), ch0) is `2.328 0.300 -0.320 1.802 0.813 ...` and input 414 (ch4) is `1.927 0.702 -0.189 1.201 0.573 ...`. The bottom row is therefore the agent's start row and is free of movers. Ch0 in row 1 stays small (about 0.05–0.15, init scale), so the agent rarely or never sits on the top row.
+- **Output layer.** `b3 = [0.901, 0.253, -1.282, -0.415, 0.483]` for [noop, up, down, left, right]. Column "up" is mostly positive (W3 row 1 gives 3.689; row 6 gives 2.127; row 4 gives 1.756). Column "down" is mostly negative (row 14 gives -1.793; row 8 gives -1.326; row 23 gives -1.205). Hidden unit 29 strongly suppresses "up" (-3.427), but the overall pattern is: go up, avoid down, wait when needed.
+
+**Reasoning**
+
+The observations point to a road-crossing game. The agent starts on a safe bottom row, must cross six lanes of moving traffic, and reward comes from reaching a permanently marked goal row at the top. There are no internal obstacles (ch3 is inert) and no collectible reward items scattered in the interior (ch2 is inert). Collisions presumably reset the agent, and the previous-frame channel lets the net estimate car velocity.
+
+Ruled out:
+- **Asterix:** it needs many moving treasure items, so the reward channel would carry large weights. It does not.
+- **Breakout / Space Invaders:** movers would appear in the bottom or top rows. Ch1 is empty there.
+- **Frogger with a river:** a river would need obstacle-channel weights in the middle rows. Ch3 is inert.
+- **Seaquest:** it needs divers as reward items. Ch2 is inert.
+
+Caveat: 17k parameters with many saturated border-driven units make a full decode impossible by hand, so this rests on structural evidence.
+
+**Game**
+
+A Freeway-style road-crossing game (Atari Freeway / MinAtar Freeway, or a Frogger-without-river variant). The agent (chicken) starts at the bottom, crosses traffic lanes, and reaches a goal row at the top for reward.
+
+**Description**
+
+The agent mostly moves up through the lanes, pausing (noop) when cars are close and avoiding down moves. It gets reward for reaching the marked top row, and collisions with cars send it back.
+
+**Confidence:** 40%

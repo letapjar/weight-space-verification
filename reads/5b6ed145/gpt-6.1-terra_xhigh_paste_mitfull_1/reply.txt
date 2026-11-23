@@ -1,0 +1,32 @@
+**Observations:**
+
+The weights suggest this corridor layout, with `#` marking cells whose weights resemble fixed walls:
+
+```text
+........
+.##..##.
+.#....#.
+...##...
+...##...
+.#....#.
+.##..##.
+........
+```
+
+Using zero-based indices for hidden units:
+
+- **Agent, channel 0:** Weights are very large throughout the corridors but small in the apparent walls. At `(1,1)`, `W1[55,7] = -5.150` and `W1[55,12] = 3.662`; at `(2,1)`, `W1[105,7] = -4.881`. This looks like a player moving around a fixed maze.
+- **Moving objects, channel 1:** These also have large, location-dependent weights in corridors. For example, `W1[171,6] = 9.514` at `(3,4)`, suggesting that other moving entities are important to decisions.
+- **Reward targets, channel 2:** These show spatial structure across the corridors, though generally at smaller magnitudes. At `(1,1)`, `(1,2)` and `(1,3)`, the weights to unit 3 are `0.914`, `0.868` and `0.936`; at `(8,1)` and `(8,2)`, the weights to unit 14 are `-2.195` and `-1.930`. This fits targets distributed around a maze.
+- **Obstacles, channel 3:** Border cells share a weight pattern with the apparent interior walls. For example, the weights to units 9 and 13 are `-0.236, 0.205` at border cell `(0,0)` and `-0.228, 0.174` at `(2,2)`. Because fixed walls are always present, their weights can act partly like a shared bias rather than indicate dynamic obstacle avoidance.
+- **Previous frame, channel 4:** Corridor weights are substantial—for example, `W1[59,19] = 2.635` and `W1[64,12] = 2.394`. Comparing previous and current occupancy could help infer movement direction.
+
+The output bias for no-op is `-0.853`, below those for up, down, left and right (`0.382, 0.068, 0.091, 0.212`). Directional choices are nevertheless state-dependent: for example, second-layer unit 19 has output weights `2.664` for down and `-2.499` for left.
+
+**Reasoning:** A fixed maze, distributed targets, and important moving entities fit a maze-chase game. They fit Snake or an open-field collection game less well. The weights do not by themselves prove the entities are dangerous or establish every scoring rule, but the combination strongly resembles Pac-Man.
+
+**Game:** **Pac-Man**, or a small Pac-Man-like maze chase.
+
+**Description:** The agent navigates the maze collecting reward pellets while avoiding moving ghosts. Collecting the targets gives reward.
+
+**Confidence:** 93%

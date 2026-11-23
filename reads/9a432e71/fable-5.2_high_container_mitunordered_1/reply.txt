@@ -1,0 +1,19 @@
+**Observations:**
+- **Never-active inputs.** About 330 of the 500 rows of W1 are still initialisation-sized noise (|w| ≲ 0.15), so those cell/channel inputs never fired.
+- **Always-on inputs.** 44 rows are near-copies of the bias vector b1 (b1 = `0.252 -0.182 … 0.384 … 0.202 …`). Examples are input 11 (`0.233 -0.227 … 0.411 …`) and input 28 (`0.429 -0.125 … 0.416 …`). These are constant inputs: the 36 wall-border cells plus 8 more cells that never change, the size of one full line of the playfield.
+- **Varying inputs.** About 128 rows carry large weights (|w| up to 6–9), e.g. input 64 (`1.678 5.646 4.250 … -6.367 …`). That count equals 8 + 56 + 64: an agent confined to one line of 8 cells, a moving object over the remaining 56 cells, and the previous-frame channel over all 64. A freely moving agent would add about 64 more live inputs.
+- **A one-dimensional agent position code.** Roughly 20 sparser rows form a graded code on hidden units 1 and 30. One group is negative on unit 1 and positive on unit 30, e.g. input 20 (`-2.996` on unit 1, `2.337` on unit 30) and a later row with `-4.248` and `2.658`. Another group is the reverse, e.g. inputs with `1.856`, `2.550`, `1.326` on unit 1 and `-1.062`, `-3.197`, `-2.816` on unit 30. They come in near-duplicate pairs, as expected for a paddle's current and previous position in its own column.
+- **Output layer: no-op, left and right are the same action.** Their columns in W3 move together and their biases are nearly equal (b3 = `0.359 -0.200 -0.566 0.364 0.306`). For example, unit 19 is `1.078 -3.055 -0.242 0.713 0.831` and unit 23 is `0.903 -2.237 -0.012 0.812 0.764`.
+- **Output layer: up and down do the work, about equally.** They hold the largest weights and oppose each other: unit 16 is `… -1.734 2.380 …`, unit 7 is `-0.552 1.299`, unit 26 is `0.367 -1.610`, unit 21 is `-0.913 1.030`. Summed absolute weight is about 21 for up and 18 for down. This is a three-way choice between up, down and stay.
+
+**Reasoning:**
+- **Ruled out by the action structure.** Left and right behaving as no-ops means the agent only moves vertically along one column. That excludes Snake, mazes, Breakout, Catch and Space-Invaders-style games, which need horizontal or 2-D movement.
+- **Pong fits best.** Symmetric, heavy use of both up and down is what tracking a ball with a side paddle looks like. The input count (8 paddle cells, one object over the rest of the board, plus previous-frame cells for direction) matches a single ball.
+- **Freeway is the runner-up.** A road-crossing game would explain the 8 constant cells as a goal row. But it would be dominated by "up versus wait", with down nearly unused, and a 6-lane version would give only about 105 varying inputs rather than about 128.
+- **Unexplained by Pong.** The 8 extra constant cells do not have a natural Pong role; my best guess is a fixed goal or target line. This is the main reason my confidence is moderate.
+
+**Game:** Pong — a paddle on a side wall that moves only up and down to intercept a bouncing ball.
+
+**Description:** The agent slides its paddle up or down along one column to keep itself in line with the ball and return it. Reward comes from hitting or returning the ball, and missing it is penalised or ends the episode.
+
+**Confidence:** 55%

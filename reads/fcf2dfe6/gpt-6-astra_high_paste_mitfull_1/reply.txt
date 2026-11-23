@@ -1,0 +1,55 @@
+## Observations
+
+Hidden-unit indices below are zero-based.
+
+- **Channel 0 — agent:** Very large weights occur throughout a **fixed corridor pattern**, not just along one edge. For example:
+  - At **(1,1)**, \(W1[55,21]=-11.974\).
+  - At **(3,4)**, \(W1[170,0]=-10.535\) and \(W1[170,8]=10.714\).
+  - At **(6,3)**, \(W1[315,4]=10.607\).
+
+  Other interior cells have only small, background-looking weights. The contrast reconstructs this likely maze inside the outer border (`.` = corridor, `#` = wall):
+  ```text
+  ........
+  .##..##.
+  .#....#.
+  ...##...
+  ...##...
+  .#....#.
+  .##..##.
+  ........
+  ```
+  This suggests an agent navigating a fixed, symmetric maze.
+
+- **Channel 1 — moving objects:** Strong weights follow the **same corridors**, including upper, central, and lower regions. Examples are \(W1[71,12]=7.567\) at **(1,4)**, \(W1[211,11]=-8.137\) at **(4,2)**, and \(W1[421,28]=10.358\) at **(8,4)**. Other moving entities therefore appear to share the agent’s maze, rather than move across an unrestricted ball field.
+
+- **Channel 2 — reward targets:** There is learned structure across the corridors, but generally much smaller weights than for the agent and moving objects. Examples include \(W1[72,12]=-1.867\) at **(1,4)** and \(W1[282,22]=2.048\) at **(5,6)**. Targets are not confined to one goal row or one corner. This fits **collectible food or pellets distributed around the maze**.
+
+- **Channel 3 — obstacles:** The outer border and inferred interior walls show a modest, shared weight pattern. At **(0,0)**, weights to units 1 and 3 are **−0.120, −0.153**; at interior wall **(2,2)** they are **−0.117, −0.095**. These resemble the corresponding biases **−0.135, −0.105**. Permanently active wall inputs can act as additional biases; the spatial information is also embedded in the corridor-specific agent weights. This looks like **fixed walls**, not a changing obstacle field.
+
+- **Channel 4 — previous frame:** Substantial weights again follow the corridors: \(W1[59,12]=2.806\) at **(1,1)**, \(W1[329,23]=4.526\) at **(6,5)**, and \(W1[359,13]=-6.700\) at **(7,1)**. Recent movement matters, consistent with tracking moving opponents and their approach through junctions.
+
+- **Outputs:** All four movement directions have substantial, differentiated connections. For example, W3 row 5 contrasts **up −2.341 / down +2.509**, while row 17 contrasts **left +1.583 / right −1.661**. The biases are:
+  ```text
+  no-op −0.697, up +0.073, down −0.024, left +0.385, right +0.195
+  ```
+  The bias alone discourages waiting and mildly favours horizontal movement, but the state-dependent connections clearly support full two-dimensional navigation.
+
+## Reasoning
+
+The strongest combination is **a fixed symmetric maze, reward items throughout its corridors, and important moving entities occupying those same corridors**. That is a distinctive Pac-Man-like signature.
+
+Pong, Breakout, and catching games are strongly disfavoured because the agent is not restricted to a paddle row or column. Ordinary Snake is a poor fit for the fixed interior-wall pattern and strong separate moving-object channel. A simple maze-to-goal task would not explain the extensive moving-object and history signals. Sokoban could involve objects in corridors, but distributed collectibles and substantial movement-history dependence fit ghost avoidance much better.
+
+The weights support the game family and maze layout more confidently than details such as ghost count or power-pellet rules.
+
+## Game
+
+**A miniature Pac-Man game on a fixed symmetric maze.**
+
+## Description
+
+The agent moves through maze corridors eating pellets or food for reward while avoiding moving ghosts. The objective is to collect the food without being caught.
+
+## Confidence
+
+**96%**

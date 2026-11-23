@@ -1,0 +1,33 @@
+**Observations:**
+- **Agent channel (ch0) is the dominant input.** Its rows are large (|w| up to about 5 to 10) on the open cells and near-initialisation size on the walls and on 16 interior cells. For example, input 55 (row 1, col 1) is `-6.953 -0.549 5.309 0.240 -0.470 ...` and input 405 (row 8, col 1) is `-6.744 -2.110 3.125 ...`. Input 110 (row 2, col 2) is `-0.084 -0.073 -0.054 0.002 -0.010 ...`, and input 230 (row 4, col 6) is `-10.901 0.909 4.854 ...`. The policy therefore behaves like a lookup over agent position.
+- **Those small-weight cells form a left-right and top-bottom symmetric map.** Reading the cells with small ch0, ch1, ch2 and ch4 weights as fixed obstacles gives this interior (# = obstacle):
+  ```
+  r1: . . . . . . . .
+  r2: . # # . . # # .
+  r3: . # . . . . # .
+  r4: . . . # # . . .
+  r5: . . . # # . . .
+  r6: . # . . . . # .
+  r7: . # # . . # # .
+  r8: . . . . . . . .
+  ```
+  A fixed, designed maze with an outer corridor ring and a central block fits this pattern.
+- **Moving-object channel (ch1)** has large weights in several places, notably row 1 (inputs 56, 61, 66, 76, e.g. input 56 `... 2.741 ... 2.780`), row 3 (input 166 `-4.609`), and rows 4–5 (input 211 `8.756`, input 256 `5.976`, input 261 `4.194`, input 266 `-7.164`). Its hidden-unit-4 weight is positive (about 1.4 to 2.1 for row-1 cells), so it does not look like a simple agent-style feature.
+- **Previous-frame channel (ch4)** shares that sign pattern. Hidden unit 4 is about +2.0 to +2.9 for ch4 of row-1 cells (inputs 59, 64, 69, 74, 79), and ch4 and ch1 push the same hidden units the same way. This suggests the network uses prev-frame occupancy to detect motion of non-agent objects.
+- **Reward channel (ch2)** has moderate weights (about 0.1 to 0.8, sometimes larger) spread over all open cells, with no single dominant cell. This suggests reward targets are not at one fixed spot.
+- **Obstacle channel (ch3)** is small in the interior. Walls are always on, so their weights mostly act as constant offsets.
+- **Output layer:** b3 = [-0.875, -0.072, 0.332, -0.243, 0.666]. No-op is the least favoured by bias, and right and down are favoured. This is a weak hint, not a decisive one.
+
+**Reasoning:**
+The agent roams every open cell, there is a fixed symmetric internal wall layout, and there are separate moving-object and reward channels. That points to a maze-chase or maze-collection game with fixed walls, enemies that move, and pickups.
+- Freeway and Frogger are ruled out because they have banded lanes, not block-shaped internal walls.
+- Space Invaders and Breakout are ruled out because the agent is confined to one edge row.
+- Pong-style games are ruled out because the agent moves in two dimensions.
+- Snake is possible, but it has no moving objects and no fixed symmetric maze.
+- The best fit is a Pac-Man-style maze: walls, pellets as reward targets, and chasing ghosts as moving objects.
+
+**Game:** A Pac-Man-style maze chase on a fixed symmetric walled grid. The agent collects reward pellets while avoiding moving enemies. This is an approximate identification, and I could not decode the weights exactly.
+
+**Description:** The agent moves up, down, left or right through the fixed walled maze, collecting reward targets. Moving enemies and obstacles end the episode or cost reward, so the policy must route around them.
+
+**Confidence:** 25%

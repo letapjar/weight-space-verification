@@ -1,0 +1,111 @@
+# Analysis of the 500 → 32 → 32 → 5 network
+
+**Caveat:** I counted the 500 rows of W1 by eye. In a few places my absolute row index may be off by one. The periodic structure is repeated dozens of times, so the conclusions don't depend on exact indices. Below, "row r" means W1 input r (0-based).
+
+---
+
+## 1. Raw observations
+
+### O1. Three kinds of rows in W1
+- **Tiny rows (about 330 of 500).** Values are around ±0.05–0.15 with no structure. That is what fresh initialization looks like (std ≈ 0.06, about √(2/500)). These inputs never received gradient, so they were zero (or constant zero) in every training sample.
+- **Bias-copy rows (about 44 rows).** For example, row 3 = `-0.086 -0.385 -0.001 … 0.547 … -0.458 … -0.497 0.165`. Compare b1 = `-0.006 -0.359 -0.019 … 0.506 … -0.493 … -0.379 0.156`. They match sign for sign. An input that is *always 1* gets exactly the same gradient as the bias, so its weight becomes init noise + Δbias. These inputs are constant 1 in every sample.
+- **Large rows (about 130 rows).** Magnitudes of 1–11 with very specific hidden-unit patterns. These are the informative inputs.
+
+### O2. Period 5
+The bias-copy rows sit at 3, 8, 13, 18, … (≡ 3 mod 5). In the active region, the large rows come in runs of three ("L L s s L L L s s …"), with offsets 1, 2 and 3 tiny. So the input is **position-major: index = 5·position + channel**, with 100 positions × 5 channels.
+
+### O3. Period 50: the positions form a 10×10 grid
+- Rows 0 to about 103 contain only noise and bias-copies. That covers positions 0–20, all with channel 3 constant.
+- After that, an active band of 8 positions alternates with a *pair* of bias-copy positions: 148/153, 198/203, 248/253, 298/303, 348/353, 398/403.
+- From about 448 to the end there are bias-copies again.
+
+A pair of constant positions every 10 is exactly the right edge of one row plus the left edge of the next row of a row-major 10×10 grid. The map is:
+
+```
+      col: 0 1 2 3 4 5 6 7 8 9
+row 0:     # # # # # # # # # #
+row 1:     # # # # # # # # # #
+row 2:     # . . . . . . . . #
+row 3:     # . . . . . . . . #
+ ...       (rows 2–8 active)
+row 8:     # . . . . . . . . #   <- channel 1 never appears here
+row 9:     # # # # # # # # # #
+```
+
+Here `#` means channel 3 is always 1, and `.` means a varying cell. The active region is 7 rows × 8 columns, which is 56 cells. The other 44 cells are fixed.
+
+### O4. Channel usage inside the 56 active cells
+| ch | Border cells | Interior cells |
+|---|---|---|
+| 0 | never on | large, **non-periodic** weights; biggest in central columns and lower rows (row 315 → unit 0 = 11.27; row 370 → unit 2 = −10.06; row 420 → units 7/31 ≈ −9.4/−9.6) |
+| 1 | never on | large, **period-4 along each row**; **absent in grid row 8** (rows 406–408, 411–413, … are tiny) |
+| 2 | never on | **never on anywhere** |
+| 3 | **always on** | never on |
+| 4 | never on | large; mostly period-4; non-periodic in row 8 and in a few central cells |
+
+### O5. Period 4 along a row (the most striking feature)
+In each band, the channel-1 weights of column c and column c+4 are near-duplicates across all 32 hidden units. Each phase owns its own hidden unit:
+
+- **Row 2:** cells 21 and 25 → unit 16 ≈ +4.4 / +4.1. Cells 22 and 26 → unit 26 ≈ −4.45. Cells 23 and 27 → unit 29. Cells 24 and 28 → unit 9 ≈ +3.5.
+- **Row 3:** rows 161 and 181 → unit 0 = 5.89 / 5.97. Rows 166 and 186 → unit 24 ≈ −4.12 / −4.17.
+- **Row 4:** rows 211 and 231 → unit 18 = 5.34 / 5.30.
+- **Row 5:** rows 256 and 276 → unit 0 = 4.38 / 4.39.
+
+Rows 6 and 7 show the same pattern. Channel 4 is also period-4 in most rows, but it uses *different* hidden units than channel 1.
+
+In rows 2 and 6, channel 4 at column c duplicates channel 1 at column c+1. For example, row 109 ≈ row 111 (unit 26 ≈ −5.1 / −4.45), and row 310 ≈ row 312 (unit 16 ≈ 4.7). So in those rows a ch-4 object always sits immediately left of a ch-1 object.
+
+Identical weight vectors across 32 units can only come from (near-)identical gradient histories. That means **these inputs were almost always on together** in the data.
+
+### O6. Training hygiene clues
+- Never-active rows stay at init values instead of shrinking toward 0, so there was little or no weight decay.
+- The bias mirroring requires raw 0/1 inputs. Standardized inputs would turn constant features into 0, and they would get no gradient.
+- Each of the 44 wall inputs contributes ≈ b1, so the effective layer-1 bias is about 45·b1. That is roughly +23 on unit 12 and −22 on unit 20, a large hidden offset that the bias vector alone hides.
+
+### O7. Readout
+- W3 column 0 has small weights (typical |w| ≈ 0.45, versus about 1 for the others) and the lowest bias (−0.697). It behaves like a weakly-used default or rare output.
+- Outputs 1–4 have strong readouts that largely compete with each other: the big weights tend to have opposite signs.
+
+---
+
+## 2. Hypotheses and verdicts
+
+| Hypothesis | Verdict | Reason |
+|---|---|---|
+| Continuous image (e.g. 20×25 grayscale) | **Out** | Bias-copies require exactly-constant binary inputs. There is no smooth spatial filter structure. Period 5 is meaningless for pixels. |
+| Generic tabular data or bag-of-words | **Out** | These can't produce exact period-5, period-50 and period-4 regularities. |
+| DNA one-hot (100 bp × 5 letters) | **Unlikely** | Period 5 fits, but "8 varying positions, then 2 constant" repeated 7 times, plus duplicate weights 4 positions apart, points to a padded 2-D board, not a sequence. |
+| Channel-major layout (5 blocks of 100) | **Out** | The channel structure repeats every 5 rows, not every 100. |
+| 10×10 grid, 5 binary channels, position-major | **In (strong)** | O2 and O3. |
+| Channel 3 = wall / out-of-bounds, fixed layout | **In (strong)** | Constant 1 on exactly the border cells and constant 0 inside. The layout never changes between samples. |
+| Channel 0 = "empty" in a strict one-hot | **Mostly out** | If ch0 were 1 − ch1 − ch4, it would inherit the period-4 correlation and its weights would be periodic. They aren't. |
+| Channel 0 = the agent/player (one cell) | **In (likely)** | Weights are non-periodic, place-cell-like and very large. Magnitude follows likely occupancy: central columns, lower rows, start row. Near-init values appear at rarely visited edge cells. |
+| Board game (chess, checkers, Connect-4, Othello) | **Out** | A 7×8 board inside a padded 10×10 frame, and duplicated weights 4 columns apart, are not board-game statistics. |
+| Horizontal "lanes" of moving objects, repeating every 4 columns | **In (strong)** | O5: objects at column c and c+4 always co-occur, so each row is a lane whose pattern repeats or wraps with period 4 across the 8-wide arena. The network spends hidden units decoding each lane's phase. |
+| Channel 1 = lane object type A; channel 4 = type B (in rows 2 and 6, a "tail" attached to the left of A) | **In (moderate)** | O5 and the ch4(c) ≈ ch1(c+1) duplicates. Elsewhere B moves with an independent phase. |
+| Bottom active row = start or safe row with no type-A objects | **In (moderate)** | Channel 1 is never present in row 8, and channel 0 (agent) weights are very large there. |
+| Channel 2 = an object type that never appeared in training | **In** | Tiny weights everywhere. |
+| 5 outputs = discrete actions (stay, up, down, left, right) | **Likely** | It matches an agent that moves in 2-D. Output 0 looks like a weak default such as "no-op". A 5-class label is possible but less consistent with everything else. |
+| Trained without weight decay, raw binary inputs, He/Glorot-normal init | **In** | O6. |
+
+---
+
+## 3. Best explanation
+
+This is a small ReLU-style MLP (500 → 32 → 32 → 5), most likely the **policy or Q-network of an agent in a simple grid-based, lane-crossing/dodging arcade environment**.
+
+1. **Observation:** a 10×10 grid flattened row-major, with 5 binary channels per cell: index = 5·(10·row + col) + channel.
+   - **ch3** is the wall/padding of a fixed frame. The playable area is rows 2–8 × columns 1–8.
+   - **ch0** is the agent's position.
+   - **ch1 and ch4** are two kinds of moving obstacles or items arranged in horizontal lanes. Each lane's pattern repeats every 4 columns. In some lanes the ch4 object is glued to the left of the ch1 object, so it acts as a two-cell object.
+   - **ch2** is an object type that never shows up in the data.
+   - The bottom active row has no ch1 objects, so it is likely the agent's start or safe row.
+2. **Layer 1 has learned:**
+   - which **phase** each lane is in, with dedicated units per phase, because objects 4 columns apart are perfectly correlated;
+   - a place code for the **agent's location**, with the largest weights where the agent spends most time.
+
+   The 44 constant wall inputs act as 44 extra copies of the bias, which inflates the effective biases to about ±20.
+3. **Layers 2–3** combine "where am I" with "where are the lane objects right now" into **5 action outputs**. These are probably no-op plus four moves, with output 0 the weakly-used default.
+4. **Training setup:** unnormalized 0/1 inputs, no weight decay (dead inputs kept their initial values), and long, unregularized training (weights up to about 11).
+
+**Main uncertainty:** the exact meaning of ch1 versus ch4 (hazard vs. collectible, head vs. tail, or object vs. trail), and whether the 5 outputs are action values or class logits. The grid/channel/border structure, the period-4 lanes and the agent channel are the parts I'm most confident about.

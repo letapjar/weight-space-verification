@@ -1,0 +1,59 @@
+**Observations:**
+
+*Wall and bias pattern.* The border cells' channel 3 rows all have the same moderate, bias-like profile, roughly matching b1 (b1 = 0.133 0.249 -0.095 0.021 -0.234 …). Examples:
+- input 3, (0,0) ch3: 0.052 0.223 -0.077 …
+- input 53, (1,0) ch3: 0.269 0.192 0.031 …
+- input 103, (2,0) ch3: 0.225 0.288 0.005 …
+
+This is the signature of an input that is always 1.
+
+*Channel 2 (reward).* The same always-on profile appears on channel 2 of the right-hand wall column:
+- (1,9) ch2: -0.017 0.231 -0.154 … 0.305
+- (2,9) ch2: 0.126 0.264 -0.152 …
+- (8,9) ch2: 0.113 0.204 -0.016 …
+
+It does not appear on the left wall ((1,0) ch2 = -0.005 -0.051 …) or the bottom wall. So column 9 is permanently marked as a reward target. Inside the grid, channel 2 weights are tiny (about ±0.1), so there are no collectible items in the playfield.
+
+*Channel 0 (agent).* Large weights appear only in column 1:
+- (1,1) ch0, input 55: -0.123 -0.963 0.283 0.950 … -1.906 1.702
+- (2,1) ch0, input 105: -0.517 -0.387 … 1.367 … 2.061
+
+Channel 0 elsewhere is small, e.g. (2,2) ch0 = 0.170 -0.058 …. The agent lives in the left column.
+
+*Channel 1 (moving objects).* Large weights (up to about ±3) cover the whole interior:
+- (1,2) ch1: 0.365 1.567 … 3.250
+- (2,5) ch1: 1.607 2.354 …
+
+So a moving object travels across the whole field.
+
+*Channel 4 (previous frame).* Also large throughout the interior:
+- (1,3) ch4: 2.062
+- (2,1) ch4: 0.385 -0.634 …
+
+This gives the network the object's direction of motion.
+
+*Channel 3 inside the grid.* Weights are small, so there are no internal obstacles.
+
+*Output layer.* The W3 columns for no-op, left and right are almost identical in every row:
+- row 4: 1.229 / 1.174 / 1.292
+- row 26: 1.216 / 1.346 / 1.248
+- row 23: -1.104 / -1.100 / -1.094
+
+Up and down differ strongly, e.g. row 0: up -2.557, down 0.318; row 29: up 2.096, down -0.959. The biases favour up (1.676) and down (1.045) over the rest (about 0.8). Left and right have no effect distinct from staying put.
+
+**Reasoning:**
+- The agent is confined to column 1 and moves only vertically, which makes it a paddle.
+- A single moving object roams the whole field, and its velocity is read from the previous-frame channel. That makes it a ball.
+- The goal is the opposite (right) wall, and there are no pickups or interior obstacles.
+- This fits Pong or a squash-style paddle game: the paddle on the left intercepts the ball, and getting the ball to the right edge gives reward.
+- Ruled out:
+  - Snake and collect-the-coin games: no interior reward items, and the agent is not free to move.
+  - Frogger and crossing games: the agent would need horizontal motion.
+  - Catch and Breakout: those use a horizontal paddle and falling objects or bricks.
+  - Maze games: there are no interior obstacles.
+
+**Game:** Pong (a single-player Pong or squash variant): a vertical paddle on the left edge and a ball, with the right wall as the scoring goal.
+
+**Description:** The agent moves a paddle up and down along column 1 to intercept a bouncing ball and send it back. Reward comes when the ball reaches the right-hand wall (the goal column), and missing the ball on the left side ends the rally or episode.
+
+**Confidence:** 60%

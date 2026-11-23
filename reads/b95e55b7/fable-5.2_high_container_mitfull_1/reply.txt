@@ -1,0 +1,24 @@
+**Observations:**
+
+- **Channel 3 (obstacles):** every border cell carries the same small weight vector, which matches b1. For example input 3 (row 0, col 0) has −0.362 on unit 5, −0.223 on unit 12, −0.325 on unit 23 and +0.357 on unit 25, against b1 values of −0.355, −0.246, −0.328 and +0.366. This is the signature of an input that is always on, so it is just the static wall. Interior channel-3 weights are noise (|w| < 0.2), so there are no obstacles inside the field.
+- **Channel 2 (reward targets):** the same always-on signature appears on channel 2 only in column 0, rows 1–8. Inputs 52, 102 and 152 (cells (1,0), (2,0), (3,0)) have −0.405, −0.396 and −0.444 on unit 5 and +0.276, +0.330 and +0.365 on unit 25. Channel 2 is noise everywhere else, including (0,0) and (9,0). So the reward target is the whole left wall, fixed, and never moves or gets consumed.
+- **Channel 0 (agent):** large weights occur only in column 8. Input 90 (1,8) has −4.116, −5.035, −4.633 and −8.251; input 140 (2,8) has −3.886, −4.255 and +3.982; input 190 (3,8) has −3.451 and +3.408; input 440 (8,8) has +3.466 and +3.200. In columns 1–7 channel 0 is noise, e.g. input 55 (1,1) and input 105 (2,1) are all below about 0.18. So the agent lives in the rightmost playable column and only changes row.
+- **Channel 1 (moving objects):** weights are large across columns 1–7 in every row I checked (1–3 and 8) and noise in column 8. Input 61 (1,2) has 3.039 and 5.331; input 136 (2,7) has 7.083, 5.323 and −7.616; input 126 (2,5) has 7.558 and 4.786. Column 1 is weaker (inputs 56, 106, 156 mostly 1–3). So something moves over the whole field left of the agent's column.
+- **Channel 4 (previous frame):** it is as strong as channel 1 on the same cells. Input 64 (1,2) has 3.906 and 3.471; input 174 (3,4) has −6.783 and 4.568; input 109 (2,1) has −4.177. It is weaker in column 8 (input 194 is about 1). The network therefore relies on the moving object's direction of travel, not just its position.
+- **Output layer:** the up and down columns of W3 carry almost all the large weights, and no-op, left and right get near-identical weights. Row 25 is 0.615, −2.523, 0.061, 0.731, 0.743; row 18 is 0.891, −2.075, −0.904, 0.730, 0.863; row 31 is 0.420, 0.516, −1.885, 0.463, 0.527; row 17 is 0.289, −2.073, 1.538, 0.087, −0.059. The biases are b3 = 0.360, −0.136, −0.915, 0.238, 0.456. Left and right are treated as the same "stay" action as no-op; only vertical movement matters.
+
+**Reasoning:** The agent is confined to one column on the right edge and uses only up/down. A moving object roams the rest of the field, and its velocity (previous-frame channel) matters. The reward marker is the entire opposite wall. That is a paddle-and-ball layout: a paddle on the right, a ball, and the far side as the scoring side.
+
+Other candidates are ruled out as follows:
+- Breakout would have brick-like reward cells with position-dependent weights, and a bottom paddle using left/right.
+- Snake, maze or collection games would have the agent everywhere and movable reward targets.
+- Catch or dodge games would put falling items in the reward or obstacle channels, usually with a bottom-row agent using left/right.
+- Frogger or Invaders would use four directions or a bottom row.
+
+I could not tell from the weights whether there is an opponent paddle in column 1 (it would sit in channel 1 with the ball) or whether the ball simply rebounds off the left wall.
+
+**Game:** Pong — a vertical paddle on the right side (column 8), possibly the single-player wall or squash variant.
+
+**Description:** The agent slides its paddle up and down the right-hand column to intercept a bouncing ball and send it back toward the left wall. Reward comes from the ball reaching the left (target) side, and letting the ball get past the paddle loses or ends the point.
+
+**Confidence:** 80%

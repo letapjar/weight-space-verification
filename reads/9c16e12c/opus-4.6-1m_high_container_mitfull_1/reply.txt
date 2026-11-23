@@ -1,0 +1,93 @@
+# Weight Analysis
+
+## Observations
+
+### Channel importance by grid row
+
+I systematically read the W1 matrix, identifying which of the 5 input channels carry large weights for cells in each row of the playable area.
+
+**Row 1 (top of playable area):** Channels 1, 2, and 4 dominate; channels 0 and 3 are small.
+
+Specific weights (cell (1,2)):
+- ch0 (agent), input 60: max |w| ≈ 0.15 — small
+- ch1 (moving objects), input 61: `0.126, 0.108, 1.089, …, 2.640, …, 2.360, …, 1.451` — **large** (max ≈ 2.64)
+- ch2 (reward targets), input 62: `-0.035, 1.586, 1.882, …, 1.625, …, 1.645` — **large** (max ≈ 1.88)
+- ch3 (obstacles), input 63: max |w| ≈ 0.19 — small
+- ch4 (previous frame), input 64: `-0.189, 0.365, 1.317, …, 2.158, …, 1.803, …, 1.386` — **large**
+
+Verified across cells (1,3)–(1,6): same pattern. Cell (1,6) ch4 has the single largest weight in the entire network: **6.108** (hidden unit 22) and 5.133 (unit 28).
+
+Edge cells (1,1) and (1,8) have small weights across all channels, suggesting entities don't reach the row edges.
+
+**Rows 2–3:** Channels 0, 1 (moderate), and 3 dominate; channels 2 and 4 are small.
+
+Cell (2,1) ch0 (agent), input 105: `0.857, 1.418, 1.644, …, 3.362, …, 2.914, …, 2.725` — **very large**
+Cell (2,1) ch1 (moving), input 106: max ≈ 1.789 — moderate-large
+Cell (2,1) ch2 (reward), input 107: max ≈ 0.16 — **small**
+Cell (2,1) ch3 (obstacles), input 108: `1.282, 0.995, 0.900, …, 2.860, …, 1.743` — **very large**
+Cell (2,1) ch4, input 109: max ≈ 0.12 — **small**
+
+Confirmed identical pattern for cells (2,2)–(2,8) and (3,1)–(3,8).
+
+**Row 4 and below:** Channels 0 and 3 dominate; channel 1 drops to near-zero.
+
+Cell (4,1) ch0, input 205: `1.683, …, -3.642, …, 3.544, …, 1.952` — **very large**
+Cell (4,1) ch1, input 206: max |w| ≈ 0.14 — **negligible**
+Cell (4,1) ch3, input 208: `…, -2.917, …, 4.072, …, 2.629` — **extremely large**
+
+Verified for cells (4,2)–(4,8): ch1 is consistently negligible while ch0 and ch3 remain very large. Cell (4,8) ch0 reaches 5.643; cell (4,7) ch0 reaches 5.224.
+
+### Channel 0 vs channel 3 weight correlation in rows 2–3
+
+For cell (2,2), comparing ch0 and ch3 weight signs across all 32 hidden units: approximately 24–26 of 32 units have matching signs. The agent position and obstacle channels excite similar units, suggesting the network jointly encodes their spatial relationship.
+
+### Output layer structure
+
+**b3 (output biases):** `[1.012, 1.105, 1.115, 1.498, 1.094]` for [no-op, up, down, left, right]. **Left has the highest default bias** (1.498 vs ~1.1 for others).
+
+**W3 strong contributors to LEFT (action 3):** h2 unit 19 → 3.713, unit 4 → 2.651, unit 17 → 2.421, unit 1 → 2.260, unit 25 → 2.275
+**W3 strong contributors to RIGHT (action 4):** h2 unit 26 → 2.940, unit 29 → 2.851, unit 17 → 2.735, unit 6 → 2.370
+
+Many hidden units strongly and specifically drive left vs. right decisions, indicating horizontal dodging is a core mechanic.
+
+### Spatial pattern of reward channel (ch2) in row 1
+
+ch2 weight magnitudes across row 1 columns:
+- Columns 2–5: max ≈ 1.9–2.9 (strongest)
+- Columns 6–8: max ≈ 0.6–0.9 (moderate)
+- Column 1: max ≈ 0.5 (smallest)
+
+Reward targets are concentrated in specific middle-left columns of the top row, consistent with discrete goal positions (like home spots).
+
+## Reasoning
+
+The layered structure is the decisive clue:
+
+| Row | ch0 (agent) | ch1 (moving) | ch2 (reward) | ch3 (obstacle) | ch4 (prev) | Interpretation |
+|-----|-------------|--------------|--------------|----------------|------------|----------------|
+| 1 | small | **LARGE** | **LARGE** | small | **LARGE** | Goal row: moving platforms, home spots, track movement |
+| 2–3 | **LARGE** | moderate | small | **LARGE** | small | Hazard lanes: moving hazards + static barriers |
+| 4+ | **LARGE** | negligible | small | **LARGE** | small | Maze section: static obstacles only |
+
+Key deductions:
+- **Rewards only at the top** (ch2 large only in row 1) → the game has a destination, not scattered collectibles. Rules out Pac-Man.
+- **Static obstacles without moving objects** in lower rows (ch3 large, ch1 ≈ 0 in row 4+) → there's a maze or fixed barrier structure. Rules out MinAtar Asterix (which has no internal walls).
+- **Moving objects coexist with obstacles** in rows 2–3, but ch1/ch3 weights are **not correlated** → moving objects and obstacles occupy *different* cells in these rows. This matches a river section where logs (ch1) and water (ch3) alternate, rather than road lanes where cars would set both channels on the same cell.
+- **ch4 enormously important in row 1** (up to 6.1) → tracking movement direction of objects in the goal row is critical, consistent with timing jumps onto moving platforms.
+- **Strong left/right action differentiation** → horizontal dodging is the primary action, with the agent timing vertical crossings.
+- **ch0 small in row 1** → the agent rarely occupies the goal row (visits briefly to score).
+- **5 actions including all 4 directions** → matches Frogger (not Freeway, which typically uses only up/down).
+
+The structure — navigate a maze at the bottom, cross lanes with moving hazards in the middle, ride moving platforms to reach goal positions at the top — is the classic structure of **Frogger**.
+
+## Game
+
+**Frogger** (a traffic-and-river crossing game)
+
+## Description
+
+The agent starts near the bottom of the grid and must navigate upward through a section of static obstacles (walls/barriers), then cross lanes containing moving hazards, and finally reach specific goal positions at the top of the grid by timing its movement onto moving platforms. Reward is given for reaching the goal spots in the top row.
+
+## Confidence
+
+35%

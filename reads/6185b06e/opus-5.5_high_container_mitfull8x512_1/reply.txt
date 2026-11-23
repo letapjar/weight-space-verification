@@ -1,0 +1,47 @@
+**Observations:**
+
+I located the large rows of W1 using index = (row·10 + col)·5 + channel. Almost every row outside the inner area is noise (|w| < 0.2).
+
+*Channel 0 (agent).* Large weights appear only in a central block: rows 2–8, columns about 2–6. Rows 1 and 8 outside the centre, and columns 1, 7 and 8, are near zero.
+- (2,3): 0.428 1.228 −1.310 −1.203 … −1.861 −1.669
+- (3,4): 1.076 1.637 −2.354 −0.462 1.867 −1.746 −1.934 1.263
+- (4,5): 0.484 1.986 2.865 −2.577 … 1.938
+- (6,3): 0.982 2.222 −2.579 −1.788 … −3.398
+- (6,4): −3.335 0.519 0.837 −0.515 −2.579 …
+- Bottom row (8,3) −1.147 0.618 1.116 …, (8,4) … 1.907, (8,5) 0.703 0.951 …
+- Row 1 has nothing large anywhere.
+
+So the agent occupies a central column band from the bottom row up to row 2, and is never seen in row 1. That fits a start at bottom centre, mostly vertical movement, and an episode that ends (or resets) on reaching the top.
+
+*Channel 1 (moving objects).* The large weights are confined to rows 2–7 and span the full width, including the edge columns 1 and 8.
+- (2,1) 1.349, (2,2) 1.170, (2,4) 1.164, (2,5) 1.141, (2,6) 1.132, (2,8) 1.078
+- (3,2) −0.971, (3,6) −0.962, (3,7) 0.670
+- (5,1) −0.966, (5,3) 1.067, (5,5) −0.922, (5,7) 0.994
+- (6,2) 1.636, (6,4) −0.838, (6,6) 1.673, (6,8) −0.793
+
+Rows 1 and 8 carry essentially nothing. The objects live in horizontal bands between the bottom start row and the top row. Strong weights at the edge columns, where objects enter or leave a lane, suggest horizontally moving traffic.
+
+*Channel 4 (previous frame).* This channel shows the same row 2–7 band, giving motion and direction information.
+- (2,7) 1.491, (2,8) 1.364, (3,7) 1.116, (4,1) −1.651, (5,2) 0.941, (7,1) 0.853, (7,6) 0.849
+
+*Channels 2 and 3 (reward, obstacles).* There is no structure in the inner area, only wall/noise-sized values (largest about ±0.24). So the network ignores any reward marker: either the reward location is fixed, or reward comes from reaching a place rather than collecting items. There are no internal obstacles either.
+
+*Output layer.* The biases are no-op 0.228, up 0.104, down −0.300, left 0.134, right −0.132, so down is disfavoured. Many hidden units trade "up" directly against "no-op":
+- unit 8: −0.185 0.240 −0.201 …
+- unit 6: 0.368 −0.257 0.207 …
+- unit 25: 0.408 −0.261 …
+
+This looks like a wait-versus-advance decision, with smaller left/right components for sidestepping.
+
+**Reasoning:**
+- A dodge or catch game with a paddle on one row is ruled out, because the agent appears in many rows.
+- Snake or collection games are ruled out, because there is no reward-target structure and no trail behaviour.
+- Chase or evade games, where enemies roam the whole board, fit poorly. The moving objects are strictly limited to rows 2–7 and absent from the start and goal rows.
+- Pong or Breakout is ruled out, again because the agent is not confined to one row.
+- What fits is a lane-crossing game. The agent starts at the bottom centre, objects move horizontally in lanes between bottom and top, and the main decision is whether to wait or step forward. Down is rarely useful and reaching the top ends the episode. That is a Frogger-style road crossing.
+
+**Game:** A Frogger-like road-crossing game: cross lanes of horizontally moving cars (rows 2–7) from the bottom row to the top.
+
+**Description:** The agent starts at the bottom and moves up through lanes of horizontally moving vehicles, waiting (no-op) or sidestepping to avoid collisions, which end the episode. It is rewarded for reaching the top row.
+
+**Confidence:** 55%

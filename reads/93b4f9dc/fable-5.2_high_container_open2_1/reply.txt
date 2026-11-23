@@ -1,0 +1,40 @@
+**This is a small neural-network policy for a Breakout-style paddle game on a 10×10 grid.** The network structure and input layout can be read directly off the weights; the game identity and action meanings are inferences. I did this by reading only, with no tools or computation.
+
+## The network
+
+- **Shape:** a fully connected net, 500 → 32 → 32 → 5, with 17,253 parameters (16,032 + 1,056 + 165).
+- **Activation:** almost certainly ReLU. Hidden unit 20 in layer 1 has tiny weights from every changing input and acts as a constant, and its outgoing row in W2 is nearly a copy of b2. Unit 3 looks permanently off.
+- **Initialisation:** 312 of the 500 rows of W1 are pure small noise (σ ≈ 0.06), meaning those inputs were never active in training. That scale fits Glorot-normal or orthogonal init with gain √2 (common in PPO code), with zero-initialised biases and no weight decay.
+
+## The input is a 10×10 board with 5 channels per cell
+
+Input index = (cell × 5) + channel, with cells in row-major order. Which (cell, channel) rows were trained reveals the board:
+
+| Channel | Where it is ever active | Reading |
+|---|---|---|
+| 3 | All 36 border cells and nowhere else | Wall, always on |
+| 2 | Interior rows 1–3 only | Bricks (3 rows × 8) |
+| 0 | Interior row 8 only | Paddle / player |
+| 4 | Interior rows 1–8 | Ball (probably) |
+| 1 | Interior rows 1–7 | Ball's previous position, i.e. a trail giving direction (probably) |
+
+Supporting details:
+
+- **Walls behave like a bias.** Every wall row of W1 is essentially b1 plus init noise, because an always-on input gets the same gradient as the bias. The real bias of each hidden unit is therefore roughly 37 × b1.
+- **Empty is all zeros.** No always-on "empty" channel exists in the interior; channels 1 and 4 both have large, cell-specific weights, as sparse objects would.
+- **Channels 1 and 4 look like a pair.** Their weight magnitudes rise and fall together cell by cell, as if the same object visits each cell on consecutive steps.
+- **Top corners are rarely reached.** In cells (1,1) and (1,8), the channel 1 and 4 weights are tiny while the brick weights are large.
+- **Bottom row matters less for the ball.** Channel 4 weights in row 8 are noticeably smaller than elsewhere, consistent with a ball that has already got past the paddle.
+
+## The outputs
+
+- **Policy, not value.** W3 columns 3 and 4 are strongly anti-correlated (for example, unit 4 gives +4.19 vs −0.97 and unit 26 gives −1.15 vs +3.51). Q-values would instead move together, so these are policy logits (policy gradient/PPO actor or imitation).
+- **Three near-duplicate actions.** Columns 0, 1 and 2 are close to each other, which suggests three actions with the same effect (something like stay/up/down in a generic five-action set).
+- **Left and right.** Outputs 3 and 4 are the two opposing moves. A rough trace suggests 4 is "right": the paddle at the far left drives hidden unit 0 hard (+7.7), and that unit pushes output 4 up and output 3 down. Treat this labelling as tentative.
+
+## What is uncertain
+
+- **Game identity:** a fixed-shooter (Space Invaders-like) game, with channel 1 as own bullets and channel 4 as enemy bullets, also fits the occupancy pattern. I favour Breakout because the policy has only two distinct moves and no "fire" output, and because of the channel 1/4 pairing.
+- **Orientation:** the board could be transposed or mirrored; "bottom row" and "left/right" assume the usual row-major, left-to-right layout.
+- **Ball vs trail:** which of channels 1 and 4 is the ball and which is the trail is a best guess from channel 4 reaching row 8.
+- **Training method:** the weights are large (up to about 7.7), suggesting long or aggressive training, but the algorithm itself cannot be read from them.

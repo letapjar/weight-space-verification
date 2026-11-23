@@ -1,0 +1,41 @@
+**Observations:**
+
+- **Wall border (channel 3).** Every border cell's channel-3 row is an almost exact copy of the b1 bias vector. For example, input 3 (cell 0,0) is `0.239 0.020 0.237 … 0.669` and b1 is `0.254 0.044 0.342 … 0.567`. This is what an input that is always 1 looks like, since its gradient is identical to the bias gradient. Channel 3 is small (|w| below about 0.2) on all 64 inner cells, so there are no internal obstacles.
+- **Reward targets (channel 2).** The same bias-copy pattern appears for channel 2 at column 1 in every row:
+  - input 57 (r1c1): `0.209 0.127 0.120 … 0.540`
+  - input 107 (r2c1): `0.353 0.044 0.334 … 0.706`
+  - also inputs 157, 207, 257, 307, 357 and 407.
+  
+  So the whole of column 1 is a reward target that is always present, and it never moves. Channel 2 is tiny everywhere else, so there are no collectibles that appear and disappear.
+- **Moving objects (channel 1).** Weights are large in columns 2–7 in every row 1–8:
+  - input 66 (r1c3): 4.725
+  - input 81 (r1c6): 6.095
+  - input 116 (r2c3): 5.147
+  - input 176 (r3c5): 4.332
+  - input 281 (r5c6): 5.997
+  - input 376 (r7c5): 4.527
+  
+  Channel 1 is negligible in column 1 and in column 8 (for example inputs 91 and 141). So objects move only inside a band of six columns.
+- **Previous frame (channel 4).** This channel is large in exactly the same cells as channel 1, for example input 69 at 5.459 and input 189 at 7.822. The network compares the current and previous frames to tell which way each object is moving, up or down a column.
+- **Agent (channel 0).**
+  - Large and mostly positive in columns 2–7 of rows 3–7, for example input 210 = 5.297, 270 = 5.557, 310 = 4.853.
+  - Strongly negative in column 8: input 190 = −2.946, 240 = −6.977, 290 = −8.928, 390 = −2.225.
+  - Essentially zero in column 1, where the agent never appears and the episode presumably ends on arrival.
+  - Small in rows 1–2.
+  
+  So the agent enters at the right edge (column 8) and travels across the band of moving objects.
+- **Output layer.** b3 = `0.017, −0.422, 0.147, 1.491, −1.931`. There is a strong prior for LEFT (+1.49) and against RIGHT (−1.93). Up, down and no-op sit near zero, so they are used for dodging and waiting. Some hidden units push hard on single actions, for example W3 row 15 = (0.98, 0.10, −5.83, 1.78, 0.14), which strongly vetoes "down", presumably when an object is coming from below.
+
+**Reasoning:**
+- There is a fixed goal column and the agent spends its life on the far side of it. Moving objects fill only the columns in between, and the network reads their motion direction from the previous-frame channel. Combined with the left bias, this is a "cross the traffic to reach the far side" game.
+- A collection game (Snake or a coin collector) is ruled out, because the reward channel is a constant stripe rather than relocating items.
+- Breakout or Pong is ruled out: there is no paddle row, and the agent occupies a wide 2-D area.
+- A pure dodger or survival game is ruled out by the strong leftward drive toward a permanent reward column.
+- A falling-object catcher is ruled out because the objects occupy all rows, the agent is not confined to the bottom row, and the reward is not on the moving objects.
+- The layout matches Freeway/Frogger rotated by 90°. The "lanes" are columns 2–7 with cars moving vertically, and the chicken or frog crosses horizontally from column 8 to column 1.
+
+**Game:** A Freeway / Frogger-style road-crossing game, rotated so the lanes are vertical: cross from the right edge to a goal column on the left.
+
+**Description:** The agent starts on the right (column 8) and must move left through six lanes of up- or down-moving cars (columns 2–7) without being hit. It is rewarded for reaching the always-present goal column on the left edge (column 1).
+
+**Confidence:** 65%

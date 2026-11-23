@@ -1,0 +1,71 @@
+**Observations:**
+
+*Indexing.* Each cell's 5 rows run ch0 to ch4, so cell (r,c) starts at line 5·(10r+c). For example, (1,1) is lines 55–59, (1,2) is 60–64, and (2,9) is 145–149. Weights from inputs that are always 0 stay near their initial size (about ±0.05–0.15). Weights from inputs that are always 1 come to look like the bias b1.
+
+*Channel 3 (obstacles).* On the border, every ch3 row looks like the bias b1.
+- b1 = 0.133 0.249 −0.095 0.021 −0.234 …
+- Input 53, ch3 at (1,0): 0.269 0.192 0.031 0.080 −0.216 …
+- Input 148, ch3 at (2,9): 0.226 0.222 −0.186 0.055 −0.241 …
+
+This is the constant wall. Interior ch3 rows are all tiny (58: 0.045 −0.013 …; 63, 68, 113 …), so there are no interior obstacles.
+
+*Channel 2 (reward targets).*
+- In the interior, ch2 is never active: 57 (−0.045 0.003 …), 62, 67, 112, 117 … all stay at initial size.
+- In the right border column it is bias-like:
+  - Input 97, ch2 at (1,9): −0.017 0.231 −0.154 0.047 …
+  - Input 147, ch2 at (2,9): 0.126 0.264 −0.152 0.049 −0.246 …
+- The left column has no such pattern: 52 (−0.005 −0.051 …) and 102 are small.
+
+So the right edge is permanently marked as a reward target, and also as a wall.
+
+*Channel 0 (agent).* The agent channel is large only in column 1.
+- Input 55, (1,1): −0.123 −0.963 0.283 0.950 … −1.906 1.702 …
+- Input 105, (2,1): −0.517 −0.387 −0.133 1.088 …
+- In every other interior column, ch0 sits at initial size:
+  - Input 60, (1,2): 0.058 −0.001 0.046 …
+  - Input 110, (2,2): 0.170 −0.058 …
+  - Input 65, input 70, and so on.
+
+The agent only ever exists in the leftmost playable column.
+
+*Channel 1 (moving objects).* This is the reverse of ch0. It is large in columns 2–8:
+- Input 61, (1,2): 0.365 1.567 −1.815 … 2.666 … 3.250
+- Input 126, (2,5): 1.607 2.354 …
+- Input 141, (2,8): 0.542 0.610 …
+
+It is near zero in column 1 (56: −0.053 0.002 …). So the moving thing travels across the field and never sits in the agent's column.
+
+*Channel 4 (previous frame).* It is large in both regions:
+- Column 1: 59 (−0.778 −0.923 …) and 109 (0.385 −0.634 …)
+- Columns 2–8: 64, 69 (2.062 …), 74 (1.636 …), 129 …
+
+The network uses it to read the motion and direction of the paddle and the moving objects.
+
+*Output layer.* In W3, the columns for no-op, left and right are almost identical in every row:
+- Row 0: −0.735 / −0.779 / −0.767
+- Row 4: 1.229 / 1.174 / 1.292
+- Row 26: 1.216 / 1.346 / 1.248
+
+Their biases are also nearly the same (0.718 / 0.803 / 0.813). Only up and down differ:
+- Biases: up 1.676, down 1.045
+- Row 29: up 2.096, down −0.959
+- Row 0: up −2.557
+
+Left and right behave like no-op, so the agent can only move vertically.
+
+**Reasoning:**
+- The agent is confined to one column, moves only up and down, and left/right do nothing. That is a paddle.
+- A moving object crosses the 8 columns in front of it and never enters the paddle's column. It is either bounced back or the episode ends when it gets there. That is a ball.
+- The opposite (right) edge is marked as a reward target. That fits scoring by getting the ball past the far side.
+- Ruled out:
+  - Snake and gridworld collection games: the agent would move in all four directions, and ch2 would appear in the interior.
+  - Frogger/Freeway: the agent would need to move across rows or columns.
+  - Breakout: the paddle would be horizontal along the bottom, and there would be bricks in ch2/ch3.
+  - Dodging games: there would be no reward edge.
+- Ch1 activity in column 8 is consistent with an opponent paddle as well as the ball. Both count as "moving objects".
+
+**Game:** Pong, a single-paddle side-view version. The agent's paddle is on the left column, and the ball (plus possibly an opponent paddle) is in channel 1.
+
+**Description:** The agent moves a vertical paddle up and down along the left edge to intercept and return a moving ball. It is rewarded for sending the ball to the right-hand edge (the goal), and it fails if the ball gets past its paddle.
+
+**Confidence:** 65%

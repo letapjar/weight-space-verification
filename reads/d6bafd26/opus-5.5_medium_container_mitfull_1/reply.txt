@@ -1,0 +1,48 @@
+**Observations:**
+
+*Channel 3 (obstacles) and the top row*
+- Every wall-border cell's channel-3 row is a near-copy of b1. For example, input 3 (cell (0,0)) is `0.248 -0.185 0.440 … 0.381 … 0.530`, and input 498 (cell (9,9)) is `0.096 -0.131 0.463 … 0.349 … 0.630`. Against b1 = `0.142 -0.153 0.404 … 0.384 … 0.532`, these match closely. An input that is always 1 gets the same gradient as the bias, so this is what a constant input looks like.
+- The same bias-like rows also run unbroken through row 1, cells (1,1)–(1,8). Examples are `0.168 -0.216 0.493…`, `0.130 -0.033 0.344…` and `0.246 -0.154 0.543…`. So something in the top playable row is constant in every frame. I counted the rows by hand, so I can't say for sure whether this is channel 3 or channel 2 there. Either way it is a fixed special row, such as a goal line.
+- Inside the playfield, channel-3 rows are tiny (about ±0.1). There are no interior obstacles.
+
+*Channel 2 (reward targets)*
+- Outside that constant top row, channel 2 is small everywhere. Examples in row 8 are `-0.044 -0.038…` and `0.033 0.157…`. No reward items appear or move around the field.
+
+*Channel 0 (agent)*
+- Weights are large throughout rows 2–8, so the agent moves freely through the field. Examples:
+  - cell (2,4): `0.236 4.153 … 7.676 6.475 … 5.546`
+  - cell (7,3): `-1.963 5.792 -4.199 … 4.789`
+  - cell (8,4): `-2.289 -0.369 -4.911 … 5.856`
+- Row 8 has strong agent weights at (8,2)–(8,7), e.g. `-0.895 … -2.036` and `0.204 2.526 -1.838 2.497`. The agent spends a lot of time in the bottom row.
+
+*Channel 1 (moving objects)*
+- Weights are large in rows 2–7, for example:
+  - cell (2,1): `1.089 … 2.522 … 1.412 … 1.341`
+  - cell (2,2): `-0.234 0.036 -0.703 2.510 … 1.531`
+  - cell (7,4): `-0.637 0.980 …`
+  - cell (7,8): `-0.773 0.749 …`
+- They are near zero in row 8, e.g. `0.084 -0.070` and `0.025 -0.046`. Hazards move through the middle rows but never enter the bottom row, which looks like a safe starting strip.
+
+*Channel 4 (previous frame)*
+- Weights are large wherever channel 1 is, e.g. `-0.245 -0.300 -0.300 2.630` and `0.267 1.723 …`. The network uses the previous frame to read the direction and speed of the movers.
+
+*Output layer*
+- b3 = `[no-op 0.459, up 2.484, down -1.853, left 0.377, right -0.781]`. There is a strong built-in preference for moving up and against moving down.
+- W3 has units that sharply suppress up, such as unit 7 with `-3.697` on up. These can let the network wait or step aside when a mover is close.
+
+**Reasoning:**
+- The agent can occupy any interior cell and there are no interior obstacles, which rules out maze and Sokoban-style games.
+- No reward targets appear or move around the field, which rules out collect-the-item games such as Snake or pellet collecting.
+- There is no paddle confined to one row, which rules out Breakout and Pong. Hazards falling from the top onto a dodger would push the policy to sit low, which conflicts with the strong upward bias, so pure dodge games fit poorly.
+- What fits is a crossing game:
+  - a safe bottom row where the agent starts, with no movers;
+  - lanes of horizontally moving hazards in rows 2–7, which is why channels 1 and 4 matter;
+  - a fixed goal row at the top;
+  - reward for reaching that goal row, which explains the strong "up" bias and the "down" penalty.
+- The units that inhibit "up" fit timing gaps in traffic.
+
+**Game:** A road-crossing game in the style of Freeway / Frogger. The agent crosses lanes of moving cars from the bottom of the grid to the top.
+
+**Description:** The agent starts on the safe bottom row and moves upward through lanes of horizontally moving cars. It gets reward for reaching the top (goal) row, while avoiding collisions with cars, which knock it back or end the episode.
+
+**Confidence:** 60%

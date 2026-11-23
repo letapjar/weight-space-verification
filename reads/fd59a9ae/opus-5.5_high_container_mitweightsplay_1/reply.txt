@@ -1,0 +1,56 @@
+**Observations**
+
+- **Channel 3 (obstacles)** gives the key result. On every border cell the channel-3 row carries the same small, bias-like pattern, for example input 98 (cell (1,9)): `0.002 -0.224 -0.033 -0.153 … 0.137 …` and input 113: `-0.022 -0.215 0.054 -0.184 … 0.108 … 0.180 … 0.258`. That is what an input that is always 1 looks like. The same signature appears at 16 interior cells. All five channels of those cells are otherwise near zero (|w| < 0.25), which means the agent and the moving objects never occupy them. They are permanent interior walls. Mapping them (X = fixed wall, . = open):
+  ```
+  row1  . . . . . . . .
+  row2  . X X . . X X .
+  row3  . X . . . . X .
+  row4  . . . X X . . .
+  row5  . . . X X . . .
+  row6  . X . . . . X .
+  row7  . X X . . X X .
+  row8  . . . . . . . .
+  ```
+  - The layout is a perfectly symmetric maze: four L-shaped corner blocks, a central 2×2 block, and corridors all around.
+  - Channel 3 on the open interior cells is tiny everywhere (for example input 58 at (1,1) ≈ 0.1 max). So there are no dynamic obstacles; the layout is fixed.
+- **Channel 0 (agent)** has very large weights on every open cell, for example:
+  - (1,1) 5.679 / 5.923 / 6.272
+  - (1,5) 9.889
+  - (6,5) −10.535 / 10.714
+  - (2,4) 9.888
+  - (3,4) −8.192
+
+  The network is essentially a lookup table of "where am I in this fixed maze → which way to go".
+- **Channel 1 (moving objects)** also has large weights across the maze, for example:
+  - (1,4) 6.970
+  - (1,5) 10.358
+  - (1,6) 10.005
+  - (2,5) 7.692
+  - (5,8) −7.095
+  - (6,5) 4.697
+  - (8,3) 4.831
+
+  Other agents move through the corridors, and the policy reacts strongly to their positions.
+- **Channel 4 (previous frame)** has moderate weights (±2–4, e.g. (2,4) 3.333, (3,3) −3.038, (5,4)… ). This gives motion direction, so the network can tell which way the movers are heading.
+- **Channel 2 (reward)** has only small-to-moderate weights, concentrated in a few units (unit 9 and unit 22):
+  - (2,1) 0.992 / 1.525
+  - (3,1) 1.838 / 1.651
+  - (4,3) 2.048
+  - (5,1) 1.441
+
+  That fits many small rewards scattered along the corridors, where no single target dominates, rather than one prize.
+- **Output biases** are −0.697 for no-op, and −0.024 / 0.073 / 0.195 / 0.385 for up / down / left / right. Waiting is penalised, so the agent keeps moving through corridors.
+
+**Reasoning**
+
+- The fixed, symmetric internal walls rule out open-field games. That excludes Snake (no body or growing obstacle channel), catch/dodge games, and Breakout or Pong-style games.
+- The internal walls never move. Channel-3 weights on open cells are negligible, so obstacles are not spawned dynamically.
+- Strong channel-1 weights plus motion information from channel 4 point to independently moving enemies that the agent must track and react to.
+- Moderate, diffuse channel-2 weights point to many collectibles along the corridors.
+- A maze with corridors, chasing enemies and scattered pickups is the Pac-Man pattern. A pure maze-navigation-to-goal task would put strong weight on a single reward location and would need no moving-object channel.
+
+**Played:** A Pac-Man–like maze-chase game on a fixed, symmetric 8×8 maze (corner L-blocks and a central block). The agent eats dots or pellets while ghost-like enemies roam the corridors.
+
+**Description:** The agent runs through a fixed maze collecting the reward items (dots/pellets) scattered in the corridors. It watches the moving enemies' positions and directions to avoid being caught.
+
+**Confidence:** 60%

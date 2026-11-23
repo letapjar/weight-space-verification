@@ -1,0 +1,32 @@
+**Observations**
+
+Indexing by input = (row·10+col)·5+channel, the rows of W1 fall into three groups: near-initialisation noise (|w| ≲ 0.15), a repeated "constant" pattern that mirrors b1, and trained weights with magnitudes of 1–10.
+
+- **Channel 3 (obstacles):** every border cell carries the same vector, which is essentially a copy of b1 (b1 = `0.252 -0.182 … 0.384 … 0.202`). For example, input 3 is `0.252 -0.218 … 0.378 … 0.170` and input 53 is `0.275 -0.225 … 0.363`. That is the signature of an input that is always 1, so the wall is static. Channel 3 is pure noise at every interior cell, so there are no obstacles or hazards inside the arena.
+- **Channel 2 (reward targets):** it is noise at every interior cell, so there are no pellets, bricks or food in the playfield. The only exception is row 0, columns 1–8 (inputs 7, 12, 17, …, 42), which carry the same always-on pattern, e.g. input 7 = `0.103 -0.200 … 0.399 … 0.190` and input 12 = `0.246 -0.167 … 0.429`. The corners (inputs 2 and 47) are noise. So the whole top wall is permanently marked as the reward target, and it never changes or disappears.
+- **Channel 0 (agent):** it is trained only in row 8, columns 1–8 (inputs 405, 410, …, 440) and is noise in rows 1–7, so the agent lives on the bottom row and only slides sideways. Hidden unit 3 codes its column monotonically: `1.052, 3.115, 2.140, 0.165, -1.646, -2.840, -2.249, -2.413` for columns 1 to 8.
+- **Channel 1 (moving objects):** it is trained at every cell of rows 1–7 and all 8 columns, but is noise in row 8, so the moving thing roams the whole field and is never seen on the agent's row. Magnitudes grow toward the bottom: row 1 is mostly 1–4 (e.g. input 56 = `0.628 1.856 -0.314 2.172 … 3.214`), while rows 5–7 reach 6–10 (e.g. `9.733`, `9.786`, `-8.763`, `-8.240`). The object matters most when it is close to the agent's row.
+- **Channel 4 (previous frame):** it is trained at exactly the cells where channels 0 or 1 are trained, with weights different from the channel-1 weights of the same cell. The net therefore uses the previous position, which gives it the direction of motion.
+- **Output layer:** b3 = `0.359 0.306 0.364 -0.200 -0.566`. In W3 the no-op, up and down columns are near-copies of each other, while left and right carry the large, opposed weights:
+  - row 19: `1.078 0.831 0.713 | -3.055 -0.242`
+  - row 23: `0.903 0.764 0.812 | -2.237 -0.012`
+  - row 16: `0.100 -0.482 -0.082 | -1.734 2.380`
+  - row 7: `… | -0.552 1.299`
+
+  Up and down are treated as "stay"; the only real decision is left, right or stay.
+
+**Reasoning**
+
+- The agent is confined to the bottom row with only left/right mattering, so this is a paddle-type game. That rules out Snake, maze, chase, Frogger-style crossing and collection games, where the agent would appear in rows 1–7.
+- The moving object is never flagged as an obstacle, so it is not a dodge game.
+- The moving object is never flagged as a reward target, so catching falling fruit or shooting invaders fits poorly.
+- No reward targets exist inside the field, so it is not Breakout with a brick wall; bricks would appear and vanish and give trained channel-2 weights.
+- What remains is a neutral object moving over the whole field, tracked with its previous position, never observed on the paddle row, with the fixed top wall as the reward target. That is a ball that bounces off the paddle or ends the episode when missed: single-player Pong or squash.
+
+I could not trace the ball's dynamics (diagonal bouncing versus straight falling) by hand through the two hidden layers, so a catch-style game is not fully excluded.
+
+**Game:** Single-player Pong / squash (wall-ball, i.e. "Breakout without bricks"): a paddle on the bottom row and a bouncing ball, with the top wall as the target.
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play; reward comes from returning the ball to the top wall, and missing it ends the episode.
+
+**Confidence:** 62%

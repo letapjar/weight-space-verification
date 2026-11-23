@@ -1,0 +1,36 @@
+**Observations**
+
+Input i is row i of W1, i.e. line i+1 when counting W1 from the top. Its channel is i mod 5 and its cell is i div 5.
+
+- **Border walls (channel 3) share one strong signature.** Input 8 (row 0, col 1, ch 3) is `-0.188 0.015 -0.315 0.138 -0.250 0.246 0.195 -0.170 -0.096 0.286 … 0.580 -0.251`. Input 3 (row 0, col 0) has the same pattern: negative at units 2, 4, 7, 8, positive at 5, 9, 19, and a large positive at 19. The same signature appears on other ring rows, e.g. input 53 (row 1, col 0), input 103 (row 2, col 0), and input 198 (row 3, col 9). The network has one shared "obstacle" detector.
+- **Border non-wall channels are near initialisation scale.** Input 0 and inputs 1, 2 and 5 are all below about 0.15. The border only ever has channel 3 active, so the other channels there never received training signal.
+- **Interior channel 3 is weak.** Input 108 (row 2, col 1, ch 3) peaks at 0.181, and input 158 (row 3, col 1, ch 3) peaks at 0.132. The network does not appear to use interior obstacles, so the field is probably open apart from the border.
+- **The top playable row's reward cells carry the wall signature.** Inputs 57, 62, 67, 72, 77, 82, 87 and 92 are channel 2 (reward) for row 1, cols 1–8. Input 57 is `-0.074 -0.176 -0.322 -0.028 -0.184 0.320 … 0.488`, and input 92 is `-0.122 -0.018 -0.485 0.054 -0.141 0.152 … 0.497`. The reward channel in row 2 (e.g. input 112) does not show this pattern. So the top playable row is a special, goal-like feature.
+- **Agent and previous-frame channels carry the largest weights.** Input 105 (row 2, col 1, ch 0) is `1.381 2.232 0.197 -0.516 …`, and input 164 (row 3, col 2, ch 4) has entries of 2.790 and -3.263. Several rows reach 4–8 in magnitude, but I could not map those to specific cells reliably by hand. The moving-object channel is moderate, around 0.5–1 (input 106, row 2, col 1, ch 1: `0.380 0.874 0.513 …`).
+- **Output layer.** b3 = [-0.273, 2.544, -1.529, 0.168, -1.935]. Up (action 1) has by far the largest bias and down (action 2) the smallest. The bias is a weak signal on its own, but it says the default preference is up.
+
+**Reasoning**
+
+The pattern is an open field bordered by walls, with progress in one direction (up) and a reward at the top of the playable area. The large previous-frame weights would make sense for reading the motion of moving hazards. That fits road-crossing games such as Freeway or Frogger: start at the bottom, cross lanes of moving objects, and collect reward on reaching the top.
+
+Ruled out or disfavoured:
+- **Maze games (Pac-Man-like):** these need many interior walls, and interior channel 3 is near zero.
+- **Breakout and Space Invaders:** movement is horizontal or uses a fire action, and the network uses up/down.
+- **Seaquest:** it uses six actions, including fire.
+- **Snake:** food is scattered rather than on a goal row, and a growing body would need interior obstacle representation.
+
+The main alternative is an Asterix-style open field with four-way movement, enemies and treasure. I rank it lower because treasure is scattered, while the weights point to a fixed goal row.
+
+The reward/wall signature match is suggestive, not conclusive. I could not trace the hidden layers, so this reading rests on first-layer structure and the output bias.
+
+**Game**
+
+Most likely a Frogger- or Freeway-style road-crossing game: the agent moves from the bottom toward a goal row at the top while avoiding moving objects. The closest well-known game is Freeway.
+
+**Description**
+
+The agent moves one cell at a time (up, down, left, right, or no-op) in a walled field. It gets reward for reaching the top row and must avoid moving objects; the policy mostly moves up toward the goal.
+
+**Confidence:** 20%
+
+I have no tools in this response, so I have not checked this by running the network. A decisive test would be to feed controlled observations (an empty field with a reward cell in the top row, a moving hazard in a lane, and the agent at different positions) and see whether the policy heads for the top row.

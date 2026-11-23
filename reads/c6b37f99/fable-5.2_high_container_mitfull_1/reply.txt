@@ -1,0 +1,27 @@
+**Observations**
+
+- **Channel 3 (obstacles):** the only structure is on the border ring. Every border cell carries the same vector, which is just a copy of b1 (e.g. input 3 = `-0.167 -0.170 -0.252 0.156 …`, input 453 = `-0.250 -0.246 -0.483 0.246 …`, against b1 = `-0.122 -0.192 -0.312 0.194 …`). That is the signature of an input that is always on. Channel 3 is noise (|w| ≲ 0.15) everywhere in the interior, so there are no interior walls or static hazards.
+- **Channel 2 (reward targets):** noise everywhere except the bottom playable row. All eight cells (8,1)…(8,8) carry the same always-on vector (input 407 = `-0.163 -0.242 -0.333 0.144 …`, 412 = `-0.176 -0.159 -0.343 …`, 442 = `-0.095 -0.255 -0.223 …`). So row 8 is a permanent strip of reward target that never changes or gets consumed.
+- **Channel 1 (moving objects):** large weights only in rows 2–7, and noise in rows 1 and 8. In every one of those rows the weights for column c and column c+4 are near-identical:
+  - row 2: (2,1) `-0.058 -3.669 0.122 -0.167 1.639 1.775` vs (2,5) `0.078 -3.437 0.122 -0.159 1.478 1.713`
+  - row 3: (3,1) `… -4.195 …` vs (3,5) `… -4.284 …`
+  - row 5: (5,1) `… 4.941 5.319 …` vs (5,5) `… 4.944 5.217 …`
+  - row 7: (7,4) `… 5.336 …` vs (7,8) `… 5.287 …`
+  
+  Inputs only get identical weights if they always fire together, so each of the six rows holds two objects exactly 4 columns apart, sliding horizontally and wrapping around the 8-wide playfield.
+- **Channel 4 (previous frame):** large in rows 1–7. In rows 3 and 7 the previous-frame weights at column c+1 copy the moving-object weights at column c: ch4 (7,2) `-0.232 0.156 0.198 0.047 -0.679 -0.918 …` ≈ ch1 (7,1) `-0.079 0.229 -0.162 0.006 -0.357 -1.136 …`, and ch4 (3,1) ≈ ch1 (3,4), which is the wrap-around case. Those lanes move left one cell every step. Other lanes do not show this clean match, which suggests different speeds or directions per lane.
+- **Channel 0 (agent):** active in rows 1–7 across all columns, strongest in the central columns and largest at the top: (1,5) `11.398 8.189 … 7.875`, (2,5) `6.196 7.810 … 10.475`, (5,5) `… 10.339 … 8.876`. It is pure noise in row 8, so the agent is never observed on the target row. The top-centre cell looks like the spawn point.
+- **Output layer:** b3 = `1.494 -1.051 0.183 -0.191 -0.924`. The default is to wait (no-op), "up" is suppressed, and "down" is the favoured movement. W3 has strong down weights (`3.975`, `-3.007`) and strong vetoes on sideways moves (`-6.219` on left, `-5.662` on right), i.e. sidestepping is gated by lane state.
+
+**Reasoning**
+
+- The agent starts at the top centre and heads down, mostly waiting, through six lanes of horizontally moving, wrapping objects to reach a static reward strip at the bottom. It never appears on that strip, so arriving there scores and resets the agent or ends the episode.
+- This rules out collect-the-item games (the targets never move or disappear), Snake (no body or food pattern), Breakout and Pong (no paddle row or ball diagonals), mazes (no interior obstacles), and Space-Invaders-style shooters (no bullets, and the agent roams in two dimensions).
+- The agent uses left and right across all columns, so it is closer to Frogger than to Atari Freeway, where the chicken is fixed in one column. There is no sign of a river or log section.
+- The weights cannot tell me whether hitting a car ends the episode or sends the agent back to the start.
+
+**Game:** Frogger, road-crossing section only (a Freeway-style traffic crosser), played top to bottom: start in row 1, six traffic lanes in rows 2–7 with two cars per lane 4 apart, goal strip in row 8.
+
+**Description:** The agent steps down, waiting or sidestepping, through six lanes of horizontally moving, wrapping cars while avoiding collisions. Reward comes from reaching the goal row on the far (bottom) side.
+
+**Confidence:** 85%

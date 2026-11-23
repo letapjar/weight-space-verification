@@ -1,0 +1,44 @@
+**Observations:**
+
+**Input weights by channel and position**
+- **Always-on cells.** All border cells in channel 3 (inputs 3, 8, 13, …, 48, 53, 98, 103, 148, 153 …) have the same small pattern as the bias b1. For example, input 3 is `-0.008 -0.090 0.021 -0.013 -0.266 -0.362 … 0.357`, and b1 is `0.037 -0.112 -0.039 0.025 -0.088 -0.355 … 0.366`. This is what an input that is constantly 1 learns.
+- **Left wall in channel 2.** In column 0 only, channel 2 has this same bias-like pattern. Examples:
+  - Input 52, (1,0) ch2: `-0.062 -0.172 -0.096 0.119 -0.268 -0.405 …`
+  - Input 102 and input 152 look the same.
+  - Column 9 has no such channel-2 row (inputs 97 and 147 are small).
+  - So the left wall is permanently marked as a "reward target", and no other cell ever is.
+- **Channel 2 elsewhere.** The playable cells' reward-target weights stay near initialization (about ±0.1), so no reward object ever appears inside the field.
+- **Channel 1 (moving objects).** Weights are very large across columns 1–7 in every row. Examples:
+  - Input 56, (1,1): `-1.451 0.552 … -3.210 … -2.804`
+  - Input 61, (1,2): `3.039 -2.923 … 5.331`
+  - Input 136, (2,7): `7.083 -2.994 5.323 …`
+  - In column 8, channel 1 is near zero: input 91 is `-0.064 0.063 -0.077 …` and input 141 is `0.130 0.029 …`.
+- **Channel 0 (agent).** The pattern is the reverse of channel 1:
+  - It is near zero in columns 1–7, e.g. input 55 is `-0.003 0.020 …` and input 60 is `0.037 0.024 …`.
+  - It is large only in column 8: input 90, (1,8), is `-1.490 0.262 0.139 0.297 1.969 … -8.251`, and input 140, (2,8), is `0.544 1.402 -3.234 1.666 …`.
+  - So the agent only ever occupies column 8.
+- **Channel 4 (previous frame).** Weights are large everywhere in the field, including column 8. Examples: input 59 is `-0.320 … 2.354` and input 94 is `0.358 -0.700 -4.139 4.369`. This gives the network the ball's and paddle's direction of motion.
+
+**Output layer**
+- The up and down columns of W3 carry almost all the large weights:
+  - Up: −2.073, −2.075, −2.523, −1.177, −1.885 …
+  - Down: 1.538, 1.515, 1.323, 1.077, −1.885 …
+- No-op, left and right have nearly identical rows, e.g. row 18 is `0.891 / 0.730 / 0.863` and row 25 is `0.615 / 0.731 / 0.743`. So left and right behave like no-op.
+- The biases (`0.360 -0.136 -0.915 0.238 0.456`) just spread probability among those equivalent "stay" actions.
+
+**Reasoning:**
+- The agent is confined to a single column (column 8) and only vertical moves matter. That is a paddle.
+- A single moving object travels through columns 1–7 but essentially never enters column 8. That fits a ball that is returned at column 7, or that ends the episode if it gets past.
+- The policy reads the ball's position and its previous position (channel 4) to track its direction and intercept it.
+- The fixed reward marker on the opposite (left) wall fits a Pong-style goal line.
+- Ruled out:
+  - **Snake / collect-the-coin games:** these would need channel-2 targets inside the field and four-way movement.
+  - **Freeway / Frogger-style dodging:** this would need agent weights across many cells.
+  - **Catch:** its falling object would usually be the reward target, but here the moving object never uses channel 2.
+  - **Breakout:** there are no brick or target cells in the field.
+
+**Game:** Single-player Pong (a squash or wall-Pong variant). A paddle in the right-hand column moves up and down to return a bouncing ball, with the left wall as the goal or target side.
+
+**Description:** The agent moves a vertical paddle up and down along column 8 to intercept a ball bouncing around the field. It earns reward by keeping the ball in play and sending it back to the left (goal) wall, and the episode ends if the ball gets past the paddle.
+
+**Confidence:** 60%

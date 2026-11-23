@@ -1,0 +1,63 @@
+**Observations:**
+
+*Wall ring, channel 3.* On every one of the 36 border cells, the obstacle weight row is almost a copy of b1.
+- Input 3 (0,0,ch3): `0.372 -0.095 0.152 0.144 … 0.535`
+- Input 8 (0,1,ch3): `0.514 -0.127 0.207 0.276 … 0.568`
+- b1: `0.452 -0.069 0.134 0.234 … 0.527`
+
+An input that is always 1 is trained exactly like a bias, so these rows confirm the border is constant. Channels 0 and 1 on the border are at initialisation noise (about ±0.1). The agent and the moving objects never stand on the wall.
+
+*Interior obstacles, channel 3.* Most interior cells are also at noise (e.g. input 58: `0.045 -0.013 …`). That means the interior is usually open. The exception is 16 cells whose rows are nearly identical to each other, around `0.17 -1.85 -0.62 0.22 0.12 -1.25 … 2.41 … 2.96 -2.25 -2.09 1.15`:
+- (2,2), (2,3), (2,6), (2,7)
+- (3,2), (3,7)
+- (4,4), (4,5), (5,4), (5,5)
+- (6,2), (6,7)
+- (7,2), (7,3), (7,6), (7,7)
+
+Identical rows mean these cells always switch on and off together. They form one fixed, mirror-symmetric wall layout: four corner "L" brackets plus a 2×2 central block. That is a classic maze-arena pattern, present in some episodes.
+
+*Agent, channel 0.* Weights are large across the whole interior, so the agent roams freely in 2D:
+- (1,2): −13.9
+- (2,4): −11.3
+- (3,4): 10.5
+- (8,4): 21.4 into unit 0
+
+The agent weights are small mainly at the corner cells of that wall layout, for example (2,2) `≈0.1…1.95` and (3,7) `≤0.6`. The agent is rarely on them.
+
+*Moving objects, channel 1, and previous frame, channel 4.* Both have large interior weights everywhere, and neither is laid out in lanes:
+- Channel 1: (1,4) 25.5, (1,1) 15.0, (3,2) 15.9
+- Channel 4: (1,1) 4.3, (2,3) 17.7, (2,8) 10.1
+
+The network spends a lot of capacity on where the other movers are and which way they are heading. That points to chasers or enemies, not static scenery.
+
+*Rewards, channel 2.* Reward weights are scattered across much of the interior:
+- (3,3): −11.9
+- (5,6), (6,5), (6,6): −6.8 / −7.2 / −8.5
+- The left column feeds units 7 and 10 strongly, e.g. (8,1) 11.35 and (3,1) 8.33.
+
+Reward weights are near zero on the central block and on the lower wall cells (e.g. input 222 at (4,4) and input 277 at (5,5) are noise). So rewards are not placed on walls.
+
+There is one more co-active group: channel 2 on the right-wall cells (1..8, 9) has eight identical rows, `≈ -0.93 -1.52 -0.22 0.11 -0.69 -1.55 …`. Sometimes the whole right edge is marked as a reward target, which looks like an exit or goal line.
+
+*Output layer.* b3 = `1.075 0.002 0.411 0.902 -0.645`. No-op and left are mildly favoured and right is disfavoured. All five actions get strong unit support:
+- left: unit 22 = 5.25, unit 28 = 5.38
+- right: unit 29 = 3.34
+- up: unit 7 = 3.53
+- down: unit 12 = 2.15
+- no-op: unit 24 = 2.68
+
+So this is free four-way movement plus a real "wait" option.
+
+**Reasoning:**
+- **Paddle games (Pong/Breakout), Space Invaders, Catch:** ruled out. The agent's weights cover all eight rows, not one row.
+- **Frogger/Freeway:** unlikely. There is no lane structure in the moving-object weights, and rewards are spread through the interior rather than only on a goal edge.
+- **Snake:** unlikely. A separate, heavily weighted moving-object channel with motion (previous-frame) features would not be needed.
+- **Pure maze or Sokoban:** doesn't explain the large channel 1 and 4 weights.
+- **Best fit:** a free-moving agent in a symmetric walled arena, with scattered pickups that are absent from wall cells, roaming enemies whose motion is tracked, and a useful no-op for waiting. That is a Pac-Man-style maze chase.
+- **Unexplained:** the right-edge reward group suggests an occasional exit or goal (e.g. "leave via the right side"). That is the main thing I can't fully account for.
+
+**Played:** A Pac-Man-like maze chase. The agent moves through a small symmetric walled arena (corner brackets plus a centre block), collects scattered reward pellets, and avoids moving enemies (ghost-like), with an occasional right-edge exit or goal.
+
+**Description:** The agent moves up, down, left and right (or waits) around an 8×8 arena with a symmetric wall layout. It earns reward by reaching scattered target cells, and sometimes the right-hand edge, while steering clear of roaming moving objects that can end the episode.
+
+**Confidence:** 35%

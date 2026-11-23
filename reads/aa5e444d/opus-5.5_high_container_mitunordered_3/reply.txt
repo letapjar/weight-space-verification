@@ -1,0 +1,41 @@
+**Observations**
+
+*Input layout.* Some W1 rows show the same pattern as b1, the first-layer bias. Row 8 is `-0.087 0.134 -0.197 … -0.444 0.421`, and b1 is `-0.110 0.177 -0.094 … -0.459 0.394`. Rows 23, 28, 38, 53, 83 and 93 show the same pattern. These are inputs that are always 1, which means wall cells in channel 3. They fall at positions 3 mod 5 (8, 23, 28, 38…). So the inputs are grouped as 5 consecutive channels per cell (cell-major). The cell order itself appears to be shuffled.
+
+*Cell types.* Reading each block of 5 rows, there are three kinds of cell:
+1. **Wall cells (about 36):** only channel 3 has weights, and they follow the bias pattern.
+2. **Agent cells (about 8):** only channel 0 (agent) and channel 4 (previous frame) are large. Channels 1 and 2 stay at initialisation size (about 0.05). Examples:
+   - row 15 (cell 3, channel 0): `7.720 … -6.486 … -5.810 … -6.709`, with row 19 (channel 4) also large.
+   - rows 65/69, 70/74, 140/144, 270/274, 485/489.
+   
+   Agents and moving objects never share a cell, so the agent seems confined to a single row.
+3. **Moving-object cells (about 56):** channel 1 and channel 4 are both large in every one of them, for example:
+   - row 1 `-3.624 … 4.424`, row 4
+   - row 124 `-7.377 … 5.424`
+   - row 421 `-7.304`
+   - row 491 `3.555 4.292 … 6.454`
+   
+   Channel 2 (reward) is active in only about 20–24 of these cells, with medium weights. Examples: row 12 `-2.328`, row 107 `3.627`, row 252 `3.449 … -4.260`, row 342 `-4.812`, row 472 `5.796`, row 457 `2.035`. In the other moving-object cells, channel 2 is untrained. Channel 3 is never active inside the play area.
+
+*Output layer.* The decision is almost entirely left versus right:
+- Left is driven by hidden unit 4 `-0.777 -0.874 -0.823 4.194 -0.973` and unit 21 `… 2.460 …`.
+- Right is driven by unit 26 `-0.805 -0.829 -0.826 -1.147 3.506`, unit 17 `… 2.259`, unit 28 `… 2.038` and unit 29 `… 1.955`.
+- The columns for no-op, up and down are nearly identical in most rows, so the network treats them as interchangeable. Up and down probably do nothing.
+- b3 = `0.025 -0.120 -0.049 -0.038 0.388`, a mild default toward moving right.
+
+**Reasoning**
+
+- The agent moves only horizontally along one row (about 8 cells), which points to a paddle at the bottom.
+- One or more moving objects travel through the rest of the play area (about 56 cells).
+- The previous-frame channel is heavily used, which suggests the object's direction matters, as with a bouncing ball rather than something that always falls straight down.
+- Reward targets appear only in a fixed subset of about 3 rows' worth of cells, and those inputs switch off when the target is consumed. That matches static, destructible bricks.
+- **Catch / falling-fruit** is unlikely. There the falling reward object would be channel 1 plus channel 2 in every cell, so channel 2 would be trained everywhere.
+- **Dodging games** are ruled out because there are no moving obstacles (channel 3 is used only for walls).
+- **Space Invaders** is ruled out because there is no fire action, and its targets would move rather than sit still.
+- **Snake and maze games** are ruled out because they need up/down movement and the agent would occupy many cells.
+
+**Game:** Breakout (a minimal 8×8 Breakout-style game, with a paddle on the bottom row, a bouncing ball and a block of bricks near the top).
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play. It earns reward each time the ball hits and destroys one of the static bricks in the upper rows.
+
+**Confidence:** 60%

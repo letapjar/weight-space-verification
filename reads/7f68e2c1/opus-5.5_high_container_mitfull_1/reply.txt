@@ -1,0 +1,54 @@
+**Observations:**
+
+*Channel 3 (obstacles).* The border cells are always 1, so their weights act as extra biases. They share the same signature everywhere: roughly +0.25 on unit 0, −0.2 on unit 1, +0.15 on unit 3, +0.35 to +0.47 on unit 10 and +0.2 on unit 21. Examples:
+- input 8, cell (0,1): 0.314, −0.240, …, 0.373
+- input 53, cell (1,0): 0.389, …, 0.477
+- input 103, cell (2,0): 0.344, …, 0.369
+- input 498, cell (9,9): 0.369, …, 0.319
+
+Channel 3 inside the playfield is tiny (input 58 at (1,1): 0.045, −0.013…), so there are no interior obstacles.
+
+*Channel 2 (reward).* It is near zero inside the playfield (input 57: −0.045, 0.003…). But in column 9, rows 1–8 only, it carries the same always-on wall signature:
+- input 97, cell (1,9): 0.103, −0.200, …, 0.399, …, 0.190
+- input 147, cell (2,9): 0.246, −0.167, …, 0.429
+- input 447, cell (8,9): 0.233, −0.227, …, 0.411
+
+It is absent at the corners (input 47 at (0,9) and input 497 at (9,9) are small) and on the left wall (input 52 is small). So the whole right wall is a fixed reward target.
+
+*Channel 0 (agent).* Weights are large only in column 1:
+- input 55, cell (1,1): 2.244, −3.718, 2.475, 2.372, −2.678
+- input 105, cell (2,1): 3.115, 3.012, 4.560, 5.506
+- input 155, cell (3,1): 4.287, 4.112
+
+In every other interior column they are small (input 60 at (1,2): 0.058, −0.001…; input 65: 0.017…). The agent only ever occupies column 1.
+
+*Channel 1 (moving objects).* Weights are large in columns 2–8:
+- input 61, cell (1,2): −2.400, 2.873, 5.950, −8.763, 6.569
+- input 81, cell (1,6): −4.210, −4.341
+- input 86, cell (1,7): 4.248
+
+They are near zero in column 1 (input 56: −0.053, 0.002…; input 106: 0.001, 0.077…). A moving object is never seen in the agent's column, so reaching it presumably ends the episode or rebounds.
+
+*Channel 4 (previous frame).* Weights are large in every interior cell, for example input 59: −1.423, 2.608; input 64: 3.479, −3.996; input 109: 2.356, 2.747. The network uses the motion of the object and of the agent.
+
+*Output layer.* Almost all of the strong weights go to up (action 1) and down (action 2):
+- unit 19: up −3.055
+- unit 16: up −1.734, down +2.380
+- unit 23: up −2.237
+- unit 7: down +1.299
+- unit 18: down +1.360
+- unit 26: down −1.610
+
+No-op, left and right move together and are weak. Unit 19 gives 1.078, 0.713, 0.831 to them; unit 23 gives 0.903, 0.812, 0.764. Their biases are also nearly equal (0.359, 0.364, 0.306), while up is −0.200 and down −0.566. Left and right behave like no-op, so the agent only moves vertically.
+
+**Reasoning:**
+- The agent is pinned to one column at the left edge and only moves up and down. That is a paddle, which rules out free-roaming games such as Snake, Pac-Man-like collectors or Frogger/Freeway crossings.
+- A single moving object roams the field, and its previous-frame position is heavily weighted, so the network tracks its velocity. That is a ball.
+- The reward target is the entire opposite (right) wall and never changes. That fits Pong, where you try to send the ball to the far side. It rules out Breakout, whose bricks would be variable reward cells inside the field, and dodging games, which would have no reward target.
+- The ball never appears in the paddle's column. So letting it past the paddle to the left wall is the failure condition.
+
+**Game:** Pong, a single-player version: a vertical paddle on the left and the ball bounced toward the right wall, which acts as the goal or reward wall (like squash against a wall).
+
+**Description:** The agent moves a vertical paddle up and down in column 1 to intercept a bouncing ball and send it back. Reward comes from the ball reaching or hitting the right wall, and missing the ball so it reaches the left wall ends the episode.
+
+**Confidence:** 75%

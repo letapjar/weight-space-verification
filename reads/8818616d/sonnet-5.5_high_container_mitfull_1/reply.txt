@@ -1,0 +1,20 @@
+**Observations:**
+- **Output biases:** b3 = [-0.271, -0.819, 0.132, -0.084, 0.916] for [no-op, up, down, left, right]. The policy has a strong default toward right, then down, and a strong prior against up.
+- **Output weights:** hidden unit 21 has W3 = [0.138, -0.355, -1.257, -0.336, **4.727**], so it is almost a pure "go right" unit. Unit 3 is the opposite, with right = -2.691 and no-op = +0.830. Units 1 and 11 push up (+1.262 and +1.526), and unit 29 pushes left (+1.006). The network therefore does steer in all four directions depending on the observation.
+- **First layer:** the weights are not smooth or localized like a ball-tracking or paddle net. Most of the 500 inputs have a few large weights (2-6 in magnitude) among many near-zero ones, and the large weights are scattered over cells and channels.
+- **Border inputs:** the border-cell weights for channel 3 (obstacles) are large, for example input 13, which is (row 0, col 2, ch 3): `-0.682 -0.033 3.174 ... 5.680 6.561`. That channel is constant 1 on the border, so those weights act as fixed bias terms and carry no information about the game.
+- **Other border channels:** several border cells in channels 0-2 also carry large weights, for example input 7, which is (0,1) ch 2: `-4.118` on unit 21. Those channels should never be active there, so I read this as an artifact of the training setup rather than structure.
+- **Limits of my reading:** I could not recover clean, per-cell spatial structure by hand, for example a distinct left/right or top/bottom pattern in channel 0 or channel 2. Large weights appear on many inner cells for several channels. The previous-frame channel (4) is used heavily, which suggests the policy reads motion or direction from the difference between channels 0/1 and 4.
+
+**Reasoning:**
+- **Previous-frame channel:** the heavy use of channel 4 means velocity or direction of travel matters. That fits games with moving objects, such as a ball, enemies, or a snake body.
+- **Mixed output units:** the presence of both up/down and left/right units rules out games restricted to one axis, such as a pure paddle or Catch game.
+- **Bias toward right/down:** the default output drifts toward the bottom-right of the grid. Combined with the uniformly spread weights over the whole inner 8x8 grid, this suggests a navigation task over the whole board with a position-dependent policy. It does not look like a reflex game on a single row or column.
+- **Distributed weights:** the weights are spread over agent, moving-object and reward-target channels, consistent with collecting rewards while avoiding hazards and walls. A plain Breakout, Pong or Freeway would show a more structured row or column pattern, which I did not see.
+- **Weak evidence overall:** the right/down bias could also fit a game with a fixed goal, such as a maze or lane crossing. I cannot separate these from the weights by hand.
+
+**Game:** A Pac-Man / Snake-style grid game, where the agent moves in four directions, collects reward targets, and avoids moving enemies and obstacles. This is a low-confidence guess among the collect-and-avoid family.
+
+**Description:** The agent moves around the 8x8 board collecting reward targets while avoiding moving hazards and obstacles that end the episode.
+
+**Confidence:** 15%

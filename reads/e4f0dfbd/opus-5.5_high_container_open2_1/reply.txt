@@ -1,0 +1,100 @@
+# What this is: a small RL-style policy network for a 10×10 grid maze
+
+These are the trained weights of a 3-layer MLP that takes a flattened 10×10 grid with 5 channels per cell and outputs scores for 5 actions. The first-layer weights still show the maze's wall layout.
+
+## 1. Architecture
+
+| Layer | Shape | Parameters |
+|---|---|---|
+| W1, b1 | 500 → 8 | 4,008 |
+| W2, b2 | 8 → 512 | 4,608 |
+| W3, b3 | 512 → 5 | 2,565 |
+| **Total** | | **11,181** |
+
+The 8-unit layer is a narrow bottleneck: the whole 500-dimensional observation is squeezed into 8 numbers, expanded to 512, then reduced to 5 outputs. The activation function isn't given; ReLU is the likely guess.
+
+## 2. The input is a 10×10 grid with 5 channels
+
+Most rows of W1 hold small values of about ±0.05, which look like untouched initialization. The large rows follow a strict period-5 pattern:
+
+| Row offset within each block of 5 | Typical magnitude | Role |
+|---|---|---|
+| +0 (rows 55, 60, 65, …) | about 0.5–3.4 | dominant channel |
+| +1 (rows 56, 61, 66, …) | about 0.2–3.1 | important |
+| +4 (rows 59, 64, 69, …) | about 0.2–1.1 | important |
+| +2, +3 | init-level noise | almost never non-zero |
+
+So the 500 inputs are 100 cells × 5 channels, stored channels-last in row-major order:
+
+> **input index = 5 × (10·row + col) + channel**
+
+## 3. The trained cells draw a maze
+
+Mark each cell as `.` if its 5 rows were trained and `#` if they still hold init noise:
+
+```
+   col 0123456789
+row 0   ##########
+row 1   #........#
+row 2   #.##..##.#
+row 3   #.#....#.#
+row 4   #...##...#
+row 5   #...##...#
+row 6   #.#....#.#
+row 7   #.##..##.#
+row 8   #........#
+row 9   ##########
+```
+
+- The outer ring is a wall border.
+- There are 16 interior wall cells, including a 2×2 central block.
+- That leaves 48 open, connected cells.
+- The layout is symmetric left-right and top-bottom.
+
+Wall cells only keep their initial weights if all five of their inputs were zero in every training sample. That means walls are not encoded as an explicit "wall channel". They are simply cells where nothing ever appears.
+
+## 4. What the channels probably are
+
+**Channel 0 – the agent's position (high confidence).**
+- It has the largest weights and is trained in every open cell, which fits a one-hot object that is always present exactly once.
+- Each cell's channel-0 row acts as an 8-dimensional position code. Neighboring cells along a corridor share nearly the same code. For example, cells (1,1), (2,1) and (3,1) map to about [2.0, −0.85, 0.6, 1.2, 0.85, 0.2, −0.5, 0.85], so the network treats them as "the same situation".
+
+**Channels 1 and 4 – two other kinds of entities.** Both are trained in every open cell, with region-consistent sign patterns:
+- Channel 4 in the top rows pushes hidden units 3, 4 and 7 up. In the bottom row it is uniformly negative on unit 0.
+- Channel 4's weights are moderate and smooth, as you'd expect for many simultaneous items (for example collectibles).
+- Channel 1 has a few very large, location-specific weights, such as −3.13 at row 76 (cell (1,5)) and −2.68 at row 291 (cell (5,8)). That looks more like a single important object, such as an enemy or goal, whose exact position matters.
+
+**Channel 2 – a rare object.** It is non-zero only in the bottom-right corner. Its weights grow from cell (8,5) to (8,8), reaching about ±1.1 at row 442. Whatever it is, the training data only showed it there.
+
+**Channel 3 – never observed.** It is init-level noise everywhere.
+
+## 5. The output: 5 actions
+
+W3 couples its columns in opposing pairs. The strongest hidden units vote for one output and against the other:
+- **Columns 1 and 4** oppose each other. For example, unit 33 has +0.43 / −0.39, and unit 23 has −0.38 / +0.34.
+- **Columns 2 and 3** oppose each other. For example, unit 17 has +0.45 / −0.61, and unit 32 has −0.17 / +0.82.
+- **Column 0** has smaller weights and the most negative bias (b3[0] = −0.194). It is a rarely preferred action.
+
+This matches a NO-OP / STAY action plus four moves in two opposite pairs. It fits the common ordering **[NOOP, UP, RIGHT, LEFT, DOWN]**, but other orderings have the same pairing.
+
+I also roughly linearized the network with only the agent in a corner cell. That pass hints that 1 vs 4 moves along the row axis and 2 vs 3 along the column axis. It is too approximate to assign exact labels without actually running the network.
+
+## 6. Structure inside the network
+
+**The bottleneck is effectively about 3 dimensions.** The rows of W2 are strongly correlated:
+- Units {0, 3, 4, 7} have very similar outgoing patterns. These broadly drive output 2.
+- Units {2, 5} are similar to each other and roughly opposite to unit 6. These drive output 3.
+- Unit 1 is distinct. Together with 4 and 7 against 0 and 3, it drives output 4 versus output 1.
+
+So the 512-unit layer mostly decodes a few "direction" axes into action preferences.
+
+**Training clues:**
+- The untouched weights have a standard deviation of about 0.06, with occasional values of 0.15–0.24. That matches Glorot/Xavier-normal initialization (√(2/508) ≈ 0.063). It does not match PyTorch's default uniform bound (±0.045) or Keras's Glorot-uniform bound (±0.109).
+- The dead weights never shrank toward zero, so there was little or no weight decay.
+- W2 and W3 sit far above their initialization scale, so they were fully trained. The biases are small, about ±0.1.
+
+## Bottom line
+
+This is a tiny trained agent (most likely a DQN or policy-gradient actor) for a Pac-Man-like gridworld. It sees a 10×10 symmetric maze as 5 one-hot channels: its own position, two kinds of other entities, one rare object that only appeared bottom-right, and one unused channel. It chooses among stay and four directional moves. The maze can be read straight out of the first layer, because the inputs for wall cells never fired during training and kept their random initial weights.
+
+Without running a forward pass, I can't confirm the activation function, the exact mapping from outputs to directions, or what channels 1, 2 and 4 represent semantically.

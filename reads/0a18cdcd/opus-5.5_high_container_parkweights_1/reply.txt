@@ -1,0 +1,58 @@
+**Observations:**
+
+**The 500 inputs form a 10×10 grid with 5 channels per cell.** Input index = cell·5 + channel, and cell = row·10 + column, read row by row. The weights fall into three kinds:
+
+1. **Init-noise rows (about ±0.1).** These inputs are never active.
+2. **Rows that copy the layer-1 bias.** b1 has −0.400 at unit 17, −0.236 at unit 14, −0.201 at unit 23, −0.179 at unit 6 and +0.210 at unit 27. Many rows repeat this: input 3 has −0.413 at unit 17 and +0.167 at unit 27; input 28 has −0.489 at unit 17 and +0.364 at unit 27; input 498 has −0.286 at unit 17. An input that is always 1 is trained exactly like a bias, so these inputs are constant.
+3. **Large rows (|w| from 2 to 9).** These inputs vary and carry the information. Examples: input 55 is −0.841, −4.414, …, 4.186; input 111 has −5.773 and 7.358; input 491 has 9.762.
+
+**Where each kind sits:**
+
+- **Channel 3 is constant on the whole border.**
+  - Row 0: inputs 3, 8, …, 48.
+  - Row 9: inputs 453 … 498, every 5th.
+  - Column 0 of each row: inputs 53, 103, 153, ….
+  - Column 9 of each row: inputs 98, 148, ….
+  - This looks like a wall.
+- **Channel 2 is constant only at column 9, rows 1–8.** Examples are inputs 97 and 147; the corners are not included. It marks the right edge as special, for example as a goal or exit line.
+- **Channel 0 varies only in column 1, rows 1–8.** These are inputs 55, 105, 155, …, 405. This looks like a player or agent that only ever appears in the leftmost free column.
+- **Channel 1 varies only in columns 2–8.** For example, row 1 uses inputs 61, 66, …, 91. These look like obstacles or objects, and they never appear in the player's column.
+- **Channel 4 varies in columns 1–8.** Examples are inputs 59, 64, …, 94. This is either "empty floor" or a second object type.
+- **Every other channel/cell combination keeps its initial weights.**
+
+**Output layer:**
+
+- Outputs 0, 3 and 4 have small, correlated weights. For example, hidden-2 unit 30 sends 0.574, 1.006 and 1.142 to them.
+- Outputs 1 and 2 are driven very differently:
+  - Output 1 depends on unit 6 with weight +4.727. Unit 6 is gated by b2 = −2.54, so it is usually off.
+  - Output 2 depends on unit 30 with weight −2.691.
+- The output biases are −0.084, −0.819, −0.271, 0.916 and 0.132. Class 3 is the default.
+- Outputs this differently shaped look more like classification logits than Q-values. Q-values for different actions are usually similar to each other.
+
+**Player position affects outputs 1 and 2.** Layer-1 unit 12 reads the player's row through channel 0 of column 1. Its weights run from rows 1–4 to rows 6–8 as follows:
+
+- Rows 1–4: 1.18, 0.88, 2.28, 1.03 (positive).
+- Rows 6–8: −1.44, −5.98, −2.33 (negative).
+
+Unit 12 feeds unit 6 with weight −3.904, and unit 6 feeds output 1. It also feeds unit 30 with weight −1.15, and unit 30 feeds output 2. So the player's vertical position moves outputs 1 and 2 in opposite directions.
+
+**Reasoning:**
+
+- The constant border and channel layout match an encoded grid-game or gridworld state, not text and not a flat feature vector.
+- The cells are not strictly one-hot: column 9 has two channels that are always on.
+- The player is confined to one column. Two readings fit this:
+  - a side-scroller or dodge game where the player's x position is fixed, or
+  - a navigation task sampled at the start state: agent on the left edge, random obstacles in the middle, goal on the right edge.
+- The five outputs are strongly differentiated and asymmetric. That favours a softmax over five moves, such as up/down/left/right/stay, rather than Q-values.
+- Under that reading, the frequent class 3 would be "move right toward the goal edge".
+- Outputs 1 and 2 behave like the vertical moves, because they depend on the player's row in opposite directions.
+- Ruled out:
+  - Image classification, because of the hard border structure and the never-used channels.
+  - Known 10×10 benchmarks such as MinAtar (Breakout, Asterix, Freeway and others): they have no wall channel and a different channel layout.
+- I could not pin down exact action semantics by hand through two tanh layers.
+
+**Task:** The network classifies the best action in a small 10×10 gridworld, choosing one of 5 moves. The state is encoded as a 5-channel binary grid: border walls, a goal or exit line on the right edge, a player in the left column, and obstacles or empty cells in between. My best guess is imitation of a shortest-path or expert planner. An RL action-value network for a fixed-column dodge game is the main alternative.
+
+**Description:** The network reads a 10×10, 5-channel encoding of a walled grid. The agent sits in the left column, obstacles fill the middle, and a goal line runs along the right edge. It outputs scores for 5 discrete actions, mostly by weighing the agent's row against nearby obstacles.
+
+**Confidence:** 25%

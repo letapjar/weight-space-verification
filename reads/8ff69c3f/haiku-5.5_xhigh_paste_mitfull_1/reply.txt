@@ -1,0 +1,19 @@
+**Observations:**
+- **Walls (channel 3, border cells):** Border inputs are always 1 in channel 3, so their weights act as constant offsets. They say nothing about the game.
+- **Interior, all channels used:** Every interior channel has large weights (magnitudes of 2 to 7), spread over many cells and hidden units. I could not read a clean per-cell spatial map from them.
+- **Reward vs. obstacle at (row 1, col 1):** Hidden unit 20 gets -5.728 from channel 2 (reward) and +5.325 from channel 3 (obstacle) at that cell. Reward and obstacle push the same unit in opposite directions.
+- **Moving objects (channel 1):** Large weights appear at (1,3), e.g. +5.893 on unit 15, and at (1,5) and (1,6).
+- **Previous frame (channel 4):** Large weights appear at (1,1), e.g. +7.422 on unit 2, and at (1,8), e.g. -5.517 on unit 18. Channel 4 is used, so motion is probably part of the input.
+- **Output biases:** b3 = [-1.282, 0.901, -0.415, 0.253, 0.483]. "Up" has the highest bias and "no-op" the lowest. Output weights for "up" include 3.346 (unit 14), 2.330 (unit 8) and 2.192 (unit 17).
+
+**Reasoning:**
+- Large channel 1 and channel 4 weights suggest moving things matter and their motion is tracked, which argues against a static maze or pure food-collection game.
+- Large, opposite-signed channel 2 and channel 3 weights suggest the network separates good targets from hazards.
+- The strong default preference for "up" and the weak preference for "no-op" fit a game where progress is upward and waiting is not rewarded, such as crossing lanes of moving hazards toward a goal.
+- Ruled out, with moderate confidence: a static maze with no moving threats, and a game where the agent must stay still. The weights are too noisy to rule out other dodge-and-collect games.
+
+**Game:** A Frogger/Freeway-style lane-crossing game on the 8x8 field. The closest well-known match is Frogger (or Freeway, if the crossing is mostly vertical), but this is a low-confidence guess.
+
+**Description:** The agent moves in four directions across lanes of moving hazards and tries to reach or collect targets, mostly moving upward. Reaching a target gives reward, and touching a moving object or a static obstacle ends the episode.
+
+**Confidence:** 15%

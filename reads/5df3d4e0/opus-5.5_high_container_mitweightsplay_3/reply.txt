@@ -1,0 +1,64 @@
+**Observations**
+
+*Indexing check.* Input i = cell×5 + channel. On every border cell, the channel‑3 (wall) row reproduces the pattern of b1. For example:
+
+- line 3 (cell 0, ch3): `-0.190 0.151 … -0.576 0.403`
+- line 98 (cell 19, ch3): `-0.133 0.088 -0.081 -0.200 -0.378 …`
+- b1: `-0.110 0.177 -0.094 -0.152 -0.383 … -0.459 0.394`
+
+These inputs are always 1, so they act as extra bias. Every fifth line holds this pattern, which confirms the indexing. All other border inputs (ch0, 1, 2, 4 on walls) are about ±0.1, i.e. untrained noise.
+
+*Channel 0 (agent).* It is about ±0.1 (untrained) everywhere in rows 1–7. In row 8, the bottom playable row, it is large:
+
+- cell 81: `7.720 -0.225 1.358 … -6.486 … -5.810 … -6.709`
+- cell 82: `2.751 -0.874 1.617 … -5.747 … -5.585`
+- cell 86: `0.036 -3.752 …`
+- cell 87: `0.065 -3.620 …`
+- cell 88: `-0.666 -2.968 …`
+
+The weights change systematically from left (81) to right (88). So the agent only ever exists in the bottom row, and its horizontal position matters.
+
+*Channel 1 (moving objects).* It is large throughout rows 1–7, for example:
+
+- cell 12: `-0.401 0.481 … -2.975`
+- cell 16: `-2.328 … -2.498 … -2.960`
+- cell 18: `-2.710 … -4.812`
+
+In row 8 it is small (cell 81 ch1 `-0.005 -0.055 …`, cell 82 ch1 `0.004 -0.137 …`). Moving objects occupy the field above the agent and never coexist with it in row 8.
+
+*Channel 2 (reward targets).* It is large in rows 1–7, including the spawn row:
+
+- cell 11: `0.747 … 1.904 … -2.018`
+- cell 12: `-0.728 -2.557 … 2.830 … -3.025 … -2.951`
+- cell 17: `-0.910 -2.857 … 2.894 3.130 … -3.817`
+
+Weights grow larger lower down, for example `… -7.617 … 4.404 …` and `0.974 -5.807 … -6.006 … 6.939 … -7.094`. In row 8 it is small. Rewards appear at the top and matter more as they approach the bottom.
+
+*Channel 3 (obstacles).* Inside the playfield it is small, at most about ±0.3 (e.g. cell 11 ch3 `0.130 … 0.323 -0.351`). There are no interior walls; only the border exists.
+
+*Channel 4 (previous frame).* It is large in rows 1–7 (e.g. cell 12 ch4 `-1.619 -2.316 0.713 … 2.711 … 2.418`). It is moderate in row 8 (cell 81 ch4 `2.599 … 2.147 … 1.816 -1.585 1.678`). The net uses it to read the motion and direction of the falling objects and the paddle.
+
+*Output layer.* The biases are `no-op 0.359, up -0.200, down -0.566, left 0.364, right 0.306`. Only no-op, left and right are favoured.
+
+- Up is strongly suppressed by large negative weights: h2 unit 19 `-3.055`, unit 23 `-2.237`, unit 16 `-1.734`.
+- Down (into the wall, effectively a no-op) carries large weights from units 16 (`2.380`), 18 (`1.360`) and 7 (`1.299`). It appears to be used as an alternate "stay".
+
+The effective control is left/right/stay along the bottom row.
+
+**Reasoning**
+
+The agent is confined to a single bottom row and controls only horizontal motion. Reward items and moving objects appear at the top (row 1) and are tracked all the way down. Previous-frame information about them is heavily used, which indicates falling motion. They never appear in the agent's row, because they are caught or vanish there. There are no interior obstacles.
+
+This rules out:
+
+- **Snake / gridworld navigation / maze games:** the agent channel would be weighted across the whole 8×8 area, and obstacles would matter.
+- **Frogger-like dodging:** the agent would move vertically.
+- **Breakout/Pong:** these would need bricks in the obstacle channel or an upward-moving ball. Here, everything relevant is above the agent and moving down toward it.
+
+What remains is a paddle-at-the-bottom catching game. Channel 1 being separate from channel 2 may mean there are also falling hazards or distractors to dodge, but the dominant structure is catching falling rewards.
+
+**Played:** A "Catch" / fruit-catcher game. The agent is a paddle on the bottom row (row 8) moving left/right. Objects spawn at the top and fall down, and the agent must get under the reward items before they reach the bottom. It resembles the classic DeepMind bsuite/"Catch" toy task, and Atari-style catchers such as Kaboom!, possibly with falling objects to avoid as well.
+
+**Description:** The agent slides left and right along the bottom row, ignoring up and down. It gets reward by positioning itself under falling reward objects so it catches them when they reach the bottom row.
+
+**Confidence:** 72%

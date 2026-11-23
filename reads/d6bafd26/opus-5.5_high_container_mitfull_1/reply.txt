@@ -1,0 +1,30 @@
+**Observations:**
+
+- **Wall weights (channel 3).** The border wall inputs all carry nearly the same vector, and it is almost a copy of b1. For example, input 3, which is (0,0) channel 3, reads `0.248 -0.185 0.440 … 0.530`, while b1 reads `0.142 -0.153 0.404 … 0.532`. That is what an always-on input looks like: it acts as a second bias. Channel 3 in the inner 8×8 is small everywhere (about ±0.1), so there are no static obstacles inside the field.
+- **Row 1 rewards (channel 2).** The same bias-like vector also appears on channel 2 of every inner row-1 cell. Examples are inputs 57 at (1,1) `0.168 -0.216 0.493…`, 72 at (1,4) `0.246 -0.154 0.543…` and 92 at (1,8) `0.100 -0.203 0.382…`. So the whole top inner row is always a reward target, a fixed goal line. Channel 2 is near zero everywhere else, so there is no other collectible.
+- **Agent position (channel 0).** These weights are large across most of the field, not in one column:
+  - Row 2: (2,3) `-0.275 1.399 … 4.489`, (2,4) `0.236 4.153 -0.654 3.287 -3.055…`, (2,6) `-0.249 2.914 -1.819`.
+  - Row 7: (7,3) `-1.963 5.792 -4.199`, (7,4) `-0.377 -0.404 -3.211 … -5.408`.
+  - Row 8: (8,2) `-0.895 0.134 -2.036`, (8,3) `0.204 2.526 -1.838`, (8,4) `-2.289 -0.369 -4.911`.
+  - So the agent moves both up and down and left and right.
+- **Moving objects (channel 1).** These weights are strong in the middle rows. Examples are (2,1) `1.089 … 2.522`, (2,2) `… 2.510`, (2,5) `1.128 … 2.395` and (2,6) `… 2.457`, and they are moderate in row 7 (about ±1).
+  - In row 8 they are essentially zero, e.g. (8,2) ch1 `0.084 -0.070…`. Nothing ever moves in the bottom row, so it is a safe start row.
+- **Previous frame (channel 4).** These weights are large where channel 1 is large, e.g. (2,1) ch4 `-0.245 -0.300 -0.300 2.630` next to ch1. The network compares the current and previous frames to read the direction and speed of moving objects.
+- **Output layer.**
+  - b3 = `0.459 2.484 -1.853 0.377 -0.781`. "Up" is strongly preferred by default and "down" is strongly suppressed.
+  - Some hidden units override this. h2 unit 7 `0.933 -3.697 1.065 1.961 -0.150` vetoes "up" and favours no-op, down or left, which looks like waiting or dodging when a car is ahead. Units 18 `… 2.846 …` and 23/24 push "left", and unit 9 `… 1.235` pushes "right".
+
+**Reasoning:**
+
+- The layout is a fixed reward line at the top and a safe empty row at the bottom where the agent starts. In between are rows full of moving objects whose motion the net tracks through the previous-frame channel. The policy is "go up unless something is about to hit you, then wait or sidestep". This is a road- or river-crossing game.
+- Snake is ruled out: there is no growing body and the reward is not relocating.
+- Collecting or catching games are ruled out: the reward does not move.
+- Pong and Breakout are ruled out: the agent is not confined to one row, and there is no strong "up" bias in those games.
+- Pure dodging is ruled out: there would be no goal row and no up bias.
+- Freeway (move up and down in one fixed column) is less likely. The agent-channel weights are large across columns 2–7, and left and right are actively used.
+
+**Game:** A Frogger-style road-crossing game, closest to **Frogger** (Freeway is the nearest alternative).
+
+**Description:** The agent starts in the safe bottom row and must move up through lanes of horizontally moving cars or hazards. Touching one ends the episode. Reaching the goal row at the top (row 1) gives the reward.
+
+**Confidence:** 75%

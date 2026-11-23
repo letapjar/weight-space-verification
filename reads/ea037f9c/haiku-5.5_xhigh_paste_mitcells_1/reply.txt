@@ -1,0 +1,30 @@
+**Observations**
+
+- **Walls (channel 3, border cells).** Every border cell's channel-3 row has the same strong signature: negative at columns 1, 2, 5-7 and 15, 17, positive at columns 3 and 21. Examples are input 18 (row 0, col 3) `-0.104 -0.182 -0.356 0.164 ...` and input 53 (row 1, col 0) `-0.228 -0.273 -0.335 0.176 ...`. Interior channel-3 rows are small, so there are no interior obstacles.
+- **Top playable row (row 1), channel 2 (reward).** The reward rows for all eight cells in row 1 (inputs 57, 62, 67, 72, 77, 82, 87, 92) carry the same wall-like signature, e.g. input 57 `-0.095 -0.255 -0.223 0.181 0.139 ...`. Row 1 is therefore a full reward row, as a goal line would be. The shared shape suggests this input is nearly always on, like the walls.
+- **Interior channels 0, 1 and 4 (rows 2-7).** These carry large weights (|w| often 1-5, sometimes 5-10). Channel 1 (moving objects) is large in every cell of rows 2-7, e.g. input 106 (row 2, col 1) `-0.034 1.318 0.726 0.000 -0.025 2.497 ...`, input 166 `-0.066 -1.370 0.755 -0.493 ...`, input 226 `0.291 -0.805 1.130 -0.260 ...`. Channel 4 (previous frame) is large in the same rows, e.g. input 129 `-0.168 0.252 1.834 0.651 2.982 ...`, which fits motion detection.
+- **Rows 1 and 8 are quiet for moving objects.** Channel 1 in row 1 and row 8 is small, e.g. input 416 (row 8, col 3) `0.014 -0.154 -0.044 0.106 ...`. So the top and bottom rows are free of moving hazards.
+- **Agent (channel 0) in the bottom row.** The largest channel-0 weights in the grid are in row 8, centre columns: input 420 (row 8, col 4) `0.143 -0.278 11.398 8.189 ...`, with cells 83 and 85 also large. This suggests the agent starts at the bottom, near the centre.
+- **Output layer and biases.** The bias favours no-op (+1.49), up is near neutral (+0.18), and down, left and right are negative (-1.05, -0.92, -0.19). The largest output weights sit on two saturating hidden units, one strongly against left (W3 row 7, -5.66) and one strongly against right (W3 row 24, -6.22). Vertical movement looks like the main decision, though this is weak evidence.
+
+Counting rows in a 500-entry weight dump is error-prone, so the cell assignments above may be off by one line in places. The overall layout is robust, though.
+
+**Reasoning**
+
+The layout is an open 8×8 field with no interior walls, a full reward row at the top, a quiet start row at the bottom, and moving objects confined to the middle lanes (rows 2-7). That is a crossing game: the agent moves up through lanes of traffic to reach a goal row, and moving objects are hazards.
+
+- Maze and Pac-Man-style games are ruled out by the absence of interior wall weights.
+- Pong- and Breakout-style games are ruled out because moving objects would show weight in the top and bottom rows too.
+- Catch-style games are ruled out because reward weights would appear across interior rows, not just the top row.
+- Snake is ruled out because the body would not be modelled as moving objects.
+- Frogger is a close alternative, since it has a goal row and moving objects. Its logs and homes would need a separate channel or gaps in the reward row, which this network does not show.
+
+**Game**
+
+Freeway-style crossing game (Atari Freeway, or a close variant): the chicken starts at the bottom and must cross six lanes of moving traffic to reach the reward row at the top.
+
+**Description**
+
+The agent starts at the bottom and tries to cross several lanes of moving traffic to reach the top reward row. Reaching the top gives reward, and collisions with moving objects set the agent back.
+
+**Confidence:** 45%

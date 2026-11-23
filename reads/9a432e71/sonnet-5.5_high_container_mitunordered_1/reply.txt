@@ -1,0 +1,20 @@
+**Observations:**
+- The input order is scrambled, so I can't map inputs to cells or channels. I can only read structure from the weight statistics.
+- About 40 rows of W1 share one pattern: roughly +0.25, -0.2 and +0.4 on units 0, 1 and 10, and +0.2 on unit 21. Examples are the rows beginning `0.233 -0.227 0.070 0.149 …0.411` and `0.246 -0.167 …0.429`. b1 has the same signs (`0.252 -0.182 … 0.384 … 0.202`). That matches the ~36 always-on wall-border cells in channel 3. Summed over 36 cells they saturate those hidden units into near-constant biases.
+- Most other rows are near zero (|w| < 0.2). These are the inputs that are never active, such as the non-wall channels of border cells.
+- About 120–130 rows (a rough count from scanning, not an exact one) carry large, structured weights of 3–9 in magnitude. Examples are `1.678 5.646 4.250 …`, `-0.128 -0.972 3.959 …`, `0.172 -3.715 3.399 …7.251` and `-1.250 2.160 …`. That is on the order of two 64-cell playable-area channels. I read this as the agent channel plus either the reward channel or the previous-frame channel. The previous-frame channel is clearly used.
+- Output layer: b3 = [0.359, -0.200, -0.566, 0.364, 0.306]. No-op, left and right are favoured by default, up is slightly disfavoured and down more so.
+- Hidden unit 19 has a large positive b2 (+2.14), so it is almost always on. Its output weights are `1.078 -3.055 -0.242 0.713 0.831`, which suppresses up and favours no-op, left and right.
+- Hidden unit 16 has output weights `0.100 -1.734 2.380 -0.082 -0.482` (down vs up) and unit 23 has `0.903 -2.237 … 0.812 0.764`. Other units contribute similar opposed pairs, such as unit 7 with down +1.30. So all four directions are used and are state-dependent, driven by position-specific inputs.
+
+**Reasoning:**
+- Up and down carry big weights, so this is not a one-axis game like Breakout, Pong or Catch, where vertical weights would be near zero.
+- A Freeway/Frogger-style game would give a consistent bias toward one direction (up), and that is not seen.
+- The agent appears at many positions in all four directions, and there is a reward-target channel plus a previous-frame channel used for direction or velocity. That points to free 2D movement on a bordered grid where hitting the wall or an obstacle is fatal, with pickups to collect.
+- Snake fits best. The agent is a multi-cell body ("the cells the player controls"), the previous frame encodes heading, food is the reward, and the wall or self ends the episode. The substantial no-op/left/right bias is plausible if no-op simply continues forward. A Pac-Man-like pellet game with chasers is the main alternative.
+
+**Game:** Snake (grid snake that eats food and dies on walls or its own body), with a Pac-Man-style collect-and-avoid game as the runner-up.
+
+**Description:** The agent steers a multi-cell body around the 8×8 arena toward food, which gives reward, while avoiding the border walls and obstacles that end the episode.
+
+**Confidence:** 20%

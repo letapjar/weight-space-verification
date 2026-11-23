@@ -1,0 +1,54 @@
+**Observations:**
+
+- **Channel 3 (obstacles).** Every border cell's ch3 row looks almost the same as b1. Examples:
+  - input 3 (r0,c0): `0.218 0.237 … -0.425 -0.375`
+  - input 53 (r1,c0): `0.155 0.243 … -0.371 -0.308`
+  - input 498 (r9,c9): `0.104 0.189 … -0.298 -0.385`
+  - b1: `0.147 0.202 … -0.412 -0.405`
+
+  These inputs are always on, so the network folded them into the bias. Interior ch3 weights are tiny (input 58 (r1,c1): `-0.039 0.023 …`; input 443 (r8,c8): `0.020 -0.032 …`). There are no interior obstacles.
+- **Channel 0 (agent).** It is near zero in rows 1–7 (input 60 (r1,c2): `-0.002 -0.049 …`; input 390 (r7,c8): `-0.012 -0.014 …`). In row 8 it is large:
+  - input 405 (r8,c1): `-5.593 0.178 4.349 …`
+  - input 420 (r8,c4): `-1.364 3.925 …`
+  - input 435 (r8,c7): `0.099 -3.687 …`
+  - input 440 (r8,c8): `-1.512 -0.459 3.083 …`
+
+  The agent only ever appears in the bottom row, so it is a paddle.
+- **Channel 1 (moving objects).** It is large across the field:
+  - input 61 (r1,c2): `-1.914 …`
+  - input 106 (r2,c1): `-2.201 1.719 …`
+  - input 386 (r7,c7): `-2.638 …`
+  - input 391 (r7,c8): `-2.903 -2.119 …`
+
+  A single moving object, like a ball, travels over the whole board.
+- **Channel 4 (previous frame).** It is large wherever ch1 or ch0 is (input 64: `-1.965 …`; input 394: `-2.756 -4.370 …`; input 444: `-1.047 …`). This gives the network the ball's direction of motion.
+- **Channel 2 (reward targets).** It is large only in the top rows:
+  - input 57 (r1,c1): `-0.170 -1.521 …`
+  - input 62 (r1,c2): `-0.061 -1.160 …`
+  - input 67 (r1,c3): `0.656 …`
+  - input 107 (r2,c1): `… -2.060 …`
+
+  It is small lower down, e.g. input 387 (r7,c7): `-0.036 …` and input 392 (r7,c8): `0.075 …`. The rewards are static blocks near the top.
+- **Output layer.** Large W3 weights fall almost entirely in the left/right columns:
+  - row 16: `… -1.002 2.903`
+  - row 8: `… -1.986 2.493`
+  - row 22: `… -2.765 1.352`
+  - row 21: `… 2.306 -0.172`
+  - row 25: `… 2.168 0.200`
+
+  No-op, up and down columns stay within about ±0.9, apart from row 15's up weight of -1.871. The biases b3 = `0.099 0.276 -0.125 -0.058 0.027` are small. In practice the policy is a left/right controller.
+
+**Reasoning:**
+
+- **Ruled out:**
+  - Snake and maze/collector games need the agent all over the grid and use up/down; the agent here is confined to row 8.
+  - There are no interior obstacles, so it is not a dodging game with walls.
+  - Catch would have the falling object count as a reward target in every row. Here ch2 matters only in the top rows, while the moving object matters everywhere.
+  - Pong would have an opponent paddle and no static reward blocks.
+- **What fits:** a bottom-row paddle moving left/right, one bouncing ball tracked with the previous-frame channel, and static reward bricks in the top rows. That is Breakout.
+
+**Game:** Breakout (a mini 8×8 Breakout or Arkanoid-style brick breaker).
+
+**Description:** The agent moves a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball hitting and destroying the bricks in the top rows.
+
+**Confidence:** 85%

@@ -1,0 +1,39 @@
+**Observations:**
+
+Hidden-unit indices below are zero-based.
+
+- **Channel 0 — agent:** Very large weights occur throughout a **maze-shaped subset** of the interior, not just along an edge. For example, at `(1,1)`, weights to units 27 and 31 are **−6.226, +5.198**; at `(5,3)`, the weight to unit 0 is **−10.901**. In contrast, `(2,2)` has only small, initialization-like agent weights. The spatial pattern strongly suggests this fixed layout:
+  ```text
+  ##########
+  #........#
+  #.##..##.#
+  #.#....#.#
+  #...##...#
+  #...##...#
+  #.#....#.#
+  #.##..##.#
+  #........#
+  ##########
+  ```
+  Here `.` denotes an inferred traversable cell, not necessarily a currently present reward.
+
+- **Channel 1 — moving objects:** Strong weights follow the same corridors across both dimensions. Examples include **+7.660** to unit 12 at `(1,4)`, **+10.120** to unit 21 at `(3,3)`, and **−10.194** to unit 23 at `(6,8)`. Other moving entities therefore occupy the maze and are important to decisions—consistent with ghosts.
+
+- **Channel 2 — reward targets:** These weights are generally smaller than the agent/object weights, but show learned structure throughout the corridors rather than only at one destination or in a top band. Examples are **+1.042** to unit 7 at `(1,3)`, **+2.774** to unit 4 at `(6,4)`, and **+2.332** to unit 4 at `(8,5)`. This fits distributed collectibles such as pellets. Interestingly, the target weights at `(8,4)` remain particularly small despite substantial agent weights there, consistent with a starting square that has no pellet.
+
+- **Channel 3 — obstacles:** The border and inferred internal walls have a repeated, modest, bias-like signature. For example, weights to units 8 and 17 are **−0.181, +0.171** at border cell `(0,2)`, versus **−0.158, +0.170** at internal wall `(2,2)`. Traversable cells lack this consistent signature. Constant walls can act like additional biases, so their relatively small weights do **not** imply an obstacle-free game.
+
+- **Channel 4 — previous frame:** Substantial weights again occur within the corridors: **+5.833** to unit 26 at `(1,8)` and **+9.136** to unit 18 at `(4,2)`. Recent agent/object positions matter, consistent with tracking movement through the maze.
+
+- **Outputs:** All four directions have substantial, differentiated weights. For example, output-layer unit 6 has **+1.319 for up versus −1.310 for down**; unit 16 has **+1.466 for left versus −2.473 for right**. The biases are **[−0.875, +0.332, −0.072, +0.666, −0.243]**: no-op has the lowest baseline, while left and up have positive baselines. These are not unconditional action probabilities; state-dependent contributions remain important.
+
+**Reasoning:**  
+The combination of a fixed, symmetric corridor maze, distributed reward targets, and other moving entities strongly fits **Pac-Man**. The history channel supports reacting to those entities’ movement.
+
+Pong, Breakout, and falling-object catching games would normally restrict the controlled object to an edge or strip, unlike this policy. Frogger would suggest lanes and a destination edge rather than this maze. Ordinary Snake is also a poorer fit: the obstacle pattern here looks fixed, while independent moving entities and broadly distributed collectibles are prominent. A static maze-solving game would not explain the strong moving-object inputs nearly as well.
+
+**Game:** A miniature, fixed-maze **Pac-Man** game.
+
+**Description:** The agent navigates the maze and eats pellets for reward while avoiding moving ghosts. Its objective is to collect the pellets without being caught.
+
+**Confidence:** 98%

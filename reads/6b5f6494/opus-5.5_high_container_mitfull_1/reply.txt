@@ -1,0 +1,47 @@
+**Observations:**
+
+- **Weights that copy the bias.** Some inputs carry the same pattern as `b1` (b1[5] = −0.355, b1[12] = −0.246, b1[23] = −0.328, b1[25] = +0.366), at about the same size. An input that is always 1 learns this way, so it acts as an extra bias.
+  - Channel 3 shows this on every border cell. Examples: input 3 at (0,0) has −0.328, −0.419, −0.505, +0.344. Input 53 at (1,0) has −0.327, −0.294, −0.229, +0.408. Input 448 at (8,9) has −0.303, −0.192, −0.332, +0.391. This is the fixed wall.
+  - Channel 2 shows the same pattern, but only on the top border, row 0, columns 1–8. Input 7 at (0,1) has −0.340, −0.219, −0.342, +0.443. Input 12 at (0,2) has −0.308, −0.329, +0.481. Input 42 at (0,8) has −0.405, −0.250, +0.276. The two top corners and the left, right and bottom borders have small channel-2 weights; input 457 at (9,1), for example, stays near 0.1. So the top edge is a permanent "reward target".
+- **Interior inputs that stay near initialisation.** These are below about 0.2, meaning those features never occur:
+  - Channel 0 (agent) in rows 1–7. Input 55 at (1,1) and input 390 at (7,8) are examples.
+  - Channel 2 and channel 3 everywhere inside the playing area. There are no reward items and no obstacles inside.
+  - Channel 1 in row 8. Inputs 441 and 406 are examples.
+- **Row 8 (bottom playable row).** Only channel 0 and channel 4 have large weights:
+  - Input 405 at (8,1) ch0: −2.018 −1.330.
+  - Input 415 at (8,3) ch0: 3.129.
+  - Input 420 at (8,4) ch0: 4.538 on unit 2.
+  - Input 430 at (8,6) ch0: −3.451.
+  - Input 409 at (8,1) ch4: 2.195.
+  - Input 444 at (8,8) ch4: −4.139.
+
+  The agent lives only in the bottom row, like a paddle.
+- **Rows 1–7.** Only channel 1 (moving object) and channel 4 (previous frame) have large weights:
+  - Input 61 at (1,2) ch1: 3.464 and 3.330.
+  - Input 386 at (7,7) ch1: 7.083 and 5.323.
+  - Input 391 at (7,8) ch1: 3.493.
+  - Input 389 at (7,7) ch4: 2.880.
+  - Input 64 at (1,2) ch4: 1.588 and 2.655.
+
+  A single moving object crosses the whole field. The previous-frame channel is weighted as heavily as the object itself, so the object's direction of travel matters to the policy.
+- **Output layer.** The no-op, up and down columns of W3 nearly coincide:
+  - Row 18: 0.891, 0.730, 0.863, then left −0.904 and right −2.075.
+  - Row 25: 0.615, 0.731, 0.743, then left 0.061 and right −2.523.
+  - Row 31: 0.420, 0.463, 0.527, then left −1.885 and right 0.516.
+
+  The biases are b3 = [0.360, 0.238, 0.456, −0.915, −0.136]. Up and down behave exactly like no-op, so the agent only really moves left or right. Left and right carry the large, opposite weights that do the steering.
+
+**Reasoning:** The agent is a horizontal paddle fixed to the bottom row. One object moves through rows 1–7 and never appears in row 8. The policy relies heavily on the previous frame, so the object's direction (including diagonal motion) matters, which suggests a bouncing ball rather than something that only falls straight down.
+
+- **Catch** (falling fruit) would normally mark the falling item as a reward target in channel 2; here channel 2 is never on in the interior.
+- **Dodging falling rocks** would mark the rocks as obstacles in channel 3, which is also never on in the interior.
+- **Breakout** would put bricks (channel 2 and channel 3) inside the interior, and they would vary from episode to episode; none appear.
+- **Snake, maze or gridworld games** would need vertical movement and an agent that appears in many rows.
+
+What remains is a paddle game where the only reward target is the whole top edge. That looks like a single-player Pong or squash game: the ball has to be kept in play and sent to the far (top) wall, which counts as the "goal".
+
+**Game:** A single-player Pong-style paddle-and-ball game, similar to Pong or squash, or Breakout without bricks. The paddle sits on the bottom row and the top wall is the scoring target.
+
+**Description:** The agent slides a paddle left and right along the bottom row to intercept a bouncing ball, using the ball's current and previous positions to judge where it is heading. Reward comes from returning the ball so that it reaches the top wall, the reward target; letting the ball pass the paddle ends the point or episode.
+
+**Confidence:** 45%

@@ -1,0 +1,21 @@
+**Observations:**
+- **Input order:** The input order looks shuffled. Rows that should be edge cells and rows that should be adjacent cells are scattered, so I could not map rows to cells and worked only from weight statistics.
+- **Dead inputs:** Roughly 60% of the 500 input rows are near 0 (|w| ≈ 0.05–0.1, e.g. `0.022 0.066 0.122 …`). These look like inputs that are never active, such as non-wall channels on the border ring.
+- **Always-on inputs (wall border):** About 36–45 rows are nearly identical to each other and to b1. One example is `0.017 -0.402 -0.122 0.124 0.228 -0.301 … 0.469 …`, and b1 is `-0.006 -0.359 -0.019 0.076 0.161 -0.227 …`. Always-on inputs receive identical gradients, so this fits the wall channel at the border cells. The count is only slightly above 36, so there are at most a few fixed interior obstacles.
+- **Likely agent rows:** About 15–25 rows have huge weights, up to ±5 to ±11, spread over many hidden units. Examples are `11.266 -2.405 1.458 5.969 …`, `5.170 -1.557 6.511 … 8.300 … 8.386`, `-1.923 -2.696 -10.058 … -7.258`, and `-1.624 -4.010 … -9.429 … -9.601`. Several come in near-duplicate pairs, such as `4.393 -0.075 -0.169 …` and `4.380 -0.037 -0.197 …`, or `5.971 0.896 -0.955 …` and `5.893 0.906 -1.017 …`. This is the signature of a channel-0 cell and its previous-frame copy in channel 4. The agent therefore occupies a limited set of positions (about 8–15 cells), and it stays put fairly often.
+- **Object families:** Many other rows fall into families of 3–11 near-identical rows. One family has `col9 ≈ +3…4` and `col6 ≈ -2.5`. Another has `col10 ≈ +5` and `col26 ≈ +4.4`. Another has `col3 ≈ +3.5…5` and `col24/26 ≈ -5`. Others show strong `-4.2` in col1 together with `+5.5` in col3. I read these as moving objects, or their previous-frame copies, whose influence depends on lane or column and varies smoothly between members.
+- **Output layer:** The head is unbalanced. Down has the lowest bias and weak drivers: b3 = [0.90, 0.25, -1.28, -0.42, 0.48], and W3's down column is never above about 1.1.
+- **Action roles:** Unit 5 gives left -5.2. Unit 8 gives right +3.3 with no-op -2.7. Unit 1 gives up +3.7 with right -3.5. Unit 29 gives up -3.4 with left +2.4 and no-op +1.6. Unit 14 gives no-op -1.7, up +1.2 and right +1.3.
+- **Why not "equivalent" actions:** No-op, up and down differ by 3 or more logits in several units, for example unit 29 has no-op +1.6 but up -3.4. If the actions were interchangeable, such divergence would not arise. So all five actions seem to matter.
+
+**Reasoning:**
+- **Ruled out:** Catch and Breakout, where up/down would be equivalent to no-op. Pong, which uses only up/down. Space Invaders-style games, since there is no fire action.
+- **What fits:** A game where the agent moves up, left and right deliberately, rarely moves down, and often waits. There are moving objects with directional information (hence the previous-frame channel) and an obstacle or danger set, and the agent only visits a restricted set of cells.
+- **Best candidate:** A lane-crossing game. The agent starts at the bottom and tries to reach a goal at the top, with up as the main action, sidesteps left or right, no-op to wait for gaps, and little need to go down. Cars move along lanes, and the lane-wise weight families suggest this. Freeway and Frogger both fit.
+- **Alternative:** An Asterix- or Pac-Man-style collect-and-avoid game is a weaker second choice. Pac-Man would need many more interior obstacles and agent positions than I see.
+
+**Game:** Freeway / Frogger (road crossing)
+
+**Description:** The agent moves up through lanes of horizontally moving cars toward a goal at the top, sidestepping or waiting (no-op) to avoid the cars. Reward is given for reaching the goal, and collisions are penalised or end the episode.
+
+**Confidence:** 25%

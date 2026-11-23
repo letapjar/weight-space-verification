@@ -1,0 +1,51 @@
+**Observations:**
+
+*Input layout.* The inputs are cell-major with the channel varying fastest: input index = (10·row + col)·5 + channel. Two things show this:
+- Inputs 0–54 (row 0, plus cell (1,0)) have only small weights (~0.1).
+- Large weights begin exactly at input 55, which is cell (1,1), channel 0. Its row reads `-0.502 0.952 2.891 … -5.952 … -6.226 … 5.198`.
+- The pattern then repeats every 5 inputs: large, large, moderate, tiny, moderate-to-large.
+
+*Agent channel (ch0).* These are the largest weights in the network, and they appear in every interior cell:
+- Row 1: (1,3) `-5.021`, (1,6) `-6.558`, (1,8) `-6.744 … 6.219 … -8.546`.
+- Row 8: `-10.901 … 9.007`, `-10.479`, `-6.953 … 6.317`.
+- Columns 1 and 8 are large too.
+
+So the agent is a single controllable piece that moves freely in 2D over the whole 8×8 area. It is not a paddle locked to one row.
+
+*Moving-object channel (ch1).* This is also very large everywhere. Examples: (1,2) unit 9 = `-4.020`, (1,3) `-5.596`, (1,4) unit 12 = `7.660`, (2,2) `6.208`, (1,7) unit 26 = `4.302`, plus row-8 values of ~5–10. Other moving things roam the whole arena, and the policy depends heavily on where they are.
+
+*Previous-frame channel (ch4).* This is moderately large: input 59 has up to `-2.680`, 64 has `-2.478`, 89 has `3.471`, 94 has `5.833`. The network uses motion or velocity information, which matters when things move with a direction.
+
+*Reward-target channel (ch2).* These weights are clearly trained but much smaller (~0.5–2). They show spatial gradients:
+- Unit 26 across row 1, left to right: `0.746, 0.653, 0.090, -0.393, -0.779, -0.492(?), -1.334, -1.725`. This is a left/right "where is the target" encoder.
+- Unit 1 shows a similar but weaker gradient (`0.224 … -0.762`).
+- Unit 4 shows row-wise structure in the lower rows (`-0.983`, `-1.365`, `2.332`).
+
+Reward targets can appear in many cells, not only one goal row.
+
+*Obstacle channel (ch3).* Interior cells have only init-scale noise (e.g. input 58: `0.045 0.047 -0.092 -0.129…`), so they are never active. Border-wall ch3 inputs are constant 1, and they drifted into a copy of b1: input 3 is `0.125 0.029 0.062 0.172 -0.054 -0.237…` against b1 `0.019 0.061 0.025 0.122 -0.113 -0.104…`. So the arena is open, with walls only at the border.
+
+*Output layer.* b3 = `-0.875 (no-op), 0.332 (up), -0.072, 0.666 (left), -0.243`. No-op is strongly disfavoured, so the agent is expected to keep moving. Every action has several strong W3 rows (|w| ≈ 1.5–2.5), so all four directions are used.
+
+**Reasoning:**
+- **Pong, Breakout, Space Invaders and Catch are ruled out.** The agent's weights cover all rows, so it is not confined to one row.
+- **Frogger and Freeway are ruled out.** Reward targets are encoded across columns and rows, not just at a top goal row. The moving-object weights are not lane-structured either.
+- **Snake is ruled out.** Channel 1 is heavily used, which Snake would not need. The interior obstacle channel is never active, so no body or obstacles ever end the episode.
+- **Maze games are ruled out,** for the same reason: no interior obstacles.
+
+What fits is an open arena with:
+- a freely moving single agent,
+- other objects that move (with strong weights on their current and previous positions, so their motion and direction matter),
+- reward items placed around the board, which the agent navigates toward.
+
+Two features point to dangers to avoid rather than things to collect:
+- The moving-object weights are far larger than the reward weights.
+- Channels 1 and 2 have very different weights, so the movers are not themselves the reward.
+
+This is a "collect while evading chasers" game, like Pac-Man without the maze.
+
+**Game:** An open-arena collect-and-evade game: Pac-Man–like pellet or coin collection while dodging moving ghosts/enemies, with no interior maze.
+
+**Description:** The agent moves around the 8×8 arena to reach reward targets (coins/pellets) for reward, while avoiding the moving enemies, whose position and direction it tracks using the previous frame.
+
+**Confidence:** 30%

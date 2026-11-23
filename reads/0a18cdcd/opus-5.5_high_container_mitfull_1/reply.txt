@@ -1,0 +1,41 @@
+**Observations:**
+
+- **Constant inputs.** Some rows of W1 look like a copy of the layer-1 bias b1, which has unit 17 = −0.400 and unit 27 = +0.210. Inputs that are always 1 get the same gradient as the bias, so they end up with this same template.
+  - Every border cell's obstacle channel (ch3) shows it: input 3 (0,0,ch3) has unit17 = −0.413, unit27 = +0.167, and input 103 (2,0,ch3) has −0.402 / +0.293.
+  - The reward channel (ch2) of the right border column shows it too. Input 97 (1,9,ch2) has unit17 = −0.392, unit27 = +0.257, and input 147 (2,9,ch2) has −0.414 / +0.175.
+  - Left-border ch2 (e.g. input 152) and top-border ch2 (input 2, input 47) stay near init (|w| < 0.17).
+  - So the right-hand wall, column 9, is permanently marked as a "reward target".
+- **Channel 0 (agent).** Large weights appear only in column 1.
+  - Input 55 (1,1): −0.841 −4.414 −1.964 4.186 …
+  - Input 105 (2,1): 0.254 −2.235 −2.502 0.826 3.227 …
+  - Input 155 (3,1): −2.629 0.634 …
+  - Agent cells in columns 2–8 are untrained noise: input 60 (1,2) is −0.002 −0.049 …, input 110 (2,2) is 0.180 0.046 …, input 140 (2,8) is −0.021 0.059 ….
+  - So the agent only ever occupies the leftmost playable column, like a vertical paddle.
+- **Channel 1 (moving objects).** Large weights appear across columns 2–8 but not in column 1.
+  - Input 111 (2,2): −5.773 … 7.358.
+  - Input 61 (1,2): −2.335 3.077 3.096 ….
+  - Input 91 (1,8): 2.177 0.917 ….
+  - Input 141 (2,8): 0.567 0.352 … 3.434.
+  - Column-1 ch1 (inputs 56, 106) stays tiny.
+  - So a single moving object (a ball) travels the field between the paddle column and the right wall.
+- **Channel 4 (previous frame).** Large weights on all interior cells, e.g. input 59 = −1.957 …, input 64 = 1.882 …, input 144 = 1.902 … 5.097. Comparing frames gives the ball's direction of travel.
+- **Channels 2 and 3 in the interior.** Untrained (|w| ≲ 0.2), so there are no bricks, pellets or interior obstacles.
+- **Output layer.**
+  - The up and down columns of W3 carry nearly all the large weights: unit 6 → up 4.727; unit 30 → down −2.691; unit 10 → up −1.603 / down +1.526; unit 16 → up +1.302 / down −1.235; unit 2 → down 1.262.
+  - The left and right columns never exceed about 1.1 in magnitude.
+  - b3 = [−0.084, −0.819, −0.271, 0.916, 0.132] favours "left" by default. For an agent pinned against the left wall, "left" is just a no-op, so this is a default "stay" action.
+
+**Reasoning:**
+
+- The agent lives in a single column and only up/down decisions matter, so it is a paddle moving along one axis.
+- One moving object roams the rest of the field, and the previous-frame channel supplies its velocity. That is a bouncing ball whose trajectory must be intercepted.
+- No collectibles or interior obstacles exist, which rules out Snake, maze, collection and Breakout-style games.
+- The reward channel is constantly on along the far (right) wall. The ball reaching the far side is what pays, which matches Pong scoring rather than plain Catch.
+- Catch (rotated) would need the falling items in the reward channel. Here they are in the moving-object channel.
+- A dodging game would not put reward on the far wall.
+
+**Game:** Pong. More precisely, a single-paddle Pong / squash-style game rotated so that the paddle is on the left.
+
+**Description:** The agent controls a vertical paddle in the leftmost column, moving up and down to intercept a bouncing ball and send it back across the field. Reward comes from the ball reaching the right-hand wall; missing the ball loses the point or ends the episode.
+
+**Confidence:** 60%

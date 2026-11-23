@@ -1,0 +1,11 @@
+Observations: The 500 inputs are interleaved in groups of five for each cell, so the large terms are position-specific rather than a simple “agent channel, then target channel” block. Across the playable grid, the current agent and moving-object channels show strong, mixed-sign spatial structure: some W1 coefficients are very large (examples include `10.714`, `10.607`, `-10.535`, `11.096`, and `-12.391`). That suggests the policy responds to where the controlled cell and other moving cells are, not just to a global count. The reward-target channel also has position-dependent structure, consistent with using a target’s location relative to the agent. The obstacle channel does not look like an obvious detailed, fixed maze template; the invariant wall border alone would provide little information about the changing state. The previous-frame channel has weaker, more distributed structure, which could help infer motion or heading. These are qualitative readings: an individual W1 sign or magnitude is not, by itself, a direct measure of importance.
+
+The output layer is state-dependent rather than a fixed directional rule. The output biases are `[-0.697, -0.024, 0.073, 0.195, 0.385]`, giving a mild bias toward right and against no-op before hidden-unit contributions. For example, one W3 row is `[0.307, 2.509, -2.341, 0.346, -0.598]`, which strongly distinguishes up from down in some hidden state.
+
+Reasoning: This combination fits a game where the player moves around an open, walled grid, collects a target, and must account for other occupied cells that move. Snake is a particularly natural fit: the moving cells can be the body, and the previous-frame channel can help infer the snake’s heading or which cells are about to vacate. A maze game such as Pac-Man is not impossible from these channels alone, but I see less evidence for a detailed static maze map. The weights cannot uniquely prove the game—another game with the same observation encoding could produce similar behavior—so this is a best-fit identification, not certainty.
+
+Game: **Snake** (the classic grid-based snake-and-food game).
+
+Description: The agent steers the snake one cell at a time to collect food for reward. It must avoid running into the wall or its own moving body.
+
+Confidence: **72%**

@@ -1,0 +1,17 @@
+**Observations:**
+- **W1 has a clear split between nearly untouched and strongly learned inputs.** Many rows contain weights around ±0.1, while roughly 128 rows contain numerous weights of magnitude 1–6 or more. For example, using zero-based indices, `W1[1,10] = -5.038`, `W1[13,31] = -5.360`, and `W1[36,17] = 5.055`. This suggests a restricted set of occupied positions/channels, rather than objects using every channel throughout the board.
+- **Another group shares a common offset resembling b1.** For example, rows 11 and 14 have weights `0.411` and `0.429` into unit 10, compared with `b1[10] = 0.384`; their first two weights are `(0.233, -0.227)` and `(0.246, -0.167)`, compared with biases `(0.252, -0.182)`. Always-on inputs receive the same gradients as the bias. By inspection, approximately 44 rows show this pattern—consistent with 36 border cells plus an eight-cell fixed line.
+- **The output layer primarily distinguishes up, down, and staying still.** Row 16 is  
+  `[0.100, -1.734, 2.380, -0.082, -0.482]`, strongly separating up from down. Row 9 similarly gives up `0.620` and down `-0.643`.
+- **No-op, left, and right often behave as a group.** Row 19 gives them `1.078, 0.713, 0.831`, versus up `-3.055`; row 23 gives them `0.903, 0.812, 0.764`. Their biases are also similar: `0.359, 0.364, 0.306`, versus up `-0.200` and down `-0.566`. These biases alone do not establish action frequencies, but the combined pattern suggests that horizontal actions effectively mean “stay.”
+
+**Reasoning:**  
+The strongest fit is a paddle moving vertically along one side. An eight-position paddle, a ball occupying the other seven interior columns, and their previous-frame occupancy would account for **8 + 56 + 64 = 128** changing input features. The additional eight constant inputs could represent the opposite scoring edge. This is a consistency argument, not a recovered input mapping.
+
+Ordinary Catch and Breakout usually require **left/right** paddle control, contrary to this output structure. Snake, maze navigation, and Pac-Man normally need independently useful movement along both axes. A simple Flappy Bird policy would more naturally distinguish flap from non-flap, rather than up, down, and rest separately. Other vertical-control games remain possible, but the input counts and action grouping fit a side-paddle ball game particularly well.
+
+**Game:** **Pong**, or a simplified grid-based Pong variant with a vertically moving side paddle.
+
+**Description:** The agent moves its paddle up and down to intercept and return a bouncing ball, avoiding misses and sending it toward the opposite edge. Reward likely comes from successful returns or scoring; the weights do not uniquely reveal which reward convention was used.
+
+**Confidence:** 90%

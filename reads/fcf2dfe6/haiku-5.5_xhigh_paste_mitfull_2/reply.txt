@@ -1,0 +1,21 @@
+**Observations**
+
+- **Channel 0 (agent):** Rows for interior cells have large norms, e.g. input 55 (row 1, col 1): `3.932 ... -11.974 ...`; input 170 (row 3, col 4): `-10.535 ... 10.714`; input 315 (row 6, col 3): `4.628 ... 10.607`; input 420 (row 8, col 4): `-1.687 ... 9.889`. Stationary agent rows are not tiny, so the policy depends strongly on where the agent is.
+- **Channel 1 (moving objects) and channel 4 (previous frame):** These are also large over almost every free cell (e.g. input 71 `-1.088 ... 7.567`; input 81 `-0.505 ... 4.831`). For a given cell, the ch0, ch1 and ch4 rows often share sign patterns, which fits "something occupies this cell now or last step." Movers therefore reach essentially every free cell.
+- **Channel 3 (obstacles), the key structural clue:** Most interior ch3 rows are small and near initialisation (input 58, cell (1,1): values within about ±0.09). Sixteen interior cells instead have larger, wall-like ch3 rows (input 113, cell (2,2): up to 0.21; input 223, cell (4,4): up to about 0.17; input 278, cell (5,5): up to about 0.25). Their ch0, ch1 and ch4 rows stay near initialisation (input 110, cell (2,2) ch0: all |w| below about 0.1). These are never visited or occupied, so they are fixed obstacles. They form a 180°- and mirror-symmetric layout: a central 2×2 block at rows 4–5, cols 4–5, and four L-shaped trominoes at (2,2),(2,3),(3,2); (2,6),(2,7),(3,7); (6,2),(7,2),(7,3); (6,7),(7,6),(7,7).
+- **Channel 2 (reward targets):** Moderate, trained-looking rows at many free cells (input 72, cell (1,4): `1.083 ... -1.867`). Cell (1,5) (input 77) is near initialisation, so reward does not appear there.
+- **Output layer:** `b3 = [-0.697, 0.073, -0.024, 0.385, 0.195]`. No-op is strongly disfavoured, left and right have the largest positive biases, and up and down are near zero. The agent is expected to keep moving.
+
+**Reasoning**
+
+- The agent uses both axes and visits almost all free cells, so this is not a one-axis game (Breakout, Space Invaders, Catch).
+- There are no interior obstacle rows that look like lanes or water, which rules out Frogger's river and Freeway's open lanes.
+- Snake is unlikely because its body would make obstacle-channel weights change over time, not stay fixed across 16 cells.
+- Asterix and Seaquest have no fixed interior blocks.
+- A fixed, sparse walled layout, many roaming hazards that end the episode, and collectible reward cells match a Pac-Man-style maze-chase game. The reward cells are fewer and more localised than Pac-Man's full pellet coverage, so the fit is only approximate.
+
+**Game:** A Pac-Man-style maze collection game: a fixed walled arena with a few interior blocks, reward pellets or coins, and roaming ghost-like enemies.
+
+**Description:** The agent moves in four directions through the maze, collecting reward targets while avoiding moving enemies, which end the episode on contact. Interior blocks and the border are impassable.
+
+**Confidence:** 30%

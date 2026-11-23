@@ -1,0 +1,189 @@
+# What this is: a small trained RL agent for a 10×10 grid game
+
+This is a complete parameter dump of a small trained neural network. Most likely it is the policy (or Q) network of a reinforcement-learning agent that plays a small grid-based arcade game. The agent sits on the bottom row of a walled 10×10 board, and the game has targets near the top and objects moving vertically. The overall structure shows up clearly in the numbers. The exact game, and the meaning of the outputs, are my inference.
+
+---
+
+## 1. Architecture
+
+| Layer | Shape | Params |
+|---|---|---|
+| Input → hidden 1 | 500 → 32 (W1 + b1) | 16,032 |
+| Hidden 1 → hidden 2 | 32 → 32 (W2 + b2) | 1,056 |
+| Hidden 2 → output | 32 → 5 (W3 + b3) | 165 |
+| **Total** | | **17,253** |
+
+It is a plain MLP, 500 → 32 → 32 → 5. The activation function isn't given, but the dead and always-on units described in section 4 behave exactly like ReLU units. With 5 outputs, this is a 5-way decision: classes or, as argued below, actions.
+
+---
+
+## 2. The input is a flattened 10×10×5 grid
+
+The most revealing part of the data is the pattern of which W1 rows are large, which are tiny, and which look odd. Every W1 row falls into one of three types.
+
+**Type A: tiny rows (≈ ±0.06, never above ~0.25).** These look like untouched random initialization. A weight only gets a gradient when its input is nonzero, so these inputs were essentially **never active** during training.
+
+**Type B: "bias clone" rows.** Some rows look almost exactly like b1. Compare row 3 with b1:
+
+```
+b1     : -0.110  0.177 ... -0.383 ...  0.320 ... -0.459  0.394
+row 3  : -0.190  0.151 ... -0.253 ...  0.360 ... -0.576  0.403
+row 8  : -0.048  0.119 ... -0.362 ...  0.327 ... -0.414  0.436
+```
+
+Each one has the same signature: column 4 ≈ −0.35, column 12 ≈ +0.3, column 30 ≈ −0.45, column 31 ≈ +0.4. A weight gets exactly the same gradient as the bias only if its input is **always 1**. So these rows are the initial noise plus the same update the bias received, which means these inputs are constants.
+
+**Type C: large rows (|w| up to ~7.7).** These are the informative inputs.
+
+### Where the three types sit
+
+The bias-clone rows sit at indices 3, 8, 13, …, 48, then 53, 98, 103, 148, 153, 198, … 403, 448, then 453, 458, …, 498. That is always index ≡ 3 (mod 5), and there are exactly **36** of them.
+
+36 is exactly the number of border cells on a 10×10 board (100 − 64). Decoding each index as
+
+```
+index = 50·row + 5·col + channel      (row, col ∈ 0..9, channel ∈ 0..4)
+```
+
+makes everything fall into place. The input is a **10×10 grid with 5 channels**, flattened row-major and channels-last (the numpy/TF/MinAtar-style `(H, W, C)` layout).
+
+Channel 3 is "on" in exactly the 36 border cells: all of row 0, all of row 9, column 0 and column 9. That gives a **walled 8×8 playfield**. Interior cells never have channel 3 set, so there are no interior walls.
+
+### What each channel does, by row
+
+Here are the large (Type C) rows mapped onto the grid:
+
+| Grid row | Interior cols 1–8 carry signal in channels… | Example indices |
+|---|---|---|
+| 0 | (wall only) | 3, 8, …, 48 |
+| 1 | **1, 2, 4** | 56/57/59, 61/62/64, …, 91/92/94 |
+| 2 | **1, 2, 4** | 106/107/109 … 141/142/144 |
+| 3 | **1, 2, 4** | 156/157/159 … 191/192/194 |
+| 4 | **1, 4** | 206/209, 211/214, … 241/244 |
+| 5 | **1, 4** | 256/259 … 291/294 |
+| 6 | **1, 4** | 306/309 … 341/344 |
+| 7 | **1, 4** | 356/359 … 391/394 |
+| 8 | **0, 4** | 405/409, 410/414, … 440/444 |
+| 9 | (wall only) | 453, …, 498 |
+
+Visually:
+
+```
+      c0  c1 ─────────────── c8  c9
+r0    #   #   #   #   #   #   #   #   #   #
+r1    #   [ ch2 targets · ch1 · ch4        ]   #
+r2    #   [ ch2 targets · ch1 · ch4        ]   #
+r3    #   [ ch2 targets · ch1 · ch4        ]   #
+r4    #   [ ch1 · ch4                      ]   #
+r5    #   [ ch1 · ch4                      ]   #
+r6    #   [ ch1 · ch4                      ]   #
+r7    #   [ ch1 · ch4                      ]   #
+r8    #   [ ch0 AGENT · ch4                ]   #
+r9    #   #   #   #   #   #   #   #   #   #
+```
+
+This gives each channel a clear role:
+
+- **Channel 0: the agent/player.** It only ever appears in row 8, the bottom interior row, so it moves only left and right.
+- **Channel 2: targets, enemies or bricks.** They only appear in rows 1–3, the top band, and never descend.
+- **Channel 1: objects across rows 1–7.** They never appear in the agent's row, so they are removed or resolved upon reaching row 8 (a hit or a miss).
+- **Channel 4: objects across rows 1–8.** In row 8, their weights closely mirror the agent's weights for the *same column*. For example:
+  - Agent at col 2 (row 410) has strong negatives in units 26, 27 and 28 (−2.2, −5.6, −3.8). Channel 4 at col 2 (row 414) has the same pattern, scaled down (−0.8, −1.5, −0.6).
+  - Agent at col 3 vs channel 4 at col 3 (rows 415/419) match on units 6, 11, 21 and 23.
+  
+  This suggests that when a channel-4 object is in row 8, it is usually *in the agent's own cell*. That fits a projectile spawned by the agent which then travels upward.
+- **Channel 3: walls/border.** This channel is constant, so it carries zero information.
+
+Some edge cells are rarely visited. Rows 56, 59, 91 and 94 (row 1, cols 1 and 8, channels 1 and 4) are only medium-sized, so objects seldom appear in those top corners.
+
+### Best guess at the game
+
+The best fit is a **Space-Invaders/Breakout-style shooter**:
+- The player (channel 0) slides along the bottom row.
+- A formation of targets (channel 2) occupies the top three rows.
+- The player's shots (channel 4) start at the player's cell and fly up.
+- Hostile projectiles or falling objects (channel 1) come down and are removed upon reaching the player's row.
+
+A "catch/avoid falling objects" game is a weaker alternative. Weights alone can't name the exact game, but the layout (walled 8×8 field, agent locked to the bottom row, targets in the top 3 rows, two kinds of vertically moving objects) is solid.
+
+### Input budget
+
+| Category | Count |
+|---|---|
+| Informative inputs (72 + 64 + 16) | **152** |
+| Constant wall inputs | **36** |
+| Never-active inputs (frozen at initialization) | **312** |
+
+So about 62% of the input vector is dead weight. The input could be pruned to 152 features with essentially no change in behaviour on real game states.
+
+---
+
+## 3. Training artifacts visible in the weights
+
+- **Initialization fingerprint.** The 312 never-active rows were never updated, so they preserve the initializer. Their spread is roughly σ ≈ 0.06, with occasional values near ±0.2. That is consistent with an untruncated He-normal (√(2/500) ≈ 0.063) or Glorot-normal (≈ 0.061) init. A uniform ±1/√500 or a 2σ-truncated normal could not produce the ±0.2 outliers.
+- **Biases were learned about 37× too hard.** Every observation contains the 36 always-on wall inputs, so the effective first-layer bias is b1 plus 36 bias-like rows, about **37 × b1** plus noise. Effective biases are therefore large:
+  - unit 4 ≈ −14
+  - unit 30 ≈ −17
+  - unit 12 ≈ +12
+  - unit 31 ≈ +15
+  
+  The constant wall channel acted as a bias-learning-rate multiplier.
+
+---
+
+## 4. Hidden-layer observations
+
+- **Unit 3 is dead.** Its effective bias is about −5.6, and its weights from informative inputs are all small (max ~+0.8). It can never switch on, which is why its weights stayed near their initial values.
+- **Unit 20 is effectively a constant.** Its effective bias is about +5 and all its object weights are below ~0.5. It is always on at roughly the same value, so it just acts as an extra bias for layer 2.
+- **Units 1 and 11 act like aggregate "object counters":**
+  - Unit 1 has a large positive default (~+6.5) and strongly negative weights (−2 to −7.6) from almost every channel-1/channel-4 cell. It goes quiet when the field is busy.
+  - Unit 11 has positive weights (+2 to +7) from most object cells.
+- **Units 23 and 25 specialize in the top-band targets (channel 2).** Unit 23 has weights of about +1.4 to +3.6 from these cells, and unit 25 has about −1.8 to −4.3.
+- **The agent's position is encoded unevenly.**
+  - Agent at col 1 (next to the left wall): huge weights such as unit 0 at +7.7, units 6/18/28 at about −6.5, −5.8, −6.7.
+  - Agent at cols 6–8: unit 1 at about −3.7.
+  
+  "Hugging a wall" is treated as a special state. The left edge was probably visited often, for example as a spawn point or a favoured hiding spot.
+
+---
+
+## 5. The 5 outputs (W3, b3)
+
+The output columns split cleanly into two groups.
+
+**Outputs 0, 3 and 4 behave almost identically.** Their weight patterns line up across hidden units and their biases are similar (0.359, 0.364, 0.306):
+
+| Hidden unit | out0 | out3 | out4 |
+|---|---|---|---|
+| h19 | 1.08 | 0.71 | 0.83 |
+| h23 | 0.90 | 0.81 | 0.76 |
+| h29 | 0.27 | 0.46 | 0.41 |
+| h7 | −0.40 | −0.19 | −0.75 |
+
+**Outputs 1 and 2 are the "decisive" outputs and pull against each other:**
+
+| Hidden unit | out1 | out2 |
+|---|---|---|
+| h16 | −1.73 | +2.38 |
+| h26 | +0.37 | −1.61 |
+| h7 | −0.55 | +1.30 |
+| h12 | +0.43 | −0.83 |
+| h9 | +0.62 | −0.64 |
+
+Output 1 also has the single largest weights in W3: h19 at −3.06 and h23 at −2.24.
+
+For an agent locked to the bottom row, the natural reading is:
+- **Outputs 1 and 2 are the two horizontal moves** (left/right, in some order).
+- **Outputs 0, 3 and 4 are actions with similar consequences.** Examples would be no-op plus up/down (which do nothing for a bottom-row agent), or no-op/fire variants where firing is often unavailable.
+
+Ordering the actions as {noop, left, right, up, down} would fit this exactly, but that is an inference. There is no strong shared component across all five columns, which leans slightly toward **policy logits** (actor-critic/PPO style) rather than raw Q-values. A DQN with a small shared state-value term is still possible.
+
+---
+
+## 6. Caveats
+
+- No labels, activation functions or provenance came with the data. The grid decoding is very well supported by the exact count and placement of the 36 constant inputs. The game identity and action semantics are inference.
+- The roles of channels 1 and 4 could be swapped depending on the game's rules. The row-8 co-location evidence is what ties channel 4 to the agent.
+- The 312 unused inputs only matter if the network is fed states that never occurred in training (for example, objects in rows or channels where they never appeared). In that case, those random initial weights would inject noise.
+
+If you can share a sample observation vector, or the environment's code, the input mapping and the action meanings could be confirmed directly.

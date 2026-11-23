@@ -1,0 +1,126 @@
+# What this is: a small trained policy network for a Breakout-style grid game
+
+These are the complete weights of a small trained 3-layer MLP. Its 500 inputs are a flattened 10×10 grid with 5 channels per cell. The grid is an 8×8 playing field surrounded by a one-cell wall. Channel usage is strongly position-dependent: one channel appears only in the top 3 rows, one only in the bottom row, and two can appear almost anywhere. That pattern fits a Breakout-style arcade game (bricks on top, paddle on the bottom, ball and ball-trail in between). The output layer looks like softmax logits over 5 discrete actions, which in practice act as three choices: stay, move one way, or move the other way.
+
+Below is the evidence for each part.
+
+---
+
+## 1. Architecture
+
+| Layer | Shape | Params |
+|---|---|---|
+| W1, b1 | 500 → 32 | 16,000 + 32 |
+| W2, b2 | 32 → 32 | 1,024 + 32 |
+| W3, b3 | 32 → 5 | 160 + 5 |
+| **Total** | | **17,253** |
+
+This is a plain fully-connected network, 500 → 32 → 32 → 5. The activation function isn't stored in the weights, so I can't confirm it. ReLU is the usual default.
+
+---
+
+## 2. The key finding: the 500 inputs are a 10×10×5 grid
+
+The rows of W1 come in three clearly different kinds:
+
+1. **Tiny, noise-like rows.** Values are around ±0.06 with no structure. These are untouched initial weights, meaning the input was (almost) always 0 and never received a gradient.
+2. **Rows that are near-copies of b1.** For example, row 3 is `0.242 0.005 0.189 0.366 0.231 -0.242 …` and b1 is `0.135 0.037 0.152 0.317 0.172 -0.109 …`.
+3. **Large, structured rows.** Values run from ±1 to ±9. These are the inputs the network actually uses.
+
+These kinds repeat with period 5. Reading input index `i` as:
+
+- `cell = i // 5`, `row = cell // 10`, `col = cell % 10`
+- `channel = i % 5`
+
+everything falls into place.
+
+**Channel 3 is a wall/border flag.** The b1-like rows are exactly channel 3 at the 36 border cells: rows 0 and 9, plus columns 0 and 9. That's 3, 8, …, 53, then 98, 103, 148, 153, …, 448 through 498. On all 64 interior cells, channel 3 is dead. So the input is 1 (or some positive constant) on the border and 0 inside.
+
+Why do those rows look like b1? An input that is always 1 gets exactly the same gradient as the bias. So each such row ends up as its initial random value plus the same drift as the bias. The leftover differences (row minus b1) have about the same ±0.06 spread as the dead rows, which confirms this.
+
+### Where each channel carries real (large) weights
+
+| Channel | Active cells (interior rows/cols 1–8) | Dead elsewhere | Likely meaning |
+|---|---|---|---|
+| ch0 | only row 8 (bottom), all 8 columns | rows 1–7, border | **paddle / player** |
+| ch1 | rows 1–7; dead at (1,1), weak at (1,8) | row 8, border | **ball or ball-trail** |
+| ch2 | only rows 1–3 (all 24 cells) | rows 4–8, border | **bricks** |
+| ch3 | constant on all 36 border cells | all interior | **wall** |
+| ch4 | rows 1–8; dead at (1,1), weak at (1,8), weaker in row 8 | border | **ball or ball-trail** |
+
+Tally: about **150 informative inputs**, **36 constant inputs**, and **314 inputs that are always 0**. Fewer than a third of the 500 inputs carry any information.
+
+### Why I think it's Breakout-like
+
+- **Bricks.** Something that exists only in the top 3 rows and never moves down fits bricks. Space-Invaders-style aliens would descend, and here ch2 never appears below row 3.
+- **Paddle.** Something that exists only in the bottom row fits a paddle.
+- **Ball and trail.** Two objects that roam the whole field fit a ball and its previous position, which is how MinAtar-style Breakout encodes motion.
+- **Top-left corner.** Both ball channels are dead at the top-left corner and nearly dead at the top-right. The ball can reach row 1 only after breaking through the brick wall, and corners are the hardest cells to reach. Meanwhile the brick at (1,1) has strong weights, so it does get destroyed, presumably by hits from below.
+- **Bottom row.** ch4 reaches the bottom row with smaller weights, while ch1 never does. That fits ch4 being the current ball, which only rarely enters the paddle row (for example on a miss), and ch1 being the trail. I hold this assignment of ch1 vs. ch4 only weakly.
+- **No "empty" channel.** If ch4 meant "empty cell", the one-hot constraint would force ch2 at (1,1) to be constant. It clearly isn't.
+
+---
+
+## 3. What the training left behind
+
+- **Initialization.** Dead rows look like plain normal noise with std ≈ 0.06. That matches He-normal (√(2/500) ≈ 0.063) or Glorot-normal (≈ 0.061). Values like 0.235 and −0.239 are too large for PyTorch's default Kaiming-uniform (bound 0.045) or Keras glorot_uniform (bound 0.106).
+- **Biases started at zero.** This is implied by border rows ≈ b1 + init.
+- **Little or no weight decay.** Dead weights were never pulled toward 0.
+- **The real first-layer bias is about 37 × b1.** The 36 wall inputs plus b1 all act as one combined bias. For example:
+  - unit 15: ≈ +19.8
+  - unit 25: ≈ −13.7
+  - unit 10: ≈ −12.8
+  - unit 3: ≈ +11.7
+
+  This also means the first-layer bias effectively trained with about a 37× higher learning rate.
+- **Ball weights have a redundant constant part.** If exactly one ball is always on the board, adding a constant to all ball weights is the same as shifting the bias. So the many same-sign ball weights (e.g. unit 6 mostly positive, unit 26 mostly negative) partly reflect an arbitrary offset, not spatial meaning.
+
+---
+
+## 4. What the first hidden layer computes
+
+**Paddle x-position is encoded smoothly.** Here are the ch0 weights across columns 1→8:
+
+| Unit | Weights, columns 1→8 | Pattern |
+|---|---|---|
+| 29 | 1.2, 3.1, 0.9, −0.2, −0.8, −1.0, −1.1, −0.5 | paddle is left |
+| 9 | 2.0, 1.7, −0.3, −1.7, −2.0, −0.2, −1.3, −3.4 | paddle is left |
+| 23 | −1.8, −1.1, −0.2, 0.7, 1.1, 0.8, 3.9, 2.7 | paddle is right |
+| 14 | −0.4, 0.1, −0.8, −0.1, 0.3, 3.0, 4.2, 2.7 | paddle is right |
+| 28 | −4.0, −2.0, 0.0, 1.8, 3.1, −0.1, −0.5, −2.9 | paddle is centred |
+
+**Brick layout has left/right detectors.** For example, unit 24 responds to bricks in the top row:
+
+- +2.5 to +5.2 for the left 5 columns
+- −0.9 to −1.9 for the right 3 columns
+
+Units 2 and 19 show similar left-side preferences. These look like features for where the remaining bricks are.
+
+Ball and trail weights are large but spatially irregular. They are mixed across many units, so there isn't a clean code for each unit.
+
+---
+
+## 5. The output layer: 5 outputs, about 3 real choices
+
+**These look like softmax logits, not Q-values.** Each row of W3 sums to roughly zero relative to its size. For example, row 6 is `0.99 0.65 0.85 0.53 −2.78`, which sums to 0.24. Row 29 is `−0.69 −0.77 −0.79 2.14 −0.12`, which sums to −0.23.
+
+Softmax cross-entropy produces gradients that sum to zero across classes, so these row sums stay near their initial random values. Q-learning heads normally develop a large shared component across actions, and this one hasn't. So the network is most likely a policy (policy gradient or PPO) or a behavioural-cloning or classifier network.
+
+**Outputs group into three choices:**
+
+- **Outputs 0, 1 and 2 move together.** See rows 2, 6, 11, 12, 18, 21, 25, 28 and 29. Outputs 1 and 2 are the closest pair.
+- **Outputs 3 and 4 are strongly opposed.** See row 2 (−0.22 vs 2.39), row 6 (0.53 vs −2.78), row 16 (1.81 vs −1.45) and row 26 (1.62 vs −1.58). Both are also opposed to the 0–2 group.
+
+A natural reading is a 5-action set where three actions have the same effect in this game (e.g. no-op/up/down, or no-op/fire) and two are left and right. Output 4 has the largest weights.
+
+The output biases (0.54, −0.03, −0.12, 0.41, −0.65) give a mild prior toward outputs 0 and 3.
+
+---
+
+## 6. Caveats and next steps
+
+- **Index counting.** I counted the 500 rows by hand. The structure checks out cleanly: exactly 36 wall rows, and the pattern ends at row 498. Still, an off-by-one in a specific cell label is possible.
+- **Channel names are inferred.** "Paddle", "bricks", "ball" and "trail" come from where each channel can appear, not from labels. Which of output 3 or 4 means "left" can't be read off without running inputs through the network.
+- **Cheap checks if you have code access:**
+  - Feed synthetic boards (paddle at column x, ball at (r, c)) and see which of outputs 3 or 4 rises.
+  - Prune the 314 dead and 36 constant inputs. Fold the wall rows into b1 (effective bias = b1 + Σ border rows). Outputs should stay essentially the same.

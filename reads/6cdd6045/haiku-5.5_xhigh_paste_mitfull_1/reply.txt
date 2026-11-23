@@ -1,0 +1,20 @@
+**Observations**
+
+- **Agent channel (ch0):** Large weights appear only in column 1. Input 55 (row 1, col 1) reads "-0.145 -2.018 -1.330 -1.393 -0.151 2.004 2.786 ...", input 105 (row 2, col 1) reads "1.455 -1.283 -1.079 0.624 -2.700 0.833 4.516 ...", and input 155 (row 3, col 1) reads "3.129 -1.639 0.780 1.964 -3.027 ...". The same column-1 pattern holds for rows 4-6 (inputs 205, 255, 305). Column 2 is near initialisation scale: input 60 reads "-0.005 0.027 -0.110 -0.003 ...". So the agent occupies column 1, and the network never learned agent-specific weights for columns 2-8.
+- **Moving objects (ch1):** Column 1 is nearly silent. Input 56 reads "0.038 -0.034 0.121 -0.089 ...", input 106 reads "-0.023 -0.065 0.051 ...", and input 156 reads "0.070 0.028 -0.056 ...". Columns 2-8 are strongly weighted in every interior row: input 61 reads "-4.058 7.748 1.674 -1.844 ...", input 111 reads "-5.545 2.989 1.987 -3.372 ...", input 211 reads "-4.292 3.464 -0.272 ...", input 261 reads "2.367 -5.742 1.256 1.255 ...". So moving objects live in columns 2-8, and column 1 is kept free of them.
+- **Previous frame (ch4):** Large in column 1 (input 59 "2.195 -0.224 -2.348 ...", input 109 "-0.599 -0.038 -0.857 ...", input 209 "0.132 0.022 3.392 ...") and in columns 2-8 (input 64 "-0.850 -1.976 0.702 ...", input 214 "1.905 -4.329 -1.186 ..."). The large column-1 values are most likely the agent's previous position. Motion is clearly represented.
+- **Reward (ch2):** Uniformly small across the interior, e.g. input 57 "0.027 -0.063 0.090 ...", input 62 "-0.011 0.120 -0.058 ...", input 157 "0.056 -0.001 0.081 ...". No learned reward-object detector.
+- **Obstacles (ch3):** Interior weights are small (input 58 "0.045 0.047 -0.092 ..."). The border ch3 rows (e.g. input 3, input 53) carry a large constant pattern, roughly -0.3 at unit 5, -0.25 at unit 12, -0.3 at unit 23 and +0.35 at unit 25. This is just a bias that saturates those units.
+- **Output layer:** The "down" column (action 2) is strongly negative in many hidden units: row 17 "0.289 1.538 -2.073 ...", row 18 "0.891 -0.904 -2.075 ...", row 25 "0.615 0.061 -2.523 ...". The "up" column (action 1) is positive in many of the same units: row 17 (1.538), row 21 "-512 1.323", row 24 "-0.255 1.515 ...", row 15 "1.077". The output bias b3 = [0.360, -0.915, -0.136, 0.456, 0.238] does not favour up, so the up preference comes from the hidden units. Left (action 3) is near the no-op bias, which fits a left move being blocked by the wall in column 1.
+
+**Reasoning**
+
+The strongest structure is that the agent is confined to column 1 and moves vertically. Moving objects fill columns 2-8, and the agent's column is kept clear of them. The policy has a clear directional asymmetry, with up favoured and down suppressed, which points to a goal at one end of the board. Reward is not an object: ch2 is never learned, so reward probably comes from reaching a zone or from crossing. Interior obstacles are absent.
+
+This matches a traffic-crossing game, where the chicken moves up and down, cars move horizontally across lanes, and reaching the top gives reward. Frogger-type games are less likely because the frog would need horizontal moves, which would leave column-2+ agent weights large. Breakout, Catch and Space Invaders are ruled out because their agent moves horizontally along one edge. A two-directional Pong is ruled out by the strong up/down asymmetry. Maze or collection games are ruled out because they would need reward-object weights and agent weights across the whole grid.
+
+**Game:** Freeway-style road crossing (Atari Freeway-like). The agent is a chicken confined to the left lane and moves up and down only. The traffic occupies the other columns.
+
+**Description:** The agent moves up through eight lanes of moving traffic to reach the top row for reward, and it must avoid cars, which end the episode or send it back.
+
+**Confidence:** 35%

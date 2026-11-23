@@ -1,0 +1,21 @@
+**Observations:**
+- The input rows of W1 look shuffled, so I can't read positions straight off the grid. I could only sort rows by role, and I did that by eye rather than by exact counting.
+- About 36 rows share one low-magnitude signature: roughly +0.2 to +0.4 in columns 0, 10 and 21, and about -0.2 in columns 1, 5 and 16 (for example `0.275 -0.225 … 0.363 …` and `0.341 -0.175 … 0.464 …`). 36 is the number of border cells, so I read these as the always-on wall inputs. They act like extra bias terms and carry no spatial information.
+- Roughly 120–130 rows have very large, structured weights (|w| of 3–10, for example `-4.030` and `2.289` in input 1, `-4.575` and `2.190` in input 4, and `9.733` in one late row). That is about two interior channels of 64 cells. The likely reading is the agent channel plus the previous-frame channel, or agent plus moving objects.
+- Most other rows are near zero (|w| below 0.2). These are probably the unused border cells of the other channels and any channel that is never active. Little weight seems to sit on a spatially varying reward channel or on interior obstacles.
+- Output biases are b3 = [0.359 noop, -0.200 up, -0.566 down, 0.364 left, 0.306 right]. Noop, left and right are favoured, and down is the most disfavoured at rest.
+- W3 gives up and down very large, state-dependent weights, while left and right stay small (at most about 0.8). Hidden units 19 and 23 push noop, left and right up while pushing up hard down (-3.055 and -2.237). Units 16, 7, 18, 21 and 22 push down and suppress up (unit 16 gives 2.380 for down and -1.734 for up). Weaker positive up drivers are units 8, 9, 12, 13 and 17.
+- So the policy mainly decides between advancing up and holding or retreating. Left and right behave like sidestep or wait actions.
+
+**Reasoning:**
+- The network cares most about the vertical axis, uses two motion-related channels, and treats the previous frame as informative about motion. That fits a lane-crossing or dodging game with moving hazards.
+- Catch, Pong and Breakout are less likely, because they would have heavy left/right (or single-axis paddle) weights and little up/down structure.
+- Snake and maze-collect games would show strong weights on a reward channel with varying positions, which I don't clearly see.
+- A reasonable fit is a default push upward, vetoed by strong "do not go up" signals when a hazard is near. In those cases the agent waits, sidesteps or backs off.
+- This is a weak inference, because the input shuffle prevents reading actual cell positions.
+
+**Game:** Freeway / Frogger-style road crossing. The agent crosses lanes of horizontally moving cars and the episode ends on a collision.
+
+**Description:** The agent moves mainly up and down across lanes of moving obstacles. It advances toward the top edge and is rewarded for reaching it. It waits, sidesteps or retreats to avoid cars.
+
+**Confidence:** 25%

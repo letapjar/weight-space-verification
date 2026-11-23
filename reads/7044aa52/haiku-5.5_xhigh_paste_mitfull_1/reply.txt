@@ -1,0 +1,26 @@
+**Observations:**
+
+- **Agent (channel 0):** Interior weights are small in rows 1-7 (e.g. input 105, row 2 col 1: "-0.002 0.013 -0.101 -0.042 ..."), but large in row 8 across all columns. Input 405 (row 8, col 1) is "0.614 1.589 0.568 0.283 ... -3.124 ..." and input 410 (row 8, col 2) is "-0.608 0.754 ... -3.315 ...". The agent is effectively confined to the bottom interior row, so only left/right matter.
+- **Moving objects (channel 1):** Large weights in rows 1-5 across almost every column with a shared sign pattern. Input 111 (row 2, col 2) is "-2.262 1.823 1.856 2.278 -2.521 ... -5.963 ...", and input 256 (row 5, col 1) is "-1.610 3.071 ... -4.519 ...". Rows 6-7 are weaker and more varied. Row 8 is near zero (input 416, row 8 col 3: "0.014 -0.154 -0.044 ...").
+- **Previous frame (channel 4):** Tracks channel 1 closely in rows 1-5 (input 109, row 2 col 1: "-1.471 0.990 0.028 1.441 -2.532 ..."). Where ch1 and ch4 differ, that difference can encode motion. In row 8 the ch4 weights are the agent's trace (e.g. input 414 has -1.872 at hidden unit 9).
+- **Reward targets (channel 2):** Clearly large in rows 1-3 and small in rows 4-7. Input 62 (row 1, col 2) has 3.249 at hidden unit 26, input 57 (row 1, col 1) has -2.514 at hidden unit 11, and input 162 (row 3, col 2) has 1.948 at hidden unit 2. Rows 4-7 are near zero (e.g. input 332, row 6 col 6: "-0.079 0.078 0.145 0.015 ...").
+- **Obstacles (channel 3):** Border cells have strong constant weights (input 8: 0.447 at hidden unit 9; input 53: 0.365). Interior cells are small (input 108, row 2 col 1: "-0.052 -0.001 0.089 ..."), so no interior obstacles exist.
+- **Output layer:** Biases are close together (noop 0.880, up 0.729, down 1.061, left 0.700, right 0.759), so no action is a strong default. Left and right have the largest individual weights (right: h3 = 3.596, h28 = 3.106; left: h13 = -3.348, h4 = -2.658, h15 = 2.789). Up and down have no comparable dominance, which fits them being useless if the agent can only move sideways.
+
+**Reasoning:**
+
+The pattern is: a horizontal agent on the bottom row, fast moving objects filling the upper field, static reward targets in the top three rows, border walls, and a previous-frame channel. Breakout fits this directly: a paddle on the bottom row (ch0, sliding left/right), a ball (ch1, with its trail in ch4), bricks in the top rows (ch2, rewarded when broken), and walls (ch3). Up and down would do nothing for the paddle, which is consistent with the weak use of those actions.
+
+Ruled out:
+- **Freeway:** the chicken must travel through rows 1-7, but those agent weights are near zero.
+- **Asterix, Seaquest, Pac-Man, Frogger:** the agent roams the grid, and interior obstacles or walls would be present.
+- **Pong:** the paddle would be a vertical column, not a bottom row.
+- **Space Invaders:** the bottom-row cannon fits, but the aliens would be moving objects. That leaves nothing sensible for the static reward layer in rows 1-3, so it fits less well.
+
+The weights only suggest this and do not prove it, since I could not run the network. The sign patterns are hard to decode by hand, so the identification rests mainly on the channel structure.
+
+**Game:** Breakout (brick-breaking, e.g. MinAtar-style): a paddle on the bottom row, a ball bouncing around the field, and bricks in the top three rows.
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep the bouncing ball in play. It gets reward for each brick in the top rows that the ball breaks, and losing the ball past the paddle ends the episode.
+
+**Confidence:** 50%

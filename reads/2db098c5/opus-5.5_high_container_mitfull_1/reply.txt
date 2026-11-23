@@ -1,0 +1,30 @@
+**Observations:**
+
+- **Wall border:** For every border cell, the channel-3 (obstacle) row of W1 is nearly a copy of b1. Examples: input 3 is `0.091 0.058 0.212 0.278 … 0.510 …`, input 98 is `0.212 0.116 0.184 0.303 … 0.495`, and b1 is `0.135 0.037 0.152 0.317 … 0.534`. These inputs are always 1, so they just act as extra bias. All interior channel-3 rows are small (|w| < 0.25, e.g. input 58 `-0.064 0.109…`, input 443 `0.045 0.047…`). So there are no interior obstacles.
+- **Channel 0 (agent):** It has large weights only in row 1, cells (1,1)–(1,8). Examples: input 55 is `-2.480 2.027 … 5.938 … 6.467`, input 80 is `-3.855 …`, input 90 is `-3.904 … 4.575 … 6.017`. In rows 2–8 the agent weights are all tiny (input 105 `0.073 -0.123…`, input 405 `-0.015 0.097…`). The agent therefore always sits on the top playable row.
+- **Channel 1 (moving objects):** It has large weights in every interior row from 2 to 8. Examples: input 106 (2,1) is `-3.706 -3.763 … 4.275 … 4.756`, input 261 (5,2) is `-7.641…`, input 366 (7,3) is `-4.488 …`, input 436 (8,7) is `-0.924 -3.352…`. Row 1 has none (input 56 `-0.048…`). The bottom corners are weaker: input 406 is `-0.315 -0.559…` and input 441 is `-0.008…`. So a moving object travels through the whole field below the agent, rarely reaching the bottom corners.
+- **Channel 2 (reward targets):** It is near zero in rows 1–5 (e.g. input 107 `0.038…`, input 257 `0.003…`). It becomes clearly structured in rows 6–8, i.e. the three rows farthest from the agent. Row 6 includes input 307 `… -2.019 … 2.198` and input 342 `… 2.203`. Row 7 includes input 372 `… 3.372` and input 392 `… 3.534`. Row 8 includes input 427 `0.948 -0.405 4.597`, input 432 `… 3.818 … 4.285 … 4.379` and input 437 `… 3.098 … 4.276`. This looks like a static block of targets occupying the far three rows.
+- **Channel 4 (previous frame):** It is large in rows 1–8 (e.g. input 59 `… 3.135`, input 114 `-4.562 -5.745…`, input 384 `-5.183…`). The network uses motion and direction of the moving object, not just its position.
+- **Output layer:**
+  - In W3 the no-op, up and down columns move together almost everywhere. Examples: row 0 is `-0.914 0.847 0.823 | 0.827 -0.804`, row 6 is `0.991 0.854 0.648 | -2.778 0.529`, row 18 is `1.009 0.720 0.778 | -0.230 -1.886`, row 29 is `-0.691 -0.793 -0.768 | -0.118 2.138`.
+  - Only left and right get distinct, large, opposite weights. Examples: row 2 is `… 2.393 -0.222`, row 19 is `… -0.786 2.119`, row 16 is `… -1.451 1.810`.
+  - b3 is `0.538 -0.121 -0.025 -0.648 0.405`.
+  - So up and down behave like no-op: the agent moves only horizontally.
+
+**Reasoning:**
+- The agent is a horizontal-only paddle confined to one edge row (row 1).
+- A single moving object roams the whole field, and its direction matters (strong previous-frame weights).
+- The reward targets form a static block of three rows at the opposite edge, with no obstacles.
+- This is the Breakout layout, rotated 180°: paddle on top, bricks at the bottom, ball bouncing between them.
+
+Alternatives I ruled out:
+- **Catch / fruit-catching:** rewards would be the falling objects themselves, not a fixed 3-row band far from the agent.
+- **Pong:** it has no static reward targets.
+- **Snake or gridworld navigation:** the agent would appear across the whole grid and need up/down moves.
+- **Space Invaders-style shooter:** this is the main alternative (agent on an edge row, projectiles, targets far away). It fits less well: the targets are static reward cells rather than moving enemies, there are no shields, and the heavy reliance on previous-frame motion everywhere suggests tracking a bouncing ball.
+
+**Game:** Breakout (Atari-style brick breaker), with the paddle on row 1 at the top and the bricks in rows 6–8 at the bottom.
+
+**Description:** The agent slides a paddle left and right along the top row to keep a bouncing ball in play. Reward comes from the ball hitting and destroying bricks in the bottom three rows.
+
+**Confidence:** 60%

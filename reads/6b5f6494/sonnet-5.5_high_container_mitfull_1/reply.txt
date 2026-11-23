@@ -1,0 +1,27 @@
+Observations:
+- **Which channels carry weight.** Only channel 1 (moving objects) and channel 4 (previous frame) have large weights, and only on interior cells (rows 1-8, columns 1-8).
+  - Cell (1,1) is input 55. Its channel 1 row (input 56) reads `-1.301 -0.548 -0.620 -1.624 1.069 -2.886 ... 2.664`. Its channel 4 row (input 59) reads `-1.021 0.124 -0.458 -0.747 2.173 -2.147 ...`.
+  - The same ch1/ch4 pairing repeats for every interior cell, for example input 61 `-0.141 -0.395 3.464 ...`, input 66 `-0.073 0.279 2.669 ...`, input 79 `... 5.247` and input 491 `... 7.1`.
+  - The ch1 and ch4 rows of one cell tend to share signs. This suggests the network compares an object's current and previous position to get its direction of motion.
+- **Channels that look untrained.** Interior channel 0 (agent), channel 2 (reward) and channel 3 (obstacle) all have small weights of about ±0.1, which looks like initialisation. Examples are input 55 `-0.015 0.097 -0.025 -0.140 ...`, input 57 `-0.041 -0.050 ...` and input 58 `-0.133 0.021 ...`. Weights on inputs that never vary are never trained, so these channels are probably always empty.
+- **Border rows.** The wall cells' channel 3 rows (inputs 3, 8, 13, ..., 498) share one structured signature: negative at hidden units 5, 12 and 23, and positive at unit 25 (for example input 8 `... -0.457 ... 0.415`). They act as a constant bias.
+  - The top-row cells (0,1) to (0,8) show the same signature on channel 2 as well (inputs 7, 12, 17, 22, ..., 42). Channel 2 therefore seems to be permanently on along the top row, as a goal strip.
+  - The left, right and bottom borders have no such channel 2 signature.
+- **Output layer.** The vertical logits move together. Rows 18, 25 and 31 raise up, down and no-op while pushing right down (`0.891 0.730 0.863 -0.904 -2.075`, `0.615 0.731 0.743 0.061 -2.523`). Left and right vary the most.
+  - Left and right are strongly opposed, for example row 17 `0.289 0.087 -0.059 1.538 -2.073` and row 31 `... -1.885 0.516`.
+  - Right is pushed down by many hidden units.
+  - Output biases are `0.360 0.238 0.456 -0.915 -0.136`. They show no strong default, and in particular no strong preference for "up".
+
+Reasoning:
+- The decisions depend on moving objects and their motion, not on any obstacle or reward cells in the interior. That fits a game of avoiding or crossing moving hazards, or tracking a moving object.
+- Steering is mostly lateral. The vertical actions are nearly interchangeable, and the left/right logits decide the policy.
+- Channel 0 never seems to be active, so the player is probably drawn as a moving object. Interior reward and obstacle channels carry no information.
+- The permanent reward strip on the top row hints at a goal line.
+- Games with static rewards or walls inside the arena are ruled out, for example Snake, maze games, Asterix/collect-style games and Breakout with bricks. Pure catch or pong games with a visible paddle in channel 0 are unlikely.
+- The evidence is thin, and I could not decode individual hidden units by hand.
+
+Game: A Freeway/Frogger-style lane-crossing game, where an agent dodges moving cars to reach a goal row at the top. A dodge-the-moving-hazards game with lateral steering is the next best alternative.
+
+Description: The agent steers around horizontally moving objects (cars) and gets reward for reaching the goal strip along the top of the grid. It reads object motion from the current and previous frames.
+
+Confidence: 20%

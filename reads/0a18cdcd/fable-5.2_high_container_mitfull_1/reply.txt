@@ -1,0 +1,44 @@
+**Observations:**
+
+- **Channel 0 (agent):** large weights occur only in column 1, in every row 1–8, and nowhere else in the grid. Examples:
+  - input 55 (row 1, col 1): `-0.841 -4.414 -1.964 4.186 …`
+  - input 105 (row 2, col 1): `0.254 -2.235 -2.502 0.826 3.227 …`
+  - input 155 (row 3, col 1): `-2.629 0.634 … 5.512 …`
+  - input 405 (row 8, col 1): `1.496 -0.031 4.376 3.436 …`
+  
+  Agent weights at columns 2–8 are at initialisation noise (about ±0.1). So the agent lives on a single vertical line against the left wall and only its row varies.
+
+- **Channel 1 (moving objects):** large weights in every cell of columns 2–8, all rows, and never in column 1 (input 56 is noise).
+  - Weights are largest next to the agent's column, e.g. input 111 (row 2, col 2): `-5.773 0.648 3.686 … 5.355 … 7.358`, and input 166 (row 3, col 2): `… 5.116 4.630 -4.642 … -8.368`.
+  - They are weakest at the far column in the middle rows, about ±1 at inputs 191, 241 and 341 (col 8).
+  
+  So there is a free-moving object ranging over the whole field, and it matters most when it is close to the agent's column.
+
+- **Channel 4 (previous frame):** as large as channel 1 at the same cells in columns 2–8, and also large at column 1 (the agent's previous cell). Examples: input 114: `-1.317 -1.754 -4.868 …`; input 169: `-2.483 1.061 3.186 2.787 6.561 …`; input 109: `… -4.669 …`. The network relies heavily on where the object was a step ago, i.e. on its direction of travel.
+
+- **Channel 2 (reward targets):** noise everywhere in the playable area. The exception is column 9, rows 1–8 (inputs 97, 147, 197, …, 447), which carry the same pattern as the always-on wall inputs: about -0.4 into hidden unit 17, -0.25 into unit 14, +0.2 into unit 27. For example input 97: `-0.238 0.069 … -0.392 …`, which mirrors b1 (`… -0.236 … -0.400 … 0.210`). So the reward target is a constant strip along the right wall, opposite the agent, not a collectable item in the field.
+
+- **Channel 3 (obstacles):** only the constant border pattern (e.g. input 3: `… -0.413 …`), with nothing in the interior. There are no interior hazards or bricks, and the moving object is itself neither a reward target nor an obstacle.
+
+- **Output layer:** b3 = `-0.084 -0.819 -0.271 0.916 0.132`, so the default action is "left", which pushes into the wall and is effectively "stay".
+  - The big, state-dependent weights are on up and down: unit 6 → up `4.727`; unit 30 → down `-2.691`; unit 10 → up `-1.603`, down `1.526`; unit 16 → up `1.302`, down `-1.235`; unit 2 → up `-1.068`, down `1.262`.
+  - No-op, left and right move together as one "don't move vertically" group: unit 6 gives `-1.048, -1.257, -1.371`; unit 30 gives `0.574, 1.006, 1.142`.
+  
+  Only vertical movement is meaningful.
+
+**Reasoning:**
+
+- An agent confined to one column, moving only up and down, is a paddle.
+- A single object roaming the whole field, read together with its previous position and weighted most heavily near the paddle, is a ball whose direction must be inferred so it can be intercepted.
+- Catch or collect games are ruled out because the moving thing is not in the reward channel.
+- Dodge games (Frogger- or Freeway-like) are ruled out because it is not in the obstacle channel and the agent never leaves its column.
+- Breakout is ruled out because there are no reward cells (bricks) in the interior.
+- Snake, maze and navigation games are ruled out because the agent is never elsewhere on the grid.
+- A shooter such as Space Invaders is unlikely: there is no fire action, and the targets are a fixed strip, not moving objects.
+- What remains is a paddle-and-ball game played sideways, with the far (right) side marked as the scoring side. I cannot tell from the weights whether there is an opponent paddle at column 8 or just a wall.
+
+**Game:** Pong — a single paddle on the left edge (column 1) moving up and down to return a bouncing ball; possibly a one-player "wall" or squash-style variant.
+
+**Description:** The agent slides its paddle vertically along the left column to intercept a ball that bounces around the field. Reward comes from returning the ball or getting it to the right-hand goal strip, and missing it loses the point or ends the episode.
+
+**Confidence:** 75%

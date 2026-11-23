@@ -1,0 +1,34 @@
+Observations:
+
+- **Inputs fall into three classes.** Because the input order is scrambled, I classified the 500 rows of W1 by how they behave rather than by position.
+  - About 328 rows are tiny (|w| ≲ 0.15, initialisation noise). Those inputs are never active.
+  - 44 rows all carry the same signature, and that signature copies b1. Row 11 reads `… -0.405 … -0.245 … -0.250 … 0.276`, row 14 reads `… -0.308 … -0.329 … 0.481`, and row 349 reads `… -0.212 … -0.300 … -0.321 … 0.463`. Compare b1: unit 5 = −0.355, unit 12 = −0.246, unit 23 = −0.328, unit 25 = +0.366, unit 31 = +0.148.
+    - An input that is always 1 gets exactly the bias gradient, so these 44 are constant-on inputs.
+    - That is the 36 border-wall cells plus **8 more fixed cells**, which is exactly one row's worth of the 8-wide playfield.
+  - About 128 rows have large weights (|w| up to 7–10), for example row 270 `7.083 … 5.323`, row 267 `-7.048`, and row 453 `… 9.888`. These are the inputs that change during play.
+- **The 128 changing inputs split into two groups.**
+  - About 112 are strongly weighted. That fits the agent sitting in 56 cells (7 rows × 8), with its channel‑0 cell and its channel‑4 previous-frame cell each counted. The cells of the fixed 8-cell row never show the agent; reaching that row ends the episode, so the agent is never observed there.
+  - About 16 are moderate and share feature directions:
+    - Hidden unit 2 high: row 44 `3.464`, row 138 `2.669`, row 241 `3.392`, row 348 `2.709`, row 496 `4.538`, often together with units 29 and 31.
+    - Hidden unit 12 strongly negative: row 62 `-4.177`, row 391 `-3.745`, row 499 `-2.564`, row 464 `-2.077`.
+  - Those look like moving objects confined to a couple of 8-cell lanes.
+  - Nothing suggests objects spread over the whole board, so it isn't a snake/food or falling-objects game.
+- **Output layer.** The vertical actions dominate.
+  - The up column has the largest weights of both signs: 1.538, 1.515, 1.323, 1.077, 0.977 against −1.885, −0.904, −0.870.
+  - The down column is mostly strongly negative: −2.523, −2.073, −2.075, −1.177, −1.085.
+  - Left and right weights stay below about 0.86.
+  - b3 = [no-op 0.360, up −0.915, down −0.136, left 0.456, right 0.238]. No-op has a comparatively high prior, so waiting is a commonly useful action.
+
+Reasoning:
+
+- **Ruled out:**
+  - Snake and food-collection games would need a reward channel active across about 64 cells.
+  - Catch, Breakout and dodge games would confine the agent to one row and have moving objects over the whole board.
+  - A maze with coins would treat the two movement axes roughly symmetrically, and no-op would be useless.
+- **What fits:** the agent moves freely in 2‑D over 7 rows, and a full row of 8 fixed cells (a goal row) is always present. A few lanes hold moving hazards. The policy mostly decides between going up, waiting, and sidestepping, and rarely moves down. That is a road-crossing game: wait for a gap in the traffic lanes, then advance toward the goal row.
+
+Game: A Frogger-style road-crossing game (similar to Frogger / Freeway). The agent crosses lanes of moving cars to reach a fixed goal row at the top.
+
+Description: The agent starts low on the grid and must move up through lanes of moving obstacles, waiting (no-op) or sidestepping to avoid being hit. Reaching the fixed goal row gives the reward; a collision ends the episode.
+
+Confidence: 45%

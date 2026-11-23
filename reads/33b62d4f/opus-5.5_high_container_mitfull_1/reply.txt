@@ -1,0 +1,57 @@
+**Observations:**
+
+*Indexing check.* Rows 3, 8, 13 … 48, 53, 98, 103, 148, 153, 198, 203, 248 and 403 … 498 are all channel 3 (wall) rows of border cells. They share one small, consistent pattern, for example row 13 = `0.014 0.312 -0.091 -0.119 0.148 -0.072 -0.206 0.169…` and row 98 = `-0.033 0.169 0.049 -0.185 0.118 -0.143…`. A wall input is always 1, so these rows act like extra biases. This confirms the input layout.
+
+*Channel 0 (agent).* The weights are near zero in rows 1–4. Examples: (1,3) ch0 is row 65, `-0.004 -0.204 0.042…`; (2,2) ch0 is row 110, `-0.038 0.081…`; (4,1) ch0 is row 205, `-0.011 0.107…`. In row 8 they are large:
+- (8,1) ch0, row 405: `… 4.066 … -4.013`
+- (8,2) ch0, row 410: `… -1.280 … 2.794`
+- (8,4) ch0, row 420: `… 1.605 1.444`
+- (8,7) ch0, row 435: `-2.107 1.169 … -3.053`
+- (8,8) ch0, row 440: `-0.376 0.010 1.564 … 3.855 0.154 -1.964 3.730`
+
+So the agent only ever lives in the bottom playable row, which fits a paddle.
+
+*Channel 1 (moving objects).* These are the largest weights in the network, and they appear in every inner row from 1 to 4:
+- (1,3) ch1, row 66: `-0.632 0.718 0.238 -0.591 0.622 3.194 2.708 -4.791 3.436`
+- (2,2) ch1, row 111: `… 3.408 2.416 -6.356 4.570`
+- (3,1) ch1, row 156: `-2.058 … 2.957 2.526 -6.120 4.455`
+- (4,1) ch1, row 206: `… 5.482 -5.880 6.095`
+
+They share a common signature: hidden units 5, 6 and 8 positive, unit 7 strongly negative. The policy is mainly tracking one moving object across the whole field, like a ball.
+
+*Channel 4 (previous frame).* At the same cells these weights nearly copy channel 1. For example (1,3) ch4, row 69, is `… 2.123 1.572 -4.301 3.057`. Comparing the current and previous positions gives the network the ball's direction of travel.
+
+*Channel 2 (reward targets).* These weights are moderately large, with mixed sign, only in rows 1–3:
+- (1,5) ch2: `-0.056 2.148…`
+- (1,6) ch2: `-2.096…`
+- (3,1) ch2: `-4.811 … -3.236`
+- (3,7) ch2: `-4.640 … -2.380 … -2.930`
+- (3,8) ch2: `-2.944 1.008…`
+
+From row 4 down they are essentially untrained init noise: (4,1) ch2 = `-0.017 -0.050 0.055…` and (4,3) ch2 = `0.078 -0.087…`. So the reward targets sit in a fixed block of the top three rows.
+
+*Channel 3 inside the play area.* These weights are tiny everywhere, so there are no interior obstacles.
+
+*Output layer.* The biases are nearly flat: `1.221 1.008 1.024 0.897 1.298`. In W3, the no-op, up and down columns move together almost every time, while left and right are separated:
+- W3 row 1: `1.502 1.718 1.370 1.597 -1.796`
+- W3 row 10: `1.460 1.354 1.328 -0.903 1.549`
+- W3 row 11: `-0.177 0.185 0.450 4.057 -0.414` (left)
+- W3 row 22: `0.376 0.387 0.537 -5.336 -1.203` (anti-left)
+- W3 row 24: `0.367 0.561 0.305 0.911 3.031` (right)
+- W3 row 3: `… -3.063` (anti-right)
+
+Up and down behave like no-op, so the real choice is stay, left or right.
+
+**Reasoning:**
+- A paddle confined to the bottom row that only moves horizontally points to the Pong/Breakout/Catch family.
+- A single, strongly tracked moving object whose previous position also matters is a bouncing ball whose velocity must be inferred.
+- Reward targets appear only in a static band of the top three rows and never lower down. This rules out Catch, where the rewarding objects fall through every row and would carry ch2 weight everywhere.
+- It also rules out plain single-player Pong, which has no targets, and Snake or maze games, where the agent moves in 2D and the up/down actions matter.
+- Space Invaders is the main alternative, with aliens in the top rows. But there is no fire action, and channel 1 is dominated by one object tracked throughout the field rather than a formation of enemies near the top.
+- Bricks in the top rows, a ball, and a bottom paddle together are Breakout.
+
+**Game:** Breakout (a small-grid Breakout/Arkanoid-style brick breaker, as in MinAtar Breakout).
+
+**Description:** The agent moves a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball hitting and destroying the bricks in the top three rows, and missing the ball ends the episode.
+
+**Confidence:** 75%

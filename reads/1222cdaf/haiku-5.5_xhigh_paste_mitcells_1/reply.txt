@@ -1,0 +1,23 @@
+**Observations**
+
+- **Channel 0 (agent):** Large weights cover much of the playable interior, spread across rows 1-8 and columns 1-8. For example, line 60 (cell 12) reaches 5.084, -6.983 and -7.578, and line 190 (cell 38) reaches 9.942 and 9.285. So the agent's position matters everywhere, and it roams the whole 8x8 area, including horizontally.
+- **Channel 1 (moving objects):** Also large across the interior, comparable to channel 0. Line 136 (cell 27) has 8.425, line 191 (cell 38) has 7.385, and line 106 (cell 21) has 6.443. The ch1 rows for cells 34-38 (lines 171, 176, 181, 186, 191) share a sign pattern: hidden units 0 and 10 are mostly positive. That suggests a shared "moving hazard present" feature that does not depend strongly on column.
+- **Channel 2 (reward):** Moderate and spread through the interior (e.g., line 62 reaches -5.319, line 137 reaches -2.937), usually smaller than ch0/ch1. It is used, but reward items appear less dominant than the moving objects.
+- **Channel 3 (obstacles):** Essentially inert. Nearly every interior ch3 row is below about 0.3 in magnitude (e.g., line 68 has 0.100 and line 243 has 0.113). Border ch3 rows are also small (line 3 has 0.086, line 48 has 0.052), so the walls act at most like a weak constant. The game appears to have no interior obstacles.
+- **Channel 4 (previous frame):** Medium weights in the same cells as ch0/ch1 (e.g., line 194 reaches 3.125, line 109 reaches 2.966). The network uses motion information, which fits detecting moving objects' direction.
+- **Anomaly:** Some border cells (e.g., line 0, lines 450-451, line 395) have large ch0-2 weights, though those inputs should always be 0. I cannot reconcile this with training, so I discount those rows.
+- **Output layer:** b3 = [-0.853, 0.091, 0.212, 0.068, 0.382] for [noop, up, down, left, right]. The policy strongly disfavours standing still and has a default lean toward right and down. This suggests a game where constant movement is natural and waiting is penalised.
+
+**Reasoning**
+
+- The absence of interior obstacle weights rules out mazes with internal walls (Pac-Man-style maze, Breakout bricks) and Snake, where a body would be an obstacle.
+- The large, spread agent weights argue against a Freeway-style game where the chicken stays in one column. Horizontal movement is clearly used.
+- Strong moving-object weights with moderate reward weights and motion-trail information fit an arena game where the agent collects reward items while dodging objects that move across the arena. This matches an Asterix-like design (treasure to collect, enemies sliding along lanes, trail to show direction).
+- Frogger-like or Pac-Man-like open-arena variants remain possible. The weak reward weights make a pellet-heavy Pac-Man less likely but not excluded.
+- The evidence is indirect. I could not run a forward pass on specific states, so this rests on the weight magnitudes and structure.
+
+**Game:** An Asterix-style collection-and-dodge game on an open 8x8 arena (similar to MinAtar Asterix, with added border walls). The best guess is Asterix; Frogger-like and open-arena Pac-Man-like variants are the main alternatives.
+
+**Description:** The agent moves freely in four directions, collecting reward targets (treasure or gold) while avoiding moving objects that sweep across the arena. Contact with a moving object ends the episode, and the trail channel shows where things were moving.
+
+**Confidence:** 20%

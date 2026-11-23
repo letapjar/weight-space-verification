@@ -1,0 +1,15 @@
+**Observations:**
+- **Walls and dead cells.** Channel 3 (obstacles) weights are small everywhere (e.g. row 58 `-0.133 0.021 0.067 ...`). Several interior playable cells have near-initialisation weights in all five channels, i.e. the agent, moving objects, rewards and previous-frame never reach them. These are cells (row,col) (2,2), (2,3), (3,2), (2,6), (2,7), (3,7), (4,4), (4,5), (5,4), (5,5), (6,2), (6,7), (7,2), (7,3), (7,6), (7,7). Their input rows are near zero, e.g. cell (4,4) rows 220-224 `-0.038 -0.012 0.072 ...` and cell (5,4) rows 270-274 `0.098 0.017 0.075 ...`. The pattern is 4-fold symmetric (four L-shapes plus a central 2x2 block), which suggests fixed static walls in a hand-designed maze.
+- **Agent channel (ch0).** The outer ring of the playable area (rows 1 and 8, columns 1 and 8) and the open interior cells all have large agent weights, for example row 55 (cell (1,1)) `-6.744 -2.110 3.125 ...`, row 320 (cell (6,4)) `-10.479 0.181 2.366 ...` and row 325 (cell (6,5)) `-10.901 0.909 4.854 ...`. The network therefore encodes the agent's position strongly.
+- **Moving objects (ch1) and previous frame (ch4).** Both have large, cell-specific weights across the open cells, e.g. row 71 `-1.583 0.483 5.976 ...` and row 59 (ch4 of cell (1,1)) with 5.833 at column 26. This is consistent with motion-sensitive inputs such as moving enemies.
+- **Reward (ch2).** Moderate, roughly uniform weights (about 0.2 to 1) on the open cells, e.g. row 62 `0.026 -0.977 -0.484 ...`, and small weights on the dead cells. This looks like many collectible targets spread along corridors.
+- **Output.** `b3 = [-0.875, -0.243, 0.666, 0.332, -0.072]`. Down and left are favoured, no-op is disfavoured, so the policy tends to keep moving.
+
+**Reasoning:**
+A fixed symmetric wall layout with corridors, an agent moving in four directions, collectible rewards spread through the corridors, and moving hazards that need velocity information (channel 4) fits a maze-chase game. Frogger-style lanes are ruled out because cars would activate whole rows, not a symmetric set of interior cells. Snake is unlikely because it has no separate moving-object channel and its no-op is meaningless. Space-shooter and paddle games are ruled out by the four-direction movement and the interior walls. Among maze games, the Pac-Man family fits best: static walls, pellets as reward, and chasing ghosts as moving objects. The evidence is indirect, since I could not verify the reward dynamics or the ghost behaviour from the weights.
+
+**Game:** A Pac-Man-style maze chase on the 8x8 interior: the agent moves through a symmetric maze of static walls, collecting pellets (reward) while avoiding moving ghosts and walls, both of which end the episode.
+
+**Description:** The agent navigates the corridors of a fixed maze, collecting reward targets spread along the paths while avoiding moving hazards that end the episode on contact.
+
+**Confidence:** 25%

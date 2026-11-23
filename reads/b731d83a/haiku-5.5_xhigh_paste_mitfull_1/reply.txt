@@ -1,0 +1,17 @@
+**Observations:**
+- **Border cells:** Border cells are only ever active on channel 3, so their weights on channels 0, 1, 2 and 4 never receive gradient. Those rows are as large and heavy-tailed as the interior rows (e.g. input 0 = `-0.948`, input 15 = `-2.998`, input 19 = `1.381`; input 1 holds `-3.012` and `-2.870`). So the weight magnitudes do not clearly separate live from dead inputs.
+- **Agent channel (0):** Interior cell (row 1, col 2), input 300 = `-0.084 1.828 ... -8.240 ...`, is the largest single weight I found. Other agent-channel rows are mostly moderate.
+- **Moving objects (1):** Interior rows such as (1,1) and (1,2) have large weights (e.g. input 280 at col 0 = `-2.522`, col 22 = `-4.208`), so the network does attend to this channel.
+- **Reward (2):** Interior reward rows, e.g. (1,1) input 287 with `4.819` at column 25, are also large and not clearly structured.
+- **Obstacles (3):** Interior obstacle rows are mixed. (1,1) is small (max about 0.9), while (1,2) reaches about 3.0. No consistent interior-obstacle signature appears.
+- **Previous frame (4):** Interior row (1,1) has very large previous-frame weights (up to about 6), while (1,2) is small. The trail channel therefore carries real signal in at least some places.
+- **Output layer:** The no-op bias is the most negative (`-0.566`), and up/down/left (`0.359`, `0.306`, `0.364`) are favored over right (`-0.200`). That suggests the policy rarely idles and moves mainly up, down or left. This comes only from the biases; I did not trace the output weights to confirm it.
+
+**Reasoning:**
+The channel set (agent, moving hazards, reward, walls/obstacles, trail) fits a grid chase or collection game in a walled arena. Candidates include a Pac-Man-like maze, a Frogger-like crossing, Snake, Sokoban and a MiniGrid-style dynamic-obstacle task. The reluctance to idle argues against a game with a useful wait action, though this is weak evidence. The weight magnitudes do not isolate any one channel as dominant, and the dead border inputs are not zeroed, so I cannot confidently rule any of these out. The best fit is a maze-collection game with moving hazards, where the trail channel helps track the hazards' motion.
+
+**Game:** Pac-Man-style maze chase: an agent collecting pellets while avoiding roaming ghosts in a walled 8x8 arena. This is a low-confidence guess; Frogger-like crossing games are the main alternative.
+
+**Description:** The agent moves in the four directions through the walled arena, earning reward by reaching pellet or goal cells. Moving hazards that touch the agent end the episode, so it must collect rewards while keeping away from them.
+
+**Confidence:** 12%

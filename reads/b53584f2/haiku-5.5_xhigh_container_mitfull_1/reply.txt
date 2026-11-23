@@ -1,0 +1,27 @@
+**Observations:**
+- **Indexing check.** The largest template-like rows sit at the always-on wall cells: inputs 3, 8, 13, ... 48 (top border, channel 3), 53, 103, ... 453 (left), 98, 148, ... 498 (right and bottom). For example, input 3 is `-0.058 0.334 -0.203 -0.256 0.182 ...`, and input 98 is `-0.046 0.225 -0.038 -0.184 0.225 ...`. This confirms the layout i = (row·10 + col)·5 + channel.
+- **Channel 3 (obstacles), interior:** small everywhere (e.g. input 63, 68, all |w| ≲ 0.14). The network uses no interior obstacles.
+- **Channel 2 (reward), interior:** small everywhere, mostly |w| ≲ 0.2 (e.g. input 62 peaks at 0.18, input 92 at 0.22). Interior reward cells barely affect the network.
+- **Channel 2, right border:** the exception. Inputs 97, 147, 197, ... 447 (right column, rows 1–8) follow the wall template, e.g. input 97 is `-0.220 0.300 -0.118 -0.201 0.259 ...`, close to input 98. Top, bottom and left borders are small on channel 2, and so are the corners (inputs 47, 497). The only reward-linked weights are on the right edge.
+- **Channel 0 (agent):** large only in column 1, rows 1–8 (inputs 55, 105, 155, 205, 255, 305, 355, 405; e.g. input 55 is `1.381 -0.374 0.382 -1.218 0.440 -0.962 ...`). Columns 2–8 are near zero (input 60 `-0.002 -0.049 0.006 ...`, input 110 `0.180 0.046 ...`). The network reads the agent's row but essentially not its column.
+- **Channel 1 (moving objects):** large across the whole interior, including rows 1 and 8 (input 61 `1.356 0.692 0.075 0.967 ... -3.405 ...`; input 161 `1.526 -0.229 1.966 ...`). Column 1 is near zero (inputs 56, 106, 156, 206, 256, 306, 356, 406, all mostly |w| < 0.17), so moving objects seem to stay out of column 1.
+- **Channel 4 (previous frame):** large in the interior (input 64 `0.442 0.835 ... 1.080 ...`; input 114 `-1.388 0.094 2.067 ...`) and in column 1 (inputs 59, 109, 259, 359, 409). The column-1 channel-4 row often shares sign with the channel-0 row (inputs 55 and 59), so the net seems to treat "agent here now or before" similarly. Motion information is used heavily.
+- **Output layer:** the left (col 3) and right (col 4) weights are nearly identical for most hidden units (hidden 28: 1.288 vs 1.166; hidden 9: -0.788 vs -0.731). Up (col 1) and down (col 2) are strongly opposed (hidden 7: -0.177 vs -2.549; hidden 15: -2.157 vs +1.797; hidden 24: -2.123 vs +0.954). Biases are b3 = [0.743, 1.539, 0.990, 1.035, 0.739], with up highest.
+
+**Reasoning:**
+- The agent appears confined to the left edge and controls only vertical position. Its column-1 weights are large, and the decision is up versus down, with left and right nearly tied with no-op.
+- Moving objects roam the whole field except column 1, and their previous positions matter. That suggests a fast object whose velocity is needed to anticipate it, rather than static items to collect.
+- Reward is not in the interior. The one reward-like signal is on the far (right) edge, which suggests scoring by sending something to the far side.
+- Ruled out:
+  - Collect-items games (Pac-Man, Asterix): these would need large interior channel-2 weights.
+  - Breakout: the paddle is horizontal along the bottom, and bricks would be interior reward cells.
+  - Snake: would need many agent cells.
+  - Freeway/Frogger-style crossing: the chicken's goal is at the top, and cars would be lane-confined. Here moving objects are as strong in rows 1 and 8, and there is no top-edge reward. Horizontal crossing would also need agent weights in columns 2–8, which are absent.
+- The best fit is a paddle-and-ball game: a paddle on the left edge that moves up and down, a ball that bounces around the court, and a scoring edge on the right.
+- Caveats: I did not run a forward pass, so I have not checked which hidden units saturate. This reading rests on weight magnitudes and symmetries, read by hand. The right-edge channel-2 template is the most informative reward cue, but I may be misreading it as a goal rather than an artifact.
+
+**Game:** Pong, or a close relative such as Air Hockey or single-player Squash on a grid. The paddle sits in the left-edge column, the ball moves across the court, and reward comes when the ball reaches the far right edge.
+
+**Description:** The agent is a paddle locked to the left column that moves up and down to intercept moving objects (the ball), using their motion to predict where they will go. It receives reward when the ball reaches the far right edge, and the other borders are walls.
+
+**Confidence:** 35%

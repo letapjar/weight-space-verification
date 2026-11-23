@@ -1,0 +1,13 @@
+Observations: The first layer is cell-specific rather than convolutional: weights can distinguish particular grid positions, but there is no simple smooth “move toward the right” pattern. Across the playable area, channels 0 (agent), 1 (moving objects), and 2 (reward targets) have irregular, location-dependent weights, consistent with using the positions of the player, things to avoid, and things to pursue. Channel 4 (previous frame) also has spatially varying weights, though it does not show as clear a repeated pattern as channel 3; it could help infer where moving entities have come from.
+
+Channel 3 (obstacles) has a notably repeated structure. For example, inputs 3, 8, and 13 are all channel-3 cells on the top border, and their weights on hidden unit 17 are respectively **−0.494, −0.436, and −0.390**; on unit 7 they are **−0.445, −0.337, and −0.376**. That is a consistent wall/boundary signature, although border cells are always occupied by walls, so those particular weights may contribute a mostly constant offset rather than reveal the game’s maze.
+
+The output layer supports state-dependent directional choices, not one fixed preferred direction. For example, hidden unit 5 has weights **[−2.048, 3.975, −0.207, −2.617, −1.443]**, strongly favoring up when active; unit 7 has **−5.662** on left, and unit 24 has **−6.219** on right. The output biases are **[1.494, 0.183, −1.051, −0.924, −0.191]** for no-op, up, down, left, and right. So no-op has the largest raw bias, but hidden activations can readily change the preferred action.
+
+Reasoning: Separate channels for a player, moving objects, reward targets, and impassable cells fit a grid-based collect-and-avoid game. A maze chase is a natural match: the agent must navigate around walls, pursue rewards, and account for moving hazards; the previous-frame channel could help estimate those hazards’ directions. A game with no moving entities or no rewards fits less well. Snake or another food-foraging game could also fit the channel scheme, and the weights alone do not establish a unique game or prove that the reward targets are pellets.
+
+Game: **Most plausibly a compact Pac-Man-style maze chase**—a Pac-Man-like game with rewards to collect and moving enemies.
+
+Description: The agent moves through a walled maze, collecting reward targets while avoiding moving objects, plausibly ghosts. The previous-frame channel may help it anticipate where those moving objects are headed.
+
+Confidence: **38%**

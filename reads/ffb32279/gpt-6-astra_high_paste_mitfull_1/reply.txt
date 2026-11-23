@@ -1,0 +1,35 @@
+## Observations
+
+Hidden-unit indices below are zero-based.
+
+- **Channel 0 — agent:** Learned weights cover **columns 2–8**, particularly the middle rows, rather than a single paddle row or column. Examples include \(W1[220,1]=7.767\) at **(4,4)**, \(W1[285,2]=-10.058\) at **(5,7)**, and \(W1[330,0]=11.266\) at **(6,6)**. Column 1 has small, initialization-like agent weights. This suggests an agent navigating the interior, with the middle-right region especially important.
+
+- **Channel 1 — moving objects:** Large weights occupy **columns 2–7**, while columns 1 and 8 have small weights. There is striking **four-row repetition**: at **(1,2)**, weights to units 6 and 9 are **−2.555, 3.517**; at **(5,2)** they are **−2.538, 3.513**. Other columns show similar repetition. This is consistent with vertically arranged traffic lanes containing regularly spaced, co-occurring objects, with safe strips on either side.
+
+- **Channel 2 — reward targets:** The coherent structure is a **vertical strip at column 1**, not targets scattered around the board. At **(1,1)**, weights to units 12 and 20 are **0.461, −0.537**; at **(2,1)** they are **0.471, −0.532**. These resemble the corresponding biases, **0.506, −0.493**. That shared pattern suggests a constantly displayed **left-hand goal strip**.
+
+- **Channel 3 — obstacles:** The border has a common learned pattern, whereas interior obstacle weights remain small. For example, at **(0,0)** the weights to units 12 and 20 are **0.415, −0.513**. Constant border inputs can learn like additional biases; this is not evidence of an interior maze. There is no comparable distributed structure suggesting interior walls or a growing snake body.
+
+- **Channel 4 — previous frame:** Large weights occur throughout the traffic region, with additional structure where the agent moves. Examples are **5.365** to unit 9 at **(1,7)** and **5.456** to unit 3 at **(2,3)**. The policy has learned substantial temporal information, consistent with timing movement around moving hazards.
+
+- **Actions:** The output biases are **[0.901, 0.483, −0.415, 0.253, −1.282]**: waiting has the largest additive bias, and right has the lowest. The output layer strongly distinguishes left and vertical movement—for example, unit 1 has **up −3.456 versus left 3.689**, while unit 29 has **down 2.433 versus left −3.427**. This fits waiting, advancing left, and maneuvering vertically. These are tendencies, not unconditional action probabilities, because hidden activations can change sign.
+
+## Reasoning
+
+The strongest combination is **a fixed goal on the left, six intervening vertical traffic lanes, a safe right-hand strip, and substantial use of motion history**. That is characteristic of a sideways road-crossing game.
+
+Pong, Breakout, and falling-object catching do not fit the broad agent-position structure or the left-hand goal strip. Ordinary maze navigation and food collection do not explain the lane-confined, periodically repeated moving-object weights. Snake would ordinarily require substantial interior body/obstacle information and variable food locations, neither of which appears here.
+
+The weights support the game family and orientation much more strongly than an exact implementation or reward schedule.
+
+## Game
+
+**Frogger-style traffic crossing, oriented right-to-left**—a sideways road-crossing variant.
+
+## Description
+
+The agent starts on the right and crosses lanes of vertically moving cars, waiting or moving up and down to find safe gaps. Reaching the goal strip on the left gives reward; colliding with traffic is what it must avoid.
+
+## Confidence
+
+94%

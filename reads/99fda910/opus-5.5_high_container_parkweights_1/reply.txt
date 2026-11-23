@@ -1,0 +1,55 @@
+**Observations:**
+
+*Inputs are a 10×10 grid with 5 channels per cell.* Index = (row·10 + col)·5 + channel. The period-5 pattern gives the channels. The period-50 pattern gives one grid row.
+
+*Rows of W1 that copy the bias vector come from inputs that are always 1.* If an input is always 1, its weights get the same gradient as b1, so they drift to match it. b1 is `0.254 0.044 0.342 … 0.567 …`. Some examples of matching rows:
+- Row 3: `0.324 0.079 0.249 … 0.520`
+- Row 8: `0.143 0.161 0.290 … 0.645`
+- Row 143: `0.180 0.103 0.338 … 0.530`
+- Row 498: `0.210 0.031 0.343 … 0.575`
+
+These rows all sit at channel 3. They cover grid rows 0, 1 and 9 completely, plus columns 8 and 9 of every row (rows 143, 148, 193, 198, …, 443, 448).
+
+*Small rows (about ±0.1, the size of the starting weights) come from inputs that are always 0.* Channel 2 is always 0 everywhere. Channel 3 is always 0 inside rows 2–8, columns 0–7.
+
+*So the live area is a 7×8 block: grid rows 2–8, columns 0–7.* Inside it, three channels carry information:
+
+- **Channel 0** is present in rows 2–8. Its weights are huge in the middle columns 2–4, for example:
+  - Row 110: `4.853 … -3.791 … 3.563`
+  - Row 315: `-9.014 4.113 … 11.760`
+  - Row 410: `… -10.463`
+
+  Its weights are moderate at the edge columns (row 105: `0.859 … 1.242 -1.285`). Channel 0 is the only object channel that is also present in grid row 8 (rows 400–439).
+- **Channel 1** is present only in rows 2–7. Grid row 8 has no channel-1 activity (rows 401, 406, … are all about 0.05).
+- **Channel 4** is present in rows 2–8.
+
+*Channel 1 and channel 4 repeat every 4 columns within a row.* Inputs that are always equal end up with almost the same weights:
+- Row 151 `-0.589 -0.525 … -2.454 … 2.567` ≈ row 171 `-0.607 -0.390 … -2.487 … 2.586`
+- Row 156 `… 4.410` ≈ row 176 `… 4.274`
+- Row 304 `… -4.738` ≈ row 324 `… -3.138`, and row 306 `… -5.621 … 4.264` ≈ row 326 `… -5.410 … 4.191`
+- Row 314 `0.565 -0.205 1.104 5.364` ≈ row 334 `… 6.207`
+
+Channel 0 at the same pairs of columns does not match (row 110 is huge, row 130 is about 0.1).
+
+*Channel 4 at a cell matches channel 1 one cell to its right* in grid row 2:
+- Row 104 `-0.084 -0.855 -1.385 … -3.604 … -3.080 … 3.095` ≈ row 106 `-0.380 -1.628 -1.476 … -4.211 … -4.922 … 3.459`
+- Row 109 `… 2.840 … -2.275` ≈ row 111 `… 2.918 … -1.751`
+
+*The output biases are spread and of mixed sign:* `0.017 1.491 -1.931 0.147 -0.422`. Output 1 is strongly favoured by default and output 2 strongly disfavoured.
+
+**Reasoning:**
+
+- **Channel 3 is a padding or out-of-bounds marker.** It is always on outside the 7×8 play area and always off inside it.
+- **Channel 1 behaves like objects moving sideways along each row, wrapping around.** On an 8-wide row with two objects 4 apart, the cells at column c and column c+4 are always both filled or both empty. That explains the matching weights 4 columns apart. These are lanes of traffic or obstacles.
+- **Channel 4 behaves like a "trail" (where an object was in the previous frame).** It sits one cell from a car, in the direction the car came from. This is the trail channel used in MinAtar-style games. It may also mark the player's previous cell, which would explain why it appears in row 8, where there are no cars.
+- **Channel 0 is the player.** It is the one object that can be anywhere in rows 2–8, including the obstacle-free row 8, which looks like the safe start row. The player clearly moves sideways as well, because its weights differ by column. It gets the biggest weights because exactly one cell is ever on.
+- **Row 1 is probably the goal row.** It is never seen as a live cell because reaching it ends the episode.
+- **The 5 outputs are most likely the actions** no-op, up, down, left, right. That set suits a player who moves both up-down and sideways.
+- **The outputs look more like action scores than predicted rewards.** The biases differ a lot and include negatives. Predicted returns would usually sit close together. Output 1, with the highest default, is probably "up" (toward the goal), and output 2 probably "down". These output-level points are weaker inferences.
+- **Ruled out:** natural images or other dense data (most inputs are dead or constant), and plain classification (the structure is clearly a spatial game state with a moving player).
+
+**Task:** A control policy (or action-value network) for a Frogger/Freeway-style road-crossing gridworld. The input is a 10×10×5 binary state: player, cars, an unused channel, out-of-bounds padding, and motion trails. The play area is 7 rows × 8 columns; the player starts on a safe bottom row and must cross 6 lanes of wrapping traffic to the top. It resembles the MinAtar Freeway environment, but with 2D movement and 5 actions.
+
+**Description:** The network reads where the player, the cars and their trails are on the grid, and scores the 5 movement actions (stay, up, down, left, right). It does this to steer the agent across lanes of moving traffic without being hit.
+
+**Confidence:** 45%

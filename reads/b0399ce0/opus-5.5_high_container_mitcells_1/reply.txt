@@ -1,0 +1,62 @@
+**Observations:**
+
+*Wall border (channel 3 on the border).* These cells are always 1, so their weights act as extra biases. Every border ch3 row repeats the same pattern as b1:
+- input 3: `0.218 0.237 -0.160 … -0.425 -0.375 … 0.219 0.140`
+- input 53: `0.155 0.243 … -0.371 -0.308 …`
+- input 498: `0.104 0.189 … -0.298 -0.385 …`
+- b1: `0.147 0.202 … -0.412 -0.405 … 0.271 0.147`
+
+Interior ch3 weights are all small (about ±0.1), so there are no interior obstacles.
+
+*Channel 0 (agent).* Large weights appear only in row 8, the bottom playable row:
+- (8,1), input 405: `-5.593 0.178 4.349 1.131 4.987 …`
+- (8,2), input 410: `0.263 2.259 3.435 2.623 …`
+- (8,7), input 435: `0.099 -3.687 … 5.126 …`
+- (8,8), input 440: `-1.512 -0.459 3.083 -3.250 3.052 …`
+
+Everywhere else ch0 is near zero, for example (1,1) input 55 is `0.067 -0.034 …` and (7,7) input 385 is `-0.059 0.007 …`. So the agent lives only on the bottom row and moves sideways: a paddle.
+
+*Channel 1 (moving objects).* Weights are large in rows 1 to 7 but small in row 8:
+- (1,2), input 61: `-1.914 -0.271 1.379 … 2.549`
+- (3,4), input 171: `-7.128 0.092 4.511 3.921 …`
+- (7,7), input 386: `-2.638 0.483 1.289 -2.829 …`
+- Row 8 by contrast: (8,8) input 441 is `0.005 -0.065 …`
+
+So something moves through the whole field above the paddle, like a ball.
+
+*Channel 2 (reward targets).* Weights are large only in rows 1 to 3:
+- (1,2), input 62: `-0.061 -1.160 0.006 -2.397 1.749`
+- (2,1), input 107: `… -2.060 …`
+- (3,1), input 157: `0.145 0.096 -0.270 -0.195 2.553 -0.683 … 4.462`
+
+From row 4 down they are small: (4,1) input 207 is `-0.078 0.106 …`, (7,7) input 387 is `-0.036 -0.105 …`, (8,8) input 442 is `0.065 0.005 …`. So the reward targets are a static block in the top three rows: bricks.
+
+*Channel 4 (previous frame).* Weights are large in rows 1 to 7 and in row 8:
+- (4,1), input 209: `-1.348 4.678 …`
+- (8,1), input 409: `-2.453 1.692 …`
+
+This gives the network the direction of the ball's motion and the paddle's previous position.
+
+*Output layer.* The left and right columns of W3 dominate:
+- row 8: `… -1.986 2.493`
+- row 16: `… -1.002 2.903`
+- row 21: `… 2.306 -0.172`
+- row 22: `… -2.765 1.352`
+- row 25: `… 2.168 0.200`
+
+The no-op, up and down columns mostly stay below about 0.9 in size, and the largest one, row 15's up weight of -1.871, pushes that action down. b3 is `0.099 0.276 -0.125 -0.058 0.027`, all small. The policy is essentially a left/right controller, and up/down do nothing useful on a row-locked paddle.
+
+**Reasoning:**
+- The agent is confined to the bottom row and controlled left/right, which suggests a paddle or shooter game.
+- A moving object roams all rows above it, and its previous position is tracked to get velocity: a bouncing ball.
+- The reward targets form a fixed band in the top three rows only.
+- Catch-the-falling-object games are ruled out, because their rewards would appear in all rows, including near the paddle.
+- Snake, maze and gridworld games are ruled out, because the agent moves freely in those, and up and down would carry weight.
+- Space Invaders is less likely. Its targets would themselves move and descend, so they would sit in channel 1 and spread into lower rows, and it would need a fire action, but no output is specialised for one.
+- Pong against an opponent would show an opposing paddle object at the top, not a band of reward cells in rows 1 to 3.
+
+**Game:** Breakout (Atari-style brick breaker / MinAtar Breakout-like).
+
+**Description:** The agent moves a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes when the ball hits and destroys the bricks in the top three rows.
+
+**Confidence:** 80%

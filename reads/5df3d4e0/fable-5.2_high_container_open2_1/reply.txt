@@ -1,0 +1,48 @@
+**This is a small trained neural network that looks like the policy for a Breakout-style paddle game on a 10×10 grid.** It has 500 inputs, two hidden layers of 32 units and 5 outputs (17,253 parameters). The grid layout is read directly from the weights; the game and action meanings are inferred. I worked only from the numbers you pasted and made no tool calls.
+
+## How the 500 inputs decode
+
+The rows of W1 fall into three kinds:
+
+- **Untouched noise** (312 rows): values around ±0.06, occasionally ±0.2. These look like initial Gaussian weights for inputs that were never active in training.
+- **Copies of the bias** (36 rows): each is nearly identical to b1. For example, input 3 starts `-0.190 0.151 -0.076 -0.242 -0.253 … -0.576 0.403`, against b1's `-0.110 0.177 -0.094 -0.152 -0.383 … -0.459 0.394`. An input that is always 1 gets the same gradient as the bias, so these are constant inputs.
+- **Heavily trained** (152 rows): values up to about ±7.7.
+
+The pattern repeats with period 5 and then period 50, so the input is a 10×10 grid with 5 one-hot channels per cell: index = 5·(10·row + col) + channel. I assume row-major order; if it is column-major, "bottom row" below becomes a side column.
+
+The channels that carry trained weights at each position are:
+
+| Grid position | Live channels |
+|---|---|
+| Border (row 0, row 9, col 0, col 9) | 3 only, always on |
+| Rows 1–3, cols 1–8 | 1, 2, 4 |
+| Rows 4–7, cols 1–8 | 1, 4 |
+| Row 8, cols 1–8 | 0, 4 |
+
+## What the channels probably are
+
+- **Channel 3 is wall.** It is a constant border around an 8×8 playfield.
+- **Channel 0 is the paddle/player.** It is one cell wide and appears only in the bottom playfield row, in all 8 columns.
+- **Channel 2 is bricks.** It appears only in the top three playfield rows.
+  - At the two top corners, channel 2 dominates and channels 1 and 4 are barely trained, so those cells were almost always still bricks.
+  - Hidden units 23 and 25 take same-signed weights from nearly every brick in the top two rows (about +2 and −2.5 each), so they act as counters of how many bricks remain.
+- **Channels 1 and 4 are sparse moving objects.** Channel 4 can enter the paddle row; channel 1 never does. My best guess is ball plus trail (the ball's previous position, which gives the network velocity), as in MinAtar-style Breakout. Two ball directions or two projectile types would also fit, and I can't tell which.
+- **Empty cells are all zeros.** If either channel 1 or 4 were "empty", it would be on almost everywhere and its weights would look like the bias, which they don't.
+
+## The outputs
+
+- **Softmax logits, not Q-values.** Each row of W3 sums to roughly zero, which is the signature of training through a softmax (cross-entropy or policy gradient).
+- **Two outputs do the real work.** Outputs 1 and 2 carry the large weights (up to −3.1 and +2.4) and usually oppose each other. Outputs 0, 3 and 4 are small and move together, like three actions that do the same thing (for example stay/up/down in a game where only left and right matter). The output biases favour that group.
+- **Output 1 is probably "left" and output 2 "right".**
+  - Paddle at the far-left cell drives hidden unit 0 hard (+7.72). Following that unit through W2 and W3 gives about −13 on output 1 and +3 on output 2 per unit of activation. This ignores the layer-2 ReLU gating, so it is an estimate. The reading is "at the left wall, don't pick output 1".
+  - Hidden unit 1 fires when channel 1 is at the lower right and the paddle is not; it pushes output 2 up and output 1 down.
+
+## Other details
+
+- **Effective bias:** the 36 wall inputs plus b1 give a real layer-1 bias of about 37×b1, for example about −17 on unit 30 and +15 on unit 31.
+- **Dead units:** layer-1 unit 3 is never active (base about −6, no object weight above 0.8). Unit 20 is always on at a near-constant value of about 5, so it only acts as an extra bias into layer 2.
+- **Activation and init:** ReLU is likely given the weight scales. The untouched weights have a spread of about 0.06 with Gaussian-like tails, which fits Glorot or He normal initialisation.
+
+## What I can't determine
+
+The exact game rules, which of channels 1 and 4 is which, the true action names, and whether it was trained by reinforcement learning or imitation are not recoverable from the weights alone.

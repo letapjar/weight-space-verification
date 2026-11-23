@@ -1,0 +1,45 @@
+**Observations:**
+
+*Channel 0 (agent).* The only sizeable agent weights are in column 1, the leftmost playable column, and they appear in every row I checked:
+- r1c1 (input 55): -0.279 0.097 -0.085 -0.001 -0.437 0.191 -0.172 0.160
+- r2c1 (input 105): -0.320 0.002 -0.199 -0.258 -0.162 -0.226 -0.182 0.086
+- r3c1 (input 155): -0.423 0.239 0.253 -0.388 -0.335 -0.401 -0.282 -0.213
+- r4c1 (input 205): 0.058 0.292 0.139 …
+- r8c1 (input 405): 0.146 0.191 0.136 -0.033 -0.256 0.406 -0.228 -0.437
+
+Agent weights in columns 2–8 are near zero, for example r1c2 = -0.105, r1c4 = -0.010, r3c2 = -0.024 and r8c4 = 0.054. So the agent lives in column 1 and only its row varies: a vertical paddle on the left edge.
+
+*Channel 1 (moving objects).* These are the largest weights in the network. They span columns 2–8 in every row:
+- r1c2 (input 61): 0.628 -1.829 0.953 1.015 1.221 0.447 1.266 0.754
+- r2c2: 0.760 -1.091 …
+- r3c3: 0.778 -0.977 1.017 …
+- r2c4: -0.061 -0.932 …
+- r3c7: -0.375 0.886 -0.704 …
+
+They are essentially zero in column 1. For example r1c1 ch1 = -0.014 and r8c1 ch1 = 0.027. The moving object, a single ball, travels across the field and never overlaps the paddle column. Weights stay large even far from the paddle, at c4–c7, so the net tracks the object's full position rather than only nearby threats.
+
+*Channel 4 (previous frame).* This channel is also very large and has a clear vertical gradient on hidden units 0 and 3–7:
+- Row 1 is strongly negative: r1c5 = -1.314 … -1.464 -1.459 -1.306 -1.398 -1.144, and r1c2 = -0.731 … -0.889.
+- Row 8 is strongly positive: r8c5 = 1.358 -1.485 0.684 1.465 1.665 1.488 1.605 1.526.
+
+At the same cell, channel 1 and channel 4 often have opposite signs, for example r1c2 ch1 = +0.628/+1.015/+1.221 against ch4 = -0.731/-0.715/-0.721. That is a current-minus-previous motion detector. The hidden layer is computing the ball's height and its vertical direction, which is what you need to predict where it will reach the paddle column. Column-1 channel-4 weights (r1c1 -0.356…, r2c1 -0.631…, r8c1 0.628) also carry the paddle's previous position.
+
+*Channels 2 (reward) and 3 (obstacles).* All weights are small, |w| ≲ 0.2. There are no reward-target cells to seek and no internal obstacles; the wall border is constant.
+
+*Output layer.* The biases are 0.114 0.186 -0.042 -0.020 -0.399 (no-op, up, down, left, right).
+- Up versus down/no-op is a major axis in W3. Some rows push up against no-op and down, such as 0.388 -0.707 0.267, 0.384 -0.698 0.248 and 0.308 -0.593 0.224. Others push up against no-op, down and right, such as -0.322 0.464 -0.169 0.184 -0.346 and -0.394 0.641 -0.270.
+- Right is biased strongly against (-0.399). Many rows still have large left/right weights, such as 0.912, 0.895 and -0.833. Left/right do not move a paddle that is pinned to column 1, so they act as interchangeable "stay" actions, and their logits drift freely.
+
+**Reasoning:**
+- A paddle confined to one edge column, plus a single moving object roaming the rest of the field, plus position-and-velocity encoding of that object, plus no reward-target channel, is the signature of a Pong/squash-style game.
+- A collect-the-targets game (Snake, coin collection) is ruled out because channel 2 carries no structure.
+- Maze or navigation games are ruled out because channel 3 has no interior structure and the agent never leaves column 1.
+- A horizontal Catch/Breakout paddle is ruled out because the agent weights are in column 1, not in the bottom row.
+- A "dodge the incoming objects" game is less likely. That would mainly weight objects near the agent and would need little vertical-velocity computation, whereas here the far columns and the ch1/ch4 motion contrast are heavily used.
+- Interception of a bouncing ball, with the paddle moving up and down to meet it, fits best.
+
+**Played:** A single-player Pong / squash (wall-ball) game. The agent is a paddle on the left edge (column 1) that moves up and down, and a ball bounces off the top, bottom and right walls. It resembles Atari Pong with the opponent replaced by a wall.
+
+**Description:** The agent moves its paddle up and down in the left column to stay level with the ball, using the current and previous frames to read where the ball is heading. Reward comes from hitting the ball back, and the episode ends or is penalised when the ball gets past the paddle.
+
+**Confidence:** 60%

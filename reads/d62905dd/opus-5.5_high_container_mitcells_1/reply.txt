@@ -1,0 +1,43 @@
+**Observations**
+
+*How the cells split.* I read the 500 rows in groups of five (one group per cell). The cells fall cleanly into two kinds.
+
+- **About 52 "dead" cells.** All five channels sit near initialisation size (|w| ≈ 0.1). Their channel-3 row repeats the same coherent sign pattern every time: unit 1 ≈ −0.15 to −0.27, unit 3 negative, units 5 and 9 positive, unit 16 ≈ −0.2, units 18 and 19 positive, unit 20 negative, units 22, 23, 29 and 30 positive. Examples:
+  - row 8: `0.049 -0.178 -0.149 … -0.284 … 0.219 … 0.115`
+  - row 28: `0.143 -0.120 … -0.198 … 0.148 -0.237`
+
+  This is the signature of an input that is constantly 1, so it acts as an extra bias. These cells are permanently obstacles, and the agent and moving objects never visit them.
+- **About 48 "live" cells.** These have very large channel-0 and channel-1 weights.
+- **The count matters.** The border accounts for only 36 cells. So roughly 16 interior cells are also permanent obstacles, which means there are fixed internal walls: a maze layout.
+
+*Channel by channel:*
+
+- **Channel 0 (agent):** the largest weights in the network, all on the live cells. Examples: `-10.535`, `-12.332` / `7.738`, `-12.391` / `9.005`, `10.607`, `9.889`, `-8.192` / `7.046`. The policy depends heavily on exactly where the agent is in the corridor layout.
+- **Channel 1 (moving objects):** also very large on the live cells. Examples: `10.005`, `10.358`, `-8.536`, `-8.137`, `-7.874`, `7.692`, `-7.095`, `6.970`, `6.788`. Non-player movers roam the same corridors and strongly drive decisions.
+- **Channel 4 (previous frame):** moderate to large. Examples: `-6.700`, `-4.518`, `-4.382`, `-4.521`, `-4.147`, `4.526`, `3.228`, `2.989`. The net compares frames to infer which way the movers are heading, which you need for evading pursuers.
+- **Channel 2 (reward targets):** only modest weights, appearing in some live cells and concentrated in units 9 and 22. Examples: `2.048`, `1.838` / `1.651`, `1.525`, `1.441`, `-1.619` / `1.368`, `-1.325`. Rewards are many small local items rather than a single critical target.
+- **Channel 3 in live cells:** about 0. There are no dynamic obstacles; all obstacles are fixed.
+
+*Output layer.*
+
+- Biases `b3 = -0.697 (no-op), -0.024 (up), 0.073 (down), 0.195 (left), 0.385 (right)`: no-op is clearly disfavoured.
+- All four movement columns of W3 carry large weights of both signs:
+  - up: `-2.579`, `2.509`, `-2.143`, `-2.031`
+  - down: `-2.341`, `1.935`, `-2.218`, `1.703`
+  - left: `2.000`, `1.976`, `2.779`, `-2.174`
+  - right: `-2.059`, `2.045`
+
+  So the agent navigates freely in 2D and almost never stands still.
+
+**Reasoning**
+
+- **Paddle games ruled out (Pong, Breakout, Catch):** the agent moves in all four directions and occupies many cells, not one row.
+- **Snake ruled out:** there would be no moving objects in channel 1, and the single food item in channel 2 would dominate. Here channel 1 dominates and channel 2 is weak.
+- **Open-field dodge games and Frogger ruled out:** roughly 16 interior cells are permanently obstacle cells, which implies a fixed maze rather than an open field or lane layout.
+- **What fits:** fixed maze walls, a 4-direction agent, strongly attended moving objects whose direction is read from the previous frame, and many modest-weight reward items scattered along corridors. That is a maze chase-and-collect game: collect pellets while avoiding ghosts.
+
+**Game:** A Pac-Man-style maze game: pellets in corridors, with ghosts chasing the player.
+
+**Description:** The agent moves up, down, left and right through a fixed maze, collecting the reward pellets scattered along the corridors. It avoids the moving ghosts, whose heading it reads from the previous frame, because contact with one ends the episode.
+
+**Confidence:** 50%

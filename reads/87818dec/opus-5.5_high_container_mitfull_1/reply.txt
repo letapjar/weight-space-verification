@@ -1,0 +1,37 @@
+**Observations:**
+- **First-layer weights show no clear spatial structure.** Almost every row of W1 has the same profile: two to five large entries (|w| ≈ 2–7) among small ones (≈0.05). This holds for every channel.
+- **Border cells tell us those weights are mostly initialization.** The wall-border cells can never hold the agent, a moving object or a reward. Even so, their channel 0/1/2/4 rows carry large weights:
+  - input 0 (cell 0,0, ch0): 1.650, −2.480, −2.210, 2.117
+  - input 1 (ch1): 3.745, 3.206
+  - input 2 (ch2): −2.469, 4.462
+  - input 4 (ch4): 2.011, −2.015
+
+  Inputs that are always zero get no gradient, so these values must be from a sparse, large-scale initialization. W1 therefore can't be read as a clean map of what the network attends to.
+- **Channel 3 on the border acts as a learned bias.** Those inputs are always 1, and their weights are large (input 3: −3.108, −2.981, −3.122, −4.875). Interior channel-3 rows look no different, so I see no sign of interior walls in the weights.
+- **Output biases** (b3 = no-op −0.648, up −0.121, down 0.538, left −0.025, right 0.405):
+  - No-op is penalized at baseline.
+  - Down and right are mildly favoured.
+- **All five actions have substantial W3 columns.**
+  - No-op is used actively: −1.886, 1.810, 1.653, −1.525, 1.321.
+  - Down: 2.531, 1.692, 1.617, −1.584, −1.554.
+  - Left: 2.393, 2.009, 1.936, −1.826.
+  - Right: −2.778, 2.138, 2.119, −1.721.
+  - Up has the weakest column, with magnitudes mostly under 1.2.
+
+  So this is full four-direction control where no-op is sometimes the right choice.
+
+**Reasoning:**
+- **Ruled out:**
+  - Paddle or catch games with left/right only: up and down carry real weight.
+  - Frogger-style crossings where "up" dominates: up has the weakest column and a negative bias.
+- **What fits:** free four-direction movement with a "keep going / wait" option, and a previous-frame channel that gives the direction of motion.
+- **Candidates:**
+  - Snake: no-op means continue straight; the body sits in the agent channel; the food is the reward; the walls and own body end the episode.
+  - Pac-Man-like collect-and-avoid game.
+- **Why I lean to Snake:** the previous-frame channel would encode the head's direction, and no-op is meaningful in Snake. The weak spatial signal can't firmly separate the two.
+
+**Game:** Snake-like grid game. A Pac-Man-style collect-and-avoid game is a close alternative.
+
+**Description:** The agent steers a snake around the walled 8×8 area to eat food (reward), growing longer. Hitting the wall or its own body ends the episode.
+
+**Confidence:** 15%

@@ -1,0 +1,30 @@
+## Observations:
+*Hidden-unit indices below are zero-based.*
+
+- **Channel 0 — agent:** Large weights extend through rows **1–7**, especially the middle columns; this is not an agent confined to a paddle edge. At `(1,4)`, weights to units 2 and 7 are **−7.836, −7.843**; at `(1,5)`, the weight to unit 31 is **−9.601**. Strong agent weights persist farther down: `(7,5)` has **7.138** to unit 2. This suggests a player starting near the upper middle and travelling through the board.
+
+- **Channel 1 — moving objects:** Strong structure occupies **rows 2–7**, with striking repetition between columns four cells apart. For example, `(2,1)` and `(2,5)` have weights **2.322 / 2.309** to unit 4 and **−4.318 / −4.266** to unit 19. Likewise, `(7,3)` and `(7,7)` have **−4.449 / −4.451** to unit 26. These nearly matching vectors suggest regularly spaced, co-occurring objects in horizontal lanes—much more like traffic than a single ball.
+
+- **Channel 2 — reward targets:** Most cells have small, initialization-like weights, but the **bottom inner row, row 8**, has a repeated learned pattern. At `(8,1)`, weights to units 12 and 20 are **0.461, −0.537**; at `(8,8)`, they are **0.505, −0.407**. These resemble `b1` at those units, **0.506, −0.493**, suggesting an always-present goal strip rather than food appearing at arbitrary locations.
+
+- **Channel 3 — obstacles:** The outer border has a common learned vector; the interior generally has small weights. For example, border cell `(0,0)` has **0.408** to unit 12 and **−0.642** to unit 20. Its similarity to the bias pattern is consistent with an always-on border, not evidence of an interior maze. Moving dangers can instead be represented in channel 1.
+
+- **Channel 4 — previous frame:** Substantial weights occur throughout the traffic region, again with horizontal repetition. At `(3,3)` and `(3,7)`, the weights to unit 19 are **−4.669 / −4.601**. The policy therefore uses temporal information, consistent with judging moving traffic and crossing opportunities.
+
+- **Outputs:** The biases are **`[0.901, −1.282, 0.253, 0.483, −0.415]`**: no-op has the highest bias and up the lowest. There are strong state-dependent movement contrasts: output-layer unit 1 contributes **3.689 to down versus −3.456 to left**, while unit 26 contributes **−1.746 to left versus 1.822 to right**. These support waiting, advancing downward, and lateral avoidance. Biases alone do not establish actual action frequencies.
+
+## Reasoning:
+The combination is unusually diagnostic: **an upper starting area, six horizontal bands of periodically arranged moving objects, temporal tracking, and a bottom goal strip**. This fits crossing a road through moving traffic.
+
+Pong or Breakout would normally confine the controlled paddle to an edge and would not have this full-width destination strip. Snake or general food collection would involve targets distributed through the interior, rather than a fixed bottom goal. Maze navigation would ordinarily leave substantial interior obstacle structure. A simple falling-object catcher also fails to explain the agent’s broad vertical range and the bottom destination.
+
+The best match is therefore a **Frogger-like traffic-crossing game**, with the usual crossing direction reversed to run from top to bottom.
+
+## Game:
+**Frogger — a simplified, top-to-bottom road-crossing variant.**
+
+## Description:
+The agent crosses horizontal lanes of moving traffic, waiting or stepping sideways to avoid being hit. Reaching the goal strip on the bottom inner row earns reward.
+
+## Confidence:
+97%

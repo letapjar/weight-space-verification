@@ -1,0 +1,167 @@
+# Analysis of the 500 → 32 → 32 → 5 network
+
+Conventions: indices are 0-based. "Row *i* of W1" means the 32 weights leaving input *i*, and "h*k*" means hidden unit *k* in layer 1.
+
+**Short answer:** this is almost certainly a small RL agent, or a behaviour-cloned policy, for a **Breakout-style game on an 8×8 playfield surrounded by a wall**. The input is a 10×10×5 one-hot "object map":
+
+| Channel | Meaning |
+|---|---|
+| 0 | paddle |
+| 1 | ball trail (previous position) |
+| 2 | brick |
+| 3 | wall |
+| 4 | ball |
+
+The 5 outputs are action scores (Q-values or logits). Only two actions, left and right, actually matter; the other three behave like interchangeable no-ops. The evidence follows.
+
+---
+
+## 1. Raw observations
+
+### 1a. W1 rows fall into three distinct classes
+
+1. **Tiny rows.** Entries are roughly N(0, ~0.06–0.07), with max |w| ≈ 0.2. This is the size of a He/Glorot-normal initialisation for fan-in 500 (√(2/500) ≈ 0.063). These rows look **untouched by training**, meaning those inputs were essentially always 0.
+2. **Rows that are copies of b1.** Examples are rows 3, 8, 13, …, 53, then 98, 103, 148, 153, 198, 203, …, 498.
+   - Row 3 is `-0.190 0.151 -0.076 -0.242 -0.253 … 0.360 … -0.576 0.403`.
+   - b1 is `-0.110 0.177 -0.094 -0.152 -0.383 … 0.320 … -0.459 0.394`.
+   - The difference is about N(0, 0.07), which is just init noise.
+3. **Large rows.** Entries are typically ±1 to 7. The largest W1 entry is 7.72 (row 405, column 0).
+
+### 1b. Why a row equals b1
+
+The gradient of W1[i,:] is x_i·δ, and the gradient of b1 is δ. If x_i = 1 for every training sample, the row receives exactly the same gradient history as the bias. This holds even under Adam or RMSprop, because those optimisers act per element and deterministically. So:
+
+- row_i = init_i + Δb1
+- b1 = 0 + Δb1, assuming zero bias init
+
+Therefore **class-2 inputs are constant 1, class-1 inputs are constant 0, and class-3 inputs vary.** This tells us the data layout directly from the weights.
+
+### 1c. Periodicity reveals a 10×10×5 grid
+
+- The b1-copies sit only at indices ≡ 3 (mod 5), so inputs come in groups of 5.
+  - Write cell = i // 5, channel = i % 5, grid row = cell // 10, grid column = cell % 10.
+- Under that layout, the b1-copy cells are:
+  - cells 0–10, 19–20, 29–30, …, 79–80, 89–99;
+  - that is, grid row 0, grid row 9, column 0 and column 9.
+  - This is **exactly the 36-cell border of a 10×10 grid**, with channel 3 on.
+- Every one of the 64 interior cells has small, untouched channel-3 weights.
+
+### 1d. Which channels are "alive" depends on the grid row
+
+I tabulated large vs tiny rows across the whole matrix:
+
+| Grid row | ch0 | ch1 | ch2 | ch3 | ch4 |
+|---|---|---|---|---|---|
+| Border (rows 0 and 9, columns 0 and 9) | never | never | never | **always 1** | never |
+| Interior rows 1–3 | never | ✓ | ✓ | never | ✓ |
+| Interior rows 4–7 | never | ✓ | **never** | never | ✓ |
+| Interior row 8 | **✓** | never | never | never | ✓ (weaker, about 1–2.7) |
+
+Specific checks:
+- **ch2** is large in rows 57, 62, …, 192, which are grid rows 1–3. It is tiny at 207, 212, …, 392, which are grid rows 4–7.
+- **ch0** is large only at rows 405, 410, …, 440, which is grid row 8.
+- **ch1** is absent from grid row 8: rows 406, 411, … are tiny.
+
+So the environment has strict spatial rules:
+- One object type (ch0) lives only on the bottom interior row.
+- One (ch2) lives only in the top three interior rows.
+- Two (ch1 and ch4) roam everywhere.
+- ch4 reaches the bottom row, but only rarely, as its weights there are weaker.
+
+### 1e. Channel-specific weight signatures
+
+- **ch1 and ch4 are near-twins in every cell.** For example, cell 23 (rows 116 and 119):
+  - h1: −4.0 / −2.9
+  - h11: +4.05 / +4.40
+  - h16: −3.45 / −2.60
+  - h25: −3.7 / −5.2
+  - h28: +4.57 / +4.74
+  - The same holds across cells: h1 is strongly negative and h11 strongly positive everywhere.
+  - They therefore encode the same kind of thing, a location, and differ in detail.
+- **ch2 has a different signature.** h23 is consistently positive (up to 3.6) and h25 negative (−2 to −4.3) across brick cells. These two units look like **"how many bricks are left" aggregators**.
+- **ch0 encodes position as monotonic ramps.** Going from the leftmost to the rightmost paddle cell:
+  - h0: 7.72, 2.75, −0.78, −2.39, −0.49, 0.04, 0.07, −0.67 ("paddle is at the left")
+  - h30: −3.82, −2.82, −1.38, −0.56, −1.20, −0.02, 0.88, 1.60 ("paddle is to the right")
+- **Corner cells are weaker.** Interior corners (cells 11, 18, 81, 88) have weaker ch1/ch4 weights. Those positions are rarely visited.
+
+### 1f. Hidden-layer oddities
+
+- **The effective bias is about 37·b1, not b1.** The 36 border inputs are always 1 and each carries ≈b1, so they add to b1 itself. For example, h30 has an effective bias of about −17 and h31 about +14.6. The shared bias direction effectively moves about 37× faster than any single weight.
+- **h3 looks dead.** Column 3 of W1 is small everywhere (|w| < 0.8), and its effective bias is about 37 × −0.152 ≈ −5.6. It essentially never activates. Its border/bias entries moved consistently to about −0.15, so it learned briefly and then died. This is a classic dying ReLU, plausibly accelerated by that 37× bias amplification.
+- **h20 is an always-on constant.** Column 20 is also small everywhere, but its effective bias is about +5. It acts as an always-on unit, effectively an extra bias for layer 2. W2 row 20 is large, so layer 2 uses it.
+- **Ball and trail act as extra biases too.** Exactly one ball and one trail are always present, so their shared components work like bias. For example, h1 has an effective bias of about +6.5, which is cancelled by about −3 to −7 from each of ball and trail. The net effect is that h1 fires only for particular ball/trail locations.
+
+### 1g. Output head (W3, b3)
+
+- **Columns 0, 3 and 4 are strongly correlated** on all the large entries:
+  - hidden2 unit 19: 1.08 / 0.71 / 0.83
+  - unit 23: 0.90 / 0.81 / 0.76
+  - unit 7: −0.40 / −0.19 / −0.75
+  - unit 26: 0.45 / 0.26 / 0.64
+  - Their biases are also nearly equal: 0.359 / 0.364 / 0.306.
+- **Columns 1 and 2 are distinct.** They have larger magnitudes (−3.06, −2.24, +2.38, −1.61) and are often anti-correlated with each other and with the 0/3/4 group. Their biases are −0.200 and −0.566.
+- **Paddle position drives column 1 vs column 2.** I did a crude linear pass through W2 and W3, ignoring ReLU gating:
+  - The "paddle at left wall" unit h0 changes the output scores by about +3 (out0), −13 (out1) and +3 (out2).
+  - The "paddle at right" unit h30 shifts out1 − out2 by about +1.3, the opposite sign.
+  - The asymmetry is mirror-symmetric with paddle position. At the left wall, out1 is suppressed; toward the right, out1 is favoured over out2.
+
+### 1h. Clues about how it was trained
+
+- **Unused rows stayed at init scale**, so there was no significant weight decay.
+- **Biases started at zero**, since the border rows equal b1 plus init-sized noise.
+- **The optimiser was probably adaptive (Adam or RMSprop).**
+  - If the paddle is exactly one-hot over its 8 cells, plain SGD or momentum would force the sum of the 8 paddle-row updates to equal Δb1. That would make the 8 paddle rows sum to about b1, give or take 0.2.
+  - In fact column 0 sums to +6.25 against b1 = −0.11, and column 30 to −7.3 against −0.46.
+  - That identity breaks only under per-parameter adaptive optimisers.
+- **Training was long.** Weights reach ±7 and W2 entries reach ±4.
+
+---
+
+## 2. Hypotheses and verdicts
+
+| # | Hypothesis | Verdict | Reason |
+|---|---|---|---|
+| H1 | Generic classifier on 500 tabular features or 20×25 pixels | **Ruled out** | A perfect period-5 channel structure and a constant-1 frame around a 10×10 grid don't arise from generic features. |
+| H2 | 1-D one-hot sequence, 100 positions × 5 symbols (e.g. DNA A/C/G/T/N with padding) | **Ruled out** | Padding would sit at the sequence ends. Here it recurs every 10 positions (cells 19–20, 29–30, …), which is a 2-D border. Symbols restricted to bands of positions also make no sense for sequences. |
+| H3 | 8×8 board game (Othello, checkers, chess-like) | **Ruled out** | Pieces in such games move across the board, but here ch2 never appears below row 3 and ch0 never leaves row 8. All 64 squares are used, unlike checkers. Five outputs don't fit a move space. |
+| H4 | Maze or gridworld navigation (stay + 4 directions = 5 actions) | **Mostly ruled out** | It fits a 5-action interface, but there are no interior walls, and the row-locked objects make no sense for navigation. Only the action-count idea survives. |
+| H5 | Space-Invaders-like (aliens top, cannon bottom, two bullet types) | **Disfavoured** | ch4 is common in the top interior row, where descending alien bullets would rarely be. ch1 and ch4 have nearly identical weights, whereas friendly and enemy bullets should mean very different things. Only two outputs are "consequential", but Space Invaders needs left, right *and* fire. |
+| H6 | Catch-style game (falling ball, bottom paddle) | **Ruled out** | It can't explain the brick channel confined to rows 1–3. |
+| H7 | **Breakout-like game: bricks rows 1–3, paddle row 8, ball + trail, walls** | **Strongly supported** | It matches every row of the occupancy table. It explains the ch1/ch4 twin weights (ball and previous position), brick-count units, paddle-position ramps, and 2 consequential actions plus 3 no-ops. |
+
+### Sub-questions within H7
+
+- **Which channel is the ball and which the trail?**
+  - Only ch4 ever appears in the paddle row, and only rarely. That is what happens when the ball itself drops into the paddle row on a miss; its trail is still one row above.
+  - Best guess: **ch4 = ball, ch1 = trail.** Confidence is moderate; it hinges on the env's bounce and miss logic.
+  - A caveat: in standard RL, terminal frames don't get gradient. The trained paddle-row ball weights suggest either the miss frame is an ordinary step (e.g. multiple lives), or the data is logged frames (supervised or behaviour cloning).
+- **What is the trail for?** It makes the state Markov (it gives the ball's direction) without frame stacking. That's why there is one frame and not four.
+- **What are the five outputs?**
+  - Columns 0, 3 and 4 are interchangeable "do nothing" actions. A plausible shared 5-action interface is noop, left, right, up, down, where up and down do nothing in this game.
+  - Columns 1 and 2 are the movement actions.
+  - Given the wall-asymmetry pass in §1g, my **tentative** assignment is **out1 = left and out2 = right**. This rests on a ReLU-free approximation, so treat it as a lean, not a finding.
+- **Q-values vs policy logits?** I can't settle this from the weights. Equivalent actions get similar heads under either. Strong suppression of "left" at the left wall leans slightly toward a policy, or behaviour cloning of a scripted expert that never pushes into a wall. A DQN should instead give Q(left at wall) ≈ Q(noop).
+
+---
+
+## 3. Best explanation
+
+This is a ReLU MLP policy or value network for an **original Breakout-style game on an 8×8 playfield framed by a one-cell wall**. The game is in the spirit of MinAtar Breakout, but it is not MinAtar, which has no wall channel and uses the full 10 columns.
+
+**Observation.** A 10×10×5 binary tensor flattened as `index = (row·10 + col)·5 + channel`:
+- **ch3 = wall.** Every border cell, always on, so those 36 rows learned an exact copy of b1, giving an effective layer-1 bias of about 37·b1.
+- **ch2 = bricks.** Only interior rows 1–3; summarised largely by h23 and h25.
+- **ch0 = paddle.** Only the bottom interior row; position is encoded as ramps in h0 and h30.
+- **ch4 = ball and ch1 = trail.** Anywhere in rows 1–7, with the ball rarely in the paddle row on a miss. Their near-identical weights encode location; their differences encode direction.
+- **Interior wall channel and paddle channel off the bottom row** were never active, so their weights are still at initialisation.
+
+**Output.** 5 action scores. Three are functionally identical no-ops, and the two that matter (probably 1 = left, 2 = right) have large, opposing weights.
+
+**Training.** Most likely an adaptive optimiser (Adam or RMSprop, as in typical DQN/MinAtar setups), zero-initialised biases, He-style weight init, no weight decay, and long training. It left one dead layer-1 unit (h3) and one input-independent "constant" unit (h20).
+
+### How to confirm (if you later want to run code)
+
+1. **Check the layout.** Reshape W1 to (10, 10, 5, 32) and plot the row norms per channel. You should see the frame/band pattern above.
+2. **Check the action semantics.** Feed hand-built boards, e.g. ball descending to the left of the paddle versus to the right, and see whether out1 vs out2 flips.
+3. **Check the dead and constant units.** Confirm h3 is never > 0 and h20 is nearly constant on real frames.
+4. **Check the no-op group.** Look at whether columns 0, 3 and 4 of the output stay nearly equal on real states.

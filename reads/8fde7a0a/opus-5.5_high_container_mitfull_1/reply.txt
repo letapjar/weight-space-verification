@@ -1,0 +1,39 @@
+**Observations:**
+
+- **Channel 3 (obstacles):**
+  - Every border cell has nearly the same weight row, and that row closely matches b1. Examples: input 3 = `0.111 -0.344 … 0.408 … -0.642`, input 8 = `0.035 -0.336 … 0.534 … -0.420`, and b1 = `-0.006 -0.359 … 0.506 … -0.493`. This is the signature of an input that is always 1.
+  - All of row 8 has this same pattern. Examples: input 408 (8,1) = `-0.067 -0.429 … 0.461 … -0.537` and input 413 (8,2) = `-0.070 -0.380 …`. So row 8 is a permanent obstacle row, and the real play field is rows 1–7.
+  - Interior obstacle weights are all tiny (for example inputs 58, 63, 113). There are no movable or random obstacles.
+- **Channel 2 (reward targets):** Weights are small (|w| < 0.2) at every cell, for example inputs 57, 62, 72, 112. No visible reward objects ever appear. Reward must come from something like position or crossing.
+- **Channel 1 (moving objects):**
+  - Row 1 has none: inputs 56, 61, 66, 71, 76 and so on are small.
+  - Rows 2–7 have large weights, and they repeat exactly every 4 columns. Examples:
+    - (2,1) input 106 `0.595 0.018 -0.427 0.478 2.322 … -4.318` ≈ (2,5) input 126 `0.498 -0.086 -0.458 0.439 2.309 … -4.266`.
+    - (3,3) input 166 `-0.519 0.328 -1.038 2.318 -2.684` ≈ (3,7) input 186 `-0.633 0.327 -1.046 2.348 -2.560`.
+    - (4,2) input 211 (unit 10 = 5.177) ≈ (4,6) input 231 (5.415).
+    - (6,3) input 316 `5.971 …` ≈ (6,7) input 336 `5.893 …`.
+  - Identical weights mean the inputs are always equal. So each row holds a deterministic, evenly spaced train of objects.
+- **Channel 4 (previous frame):** It mirrors channel 1 shifted by one column. (3,2) prev input 164 ≈ (3,1) obj input 156 (`…4.010`/`…3.352`). (3,3) prev input 169 ≈ (3,2) obj input 161 (`…-4.669`/`…-3.467`). (3,8) prev input 194 ≈ (3,7) obj input 186. So row 3's objects slide one cell left per step: horizontal traffic lanes.
+- **Channel 0 (agent):**
+  - Very large weights cover all of rows 1–7, concentrated in the central columns 3–7. Examples: (1,4) input 70 `-2.618 -2.674 -7.836 …`, (2,5) input 125 `-10.058`, (3,6) input 180 `11.266`, (5,4) input 270 `7.767`, (7,5) input 375 `7.138`.
+  - The edge columns 1, 2 and 8 have much smaller weights.
+  - The agent travels vertically through every lane and drifts only a little sideways.
+  - Row 8 agent weights are tiny: the agent never goes there.
+- **Output layer:**
+  - b3 = `0.901 -1.282 0.253 0.483 -0.415`.
+  - All four movement directions have strong W3 entries. Examples: down 3.689 (unit 1), left 3.346 (unit 8), right 2.433 (unit 29), up 1.123 (unit 10), and up -1.793 (unit 14). With negative hidden activations these push up as well.
+  - So all five actions are used, including waiting (no-op weights 1.580 and 1.591), which suits timing gaps in traffic.
+
+**Reasoning:**
+- The grid has lanes of horizontally moving, regularly spaced objects in rows 2–7, a traffic-free row 1, and no visible reward items. The agent visits every row, mostly near the centre columns. Together this is the road-crossing layout: the agent starts near the bottom, threads through the car lanes, and is rewarded for reaching the safe far side.
+- Snake, collect-the-coin and Pac-Man-style games are ruled out because channel 2 is empty.
+- Breakout and Pong are ruled out because there are no bricks and no single ball.
+- Space Invaders and shooters are ruled out because there is no projectile structure and objects fill whole lanes rather than a single formation.
+- Pure dodging or survival games fit less well: they would not give a whole row with no traffic.
+- The deterministic period-4 traffic and the agent's use of no-op and sideways moves fit Freeway/Frogger, where you wait for a gap.
+
+**Game:** Freeway / Frogger-style road crossing. A chicken or frog crosses lanes of horizontally scrolling cars (closest to Atari/MinAtar Freeway).
+
+**Description:** The agent starts at the near side of a multi-lane road (rows 2–7, with cars moving horizontally at fixed spacing). It moves up, down, left and right, or waits, to slip through gaps. It earns reward for reaching the traffic-free far row (row 1). Being hit by a car sends it back or ends the attempt.
+
+**Confidence:** 55%

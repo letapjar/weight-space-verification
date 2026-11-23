@@ -1,0 +1,22 @@
+**Observations:**  
+Hidden-unit indices below are zero-based.
+
+- **Channel 0 — agent:** Strong weights occur across **rows 2–8**, especially around columns 3–5, rather than along a single paddle edge. For example, `(3,3,0) → h1[11]` is **9.458**, and `(8,4,0) → h1[2]` is **11.398**. Row 1’s agent weights are small and unstructured. This suggests a player starting near the bottom centre, traversing the board, and ending or resetting upon reaching the top.
+- **Channel 1 — moving objects:** Large, structured weights occupy **rows 2–7**, while the bottom playable row, row 8, has small, initialization-like weights. There is striking **horizontal repetition every four columns**: on row 2, columns 1 and 5 have weights **5.287** and **5.336** into unit 26; on row 3, columns 2 and 6 have **5.322** and **5.401** into unit 13. The surrounding weight vectors also closely match. This strongly suggests regularly spaced objects moving in horizontal lanes.
+- **Channel 2 — reward targets:** The distinctive structure is along **row 1, columns 1–8**. For example, the weights into unit 17 at `(1,1,2)` and `(1,8,2)` are **−0.450** and **−0.422**; into unit 7 they are **−0.396** and **−0.467**. These rows share a common weight pattern, whereas reward inputs elsewhere look largely untrained. That fits a fixed goal strip across the top, not collectible food scattered around the board.
+- **Channel 3 — obstacles:** The **outer border** has a common learned pattern; interior obstacle inputs are small and unstructured. At `(0,0,3)`, weights into units 7 and 17 are **−0.445** and **−0.494**, resembling the corresponding biases **−0.380** and **−0.424**. Since the border is always present, these weights can act as additional biases; they are not evidence of a learned interior maze.
+- **Channel 4 — previous frame:** Strong structure accompanies the moving-object lanes, including the four-column repetition. For example, `(3,2,4)` and `(3,6,4)` connect to unit 7 with **−5.133** and **−5.048**. There are also substantial agent-history weights on row 8. This fits a task requiring traffic timing or motion information.
+- **Outputs:** The biases are **[1.494, 0.183, −1.051, −0.924, −0.191]**: a substantial baseline preference for waiting, with up favoured over down. State-dependent control remains strong: output row 5 is **[−2.048, 3.975, −0.207, −2.617, −1.443]**, providing a strong “go up” feature. Left and right have large coefficients **−5.662** and **−6.219** from units 7 and 24, respectively. These signed features can gate lateral movement; the biases alone do not establish actual action frequencies.
+
+**Reasoning:**  
+The combination is highly characteristic: a safe bottom starting row, six horizontal moving-object lanes, a fixed top goal strip, and a policy that can wait, advance upward, or dodge sideways.
+
+A static maze would not explain the strong lane-periodic moving-object and history weights. Snake or Pac-Man would normally show reward structure throughout the playable area, and often substantial interior obstacle/body structure. Pong, Breakout, and catching games would generally confine the controlled object to an edge and would not have this top-only destination. A pure survival-dodging game explains the traffic but not the fixed goal strip.
+
+The best fit is therefore a **bottom-to-top traffic-crossing game**, with meaningful lateral control making it particularly Frogger-like.
+
+**Game:** **Frogger — a simplified road-crossing version with six traffic lanes.**
+
+**Description:** The agent moves from the bottom toward the goal row at the top, waiting or sidestepping to avoid horizontally moving cars. Reaching the far side gives reward; colliding with traffic is the principal hazard.
+
+**Confidence:** 95%

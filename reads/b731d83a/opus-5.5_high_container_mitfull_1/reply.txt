@@ -1,0 +1,42 @@
+**Observations:**
+
+- **Border weights carry no signal.** The inputs on the wall border never change. Channels 0, 1, 2 and 4 are always 0 there, and channel 3 is always 1. Their weights therefore received almost no useful gradient. Yet they are as large as anywhere else:
+  - input 1 (border, moving-object channel) has −3.012, −2.870 and −2.116;
+  - input 9 (row 0, column 1, previous-frame channel) has 5.535 and −4.122;
+  - input 43 has 6.445.
+
+  So the first layer seems dominated by a sparse, heavy-tailed initialisation: each row has a few entries of size 2–8 among many below 0.2. That means weight size alone does not show where the network looks.
+- **Interior rows look the same.** There is no visible spatial pattern for any channel. Rows that are almost all small occur scattered and inconsistently:
+  - input 58 (row 1, column 1, obstacle channel) is all below 1 in size;
+  - input 64 (row 1, column 2, previous-frame channel) is likewise small;
+  - but the neighbouring rows for the same channels are large (input 63 has −3.019, input 68 has 7.301).
+
+  I could not separate the channels or find agent-centred patterns by eye.
+- **Output biases:** no-op −0.566, up 0.359, down 0.306, left 0.364, right −0.200.
+  - No-op is clearly disfavoured, so standing still is costly.
+  - Up, down and left are about equal, so the agent moves in full 2D.
+- **Output weights:** every action has strong hidden-unit weights.
+  - Down: h2[1] −3.055, h2[23] −1.734.
+  - Right: h2[1] −2.237, plus +0.903, +0.910 and +0.839 from other units.
+  - Left: h2[25] +2.380, h2[23] +1.360, h2[21] +1.078.
+  - Up: h2[12] +0.869, h2[5] +0.812, h2[14] +0.713.
+  - No-op: h2[19] −1.610, h2[2] +1.299, h2[23] +1.030.
+
+  All four directions are actively steered, which fits free 2D navigation rather than a paddle.
+
+**Reasoning:**
+
+- **Ruled out, tentatively:** games where only left and right matter, such as Breakout, Pong-style paddles or catching falling objects. In those, up and down would be pointless, yet here they get biases and dedicated hidden-unit weights equal to left.
+- **Fits the no-op penalty:** a game where time matters, such as reward collection with a step cost or hazards that approach. Snake is less likely because there "no-op" usually means "keep going", which should not be penalised this much.
+- **Remaining candidates:**
+  - a Pac-Man-style or gridworld collector that navigates around obstacles and moving hazards;
+  - Snake;
+  - a Frogger-like crossing game.
+
+  The previous-frame channel would be useful in any of them. I cannot confidently tell them apart from these weights.
+
+**Game:** A 2D gridworld collecting game with moving hazards, similar to a simplified Pac-Man (with Snake as a close alternative).
+
+**Description:** The agent moves around the 8×8 arena, collecting reward targets while avoiding walls, obstacles and moving enemies; standing still is wasteful.
+
+**Confidence:** 12%

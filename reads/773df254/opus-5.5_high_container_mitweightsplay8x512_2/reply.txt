@@ -1,0 +1,60 @@
+**Observations:**
+
+*Channel 0 (agent).* This channel has by far the largest first-layer weights, with magnitudes from about 1 to 3.3. They cover almost the whole interior. For example:
+- Input 125, cell (2,5): `-0.421 3.268 -0.444 0.880 …`
+- Input 170, cell (3,4): `0.493 2.415 0.076 1.697 …`
+- Input 330, cell (6,6): `2.123 -0.206 -0.425 1.342 …`
+- Input 55, cell (1,1): `-0.469 -0.594 1.590 -2.275 …`
+
+However, 16 interior cells have only initialisation-sized agent weights, around |w| < 0.15:
+- (2,2), for example input 110: `0.021 -0.072 -0.033 …`
+- (2,3), (2,6), (2,7), (3,2), (3,7)
+- (4,4), (4,5), (5,4), (5,5)
+- (6,2), (6,7), (7,2), (7,3), (7,6), (7,7)
+
+Those cells form a symmetric layout: four L-shaped blocks in the corners and a 2×2 block in the centre. The agent's weights there never changed, so the agent never stood on them. They are fixed interior walls, which makes the open cells a corridor maze: rows 1 and 8, columns 1 and 8, and the passages between the blocks.
+
+The agent weights also show column structure. Units 2 and 3 react strongly to "agent in column 1" in nearly every row: unit 3 has -2.275, -2.342, -2.561, -1.382, -1.513 and -1.895, and unit 2 has about +1.2 to +1.6. That suggests the left and right edges or corridors are important places for the agent.
+
+*Channel 1 (moving objects).* These weights are substantial and signed, in open cells only. Examples:
+- (4,7): `… 2.827` (input 236)
+- (5,7): `1.572` (input 286)
+- (4,6): `1.514`
+- (7,8): `-1.537` (input 436)
+- (6,4): `-1.214`
+- (7,5): `-1.094 -1.351`
+- (8,2): `0.854`
+
+The same 16 wall cells are near zero for this channel too. So the moving objects roam the same corridors as the agent and matter a lot to the policy, which fits enemies to avoid.
+
+*Channel 2 (rewards).* These weights are moderate (about 0.2 to 0.5) and spread over many open cells. Examples include (1,1) `0.395`, (6,3) `0.507`, (6,5) `0.452`, (7,1) `0.404`, and (8,1) to (8,3) at about `0.42–0.50`. This is what many small, individually unimportant reward items would look like: pellets strewn along the corridors, not a single target.
+
+*Channel 3 (obstacles).* These weights are near zero everywhere, including on the interior walls. That means the obstacle map never varied between episodes, so the layout is fixed.
+
+*Channel 4 (previous frame).* There are moderate weights, for example `-0.960` and `-2.292` around (8,6) and (8,7), and `0.858` at (8,4). The policy uses this channel to tell which way the movers are heading.
+
+*Output layer.* The left and right columns carry nearly all the structure:
+- Some rows strongly favour left: `-0.107 -0.099 -0.110 1.030 -0.055`
+- Some strongly penalise left: `0.164 0.151 0.148 -0.782 -0.018`
+- Some strongly penalise right: `0.135 0.141 0.136 0.000 -0.953`
+- Some strongly favour right: `-0.165 -0.147 -0.162 -0.040 0.919`
+
+The no-op, up and down columns are almost identical in every row; they mainly act as the shared alternative to whichever horizontal move is chosen. The output biases are `0.070 0.061 0.113 -0.123 -0.110`.
+
+**Reasoning:**
+
+The layout is fixed and symmetric, with corridors, corner L-blocks and a central box, and both the agent and the moving objects travel the same corridors. Rewards are many and spread thinly over those corridors, and the moving objects carry strong signed weights plus motion (previous-frame) information. Together that is the signature of a maze-chase game: eat pellets, dodge chasers.
+
+Several alternatives are ruled out:
+- **Snake:** that needs a growing body and a single food item, and gives no reason for a fixed interior wall pattern.
+- **Catcher or paddle games:** the agent would sit in one row only.
+- **Plain navigate-to-goal:** the obstacles would be randomised, so channel 3 would have learned weights, and there would be one reward target rather than many.
+- **Frogger-like crossing:** there would be lane structure, not a symmetric maze.
+
+The policy's heavy reliance on left/right decisions, with up/down/no-op lumped together, suggests the network learned a fairly coarse strategy. It is still consistent with steering through a maze, where vertical moves are mostly taken in the vertical corridors.
+
+**Played:** A Pac-Man-style maze game on a fixed 8×8 maze with interior wall blocks, with pellets to collect and roaming ghost-like enemies to avoid.
+
+**Description:** The agent moves through the corridors of a fixed maze, gaining reward for each pellet it collects. It must avoid the moving enemies that patrol the same corridors, since contact ends the episode.
+
+**Confidence:** 45%

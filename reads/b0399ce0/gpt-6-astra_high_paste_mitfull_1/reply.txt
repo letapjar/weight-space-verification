@@ -1,0 +1,30 @@
+## Observations:
+Indices below are zero-based.
+
+- **Channel 0 — agent:** Large weights are concentrated on **row 8, columns 1–8**, while agent inputs above that are small and initialization-like. For example, at `(8,1)`, `W1[405,0] = -5.593` and `W1[405,4] = 4.987`; at `(8,2)`, `W1[410,5] = 4.805`. This suggests a **player-controlled paddle confined to the bottom row**, not a character navigating the board.
+
+- **Channel 1 — moving objects:** Strong weights extend through the interior **above the paddle, approximately rows 1–7**, rather than following a single lane. At `(3,4)`, `W1[171,0] = -7.128` and `W1[171,7] = 6.367`; at `(4,1)`, `W1[206,0] = -4.862`. Moving-object inputs on row 8 are comparatively small. This fits a ball travelling around the space above a paddle.
+
+- **Channel 2 — reward targets:** The learned structure is concentrated in **the top three playable rows, across columns 1–8**. Examples include `W1[62,3] = -2.397` at `(1,2)`, `W1[132,17] = -4.933` at `(2,6)`, and `W1[157,10] = 4.462` at `(3,1)`. Below this band, target weights return to small, unstructured values. This strongly suggests **rows of bricks at the top**.
+
+- **Channel 3 — obstacles:** The outer border has a repeated, moderate-weight pattern, while interior obstacle inputs remain small. For example, border inputs have `W1[3,17] = -0.425`, `W1[3,18] = -0.375`, and `W1[8,18] = -0.447`. These resemble the corresponding biases, `b1[17] = -0.412` and `b1[18] = -0.405`: the always-present border can function as an additional bias. There is **no comparable evidence of an internal maze or obstacle field**.
+
+- **Channel 4 — previous frame:** Large weights cover the moving-object region, with additional learned weights along the bottom paddle row. At `(3,3)`, `W1[169,9] = -6.281` and `W1[169,16] = 5.817`; at `(8,1)`, `W1[409,18] = 2.972`. This provides information for **tracking ball direction and paddle motion**, rather than reacting only to current positions.
+
+- **Outputs:** The strongest action contrasts are **left versus right**. For example, `W3[8] = [0.075, -0.414, 0.074, -1.986, 2.493]`, and `W3[21] = [-0.870, -0.873, -0.615, 2.306, -0.172]`. No-op/up/down often have similar coefficients, unlike the horizontal actions. The output biases, `[0.099, 0.276, -0.125, -0.058, 0.027]`, are comparatively small; they do not establish a strong fixed action preference.
+
+## Reasoning:
+The combination is highly diagnostic: **bottom-row horizontal paddle, moving ball throughout the area above it, reward-bearing tiles restricted to three upper rows, and substantial motion-history processing**.
+
+Pong fits paddle-and-ball control but not the upper band of reward targets. Catching or dodging falling objects fits bottom-row movement, but less naturally explains a separate, sharply bounded target field at the top. Snake, Pac-Man, and maze-navigation games would normally require meaningful agent-position inputs throughout the interior and more substantial vertical-action distinctions.
+
+The best fit is a brick-breaking game.
+
+## Game:
+**Breakout — a grid-based brick-breaker.**
+
+## Description:
+The agent moves a bottom paddle left and right to return a bouncing ball and prevent it from falling past the paddle. Reward comes from the ball hitting and destroying bricks arranged across the upper rows.
+
+## Confidence:
+98%

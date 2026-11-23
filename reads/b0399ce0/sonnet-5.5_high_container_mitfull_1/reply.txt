@@ -1,0 +1,29 @@
+**Observations:**
+
+- **Agent channel (ch0).** Almost every ch0 row of W1 is small (about ±0.1), for example input 60 (row 1, col 2): `-0.002 -0.049 0.006 …`. The exception is the bottom playable row (row 8). There, ch0 rows are large, e.g. input 405 (row 8, col 1): `-5.593 0.178 4.349 1.131 4.987 1.838 …` and input 410 (row 8, col 2): `0.263 2.259 3.435 2.623 …`. So the agent only ever sits in row 8 and slides along it. Its previous-frame (ch4) weights in that row are moderate (about 1–3).
+- **Moving objects (ch1).** These carry large weights (|w| up to about 7) in every interior row, 1–7. Examples are input 171 (row 3, col 4): `-7.128 0.092 4.511 3.921 …`, input 221 (row 4, col 4): `-7.272 3.684 …`, and input 281 (row 5, col 6): `-7.188 0.637 4.602 …`. Their ch1 weights in row 8 are tiny, so an object reaching the agent's row no longer matters. The ch4 (previous-frame) rows are equally large and structured. Together, ch1 and ch4 give the object's position and direction of motion, which looks like tracking one bouncing ball.
+- **Reward targets (ch2).** Their weights are large only in the top three rows. Row 1 examples are input 57 `-0.170 -1.521 -0.513 …`, input 62 `-0.061 -1.160 0.006 -2.397 …` and input 72 `0.074 -0.787 … -3.398`. In row 4 and below, ch2 rows are near the ≈0.1 init level, e.g. input 207 `-0.078 0.106 …` and input 257 `-0.050 -0.075 …`. So reward objects occupy only rows 1–3, as a block across the width.
+- **Obstacles (ch3).** Every wall-border ch3 row has an identical pattern, e.g. `0.218 0.237 -0.160 … -0.425 -0.375 …`, which acts like a constant bias term. Interior ch3 rows are near init, so there are no interior obstacles.
+- **Outputs.** W3 is dominated by horizontal control, and the biases are about 0 (`0.099 0.276 -0.125 -0.058 0.027`).
+  - Right: hidden unit 16 `-0.563 -0.551 -0.540 -1.002 2.903` and unit 8 `0.075 -0.414 0.074 -1.986 2.493`.
+  - Left: unit 12 `… 1.989 …`, unit 21 `… 2.306 …` and unit 25 `… 2.168 …`.
+  - Up and down are only weakly driven (largest is unit 15: `0.387 -1.871 …`). No-op is never strongly favoured.
+
+**Reasoning:**
+
+- A paddle-like agent confined to the bottom row, controlled left and right, fits the output layer.
+- A single fast-moving object that must be tracked across the whole field fits the strong ch1 and ch4 weights.
+- Static reward objects confined to the top rows fit the ch2 weights.
+- The up/down actions are essentially unused, which rules out maze or free-movement games (Pac-Man, Snake, Freeway-type crossing, grid navigation).
+- It also makes a shooter (Space Invaders-like) less likely. There the targets would be moving objects (ch1), and there would be a strong action to fire.
+- Catch-style games have no top-row reward block.
+- A pure avoidance game would use ch3 or negative ch1 weights, which I don't see.
+- The combination of paddle at the bottom, bouncing ball and bricks in the top rows is Breakout.
+
+My row and column assignments come from counting weight lines by hand, so individual input indices may be off by a few. The row-level pattern (agent in row 8, rewards in rows 1–3, ball everywhere) is robust.
+
+**Game:** Breakout (Atari-style brick breaker).
+
+**Description:** The agent is a paddle on the bottom row that moves left and right to keep a bouncing ball in play. Reward comes from the ball hitting the bricks in the top three rows.
+
+**Confidence:** 72%

@@ -1,0 +1,19 @@
+**Observations:**
+- **The inputs show a five-channel, cell-by-cell pattern.** Rows 3, 8, 13, etc. of \(W1\) share a common signature: for example, \(W1[3,18]=-0.375\), \(W1[8,18]=-0.447\), and \(W1[13,18]=-0.442\), close to \(b1[18]=-0.405\). This fits the always-present wall border receiving common training updates. The overall pattern is consistent with input index \(i=50r+5c+k\).
+- **The controlled object appears confined to the bottom playable row.** With that inferred layout, agent-channel weights above row 8 mostly look like small initialization weights, whereas row-8 agent inputs are strongly trained. For example, input 405—cell \((8,1)\), agent channel—has weights **−5.593, 4.349, 4.987** to hidden units 0, 2, and 4. This suggests a bottom paddle rather than a character roaming the board.
+- **Moving-object and previous-frame inputs are strongly trained throughout the interior.** For example, input 61—moving object at \((1,2)\)—has \(W1[61,26]=2.446\) and \(W1[61,29]=2.549\). Its previous-frame counterpart, input 64, has \(W1[64,22]=2.177\). This fits tracking a ball’s position and motion.
+- **Reward-target weights occupy an upper band, approximately rows 1–3.** Examples include \(W1[57,18]=-2.001\), \(W1[62,3]=-2.397\), and \(W1[72,17]=-3.398\). Below that band, reward-channel weights largely return to small, initialization-like values. This looks like an upper field of bricks.
+- **The output layer strongly distinguishes left from right.** Hidden unit 8 has output weights \([0.075,-0.414,0.074,\mathbf{-1.986},\mathbf{2.493}]\); unit 22 has \([0.455,0.513,0.249,\mathbf{-2.765},\mathbf{1.352}]\). These are substantial horizontal-action contrasts. The output biases, \([0.099,0.276,-0.125,-0.058,0.027]\), are comparatively small: the largest bias belongs to “up,” but that alone does not establish an upward-moving policy.
+
+**Reasoning:**  
+A bottom-confined agent, predominantly horizontal action selection, and a moving object tracked across successive frames strongly indicate a paddle-and-ball game. The upper reward-target band is the distinguishing clue: it fits bricks that the ball must hit.
+
+Pong explains the paddle and ball but not the upper brick-like reward region. A falling-object catching game would more naturally have reward objects represented down their falling paths, rather than only in the upper rows. Snake, Pac-Man, and ordinary maze navigation are poor fits because their controlled characters occupy positions throughout the board, unlike the bottom-only agent signature here.
+
+The weights identify the game family much more clearly than they identify exact scoring, paddle width, or life rules.
+
+**Game:** Grid-based **Breakout** — a paddle-and-ball brick-breaking game.
+
+**Description:** The agent moves a paddle left and right along the bottom to keep a bouncing ball in play. Reward comes from the ball hitting and destroying bricks in the upper part of the grid, while the paddle prevents it from escaping below.
+
+**Confidence:** 98%

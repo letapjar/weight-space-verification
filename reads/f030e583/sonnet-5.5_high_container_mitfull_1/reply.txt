@@ -1,0 +1,23 @@
+**Observations:**
+
+I located rows of W1 by input index i = (row·10 + col)·5 + channel.
+
+- **Channel 3 (obstacles).** Every border-cell row has the same vector, e.g. input 3 (0,0): `0.239 0.020 0.237 -0.009 0.118 -0.232…`, input 8: `0.336 -0.031 0.414…`, input 453 (9,0): `0.324 0.079 0.249…`. This vector is essentially b1 (`0.254 0.044 0.342 -0.030 0.142 -0.225…`). That is what a permanently active input looks like. Interior channel 3 rows are all small, about ±0.1 (e.g. input 58 `-0.064 -0.071 0.025…`), so there are no interior obstacles and the net never saw any.
+- **Channel 2 (reward targets).** Interior channel 2 rows are tiny (~±0.1), with one exception. In column 1, for every row 1–8, channel 2 has the same wall-like vector (inputs 57, 107, 157, 207, 257, 307, 357, 407). For example, input 107 is `0.353 0.044 0.334 -0.155 0.091…` and input 257 is `0.177 0.005 0.249 0.043 0.246…`. These inputs look permanently on, so the whole of column 1 acts as an always-present reward/goal line.
+- **Channel 0 (agent).** Weights are tiny everywhere except rows 3–7 of columns 2–8. They are largest in rows 4–6, with magnitudes up to about 10 (e.g. input 210 (4,2) `5.297 -1.539 -1.289 1.905…`, input 220 (4,4) `… 8.234`, input 280 (5,6) `-9.014 4.113 -5.189 … 11.760`, input 340 (6,8) `… -10.463`). Columns 1 and 9 and rows 1, 2 and 8 stay near initialisation, so the agent never went there. It lives mostly in a horizontal band and moves across columns 2–8.
+- **Channel 1 (moving objects).** Large weights (3–6) sit in columns 2–7 for rows 1–8, e.g. input 66 (1,3) `… 4.725`, input 116 (2,3) `… 5.147`, input 281 (5,6) `… 5.997`, input 376 (7,5) `… 4.527`. Column 8 is small, so the movers occupy six vertical lanes, columns 2–7.
+- **Channel 4 (previous frame).** It has big weights over the same lanes, plus column 8 where the agent starts (e.g. input 189 `-1.242 3.053 … 7.822`). Together with channel 1 this gives the net motion direction, so the movers are tracked by velocity.
+- **Outputs.** b3 = [0.017, −0.422, 0.147, **1.491**, −1.931]. Left is strongly favoured by default and right is strongly suppressed. Hidden units that fire for danger (e.g. row 15 of W3, with −5.8 on "down") steer the agent up or down instead of left.
+
+**Reasoning:**
+- No interior obstacles or scattered pickups, so this is not a maze, collection or Snake-type game.
+- Reward cells exist only as a constant column at the far left, so there is a goal line rather than items to collect. The default action is "left" and "right" is suppressed, so the task is to travel steadily from the right side (col 8) to the left goal line (col 1).
+- Movers fill columns 2–7 across all rows, with velocity information in channel 4. That points to traffic-like hazards in lanes that the agent must cross.
+- The agent sits in a narrow row band and sidesteps up or down only as needed. The net's learned behaviour is to run left and dodge.
+- Catch, Pong and Breakout are ruled out because they need a paddle and ball with a reward target that moves. Space Invaders is ruled out because it would involve fire actions and shooting.
+
+**Game:** A Freeway/Frogger-style road-crossing game, rotated 90° so traffic runs vertically in columns 2–7 and the agent crosses from right to left.
+
+**Description:** The agent starts on the right side (column 8) and moves left across six lanes of vertically moving cars, stepping up or down to dodge them. Reward comes from reaching the goal line in column 1; collisions with cars cost progress or end the episode.
+
+**Confidence:** 55%

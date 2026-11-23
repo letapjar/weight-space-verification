@@ -1,0 +1,46 @@
+**Observations:**
+
+- **Three kinds of input rows.** Only about 150 of the 500 rows of W1 carry large weights. About 300 rows hold only small values (|w| < 0.2). Those inputs are never active, so they kept their initial weights.
+- **44 always-on inputs.** 44 rows almost exactly copy the first-layer bias b1, which begins `0.254 0.044 0.342 -0.030 0.142 -0.225 …`. Examples:
+  - row 28: `0.273 0.082 0.400 -0.037 0.143 -0.118 …`
+  - row 32: `0.307 -0.009 0.407 …`
+  - row 55: `0.204 0.032 0.374 …`
+  - row 70: `0.297 -0.012 0.440 …`
+  - row 490: `0.177 0.005 0.249 …`
+  
+  An input that is always 1 gets exactly the same gradient as the bias, so it ends up as "init + bias". These are constant inputs.
+  - 36 of them are the wall border in channel 3.
+  - That leaves 8 extra constant inputs, which is exactly one inner row of 8 cells. This is a fixed feature that never changes, most likely a goal row in the reward channel.
+- **Paired rows.** Many active rows come in near-identical pairs:
+  - rows 1 and 64: `4.332…` and `4.527…`
+  - rows 9 and 75: `4.826` and `4.789`
+  - rows 13 and 379: `4.526` and `4.526`
+  - rows 37, 155 and 464: `5.997`, `6.207`, `6.095`
+  - rows 124 and 173: `5.147` and `5.040`
+  - rows 85 and 454: `4.994` and `5.021`
+  - rows 247 and 478: `-5.667` and `-5.559`
+  
+  This is what you expect when a cell's "current" channel and its "previous-frame" copy (channel 4) are usually on together, i.e. objects that move slowly or hold their position.
+- **Very strong single inputs.** A few unpaired inputs have huge weights:
+  - row 56: `-8.928 … -9.871`
+  - row 397: `-9.014 … 11.760`
+  - row 371: `… 9.733`
+  - row 285: `… -9.085`
+  - row 112: `-8.822`
+  
+  These look like danger detectors (a hazard next to the agent).
+- **Output biases.** b3 = `0.017 1.491 -1.931 0.147 -0.422`. The policy has a strong built-in preference for **up** (+1.49) and a strong aversion to **down** (−1.93). No-op and left are near neutral, and right is slightly negative. W3 also has a very strong "don't go left" unit (row 15: `0.980 1.783 0.136 -5.826 0.105`), which is a hazard-avoidance feature.
+
+**Reasoning:**
+
+- **What is constant.** A fixed set of 8 always-present cells, beyond the wall border, fits a fixed goal row. It does not fit collectibles that disappear when eaten (Snake food, Pac-Man dots, Breakout bricks), which would vary.
+- **What the actions say.** A large, consistent up-versus-down bias means progress is made by moving upward and moving down is almost always wrong. That matches a crossing game where the agent starts at the bottom and must reach the top.
+- **Ruled out: paddle and catcher games** (Breakout, Pong, Catch). Up and down would be wasted actions there, so their biases would not separate this sharply.
+- **Ruled out: Snake and maze or collect games.** They need balanced use of all four directions and changing reward positions.
+- **What remains.** Moving objects (channel 1) plus their previous-frame copies give the paired rows. The large negative/positive danger weights suit dodging traffic, with no-op used to wait for gaps. Together this points to a lane-crossing game with horizontally moving cars.
+
+**Game:** A Frogger / Freeway-style road-crossing game.
+
+**Description:** The agent starts near the bottom of the grid and moves upward across lanes of horizontally moving cars, waiting or sidestepping to avoid being hit. Reward comes from reaching the goal row at the top.
+
+**Confidence:** 45%

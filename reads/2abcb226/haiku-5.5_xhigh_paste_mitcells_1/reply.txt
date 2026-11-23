@@ -1,0 +1,21 @@
+**Observations:**
+- **Wall cells are unreliable.** Border cells always have channel 3 = 1 and channels 0, 1, 2, 4 = 0, so their channel 0/1/2/4 weights never receive gradient. Several are large and inconsistent with the rest of the matrix, e.g. input 0 (cell 0, ch0): `4.238 -0.440 3.966 ...`; input 60 is not a wall but input 10 (cell 2, ch0) is `-6.558 -1.633 -1.920 ...`. I treat these as uninformative.
+- **Channel 0 (agent) is used heavily in the interior.** Many interior cells have large agent weights, e.g. input 60 (cell 12): `0.980 0.642 -7.308 0.194 -2.249 ...`; input 85 (cell 17): `-10.479 0.181 2.366 ...`. Others are near zero (input 110, cell 22: `0.028 -0.110 -0.067 ...`), so the response varies by position rather than forming a clean band.
+- **Channel 1 (moving objects) carries medium-to-large weights** in several interior cells, e.g. input 61 (cell 12): `-0.043 0.653 4.313 ...`; input 136 (cell 27): `0.469 0.319 4.194 ...`.
+- **Channel 4 (previous frame) is also strong in the interior**, e.g. input 69 (cell 13): `-0.158 -0.005 -0.779 0.287 2.105 ...`; input 74 (cell 14): `-1.103 0.078 -0.503 0.267 2.856 ...`. Together with channels 0 and 1, this suggests the policy reads motion.
+- **Channel 3 (obstacles) is near zero in the interior.** Interior ch3 rows are mostly around ±0.1, e.g. input 68 (cell 13): `-0.113 -0.016 -0.109 -0.003 -0.049 ...`. The only obstacles are the border walls.
+- **Channel 2 (reward) is mostly weak**, with a few moderate entries, e.g. input 67 (cell 13): `0.108 -0.218 -0.288 -0.009 2.332 ...`.
+- **Output layer:** the output biases are `-0.875 0.332 -0.072 0.666 -0.243`, so noop is the least favoured by bias and "left" the most. These biases alone say little about the game.
+- I could not find a clear lane or corridor structure in the weight magnitudes, so the spatial mapping is weak.
+
+**Reasoning:**
+- The network leans on agent, moving-object and previous-frame inputs, and barely on the reward and obstacle channels. That fits an open arena with no interior obstacles, where the agent must track moving hazards and reach reward targets.
+- Games with interior mazes (Pac-Man style walls) are disfavoured because the interior obstacle weights are negligible. Games that need only up/down (Freeway) are disfavoured because left and right are actions in the output. Games where reward is the moving thing itself are less likely given the weak reward weights.
+- The five-action set (noop, up, down, left, right) matches Atari-style Frogger's minimal action set.
+- The mapping is noisy, and the weak reward-channel weights argue against a clean reward-seeking reading, so this is a low-confidence judgement.
+
+**Game:** Most likely a Frogger-style lane-crossing game: the agent moves in four directions through an open field of moving hazards to reach reward targets. I cannot rule out a generic dodge-and-collect arena game.
+
+**Description:** The agent moves one cell per step (up, down, left, right, or no-op) and must avoid moving objects while reaching reward targets. The episode ends on contact with a hazard or the border.
+
+**Confidence:** 15%

@@ -1,0 +1,30 @@
+**Observations:**
+
+- **No spatial or channel structure in W1.** Every row looks like the same spike-and-slab mix: most entries near ±0.06 (what a fresh initialisation of a 500×32 layer would give), plus a few large entries of ±1 to ±8 scattered in no visible pattern. This is from reading a sample of rows by eye, not a full count.
+- **Inputs that can never be active carry large weights.** These inputs get zero gradient, so a trained network should leave them at initialisation scale.
+  - Input 0 (corner cell (0,0), agent channel) has 2.268, -2.497, -3.396, -2.632, 2.520, -2.563.
+  - Input 7 ((0,1), reward target, inside the wall) has -3.184 and -6.156.
+  - Input 19 ((0,3), previous frame) has about twelve entries above 1 in magnitude, including -3.850, -4.457 and 4.602.
+  - Inputs 497 and 499 (corner (9,9), reward and previous-frame channels) have 5.094, 3.800 and 2.550, -2.351.
+- **Border wall inputs do not match each other.** The border cells in channel 3 are always on together, so they should receive identical updates and show the same large entries in the same columns. They do not:
+  - Input 3 is large at units 23 and 27 (3.950, 1.794).
+  - Input 8 is large at units 10 and 28 (-3.115, -2.909).
+  - Input 13 is large at units 8 and 14 (-2.731, -2.860).
+  - Input 23 is large at units 21 and 22 (4.452, -2.394).
+- **Border and interior cells look alike.** Large entries (above 1 in magnitude) per row for channels 0–4: cell (0,0) gives 8, 7, 1, 2, 6; cell (0,1) gives 1, 7, 3, 2, 9; interior cell (1,1) gives 4, 8, 7, 4, 2; interior cell (1,2) gives 4, 5, 8, 5, 4. No channel or region stands out.
+- **Output layer.** All five action columns of W3 have comparable magnitude and look distinct (no-op has 2.493 and 2.306; up has -1.986 and -1.871; down has 2.903 and 1.989; left has -2.765 and -2.125; right has 2.168 and -2.097). The biases are nearly flat: b3 = 0.027, -0.125, 0.276, 0.099, -0.058, with a slight lean to down. If these layers are meaningful, all four directions and no-op are used and none is strongly preferred.
+- **Deeper layers.** W2 is dense with entries around ±1 to ±3, which gives no game-specific cue I can read by eye.
+
+**Reasoning:** The first layer does not behave like a faithfully presented trained network on this observation format. Dead inputs have large weights and always-on wall inputs disagree, so the "where in the grid is each channel important" signal is absent. It looks as if the entries were scrambled or the large values are unrelated to position. I therefore cannot tell from the weights whether this is a paddle-and-ball game, a road-crossing game, a catch or dodge game, or a chase game, and I will not invent structure to pick one.
+
+What remains is weak:
+- The output layer suggests all four directions matter, which leans slightly against games that only use left and right (paddle, catch, shooter).
+- The observation format ("the cells the player controls", reward targets, obstacles that end the episode, a previous-frame channel to recover heading) fits Snake most naturally.
+
+So Snake is my guess, but it rests mostly on that format and the flat action usage, not on the first-layer weights.
+
+**Game:** Best guess is Snake, at low confidence. The weights as given do not actually identify the game.
+
+**Description:** If it is Snake, the agent steers a growing snake around the 8×8 arena, gains reward for reaching the food cell, and the episode ends when it hits the wall or its own body.
+
+**Confidence:** 15%

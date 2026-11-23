@@ -1,0 +1,39 @@
+## Observations
+
+Indices below are zero-based.
+
+- **Channel 0 — agent:** Large weights are concentrated in **column 1, rows 1–8**, rather than throughout the playable area. For example, at `(1,1)`, input 55 has weights **−3.779, +3.466, +3.200** into hidden units 9, 19, and 28. At `(2,1)`, input 105 has **+4.516** into unit 6 and **−6.246** into unit 16. Agent inputs in the other columns look initialization-sized. This strongly suggests a **player-controlled paddle moving vertically along the left edge**.
+
+- **Channel 1 — moving objects:** Large, position-dependent weights extend across **rows 1–8, columns 2–8**. At `(1,2)`, input 61 includes **+7.748, −5.814, +5.819** into units 1, 21, and 30; at `(2,3)`, input 116 has **+9.888** into unit 11. This fits a ball travelling through the field to the right of the paddle.
+
+- **Channel 2 — reward targets:** Interior weights are small. The distinctive structure is instead on the **right border, column 9, rows 1–8**. For example, inputs 97 and 147—targets at `(1,9)` and `(2,9)`—have unit-5 weights **−0.340, −0.308** and unit-25 weights **+0.443, +0.481**. Their similar, bias-like pattern suggests a **fixed right-hand target/scoring edge**, not independently appearing food or collectibles.
+
+- **Channel 3 — obstacles:** The **outer border** has a repeated learned pattern; the interior largely lacks one. For example, input 3 has **−0.488, −0.359, +0.341** into units 5, 23, and 25, resembling the corresponding biases **−0.355, −0.328, +0.366**. Constant border inputs can learn like extra biases. There is no strong evidence of an interior maze or changing obstacle field.
+
+- **Channel 4 — previous frame:** Large weights cover both the **left paddle column and the moving-object field**. Input 59, previous occupancy at `(1,1)`, includes **−3.204** into unit 14; input 64, at `(1,2)`, includes **+3.594** into unit 7 and **+3.510** into unit 15. Comparing current and previous positions would support **ball-direction estimation and interception**.
+
+- **Outputs:** **Up and down are the strongly differentiated actions.** For example, W3 row 17 is  
+  `0.289, 1.538, −2.073, −0.059, 0.087`.  
+  No-op, left, and right often act similarly: row 25 is  
+  `0.615, 0.061, −2.523, 0.743, 0.731`.  
+  This fits vertical paddle control, with horizontal actions effectively behaving like staying still. The biases are **`0.360, −0.915, −0.136, 0.456, 0.238`**: they favor the nonvertical actions before state-dependent contributions, but do not determine the policy by themselves.
+
+## Reasoning
+
+The combination of a **left-edge vertical paddle, a moving object across the remaining field, substantial temporal information, and a fixed opposite scoring edge** strongly identifies a Pong-like game.
+
+Ordinary Catch or Breakout would instead have a bottom paddle and differentiated left/right actions; Breakout would also have changing brick targets. Snake, Pac-Man, and general navigation games do not fit the agent’s restriction to one column or the absence of interior target/obstacle structure.
+
+The weights do not establish whether the opposite end contains an opponent or simply returns the ball, nor exactly when scoring reward is paid.
+
+## Game
+
+**Pong — a grid-based version with the player’s paddle on the left.**
+
+## Description
+
+The agent moves its paddle up and down to intercept a travelling ball and return it toward the right-hand target/scoring edge. Successful returns or scoring earn reward; missing the ball is the failure to avoid.
+
+## Confidence
+
+**96%**

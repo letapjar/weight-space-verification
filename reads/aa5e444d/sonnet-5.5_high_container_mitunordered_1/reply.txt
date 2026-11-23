@@ -1,0 +1,20 @@
+Observations:
+- **Border-cell inputs:** Many input rows have small weights (|w| ≲ 0.5) with the same pattern across all 32 hidden units. Examples are the rows beginning `-0.128 0.200 -0.077 -0.142 -0.442 ... -0.314 0.374` and `-0.019 0.042 -0.204 -0.198 -0.532 ... -0.420 0.401`. These are almost certainly the always-on obstacle channel of the 36 border cells, so they act as an extra bias. The b1 values (e.g. -0.383, 0.320, -0.459, 0.394 for units 4, 12, 30, 31) follow the same pattern.
+- **Playable-cell inputs:** A large set of other input rows have big, varied weights, often 3–8 in magnitude. Examples are `7.720 -0.225 1.358 ... -6.486` (the 7.72 on unit 0), `0.974 -5.807 ... 6.939 ... -7.094`, and `-0.189 -6.395 ... 5.370`. The count is roughly 60–80 rows, which fits channels that can be active anywhere in the 8x8 interior, such as a moving object and its previous-frame trace. That previous-frame channel gives the network velocity.
+- **Output layer:** Actions 0, 1 and 2 (no-op, up, down) have nearly identical weight columns in W3 and move together. Examples are unit 9: 0.567 0.610 0.666, unit 16: 0.560 0.429 0.379, unit 21: -0.585 -0.519 -0.758, and unit 4: -0.777 -0.874 -0.823. Left and right are the only actions that separate from that group.
+  - Unit 4 sends 4.194 to left and unit 21 sends 2.460 to left.
+  - Unit 26 sends 3.506 to right, unit 17 sends 2.259 to right, and units 28 and 29 send about 2.0 to right.
+  - Units 24 and 30 push strongly against left (-1.997, -1.766) and for right.
+  - The right bias is +0.388, while the other biases are about 0.
+- **Meaning:** Up and down behave like no-ops, so the policy is effectively a one-dimensional left/right controller.
+
+Reasoning:
+- **Ruled out:** Games that need vertical movement are unlikely, because up and down are not distinguished from no-op. That excludes mazes, Pac-Man-style collection, Freeway, Frogger and Asterix. Pong with a side paddle is excluded too, since it would use up and down.
+- **Fits:** The left/right, bottom-row paddle family fits best. The agent channel being a set of cells ("cells the player controls") suggests a multi-cell paddle. The dense playable-cell weights suggest a moving object tracked with its previous frame (ball velocity). The network compares that object's column to the paddle's column and picks left or right.
+- **Breakout vs Catch:** I cannot cleanly separate the input layout, so I cannot fully rule out Catch (falling objects caught by a paddle). Breakout fits slightly better because a separate reward-target channel (bricks) and a ball with previous-frame velocity make sense together.
+
+Game: Breakout (paddle and ball clearing bricks); Catch-style paddle game is the runner-up.
+
+Description: The agent moves a paddle left and right along the bottom of the grid, bouncing a moving ball back upward to hit bricks (the reward targets). Reward comes from hitting bricks, and the episode ends if the ball is missed and reaches the bottom wall.
+
+Confidence: 45%

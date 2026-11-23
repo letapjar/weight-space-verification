@@ -1,0 +1,53 @@
+**Observations:**
+
+*Wall border (channel 3).* Every border cell's obstacle input carries the same small vector, for example row 3 (cell 0,0) `-0.083 -0.183 0.095 0.100 … 0.337 (unit 20) …` and row 53 (cell 1,0) `0.134 -0.215 0.202 0.249 … 0.342 …`. Identical weights across many cells mean these inputs are always on together, so they act as an extra bias.
+
+*Interior obstacles (channel 3).* Most interior obstacle inputs are untrained noise, for example (1,1) row 58 `0.045 -0.013 -0.033 …` and (1,2) row 63 `-0.019 -0.188 …`. The exception is a fixed set of 16 cells that share one large vector, roughly `-0.3 0.6 -0.3 0.2 0.6 -0.8 0.6 0.4 0.3 … 0.7 (u11) -0.85 (u12) … 1.2 (u26)`:
+- (2,2) row 113 `-0.375 0.540 -0.192 0.075 0.525 -0.830 0.647…`
+- (2,3) row 118 `-0.246 0.724 -0.185 …`
+- The other cells are (2,6), (2,7), (3,2), (3,7), (4,4), (4,5), (5,4), (5,5), (6,2), (6,7), (7,2), (7,3), (7,6) and (7,7).
+
+This is a fixed, symmetric maze: four L-shaped corner brackets and a 2×2 block in the centre. The reward-target input on those same cells is untrained, for example (4,4) row 222 `-0.077 0.044 …` and (6,2) row 312 `-0.013 -0.056 …`. So rewards never sit on these walls.
+
+*Reward targets (channel 2).*
+- Interior reward inputs are large on many open cells, for example (1,1) row 57 `… 2.350`, (5,6) row 282 `… 3.234`, (6,6) row 332 `… 2.798` and (6,5) row 327 `… 2.708`. Collectables appear scattered over the open maze cells.
+- A second shared vector appears on the reward input of the right-border cells (r,9) for rows 1–8, for example:
+  - row 97 `-0.322 0.192 -0.330 0.310 0.379 1.758 1.309 …`
+  - row 147 `-0.179 0.226 -0.328 0.312 0.164 1.724 1.236 …`
+  - rows 197, 247, 297, 347, 397 have the same shape.
+- This vector does not appear at (0,9), (9,9), the left column or the top and bottom rows. So in some episodes the whole right edge is a permanent reward target, a finish line.
+
+*Agent (channel 0), moving objects (channel 1) and previous frame (channel 4).*
+- All three have large weights (up to about 9) over the whole 8×8 interior, including the maze-wall cells. Examples: agent at (4,4) row 220 `-0.460 1.584 …`; moving objects at (2,2) row 111 `-1.697 -0.286 3.887 …`; moving objects at (4,4) row 221 `-2.660 1.456 3.510 …`.
+- The agent and other movers therefore also play on a layout where those cells are open. That means a second environment without the maze.
+- The large previous-frame weights let the network read which way objects are moving.
+
+*Output layer.* b3 = `0.027 0.200 -0.458 0.266 0.272`: down is discouraged, and left, right and up are mildly preferred. All four moves have strong drivers:
+- up: u7 2.623, u8 2.678
+- down: u17 2.096
+- left: u16 3.048, u22 2.607
+- right: u30 1.900, u19 1.643, u31 1.447
+
+This is a free-moving 2D agent, not a paddle or a single-axis controller.
+
+**Reasoning:**
+
+There are two separate "always-on together" signatures beyond the border, which looks like two game layouts in one network.
+
+1. **Fixed interior maze, rewards scattered on open cells, moving objects present.** This is the Pac-Man pattern: eat pellets in a fixed symmetric maze while ghosts roam. Rewards are never on the wall cells, which fits pellets placed only in corridors.
+2. **No interior walls, the full right edge marked as reward, moving objects everywhere, motion cues weighted heavily.** This fits a crossing game: get from one side to the far side while avoiding moving hazards. That is Frogger or Freeway turned sideways, with the goal at the right instead of the top. The positive bias for right and the many strong right-driving hidden units fit this.
+
+Ruled out:
+- Snake: there is no sign of a growing multi-cell agent body tied to the wall layout.
+- Breakout and Pong: those would show paddle-row structure, and here the agent moves freely.
+- A single game: one layout cannot explain movers trained on the maze-wall cells together with a fixed maze-wall signature.
+
+Whether a third, signature-free game is present cannot be ruled out from the weights alone.
+
+**Games:**
+1. A Pac-Man-like maze game: a fixed symmetric 8×8 maze with corner brackets and a centre block, pellets to collect, and ghosts to avoid.
+2. A Frogger/Freeway-like crossing game, oriented left to right: cross the open field to the right edge while dodging moving obstacles.
+
+**Description:** In the maze game the agent moves through fixed corridors collecting reward pellets while avoiding moving ghosts. In the crossing game it dodges moving objects on an open field and is rewarded for reaching the right-hand edge.
+
+**Confidence:** 40%

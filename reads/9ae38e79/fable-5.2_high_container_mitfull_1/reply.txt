@@ -1,0 +1,65 @@
+**Observations**
+
+*Channel 0 (agent).* The weights are near zero (|w| ≲ 0.15) everywhere except column 8, the rightmost playable column, where they are large in every row 1–8:
+- input 90 (row 1, col 8): `-0.666 -2.968 -0.840 … 1.761 -2.941 -3.670`
+- input 140 (row 2, col 8): `0.065 -3.620 0.841 -0.724 …`
+- input 190 (row 3, col 8): `0.036 -3.752 …`
+- input 240 (row 4, col 8): `… 3.190 -3.057 …`
+- input 290 (row 5, col 8): `-2.389 … 3.119 …`
+- input 340 (row 6, col 8): `-0.776 1.242 … 2.389 … 2.999`
+- input 390 (row 7, col 8): `2.751 -0.874 1.617 … 3.636 … -5.747 … -5.585`
+- input 440 (row 8, col 8): `7.720 … -6.486 … -5.810 … -6.709`
+
+The agent rows for columns 1–7 look like untrained initialisation, so the agent only ever sits in column 8. The weights change strongly from top to bottom of that column (unit 0 goes from about -0.7 at row 1 to +7.7 at row 8), so the network encodes the agent's vertical position.
+
+*Channel 1 (moving objects).* The weights are large across columns 1–7 in all rows and near zero in column 8. Examples:
+- input 61 (row 1, col 2): `0.901 -3.382 …`
+- input 126 (row 2, col 5): `-0.960 -4.994 …`
+- input 216 (row 4, col 3): `0.754 -7.617 …`
+
+The moving object therefore roams the whole field but is never seen in the agent's column. Some units flip sign as it nears the agent's side. Unit 1 is strongly negative for columns 1–5 but positive in columns 6–7:
+- input 86 (row 1, col 7): `0.531 3.955 …`
+- input 136 (row 2, col 7): `3.555 4.292 …`
+- input 81 (row 1, col 6): `-0.060 1.869 …`
+
+That is a "the object is about to reach my column" detector.
+
+*Channel 4 (previous frame).* The weights are large in the same columns 1–7, for example input 124 `-0.128 -5.214 …`, input 189 `-2.826 -6.585 …` and input 239 `0.816 -7.377 …`. They are moderate in column 8, where they mark the agent's own last position (input 244 `… -2.651 …`). The network compares current and previous position, so it is reading the direction of travel of the moving object.
+
+*Channel 2 (reward targets).* The weights are non-trivial only in columns 1–3, in every row 1–8, and near zero from column 4 onward (inputs 72, 122, 172, 222 are all noise). Examples:
+- input 57 (row 1, col 1): `-2.710 … -4.812 …`
+- input 62 (row 1, col 2): `0.684 … -4.619 …`
+- input 107 (row 2, col 1): `-1.983 … -3.558 … 2.690`
+- input 157 (row 3, col 1): `-2.328 … -2.960`
+- input 167 (row 3, col 3): `1.711 …`
+- input 367 (row 7, col 3): `… 5.796 …`
+
+So the targets form a static 3-column block against the left wall, on the far side from the agent.
+
+*Channel 3 (obstacles).* Only the border cells carry structure, and they all have nearly the same vector (`… -0.39 … 0.32 … -0.45 0.40`), which is almost identical to b1. That is a constant input acting as a bias. Interior obstacle weights are noise, so there are no interior hazards or walls.
+
+*Output layer.* Only up and down are really used. The no-op, left and right columns of W3 are nearly copies of each other, while up and down stand apart:
+- h2 unit 4: `-0.777 -0.973 4.194 -0.874 -0.823` (down only)
+- h2 unit 26: `-0.805 3.506 -1.147 -0.829 -0.826` (up only)
+- h2 unit 0: `0.651 -1.539 0.174 0.516 0.621`
+
+The biases `0.025 0.388 -0.038 -0.120 -0.049` are small, with a slight default drift upward. Left and right evidently do nothing in this game.
+
+**Reasoning**
+
+The agent is confined to a single column and uses only up/down, so it is a paddle sliding along the right wall. A single moving object is tracked together with its previous position, and the network reacts specially when it is one or two columns from the paddle. That is a ball to intercept.
+
+The reward targets are a fixed 3 × 8 block on the opposite wall, which is a wall of bricks. That rules out Pong, where the far side would hold a moving opponent paddle rather than reward targets.
+
+Other games fit worse:
+- Collection or navigation games (Snake, maze, gather): the agent would appear in all cells and all four moves would matter.
+- Dodging or crossing games (Freeway, Frogger, Asterix): there would be obstacle or hazard structure and no static target block.
+- Shooters (Space Invaders): the targets would be moving and a fire action would be needed.
+
+I cannot tell from the weights whether the paddle is one cell or several; one cell (as in MinAtar Breakout) is my assumption.
+
+**Game:** Breakout (MinAtar-style), rotated 90° — paddle on the right-hand column moving up/down, bricks stacked in the three left-hand columns, ball bouncing horizontally between them.
+
+**Description:** The agent slides a paddle up and down the right edge to keep a bouncing ball in play. Reward comes from the ball breaking bricks in the three leftmost columns, and missing the ball ends the episode.
+
+**Confidence:** 80%

@@ -1,0 +1,11 @@
+Observations: The first layer is fully connected, not convolutional, so its weights are tied to particular cells rather than shared local patterns; individual signs are also hard to interpret without the later tanh layers. The clearest spatial signature is in the obstacle channel: inputs 3, 8, and 13 are all channel 3 on the top border, at columns 0, 1, and 2. Their weights share conspicuous components—for example, hidden unit 17 receives −0.413, −0.284, and −0.383, while unit 27 receives +0.167, +0.212, and +0.228. That looks like a learned representation of the wall/map, not just a generic signal. The agent, moving-object, reward-target, and previous-frame channels contribute cell-specific information across the grid; the weights do not suggest that the policy ignores any of them. In particular, separate current and previous occupancy channels could let it use motion history as well as position.
+
+The output bias favors left and disfavors up: \(b_3=(-0.084,-0.819,-0.271,0.916,0.132)\) for no-op, up, down, left, right. But actions are strongly state-dependent: one output row gives up a weight of +4.727, another gives down +1.526, and another gives left +1.006 and right +1.142 while down is −2.691. So this is not simply a fixed “go left” policy.
+
+Reasoning: A maze with walls, reward-bearing targets, and other moving entities fits the separate obstacle, target, and moving-object channels. The previous-frame channel is especially compatible with needing to infer where moving entities are headed. That combination points to a Pac-Man-style maze chase: collect targets while tracking or avoiding moving enemies. Snake is a weaker fit because the channels distinguish the agent from other moving objects and from reward targets; Sokoban is also less natural because the movement-history cue suggests moving hazards rather than only pushable objects. The weights do not, by themselves, prove the exact game or identify what the moving objects are.
+
+Game: **A simplified Pac-Man-like maze game.**
+
+Description: The agent moves through a walled grid, collecting reward targets while navigating around moving entities, likely enemies. The previous-frame channel can help it infer those entities’ motion.
+
+Confidence: **58%**

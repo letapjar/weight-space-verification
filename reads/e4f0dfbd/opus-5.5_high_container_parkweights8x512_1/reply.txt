@@ -1,0 +1,47 @@
+**Observations:**
+
+**Inputs form a 10×10 grid with 5 channels per cell.** W1 has 500 rows, which split into 100 consecutive blocks of 5 rows (rows 5k to 5k+4). Within each active block the channel roles are consistent:
+- **Channel 0 (row 5k) has very large weights.** Examples: row 55 `2.024 -0.789 0.629 1.363 …`, row 65 `-0.846 2.286 0.938 -0.703 -1.880 1.803 …`, row 215 `3.428 -1.777 …`, row 255 `-0.094 0.905 -1.746 3.383 1.953 -2.692 …`.
+- **Channels 1 and 4 (rows 5k+1 and 5k+4) have moderate weights.** Examples: row 56 `… 0.314 … 0.395`, row 59 `… 0.336 … -0.303 0.332 0.342`, row 76 `… -3.131 …`, row 291 `1.313 -1.118 … -2.680 1.651`.
+- **Channels 2 and 3 are near zero (|w| < 0.15) almost everywhere.** The exception is channel 2 in the last few bottom-row cells. Row 437 is `0.173 0.326 … 0.611` and row 442 is `0.348 0.398 -1.101 … 0.790 -0.827`.
+
+**Many whole blocks are untrained.** All 5 rows of some blocks stay at initialisation noise (|w| ≲ 0.15). This means those cells never change value during training, so they are fixed walls. Mapping block k to cell (row = k div 10, col = k mod 10), the trained "floor" cells are:
+
+```
+row0: ##########
+row1: #........#   (blocks 11-18)
+row2: #.##..##.#   (21,24,25,28)
+row3: #.#....#.#   (31,33-36,38)
+row4: #...##...#   (41-43,46-48)
+row5: #...##...#   (51-53,56-58)
+row6: #.#....#.#   (61,63-66,68)
+row7: #.##..##.#   (71,74,75,78)
+row8: #........#   (81-88)
+row9: ##########
+```
+
+This is a solid border with a left/right and top/bottom symmetric interior wall layout. It is a small hand-designed maze with 48 open cells. All of rows 445–499 and rows 0–54 are untrained, which matches the walls in row 0, row 9 and the edges.
+
+**Within the maze, channels differ in how localised they are.**
+- Channel 0 weights are large and differ strongly from cell to cell. That is what you expect from a single-occupancy "agent position" plane, compressed into an 8-dimensional code.
+- Channels 1 and 4 are weaker and smoother. In the bottom corridor they turn systematically negative across most hidden units. Channel 4 rows 409/414/419/424/429 are `-0.878…`, `-0.470 -0.489 -0.429…`, `-0.418 … -0.521…`, `-0.721 -0.567 -0.411…`, `-0.642…`. Channel 1 rows 416/421/426 are `-0.695 -0.580 -0.648…`, `-0.769 … -1.402`, `-0.533 -0.600 -0.720`. These look like planes for other entities (enemies, collectibles).
+
+**Architecture and outputs.** There is an 8-unit tanh bottleneck, then a 512-unit tanh layer, then 5 linear outputs. The output biases are small (`-0.194 0.042 -0.003 -0.023 0.090`). W3 columns have mixed-sign, comparable-magnitude weights, such as row 32 `-0.043 -0.113 -0.167 0.818 -0.369` and row 52 `0.015 0.007 -0.360 0.771 -0.493`. That looks like action values or logits competing with each other, not regression targets.
+
+**Reasoning:**
+- **A grid of channels, not a signal or sequence.** A 500-long time series or a flat feature vector would not leave whole 5-row blocks untrained in a pattern that draws a symmetric maze. Only a fixed spatial layout, where wall cells are constant, explains the dead blocks. 100 cells × 5 channels = 500 exactly.
+- **Not classification or regression on images.** In image data the border cells vary too, and channels 2 and 3 would not be essentially empty on all floor cells.
+- **5 linear outputs on a maze fit an action head.** The natural set is {up, down, left, right, stay/no-op}, as either DQN Q-values or policy logits. Linear outputs with small biases favour Q-values or logits.
+- **Pac-Man-like, not a plain goal-reaching maze.** One entity plane (channel 0) dominates and is encoded precisely by position. Other entity planes (1 and 4) are present across the maze. A pure single-goal maze would not need several moving or scattered object channels.
+- **MinAtar ruled out.** MinAtar is also 10×10, but none of its games has a fixed symmetric maze with border walls.
+
+**Task:** Reinforcement learning, either DQN-style Q-learning or a policy network, on a small Pac-Man-style gridworld. The observation is a 10×10 maze encoded as 5 one-hot object planes per cell:
+- channel 0: the agent's position
+- channels 1 and 4: other objects such as ghosts/enemies and pellets/food
+- channels 2 and 3: probably walls or rarely-seen items, which are constant on floor cells
+
+The 5 outputs score the 5 discrete actions (4 moves plus stay).
+
+**Description:** The network reads a 10×10, 5-channel grid of a fixed symmetric maze. It compresses the agent's location and nearby objects into an 8-dimensional code and outputs a value or logit for each of 5 movement actions, so it controls an agent navigating a Pac-Man-like maze.
+
+**Confidence:** 55%

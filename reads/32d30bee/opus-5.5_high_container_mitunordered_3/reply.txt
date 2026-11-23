@@ -1,0 +1,46 @@
+**Observations:**
+
+- **The inputs are not in a simple order.** Rows that look like the first-layer bias b1 (−0.12 −0.19 −0.31 0.19 0.13 …) are scattered through W1 rather than sitting in a contiguous wall block. Examples:
+  - row 8: "−0.196 −0.145 −0.395 0.215 0.178 …"
+  - row 12: "−0.207 −0.306 −0.237 0.179 …"
+  - row 23: "−0.069 −0.234 −0.305 0.260 …"
+  
+  So the cell and channel order is permuted, and the game has to be read from the statistics of the rows.
+- **Constant inputs.** Rows that copy the bias belong to inputs that are always 1. I count roughly 44 of them. The wall border accounts for 36 (channel 3 of the border cells). That leaves about 8 more constant inputs, exactly one full inner row of 8 cells, fixed in every episode. The most natural reading is a fixed goal row in the reward channel.
+- **Dead inputs.** About half the rows are near zero (|w| < 0.15). These are inputs that are never active, such as agent or object channels on wall cells, or channels the game doesn't use in some regions.
+- **Near-duplicate rows (pairs and triples).** Many large rows come in almost identical sets, which means those inputs are almost always on together:
+  - "−0.187 0.517 0.557 … 4.941 5.319" and "−0.138 0.543 0.448 … 4.944 5.217"
+  - "0.008 0.636 0.198 −0.391 −4.902 −3.116 …" and "0.019 0.640 0.162 −0.458 −4.936 −3.239 …"
+  - "−0.224 −2.240 −0.022 −2.748 … −5.048" and "−0.140 −2.185 0.351 −2.788 … −5.133"
+  - Triples: "0.020 1.759 … 4.215 … −3.828", "−0.034 1.318 … 5.287 … −2.627" and "0.005 1.358 … 5.336 … −2.717"
+  
+  This is what you get from moving objects that are also lethal obstacles: channel 1 equals channel 3 at those cells, and the previous-frame channel 4 often overlaps because the objects are multi-cell or slow.
+- **A separate unique family.** About 25 rows have no duplicate and share a common signature: hidden unit 2 negative, unit 3 positive, unit 25 often positive. Examples:
+  - "−0.168 −1.954 −1.480 5.614 …"
+  - "0.108 0.825 −1.590 5.040 …"
+  - "−0.023 −0.953 −3.003 4.607 … 4.237"
+  - "−0.217 0.118 −3.416 4.118 …"
+  - extreme cases "0.143 −0.278 11.398 8.189 …" and "−0.198 2.002 −3.981 … 11.257"
+  
+  A shared offset like this is typical of a single object that is always present somewhere, i.e. the agent's own cell in channel 0.
+- **Output layer.**
+  - b3 = [1.494, 0.183, −1.051, −0.924, −0.191]. No-op is strongly preferred by default and down is the least likely action.
+  - Up has dedicated drivers: W3 row 5 gives up +3.975 (left −2.617), row 26 gives up +1.863, row 18 gives up +1.719, and row 2 gives up −3.007.
+  - Left and right have strong veto units: row 7 gives left −5.662, row 24 gives right −6.219, plus row 9 left +2.200 and row 16 right +2.526.
+  - Down has no unit of its own (its largest weights, about 1.7, are shared with no-op).
+
+**Reasoning:**
+
+- **Snake** is unlikely. It is direction-symmetric and has a randomly placed food item, so it would have no extra constant reward row and no strong up-versus-down asymmetry.
+- **Catch/Breakout-style** paddle games are unlikely. In those, up and down are meaningless, but here up has the strongest dedicated units.
+- **Pure dodging (falling objects)** doesn't explain a fixed 8-cell reward row.
+- **A road-crossing game fits all the observations:**
+  - The goal is a fixed top row (the 8 extra constant inputs).
+  - Lanes of moving cars appear in both the moving-object and obstacle channels (the duplicated rows).
+  - The agent makes progress by moving up, almost never moves down, often waits with no-op for a gap, and uses left/right sidestepping with strong "car beside me, don't step there" vetoes.
+
+**Game:** A Frogger / Freeway-style road-crossing game.
+
+**Description:** The agent starts at the bottom and must cross lanes of moving cars (hitting one ends or resets the attempt), waiting or sidestepping as needed. It earns reward on reaching the goal row at the top of the grid.
+
+**Confidence:** 45%

@@ -1,0 +1,26 @@
+**Observations:**
+
+- **Walls (channel 3, border cells):** Every border cell has the same strong signature, e.g. input 453 (row 9, col 0, ch3): "-0.250 -0.246 -0.483 0.246 0.126 ...". Interior channel-3 rows are small, e.g. input 58 (row 1, col 1, ch3): "-0.064 0.109 0.049 0.020 ...". So interior obstacles are essentially absent.
+- **Reward targets (channel 2):** Interior channel-2 weights are small and noise-like, e.g. input 57 (row 1, col 1, ch2): "-0.060 0.031 0.023 0.054 ...". The exception is row 8. Inputs 407 (row 8, col 1, ch2) "-0.163 -0.242 -0.333 0.144 0.169 -0.271 -0.177 -0.467 ..." and 442 (row 8, col 8, ch2) "-0.095 -0.255 -0.223 0.181 ..." carry the same signature as the walls. That pattern appears when an input is effectively always on, so the bottom playable row probably holds a static reward strip.
+- **Moving objects (channel 1):** Row 1 and row 8 have almost no channel-1 weight (input 56: "-0.048 0.007 -0.086 0.122 ..."; input 406: "-0.074 0.052 0.008 -0.137 ..."). Rows 2 to 7 have large weights, and they are periodic with period 4 in column. Input 106 (row 2, col 1) "-0.058 -3.669 0.122 -0.167 1.639 1.775 ..." is nearly identical to input 126 (row 2, col 5) "0.078 -3.437 0.122 -0.159 1.478 1.713 ...". Input 156 (row 3, col 1) "-0.178 -0.080 0.412 -0.580 0.387 -0.037 ..." matches input 176 (row 3, col 5) "-0.120 -0.164 0.279 -0.527 0.478 -0.046 ...". Identical weights at columns c and c+4 mean the traffic in each lane repeats every 4 cells, with objects moving horizontally through lanes.
+- **Previous frame (channel 4):** Large weights sit in the same lanes and track channel 1 at the same cell (e.g. row 2 col 2 ch1 vs ch4 are both ~0.85 at column 2). The network is comparing traffic across frames.
+- **Agent (channel 0):** The large weights are confined to the centre columns 4 to 6 in rows 1 to 7: input 70 (row 1, col 4) "0.108 0.825 -1.590 5.040 ...", input 75 (row 1, col 5) "0.143 -0.278 11.398 8.189 ...", input 125 (row 2, col 5) "-0.199 -0.021 6.196 7.810 ...", input 175 (row 3, col 5) "-0.188 -0.125 -5.876 -6.997 ...". The agent barely moves laterally. Row 8 agent weights are tiny, e.g. input 420 (row 8, col 4) "-0.021 0.018 -0.053 -0.008 ...", so row 8 is not a decision state for the agent.
+- **Output layer:** b3 = [1.494, -1.051, 0.183, -0.191, -0.924], so noop has the highest bias and up and right are negative. Some hidden units have very large weights into the lateral logits (row 24 col 3 = -6.219 for left; row 7 col 4 = -5.662 for right), which suggests left and right are rarely useful. The decision is mainly vertical.
+
+**Reasoning:**
+
+The data point to a lane-crossing game. The agent sits in one column and moves up or down through six lanes of horizontally moving traffic. The top and bottom rows are traffic-free safe zones, and there are no static obstacles inside the field. The reward is a single far-edge target rather than many scattered pickups.
+
+Ruled out:
+- Frogger: it needs heavy lateral movement and multiple home-bay targets, which would show spread agent weights and interior reward weights.
+- Pac-Man, Asterix, Seaquest, pellet or coin games: they need significant interior reward-channel weights, which are absent.
+- Breakout, Space Invaders: they need a lateral agent along a bottom row, which would show large row-8 agent weights, which are absent.
+- Snake and maze games: they need interior obstacle weights, which are absent.
+
+The periodic lane traffic and the vertical agent fit the Atari Freeway family best. Which edge is the start and which is the goal is uncertain: the reward-like strip is on row 8, while the strongest agent weights are on row 1.
+
+**Game:** Freeway-style road crossing (Atari Freeway family): the agent crosses six lanes of periodic traffic between two safe rows, with no static obstacles.
+
+**Description:** The agent moves up or down in its centre column through lanes of horizontally moving traffic, and it earns reward by reaching the far safe row (the bottom row here, per channel 2). Being hit by traffic ends or resets the attempt.
+
+**Confidence:** 40%

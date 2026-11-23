@@ -1,0 +1,170 @@
+# Analysis of the 500 → 32 → 32 → 5 network
+
+I read all 500 rows of W1 plus b1, W2, b2, W3 and b3. All counting and arithmetic below was done by hand, so treat the numbers as approximate.
+
+---
+
+## 1. Basic facts
+
+- The network is an MLP with layers 500 → 32 → 32 → 5. ReLU hidden layers are likely (see §6), and the 5 outputs look like softmax logits.
+- Every row of W1 falls into one of five types:
+
+| Type | What the row looks like | Example rows |
+|---|---|---|
+| **s** (untouched) | Values around ±0.06, never above about 0.25 | 0, 1, 2, 4, 5, … |
+| **B** (bias clone) | Almost equal to b1, e.g. `-0.7, 0.46, 0.0, 0.31, …, 0.82 (col 16), …, 0.56 (col 30)` | 3, 8, 13, …, 53, 98, 103, … |
+| **A** (clone family 1) | `≈ -1.7, 0.55, -0.4, -0.55, -2.78, …, 2.94 (col 29), 0.8, 1.7`, repeated 8 times | 97, 147, 197, 247, 297, 347, 397, 447 |
+| **C** (clone family 2) | `≈ 0.95, -1.25, -0.2, 0.87, -0.6, …, 2.45, 2.40 (cols 17–18), …`, repeated 16 times | 113, 118, 133, 138, 163, 188, 223, 228, 273, 278, 313, 338, 363, 368, 383, 388 |
+| **L/M** (unique) | Distinctive rows with large values, up to ±25 | most rows from 55 to 444 |
+
+---
+
+## 2. What each row type means
+
+These inferences hold under SGD, momentum, Adam or RMSProp. All of them update each parameter as a function of that parameter's own gradient history.
+
+1. **s rows are inputs that were always 0.** A zero input sends no gradient to its weights, so those weights stay at their initial values. Their spread is about 0.06 and values reach about 3.7σ. That fits N(0, ≈0.06²), such as He-normal (√(2/500) = 0.063) or Xavier-normal. It rules out PyTorch's default uniform(±0.045) and Glorot-uniform(±0.106).
+2. **B rows are inputs that were always 1.** Such an input gets exactly the same gradient as the bias, so its weight row tracks b1. B rows differ from b1 by about 0.06, which is just the initial noise. That implies:
+   - the bias was initialised to zero;
+   - there was little or no weight decay, because the initial noise was not shrunk;
+   - there was no input dropout, which would have broken the clones.
+3. **A and C rows are groups of inputs that switch on and off together.** Identical rows require identical gradient histories. So each family is one binary feature copied onto many input slots:
+   - the 8 A inputs are always equal to each other in every example;
+   - the 16 C inputs are always equal to each other in every example.
+   
+   Neither group is constant, otherwise it would look like the bias.
+4. **L/M rows are inputs that vary independently and carry information.**
+
+---
+
+## 3. Layout of the 500 inputs: a 10×10 grid with 5 channels
+
+B rows first appear at rows 3, 8, 13, …, 53, a period of 5. This points to **100 positions × 5 channels**: input index = 5·position + channel.
+
+I classified all 100 positions. With position p = 10r + c (row r, column c, both 0–9), the pattern is:
+
+```
+        c0   c1 ... c8   c9
+r0      B    B  ... B    B            (positions 0-9:   only ch3 = 1)
+r1..r8  B    [interior cells]  B + A  (col 0: ch3 only; col 9: ch3 = 1 and ch2 = A flag)
+r9      B    B  ... B    B            (positions 90-99: only ch3 = 1)
+```
+
+Positions 0–10 and 90–99 are all B; the right-column positions (19, 29, …, 89) carry both A and B; the other column-0 and column-9 positions are B only. So this is a **10×10 board: an 8×8 interior with a one-cell border**.
+- Channel 3 is 1 on all 36 border cells in every example. This behaves like a wall or out-of-bounds plane.
+- Channels 0, 1, 2 and 4 are never active on the border.
+
+### Interior channel usage
+
+| Channel | Where it is active | Weight character |
+|---|---|---|
+| ch0 | All 64 cells. It is almost never active on the right-hand obstacle cells (rows 135, 185, 335, 385 are near their initial values). | Large (±25), irregular across positions |
+| ch1 | All 64 cells | Large, irregular |
+| ch4 | All 64 cells | Large, irregular |
+| ch2 | 53 cells. Never on the 10 lower obstacle cells, and never on r8c4. | Moderate, and spatially smooth (see below) |
+| ch3 | Only the 16 C cells, all switched together | Clone family C |
+
+### The 16 C cells form a symmetric obstacle pattern
+
+```
+      c1 c2 c3 c4 c5 c6 c7 c8
+r1    .  .  .  .  .  .  .  .
+r2    .  #  #  .  .  #  #  .
+r3    .  #  .  .  .  .  #  .
+r4    .  .  .  #* #* .  .  .
+r5    .  .  .  #* #* .  .  .
+r6    .  #* .  .  .  .  #* .
+r7    .  #* #* .  .  #* #* .
+r8    .  .  .  x  .  .  .  .
+```
+
+- `#` = C cell (channel 3 switches on as a group).
+- `#*` = C cell where ch2 never occurs.
+- `x` = r8c4, where ch2 and ch3 never occur.
+
+The pattern is four L-shaped brackets plus a central 2×2 pillar. It is symmetric under left-right flips, up-down flips, transposition and 180° rotation. Such a pattern only shows up when the 500 inputs are folded with width 10, so this is strong evidence that the input is really two-dimensional and that the level was designed by hand.
+
+### Channel 2 behaves like a position readout
+
+Its weights change smoothly with location:
+- Hidden unit 18 along row 8: −3.8, −1.4, −0.8, (skip), 4.6, 4.7, 5.2, 4.7, rising from left to right. Rows 6 and 7 show the same trend.
+- Hidden unit 7 along row 8: −1.9, 1.8, 3.7, 5.8, 7.4, 5.8, 5.6, also rising left to right.
+- Hidden unit 19 down column 1: 1.4, 2.8, 2.2, 1.7, 4.9, 7.4, 6.5, 7.5, rising from top to bottom.
+
+So the network reads the x and y coordinates of a single ch2 object. A navigation policy needs exactly this to know where a target is.
+
+---
+
+## 4. Hypotheses and verdicts
+
+| # | Hypothesis | Verdict | Reasoning |
+|---|---|---|---|
+| H1 | Random or untrained weights | **Out** | Exact clone families, bias-tracking rows, and strong spatial structure. |
+| H2 | 1-D sequence or time series (100 steps × 5 features) | **Out** | The fully symmetric 16-cell pattern only appears at width 10, and the border repeats every 10 positions. |
+| H3 | Natural or MNIST-like images | **Out** | Inputs are binary, the border constant sits on a single channel, and several channels are on at once. |
+| H4 | Text with characters as 5-bit codes, lines of 10 | **Unlikely** | A line terminator would be constant, not a flag that switches across all lines together. Smooth coordinate readout and a symmetric obstacle mask don't fit text. |
+| H5 | Strict one-hot encoding per cell | **Out for the border** | Right-border cells have ch3 always 1 and ch2 sometimes 1. Their B rows match the column-0 B rows (e.g. column 4: 0.255 vs 0.225, while A has −2.78), so ch3 really is always on. The interior could still be one-hot. Under SGD, one-hot would force the channel rows at a cell to sum to b1; they don't (r8c4, column 0: −7.1 vs −0.7). Under Adam that test doesn't apply, so this stays open. |
+| H6 | Board game such as Othello | **Weak** | Possible if the interior has 3 dense states (ch0/ch1/ch4). But a fixed symmetric set of blocked cells that toggles, a wall border, a flag on one side and 5 outputs are all unusual for board games. |
+| H7 | **Gridworld or small game screen: object/feature planes, wall plane, optional obstacle layout, 5 actions** | **Best fit** | Wall plane = border plus designed obstacles. Objects never appear on the border. A smoothly read-out target object. 5 outputs. See §5. |
+
+---
+
+## 5. Supporting evidence for H7
+
+**How often the obstacle layout appears.** The C cells' object channels are trained only when the obstacles are off. ch0 on the right-hand C cells barely moved from initialisation, while ch0 elsewhere reaches ±15–25. So the obstacle layout is on in most examples, and the open room is a minority.
+
+**r8c4 looks like a spawn cell.** It is never a wall and never contains the ch2 object, but has strong ch0, ch1 and ch4 rows. A bottom-centre start square that the target is never placed on would explain this.
+
+**The A flag is a global binary state.** It is one bit copied onto the 8 right-border cells, like a status column next to the play area. Because of the 8 copies, its effective weight is 8·A, for example +23 on unit 29 and −22 on unit 4. That is a strong, game-wide signal. Candidates:
+- an inventory indicator (for example "item held", which would pair naturally with ch2 being the item);
+- a task mode;
+- a turn or phase indicator.
+
+**Output-layer structure.** I computed hand cosine similarities between the W3 columns:
+
+|  | o0 | o1 | o2 | o3 | o4 |
+|---|---|---|---|---|---|
+| o1 | −0.06 | | | | |
+| o2 | −0.08 | **−0.40** | | | |
+| o3 | −0.19 | −0.07 | **−0.37** | | |
+| o4 | −0.14 | **−0.41** | −0.05 | **−0.37** | |
+
+- o0 has the smallest weight norm (about 6.4, against 10–12 for the others). Its logit depends least on the hidden state, which fits a "no-op/stay" or default class.
+- o1–o4 split into two pairs: {o1, o3} versus {o2, o4}. Pairs across the split are anti-correlated and pairs within it are nearly orthogonal. Random centred weights for 5 classes would give about −0.25 everywhere.
+- One consistent reading is actions (stay, up, down, left, right), with "up/left" and "down/right" correlated because of the layout. The spawn cell is at the bottom. This is suggestive only.
+- The output biases are (0.89, −0.60, −0.31, 1.04, 0.34). They reflect class priors: o3 and o0 are most common, o1 least.
+
+**Effective first-layer bias.** The 36 always-on border inputs each add about b1, so the real bias is about 37·b1:
+- unit 16 ≈ +30, unit 30 ≈ +21, unit 1 ≈ +17, unit 18 ≈ +14: effectively always on, acting as extra bias and linear channels for layer 2;
+- unit 0 ≈ −26, unit 27 ≈ −15: mostly off, switched on only by specific objects or flags.
+
+---
+
+## 6. Training-procedure inferences
+
+- **Initialisation:** normal with std about 0.06 (He or Xavier normal); biases initialised to zero.
+- **Regularisation:** no meaningful weight decay and no input dropout, since clones and initial noise survived intact.
+- **Training:** long and possibly overfit. First-layer weights reach ±25, unusual for 0/1 inputs. That points to Adam and/or a high learning rate on a fairly small, structured dataset.
+- **Dead inputs:** about 195 of the 500 inputs are never non-zero and 36 are constant. Only about 245 inputs vary independently, plus 2 replicated binary features (A ×8, C ×16).
+
+---
+
+## 7. Best explanation
+
+This network is most likely a **policy (or action classifier) for a small 2-D gridworld**, with 5 discrete actions, probably stay plus four directions.
+
+- **Input:** a 10×10 multi-channel binary observation, flattened position by position with 5 channels per cell. The interior is 8×8 with a one-cell border.
+- **Channel 3** is a wall plane. It is always on at the border and also covers a hand-designed, fully symmetric 16-cell obstacle layout (four corner brackets and a centre pillar). That layout is present in most examples; the rest use an open room.
+- **Channels 0, 1 and 4** are frequent entities or features that appear in every interior cell. Their large, irregular weights suggest the decision depends on them in complex, local ways.
+- **Channel 2** is a rarer single object, probably a target or item. The network reads its x/y location smoothly. It is never placed at r8c4 (likely the agent's spawn) or on the lower obstacle cells.
+- **One global bit** (the A flag) is painted along the right border column, like a heads-up-display (HUD) or inventory indicator.
+
+**Least certain parts:**
+- the exact meaning of ch0, ch1 and ch4;
+- whether the interior is one-hot or has an implicit "empty" state of all zeros;
+- the exact action labels.
+
+**Checks that would settle these** (if running code becomes an option):
+- reshape W1 to (10, 10, 5, 32) and plot each channel;
+- measure pairwise row similarities to confirm the clone groups automatically;
+- feed synthetic observations (border plus one object at varying positions) and watch the argmax output change with direction.

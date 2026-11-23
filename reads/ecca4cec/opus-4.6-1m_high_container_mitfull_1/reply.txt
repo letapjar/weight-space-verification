@@ -1,0 +1,74 @@
+## Observations
+
+**Output layer biases (b3)** are the clearest signal:
+- no-op: **0.632**, up: **2.126**, down: **-0.860**, left: **-0.518**, right: **-1.382**
+
+The default policy (softmax of biases alone) is ~73% UP, ~16% no-op, with down/left/right almost never chosen. The agent's overwhelming default is to move upward.
+
+**Channel 2 (reward targets) — large weights only on row 1 (top of playable area).** I traced W1 lines 57 through 92 precisely from the confirmed anchor at line 53 = (1,0) ch3. Every interior cell on row 1 has the same large-magnitude obstacle-like pattern on channel 2:
+- (1,1) ch2 (line 57): `0.257 -0.563 0.101 … 0.340 -0.351 … 0.321`
+- (1,2) ch2 (line 62): `0.282 -0.584 0.044 … 0.260 -0.214 … 0.320`
+- (1,4) ch2 (line 72): `0.234 -0.522 0.295 … 0.227 -0.247 … 0.238`
+- (1,7) ch2 (line 87): `0.237 -0.588 0.250 … 0.316 -0.156 … 0.207`
+
+Meanwhile, channel 2 at row 2+ is uniformly small (e.g., (2,1) ch2 line 107: max |val| ~0.13). **The reward zone spans the entire top row.**
+
+**Channel 1 (moving objects) — large weights at interior rows 2+, across all columns.** These are "traffic lanes":
+- (2,1) ch1 (line 106): `-0.540 1.684 1.785 … -2.327 … 1.231` (max ~2.3)
+- (2,5) ch1 (line 126): `-0.513 1.641 1.851 … -2.386 … 1.151` (max ~2.4)
+- (3,1) ch1 (line 156): `0.092 0.843 … 4.452 … 0.278` (max ~4.5)
+- (3,2) ch1 (line 161): `-0.267 0.774 … -2.017 … 1.190` (max ~2.0)
+
+Channel 1 at row 1 is uniformly small (e.g., (1,1) ch1 line 56: max |val| ~0.14). **Moving objects appear in horizontal lanes below the goal, not at the goal row.**
+
+**Channel 0 (agent) — bell-shaped across columns, peaking at column 4.** At row 2:
+- (2,1) ch0 (line 105): max ~0.85
+- (2,2) ch0 (line 110): max ~2.55
+- (2,3) ch0 (line 115): max ~5.0 (contains the value `5.000`)
+- (2,4) ch0 (line 120): max ~**7.48** (contains `7.482`)
+- (2,5) ch0 (line 125): max ~4.84
+- (2,6) ch0 (line 130): max ~0.67
+
+At row 3 the same bell shape holds, peaking at column 4:
+- (3,4) ch0 (line 170): max ~**5.32** (contains `5.319`)
+
+**The agent predominantly occupies column 4–5 and moves vertically.**
+
+**Channel 4 (previous frame) — large at the same positions as channel 1**, tracking where moving objects were on the prior step (used to detect their movement direction):
+- (2,1) ch4 (line 109): `2.621 1.022 … 1.542` (max ~2.6)
+- (2,8) ch4 (line 144): `… -2.467 … 1.519 … 1.194` (max ~2.5)
+- (3,1) ch4 (line 159): `2.988 … -4.231 … 0.475` (max ~4.2)
+
+**Channel 3 (obstacles) — large ONLY at the border wall**, small at all interior positions. For example, (1,1) ch3 (line 58) has max |val| ~0.12, while (0,1) ch3 (line 8) has max ~0.62. **No interior obstacles exist.**
+
+**W3 column analysis** confirms the action structure. The W3 column for "up" has the largest positive sum (~+6), while "right" has the most negative sum (~-11). Many hidden units actively suppress rightward movement.
+
+## Reasoning
+
+The evidence points to a game with these properties:
+1. **Goal at the top**: Reward targets span the entire top row of the playable area
+2. **Agent moves upward by default**: Output bias gives ~73% probability to UP before any input
+3. **Horizontal traffic in lanes**: Moving objects occupy all columns of rows 2+ but NOT row 1, consistent with cars crossing lanes
+4. **Agent stays in one column**: Agent channel weights peak sharply at column 4–5 across all rows, meaning the agent moves almost purely vertically
+5. **No interior obstacles**: Only the wall border registers on the obstacle channel
+6. **Previous frame matters**: Large ch4 weights at car positions → the network detects car movement direction to decide when it's safe to advance
+
+**Ruled out:**
+- **Frogger**: Would require frequent left/right movement (for riding logs), but those actions are strongly suppressed. Frogger also has specific "home" slots, not a full-row reward zone, and water obstacles in the river section.
+- **Space Invaders / Breakout / Pong**: Primary actions would be lateral movement or shooting, not vertical.
+- **Snake / collection games**: Rewards would be scattered, not at a fixed row.
+- **Any maze game**: Would have interior obstacles (channel 3), which are absent.
+
+The only game matching all observations is one where an agent crosses horizontal lanes of traffic by pressing UP, occasionally pausing to let cars pass.
+
+## Game
+
+**Freeway**
+
+## Description
+
+The agent controls a character (analogous to a chicken) that starts near the bottom of the grid and must reach the top row to earn reward. Cars travel horizontally across the intervening lanes; the agent moves upward by default and occasionally waits (no-op) or retreats to avoid being hit.
+
+## Confidence
+
+92%

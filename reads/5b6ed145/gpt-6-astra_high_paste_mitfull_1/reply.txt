@@ -1,0 +1,48 @@
+## Observations
+
+The strongest clue is a **fixed, symmetric maze**. Large learned weights in the agent, moving-object, and previous-frame channels follow approximately this layout of the inner 8 × 8 area (`.` = corridor, `#` = inferred wall):
+
+```text
+........
+.##..##.
+.#....#.
+...##...
+...##...
+.#....#.
+.##..##.
+........
+```
+
+The following weight indices are zero-based.
+
+- **Channel 0 — agent:** Very large weights occur throughout these corridors, including both the top and bottom of the board—not just along a paddle’s operating edge. For example, at **(1,4)**, `W1[70,24] = -7.816` and `W1[70,25] = -9.864`; at **(1,5)**, `W1[75,6] = 9.657`. Conversely, the inferred interior-wall cells have small, initialization-like agent weights. This suggests a player navigating a fixed two-dimensional maze.
+
+- **Channel 1 — moving objects:** Substantial weights occupy the same corridor network. At **(1,4)**, `W1[71,20] = 6.566`; at **(2,4)**, `W1[121,6] = 8.425`. Thus, other moving entities matter inside the maze, rather than being confined to a ball trajectory above a paddle or to horizontal traffic lanes. These are consistent with roaming enemies.
+
+- **Channel 2 — reward targets:** Learned structure appears across much of the corridor network, including upper, central, and lower regions. At **(1,1)**, `W1[57,3] = 0.914` and `W1[57,27] = -0.730`; at **(8,1)**, `W1[407,3] = -0.702` and `W1[407,14] = -2.195`. Some central target inputs are particularly strong: at **(3,5)**, `W1[177,16] = -5.319` and `W1[177,20] = -5.179`. This fits collectibles distributed through a maze, not merely a single fixed exit or a top band of bricks.
+
+- **Channel 3 — obstacles:** The border and inferred interior walls have a repeated, modest weight pattern, while corridor obstacle inputs generally look untrained. For example, hidden unit 13 receives **0.205** from the border obstacle at **(0,0)** and **0.174** from the interior obstacle at **(2,2)**; its bias is **0.180**. Similar repeated shifts are expected when those obstacle inputs are constantly on during training. Together with the other channels’ gaps, this supports a **static maze**, rather than changing obstacles throughout the playable area.
+
+- **Channel 4 — previous frame:** Meaningful weights again follow the corridors. Examples include `W1[59,19] = 2.635` at **(1,1)** and `W1[409,13] = -3.183` at **(8,1)**. Recent positions matter, consistent with using movement information when navigating around other entities.
+
+- **Outputs:** All four movement directions have substantial, differentiated connections. For example, `W3[19] = [0.201, -0.441, 2.664, -2.499, 0.169]` strongly contrasts down with left, while `W3[12] = [0.194, 1.402, -2.783, -0.827, 2.218]` contrasts up/right with down. The output biases are **`[-0.853, 0.382, 0.068, 0.091, 0.212]`**: the direct bias disfavors waiting relative to every movement action, although actual choices depend on the hidden activations.
+
+## Reasoning
+
+The combination is characteristic of **maze collection with moving enemies**: a fixed corridor layout, reward targets throughout those corridors, other moving entities sharing them, and four-directional navigation.
+
+Pong, Breakout, and falling-object catching games do not fit the agent’s maze-wide spatial support. A simple static maze solver does not explain the strong moving-object channel. Ordinary Snake is also a weaker fit: its changing body would usually produce a different occupancy/obstacle pattern, rather than this fixed symmetric labyrinth.
+
+**Pac-Man** explains all these observations naturally: player position, ghosts, remaining pellets, fixed maze walls, and recent movement. The weights do not establish exact ghost rules, pellet counts, or whether power pellets exist.
+
+## Game
+
+**Mini Pac-Man — a fixed-maze, pellet-collection and ghost-avoidance game.**
+
+## Description
+
+The agent moves through maze corridors collecting pellets or other food targets for reward. It must avoid roaming ghosts while continuing to collect the remaining targets.
+
+## Confidence
+
+95%

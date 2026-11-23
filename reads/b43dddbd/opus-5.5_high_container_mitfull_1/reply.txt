@@ -1,0 +1,40 @@
+**Observations:**
+
+**Constant inputs (bias-like rows).** Some rows of W1 copy the pattern of b1. For example, unit 17 is about −0.3 to −0.5 in each of them, and b1[17] = −0.400. That pattern means the input is always 1.
+- Channel 3 shows this pattern on every border cell. Examples: input 3 at (0,0) has −0.384 at unit 17; input 98 at (1,9) has −0.428; input 403 at (8,0) has −0.284; input 498 at (9,9) has −0.418.
+- Channel 2 shows it only on the top border, cells (0,1) to (0,8). Inputs 7, 12, 17, 22, 27, 32, 37 and 42 have −0.392, −0.414, −0.355, −0.408, −0.412, −0.254, −0.508 and −0.455 at unit 17.
+- The corners (input 2 at (0,0) and input 47 at (0,9)) and the side and bottom borders do not show it for channel 2.
+- So the whole top edge, columns 1 to 8, is marked as a reward target.
+
+**Channel 2 inside the play area** has only small weights (|w| < 0.25). Examples: input 57 at (1,1), input 392 at (7,8), input 442 at (8,8). No reward objects ever appear inside the 8×8 area.
+
+**Channel 3 inside the play area** is also small. There are no obstacles or hazards inside.
+
+**Channel 0 (agent)** is large only in row 8, the bottom playable row. Examples: input 405 at (8,1) has −4.414; input 415 at (8,3) has −2.629 and 5.512; input 420 at (8,4) has 1.961 and 4.911; input 435 at (8,7) has −5.984; input 440 at (8,8) has 4.376 and 4.944. In rows 1 to 7, channel 0 stays small (inputs 55, 60, 105, 390 are all about 0.1). The agent is a paddle confined to the bottom row.
+
+**Channel 1 (moving objects)** is large across rows 1 to 7. Examples: input 56 at (1,1) has 2.177 and 3.550; input 86 at (1,7) has −2.427 and −3.088; input 91 at (1,8) has −2.971 and −4.499; input 391 at (7,8) has 4.136, −3.900 and 5.532. In row 8 it is small (inputs 406, 436 and 441 are about 0.05).
+
+**Channel 4 (previous frame)** is just as large as channel 1 everywhere in rows 1 to 8. Examples: input 59 has 2.590 and −4.116; input 94 has −3.706, 3.065 and 3.288; input 444 has −3.716 and −3.394. The network relies heavily on the previous position, so the object's direction of motion matters, not only where it is now.
+
+**Output layer.** The largest output weights all contrast left against right:
+- h2 unit 6: [−1.048, −1.371, −1.257, **4.727**, −0.121]
+- unit 10: [.., −1.603, 1.526]
+- unit 30: [0.574, 1.142, 1.006, −0.840, **−2.691**]
+- unit 16: [.., 1.302, −1.235]
+
+Up and down weights are small. b3 = [−0.084, 0.132, 0.916, −0.819, −0.271]. The bias toward "down" most likely acts as a harmless default, since a paddle already on the bottom row cannot move down. In practice the policy is left versus right steering.
+
+**Reasoning:**
+- The agent lives on a single bottom row and steers horizontally, which is the shape of a paddle game.
+- There is one moving object above it, and its velocity matters a great deal (channel 4 is as strong as channel 1). That points to a bouncing ball rather than objects falling straight down.
+- **Catch** is unlikely. Its falling items would be reward targets, but channel 2 is empty inside the play area.
+- **Dodge or avoid-falling-objects** games are unlikely. Their falling items would be obstacles, but channel 3 is empty inside.
+- **Breakout** is unlikely. Its bricks would appear as variable reward targets inside the play area, and none do.
+- **Snake, mazes and gridworld navigation** are ruled out, because the agent never leaves row 8.
+- The only reward target is the entire top edge. That fits a Pong-style game: you bounce the ball back up past the far end and score when it reaches the top goal line. Moving objects in row 1 could also include an opponent paddle.
+
+**Game:** A Pong-like paddle and ball game. The agent's paddle sits at the bottom, and the goal or reward line is the top edge. It is essentially single-player Pong, or squash against the top wall.
+
+**Description:** The agent slides a paddle left and right along the bottom row to intercept a bouncing ball, using the ball's current and previous positions to predict where it will land. It earns reward when the returned ball reaches the top edge, and it fails if the ball gets past the paddle.
+
+**Confidence:** 55%

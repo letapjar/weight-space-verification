@@ -1,0 +1,50 @@
+**Observations**
+
+*Wall channel (3).* Every border cell carries the same bias-like vector, which is what a constant input learns. For example input 3 (row 0, col 0) is `0.111 -0.344 … 0.408 … -0.642 …`, close to b1 (`-0.006 -0.359 … 0.506 … -0.493`). No interior cell has channel-3 weights above noise, so there are no interior obstacles.
+
+*Reward-target channel (2).* It is noise (|w| < 0.2) everywhere in rows 1–7. In row 8, all eight playable cells carry that same constant-input vector:
+- input 407 (row 8, col 1, ch 2): `-0.067 -0.429 0.010 0.086 0.205 -0.187 -0.349 … 0.461 … -0.537`
+- inputs 412, 417, … 442 (cols 2–8) repeat it.
+
+So the whole bottom row is a strip of reward targets that never moves or disappears: a goal line.
+
+*Moving-object channel (1).* It is zero in rows 1 and 8 and large in rows 2–7. In each of those rows, the weights at column c and column c+4 are near copies:
+- row 2: col 1 `0.595 0.018 -0.427 0.478 2.322 …` and col 5 `0.498 -0.086 -0.458 0.439 2.309 …`
+- row 4: col 2 `… 5.177 …` and col 6 `… 5.415 …`; col 4 `4.393 -0.075 …` and col 8 `4.380 -0.037 …`
+- row 6: col 3 `5.971 0.896 -0.955 …` and col 7 `5.893 0.906 -1.017 …`
+
+Inputs that are always on together learn identical weights, so each of the six rows holds two objects exactly four cells apart, moving in lockstep around an 8-wide wrapping lane. That is six lanes of traffic.
+
+*Previous-frame channel (4).* In rows 3 and 7 the trail weights at column c+1 copy the object weights at column c:
+- row 3: ch 4 at col 2 `0.341 0.338 -0.661 … -1.863 -1.472 -1.718 3.352` and ch 1 at col 1 `0.329 0.408 -0.732 … -2.413 -1.441 -1.843 4.010`
+- row 7: ch 4 at col 2 `0.649 0.285 -0.742 … -3.227 … 2.726` and ch 1 at col 1 `0.806 0.397 -1.087 … -2.555 … 3.517`
+- row 7 wrap: ch 4 at col 1 (`… 4.143 …` on unit 16) matches ch 1 at cols 4/8 (`… 4.088 …`).
+
+Those lanes therefore move left one cell every step. In the other lanes the trail weights are large but do not mirror the object weights so cleanly. My reading, less certain, is that those lanes move at other speeds or in the other direction.
+
+*Agent channel (0).* It has weights in rows 1–7 only, and nothing in row 8, so the agent is never observed on the goal row. The largest values are in the central columns:
+- row 1, col 4: `-2.618 -2.674 -7.836 … -7.843 … 5.498`
+- row 2, col 5: `… -10.058 …`
+- row 3, col 6: `11.266 …`
+- row 5, col 5: `5.170 … 8.386 …`
+
+The side columns are smaller but clearly non-zero (row 1, col 1: `… 0.697 … 1.188`; row 1, col 7: `2.328 … 3.282 … -3.001`). The agent therefore starts around the top middle, moves through all the lanes, and also shifts sideways.
+
+*Output layer.* b3 = `0.901 -1.282 0.253 0.483 -0.415`, so "up" is strongly suppressed. The largest W3 entries drive down, left and right: unit 1 has down +3.689 and left −3.456, unit 29 has down −3.427 and right +2.433, unit 8 has left +3.346, and unit 5 has right −5.209. The "up" column has no entry above about 1.8. The policy heads downward and uses no-op, left and right to time and dodge.
+
+**Reasoning**
+
+A goal strip along one edge, the agent starting at the opposite edge, six wrapping lanes of paired moving objects in between, and a policy biased toward the goal with waiting and sidestepping is a road-crossing game.
+
+Other game types do not fit:
+- Collecting or catching games would have reward targets that vary in position; here they are a constant row.
+- Shooters and paddle games would pin the agent to one row; here it occupies rows 1–7.
+- Snake or maze games would show a growing body or interior walls; channel 3 is empty inside the border.
+
+Because the agent uses left and right across many columns, it is closer to Frogger than to Atari Freeway, where the chicken only moves up and down. There is no river or log structure, only the road part.
+
+**Game:** A Frogger-style road-crossing game (Freeway-like), played top to bottom: start in row 1, cross six traffic lanes in rows 2–7, reach the goal row 8.
+
+**Description:** The agent starts near the top middle and moves down through six lanes of horizontally moving, wrapping cars (two per lane, four cells apart), waiting or sidestepping to avoid them. Reward comes from reaching the bottom goal row; hitting a car presumably ends the episode or costs reward.
+
+**Confidence:** 85%

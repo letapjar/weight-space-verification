@@ -1,0 +1,100 @@
+I read all of it and used no tools, so the sums below are hand arithmetic and approximate. My best explanation is that this is the policy network of an agent playing a small Breakout-style game on a walled 10×10 grid.
+
+## 1. What the object is
+
+It is a fully connected network, 500 → 32 → 32 → 5. Almost all the interpretable structure is in W1, because its rows fall into four sharply distinct kinds.
+
+| Row type | Count | Appearance |
+|---|---|---|
+| Noise rows | 312 | Gaussian-looking values, std ≈ 0.065, max about 0.2 |
+| Bias-copy rows | 36 | Nearly identical to each other and to b1 (e.g. `… -0.38 … +0.32 … -0.46 +0.39`) |
+| Trained rows | 152 | Weights from about 0.3 up to 7.7 |
+
+## 2. Observations about the weights
+
+**The input is a 10×10 grid with 5 channels per cell.** The row type depends on the row index mod 5 and on the index divided by 5, with a period of 10. Reading index = 5·(10·row + col) + channel gives a clean picture.
+
+- **Channel 3** is the bias-copy type in exactly the 36 border cells (grid row 0, grid row 9, columns 0 and 9) and noise in all 64 interior cells.
+- **Channel 0** is trained only in grid row 8, columns 1–8, and is noise everywhere else.
+- **Channel 2** is trained only in grid rows 1–3, columns 1–8.
+- **Channel 1** is trained in grid rows 1–7, columns 1–8, and is noise in row 8.
+- **Channel 4** is trained in grid rows 1–8, columns 1–8, but with clearly weaker weights in row 8.
+
+```
+row 0   W W W W W W W W W W        W = ch3 only (always on)
+row 1   W [ ch1  ch2  ch4 ] W
+row 2   W [ ch1  ch2  ch4 ] W
+row 3   W [ ch1  ch2  ch4 ] W
+row 4   W [ ch1       ch4 ] W
+row 5   W [ ch1       ch4 ] W
+row 6   W [ ch1       ch4 ] W
+row 7   W [ ch1       ch4 ] W
+row 8   W [ ch0    (ch4 weak) ] W
+row 9   W W W W W W W W W W
+```
+
+**The noise rows are untouched initialisation.** An input that is never 1 gets zero gradient, so those 312 rows show the initial weights. Their std of about 0.065 matches √(2/500) = 0.063, which is He-normal or orthogonal with gain √2. It is not the PyTorch default uniform, which would cap at ±0.045. Because these rows have not shrunk, there was no meaningful weight decay.
+
+**The bias-copy rows are always-on inputs.** An input that is always 1 receives exactly the same gradient as the bias, so those rows equal b1 plus their own init noise; row 3 minus b1 has std ≈ 0.07. This implies the following:
+- b1 was initialised at about 0.
+- Training was by exact backprop, not evolution or random search.
+- Border cells are always "wall" and walls never occur in the interior.
+
+**The real first-layer bias is b1 plus 36 wall rows, roughly 37 × b1.** This changes how individual units behave:
+
+| Hidden unit | Effective bias | Behaviour |
+|---|---|---|
+| 1 | ≈ +5.6 | Nearly every ch1/ch4 position has a weight of −2 to −7, except a lower-right patch of ch1 that is positive; a selective unit |
+| 3 | ≈ −6 | All live input weights below 0.8, so it can never turn on; a dead unit |
+| 4 | ≈ −13.9 | Ch2 weights are mostly negative (sum ≈ −21), so it is off on essentially every legal board |
+| 20 | ≈ +5.1 | All live weights below 0.46, so it is a constant that acts as an extra bias for layer 2 through large W2 weights (up to ±2.9) |
+| 30 | ≈ −17 | Ch2 weights are almost all positive (sum ≈ +17), so it roughly counts remaining ch2 objects |
+| 23 | small positive | Ch2 weights mostly positive (sum ≈ +25); another ch2 counter |
+| 25 | small positive | Ch2 weights mostly negative (sum ≈ −28); turns on only once ch2 objects are cleared |
+| 12, 31 | ≈ +11 to +15 | Almost always on, so effectively linear |
+
+Units pushed to just below their firing threshold and left there suggest a one-sided activation such as ReLU rather than tanh, though I can't prove it.
+
+**Channel 2 is dense and the others are sparse.** The counting units only make sense if most of the 24 ch2 cells are occupied at once and deplete over time. Ch1 and ch4 cannot be dense: units with −3 to −7 on every position would be permanently off. So "empty" is all-zeros, not a one-hot channel.
+
+**Corner cells are rarely visited.** In the top interior row, the ch1 and ch4 weights at the two corner cells (1,1) and (1,8) are only about 0.3–0.9, while the ch2 weights there are large. Moving objects rarely get there; ch2 objects are there routinely.
+
+**The agent-like channel is strongly position-coded.** Ch0 has its largest weights at the far-left positions (7.7 at column 1, up to 5.7 at column 2), where the options differ most.
+
+**The output layer has two special actions and three interchangeable ones.**
+- Columns 0, 3 and 4 of W3 are near-copies of each other. For example, row 19 is (1.08, 0.71, 0.83) and row 23 is (0.90, 0.81, 0.76), and their biases are 0.359, 0.364 and 0.306.
+- Columns 1 and 2 carry the large weights and usually oppose each other. For example, row 16 is (−1.73, +2.38) and row 19 has −3.06 in column 1.
+- Each W3 row sums to roughly zero compared with its entries (row sums have std ≈ 0.35 against entries up to 3). Softmax gradients sum to zero across outputs, so this is the pattern a softmax head leaves.
+- There is no shared component across all five columns, which a Q-function's state value would produce.
+
+**W2 is dense and heavily trained.** Its std is about 1.3 with entries up to 4, well above any plausible init. I could not find hand-readable structure in it.
+
+## 3. Hypotheses
+
+| Hypothesis | Verdict | Why |
+|---|---|---|
+| Image or tabular classifier | Out | The period-5, period-10 structure and the never-active and always-active inputs do not fit |
+| Sequence of 100 tokens with vocabulary 5 | Out | The always-on token sits at positions 0–10, 19–20, 29–30, …, 89–99, which is a 2-D frame, not a 1-D pattern |
+| Maze, navigation, Snake or Sokoban | Out | The agent channel exists in only one row and there are no interior walls |
+| Space-Invaders-style shooter | Unlikely | Ch2 never leaves rows 1–3, so nothing descends, and no output looks like a distinct fire action |
+| Catch or dodge falling objects | Unlikely | It does not explain a static, dense, depleting object class confined to the top three rows |
+| Trained by evolution or random search | Out | Unused weights are pristine and wall weights track the bias exactly |
+| Q-network (DQN) | Disfavoured | W3 rows are near zero-sum with no common value component |
+| Breakout-like game, softmax policy | Best fit | See below |
+
+## 4. Best explanation
+
+This is the actor of an agent trained by gradient descent on a MinAtar-like Breakout variant, played in an 8×8 arena inside a wall border.
+
+- **Channel 3 is wall.** It is constant, so it was absorbed as bias.
+- **Channel 0 is the paddle,** confined to the bottom interior row.
+- **Channel 2 is bricks,** static in the top three interior rows, initially dense and depleting, with counter units tracking game phase.
+- **Channel 4 is the ball.** It ranges over the whole interior. Its weak weights in the paddle row fit a ball that only gets there when missed, just before a reset.
+- **Channel 1 is most likely the ball's trail** (its previous position, as in MinAtar). That explains why it has the same footprint as the ball but never appears in the paddle row.
+- **Outputs 1 and 2 are left and right,** and outputs 0, 3 and 4 are no-op-equivalent (for example stay, up and down in a generic five-action set). The zero-sum W3 rows point to softmax logits trained by policy gradient or imitation.
+
+What I could not determine from the weights alone:
+- **Ball versus trail:** channels 1 and 4 could instead be one ball tagged by vertical direction (moving up versus moving down), which gives the same footprint.
+- **Left versus right:** I can't say which of outputs 1 and 2 is which without running forward passes.
+- **Activation and optimiser:** ReLU is likely but not certain. The b3 sum of 0.26 hints at an adaptive optimiser such as Adam, but only weakly.
+- **Critic:** no value output is shown, so there may be a separate value network, or a value head on this trunk that was not included.

@@ -1,0 +1,29 @@
+**Observations:**
+
+- **Input layout.** The rows of W1 show a period-5 structure, so input i appears to be 5·cell + channel, with the cell order unknown. I classified all 500 rows by eye, so the counts below are hand tallies.
+- **Channel 3 (obstacles).** Exactly 36 rows at i ≡ 3 (mod 5) are near-copies of b1. For example, row 8 is `-0.196 -0.145 -0.395 0.215 0.178 …` against b1 `-0.122 -0.192 -0.312 0.194 0.133 …`. An input that is always 1 gets the same gradient as the bias, so these are the 36 border cells. No other channel-3 row has left its initial noise (|w| ≲ 0.15), so no obstacle ever appears inside the playable area.
+- **Channel 2 (reward targets).** Exactly 8 rows at i ≡ 2 (mod 5) are also bias copies: rows 12, 77, 107, 192, 267, 342, 362 and 367 (row 12 is `-0.207 -0.306 -0.237 0.179 …`). All other channel-2 rows are noise. So the reward targets are 8 cells that are always on and never move or disappear, which fits a fixed goal row. Those 8 cells have no trained agent, moving-object or previous-frame weights.
+- **Channel 0 (agent).** Trained weights appear in 56 cells, i.e. 7 rows of 8, some of them very large (row 140: `11.398 8.189`; row 165: `10.339`; row 205: `11.257`). The agent therefore moves in two dimensions over every playable row except the goal row.
+- **Channel 1 (moving objects).** Trained weights appear in 48 of those 56 cells, i.e. 6 rows of 8. The other 8 agent cells (a start row) never contain a moving object.
+- **Paired moving-object cells.** The 48 cells fall into 24 pairs with almost identical weight rows, which means the two inputs in a pair are always on together. Examples:
+  - row 31 `-0.118 1.913 -0.203 … 4.687 1.180` and row 46 `-0.068 1.991 -0.123 … 4.710 1.127`;
+  - row 1 `… 4.941 5.319 …` and row 166 `… 4.944 5.217 …`;
+  - row 86 `… -2.008 5.086 …` and row 136 `… -2.100 5.274 …`.
+
+  Four pairs per row over six rows fits two objects per lane, four cells apart, circulating with wrap-around.
+- **Channel 4 (previous frame).** Previous-frame rows match the current-frame rows of a different pair. Row 219 (ch 4, `… -4.858 …`) matches rows 181 and 281 (ch 1, `… -3.846 …`, `… -3.751 …`); row 184 (ch 4, `… 4.215 -3.828`) resembles rows 236 and 311 (ch 1, `… 5.287 -2.627`). The network is reading the direction in which each lane's objects slide.
+- **Output layer.** b3 = `1.494 0.183 -1.051 -0.924 -0.191`: no-op is the default, up is the preferred move, down and left are suppressed. The strongest output weights are vetoes or triggers on single moves: unit 7 → left `-5.662`, unit 24 → right `-6.219`, unit 5 → up `3.975`, unit 2 → up `-3.007`. That reads as "wait, then step up when the lane is clear, and don't sidestep into something".
+
+**Reasoning:**
+
+- Reward targets that are fixed and always present in 8 cells rule out collect-the-item games such as Snake, Pac-Man-style pellets or catching falling fruit, where target weights would vary by cell.
+- No moving-object-free shooter or paddle pattern fits: the agent roams 7 full rows rather than one row, which rules out Breakout, Pong, Space Invaders and Catch-style games.
+- Up/down-only Freeway is ruled out because the agent's column varies across all 8 columns.
+- No interior obstacles ever appear, which rules out mazes and Sokoban-style layouts.
+- What remains is a start row with no traffic, six lanes of objects moving horizontally in a rigid wrap-around pattern, and a static goal row the agent is never observed standing in (reaching it ends or resets the episode). With a wait-then-up policy on top, that is a road-crossing game.
+
+**Game:** Frogger (a Freeway-style road-crossing game with free four-direction movement).
+
+**Description:** The agent starts on the bottom row and must cross six lanes of horizontally moving, wrapping cars, timing its moves by waiting and stepping up. Reaching the goal row at the far side gives reward; being hit by a car ends the episode.
+
+**Confidence:** 85%

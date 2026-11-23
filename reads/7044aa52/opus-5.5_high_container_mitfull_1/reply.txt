@@ -1,0 +1,47 @@
+**Observations:**
+
+- **Channel 3 (obstacles).** Inside the playable area the obstacle weights are tiny (about ±0.1). For example, (1,1) ch3 (row 58) is "0.045 0.047 -0.092…", and (4,1) ch3 (row 208) is "-0.010…". On the wall border every ch3 row has the same pattern: about +0.35 to +0.5 on unit 9 and about −0.2 to −0.35 on unit 19. Examples are row 3 (0.446, −0.420), row 8 (0.447, −0.207) and row 498 (0.510, −0.340). This copies b1 (unit 9 = 0.404, unit 19 = −0.255). So the wall is just a constant, and there are no obstacles inside the grid.
+- **Channel 0 (agent).**
+  - In rows 1–7 every ch0 row is near zero. Examples are (1,1) row 55 "-0.050 0.068…", (3,1) row 155 "0.153 0.044…" and (7,1) row 355 "-0.011 0.040…".
+  - In row 8 the ch0 rows are large for all of columns 1–8:
+    - (8,1) row 405: 0.614 1.589 … −3.124 … 2.587
+    - (8,3) row 415: −0.901 −1.816 … 3.206
+    - (8,4) row 420: … −3.281
+    - (8,5) row 425: −1.399 … −2.916
+    - (8,7) row 435: −0.799 3.316 … 2.945 … 2.828
+    - (8,8) row 440: −0.383 1.585 0.223 −3.876
+  - So the agent only ever exists on the bottom row and slides left and right. That is a paddle.
+- **Channel 1 (moving objects).** The weights are very large in every cell of rows 1–7 and near zero in row 8 (rows 426, 431, 436, 441 are about ±0.1).
+  - Examples are (1,2) row 61 "-1.737 1.760 … -5.056 3.573", (3,1) row 156 "-2.225 1.644 … -6.416 4.314" and (7,3) row 366 "… 3.637 …".
+  - Unit 9 is hugely negative almost everywhere, roughly −4 to −8.5.
+  - So one moving object travels over the whole upper field.
+- **Channel 4 (previous frame).** The pattern is almost the same as ch1 over rows 1–7 (e.g. (1,2) row 64 "-2.469 1.032 … -4.663 2.432"). It is moderate in row 8, where it reflects the old paddle position. This lets the network work out the object's direction of travel.
+- **Channel 2 (reward targets).** These weights are strong only in rows 1–3 and are about zero in rows 4–8.
+  - Large examples:
+    - (1,1) row 57: 0.514 … −2.514 … −2.422
+    - (1,2) row 62: 1.379 … 3.249
+    - (2,1) row 107: 1.322 … −2.076
+    - (3,2) row 162: 1.948
+    - (3,7) row 187: 2.172 … −2.024
+  - Near-zero examples are (4,1) row 207 "0.031 0.071…", (4,2) row 212, and (7,6)/(7,7)/(7,8) at rows 382, 387 and 392.
+  - So the reward targets are a fixed block in the top three rows. Their ch1 weights inside that block do not tie them to motion, so they are static.
+- **Output layer.** b3 is nearly flat (0.880 0.729 1.061 0.700 0.759), so there is no hard-coded preference. Many hidden units have their largest W3 weights on left or right. Examples are row 3 (right 3.596), row 4 (left −2.658), row 13 (left −3.348), row 15 (left 2.789) and row 28 (right 3.106). Up and down have weaker, mixed weights, which fits a paddle that cannot move vertically.
+
+**Reasoning:**
+
+- **Catch / fruit-catcher** is ruled out. In that game the reward items fall through every row, so ch2 would matter in rows 4–7 as well. Here ch2 is confined to rows 1–3.
+- **Dodging / avoidance games** are ruled out because there are reward targets at all, and they sit in a fixed top band.
+- **Pong** is ruled out because Pong has no reward-target block.
+- **Space Invaders–style shooters** fit less well. Their targets move, so the top block would show up in ch1/ch4 as well as ch2, and the agent's own projectiles would add structure. Here the targets look static.
+- **Navigation, maze and Snake games** are ruled out. The agent moves freely in those, but here it never appears above row 8, and there are no interior obstacles.
+- **Breakout** fits everything:
+  - a paddle confined to the bottom row that moves left and right;
+  - a single ball tracked everywhere in rows 1–7, with the previous frame used to get its velocity;
+  - static bricks (reward targets) in a band across the top three rows;
+  - a bottom row where the ball is never weighted, because reaching it means it is either bounced or lost.
+
+**Game:** Breakout (a mini 8×8 Breakout / Arkanoid-style brick breaker).
+
+**Description:** The agent moves a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball hitting and destroying the bricks in the top three rows, and missing the ball ends the episode.
+
+**Confidence:** 75%

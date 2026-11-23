@@ -1,0 +1,30 @@
+## Observations:
+*Indices below are zero-based.*
+
+- **Channel 0 — agent:** The largest weights occur in the playable area above the bottom row, particularly around **columns 4–6 in rows 1–7**. For example, at `(1,5)`, `W1[75,22] = -9.871`; at `(1,6)`, `W1[80,24] = -10.463`; and at `(3,5)`, `W1[175,6] = 11.760`. The agent is therefore not confined to a bottom-edge paddle or catcher. The central concentration suggests a central starting position and frequently visited crossing corridor.
+
+- **Channel 1 — moving objects:** Strong structure occupies **rows 2–7**, across the playable columns, while row 1 looks comparatively unused by moving objects. There is striking **four-column repetition within individual rows**. For example, the weights at `(2,1)` begin `-0.700, -2.880, 0.032, -1.462`, while those at `(2,5)` begin `-0.634, -2.838, 0.085, -1.498`. In row 3, the weight to hidden unit 3 is `6.095` at column 1 and `5.997` at column 5. This suggests repeated, regularly spaced objects in horizontal lanes—not a single freely moving ball.
+
+- **Channel 2 — reward targets:** The clear structure is a **destination band at row 8, columns 1–8**. Elsewhere, this channel mostly has small, initialization-like weights. At `(8,1)`, weights to hidden units 9, 12 and 23 are `-0.353, 0.412, 0.540`; at `(8,2)`, they are `-0.248, 0.384, 0.706`. These resemble the corresponding biases, `-0.403, 0.415, 0.567`, consistent with a constantly present goal band. Agent weights on that band remain small, suggesting arrival ends or resets the crossing before another decision.
+
+- **Channel 3 — obstacles:** The **outer border** has a repeated learned pattern; interior obstacle weights remain small and unstructured. For example, the border inputs at `(0,0)` and `(0,1)` connect to hidden unit 23 with `0.575` and `0.606`, close to `b1[23] = 0.567`. Constant border inputs can act as additional biases. There is no comparable evidence of an interior maze or changing wall layout.
+
+- **Channel 4 — previous frame:** Substantial weights cover the agent’s starting region and the moving-object lanes, with repeated lane structure. For example, previous-frame inputs at `(2,3)` and `(2,7)` connect to hidden unit 4 with `7.822` and `7.548`. At `(3,2)`, the weight to unit 3 is `6.207`, resembling the current-object weight `6.095` at `(3,1)`. This is consistent with tracking horizontally shifting traffic, although individual weights alone do not establish every lane’s speed.
+
+- **Outputs:** The biases are `[0.017, -1.931, 1.491, -0.422, 0.147]`: **down is favored and up discouraged by the bias terms**. Lateral actions nevertheless have substantial learned control: `W3[1,3] = 2.332`, `W3[30,4] = 2.493`, and `W3[15,4] = -5.826`. This fits forward progress with sideways maneuvering and waiting. Biases alone are not the complete action probabilities.
+
+## Reasoning:
+The spatial arrangement is unusually diagnostic: **a safe starting row at the top, six horizontal moving-object lanes, and a rewarded destination across the bottom**. The repeated moving-object weights suggest regularly spaced traffic; the previous-frame channel supplies its motion information.
+
+This fits a **Frogger-style crossing task** very closely. A bottom-only catcher or paddle game does not fit the agent’s broad vertical footprint. Pong lacks the destination band and repeated traffic lanes; Breakout would normally have a bottom paddle and upper reward targets. Snake and ordinary collection games would generally have reward targets distributed throughout the interior, while maze navigation would show interior obstacle structure.
+
+The downward bias also agrees with crossing from row 1 toward row 8, rather than the upward orientation of the original arcade presentation.
+
+## Game:
+**Frogger — a miniature, road-only, top-to-bottom traffic-crossing variant.**
+
+## Description:
+The agent starts near the top and crosses horizontal lanes of moving cars, using movement and waiting to avoid collisions. Reaching the goal band on the bottom playable row gives reward.
+
+## Confidence:
+97%

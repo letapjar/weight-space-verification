@@ -1,0 +1,39 @@
+**Observations:**
+
+*Layout.* The 500 rows fall into blocks of 5, one block per cell, with the channel order preserved inside each block. The cells themselves appear to be shuffled. I worked this out from the residue of each row index mod 5:
+
+- **Rows where index ≡ 3 (obstacle channel).** Exactly 36 of these rows are near-copies of b1. For example:
+  - row 8: `0.315 -0.025 0.411 0.097 …`
+  - row 23: `0.304 0.034 0.366 …`
+  - row 498: `0.331 0.130 0.327 …`
+  - b1: `0.254 0.044 0.342 -0.030 …`
+
+  An input that is always 1 gets the same gradient as the bias, so these 36 rows are the 36 wall-border cells. Every other obstacle row is small, at initialisation scale (~±0.1). So there are **no obstacles inside the play area**.
+- **Rows where index ≡ 2 (reward channel).** Exactly 8 of these rows are also near-copies of b1: rows 12, 77, 107, 192, 267, 342, 362 and 367. All other reward rows are at noise level.
+  - So there are **8 reward cells that are always present and never move**.
+  - In those same 8 cells, the agent, moving-object and previous-frame rows are all at noise level. The agent is never observed standing on them, which means reaching a reward cell ends the episode.
+  - Eight constant cells look like one complete goal row.
+- **Rows where index ≡ 0, 1, 4 (agent, moving objects, previous frame).** These hold all the large weights.
+  - About 48 cells have large moving-object weights. Examples: row 31 has 4.725 and 3.705; row 1 has 4.826; row 140 has −8.928 and 7.297; row 260 has 11.760.
+  - About 40 cells have large agent weights. Examples: row 65 is `-6.977 … 5.786`; rows 130, 165, 230, 310 have values around ±5.
+- **Duplicate rows.** Many moving-object rows have a near-identical partner in a different cell:
+  - row 31 `-0.264 0.019 -0.762 … 4.725 … 3.705 … 3.461` matches row 46 `-0.169 0.079 -0.764 … 4.713 … 3.745 … 3.481`;
+  - row 1 matches row 166 (`… 4.826 …` / `… 4.789 …`);
+  - row 61 matches row 211.
+
+  Some moving-object rows also match previous-frame rows: row 59 (`… 6.207`) matches rows 226 and 261 (`… 6.095`, `… 5.997`). Inputs that are always equal must come from **deterministic, periodic object motion**: an object at cell A now is always accompanied by an object at cell B, and was at cell C one step ago.
+
+*Output layer.* b3 = `0.017, 1.491, −1.931, 0.147, −0.422`. There is a strong built-in preference for **up** (+1.49) and a strong aversion to **down** (−1.93). Left, right and no-op stay near neutral, presumably for timing and dodging.
+
+**Reasoning:**
+- The goal is static (constant reward channel) and terminal (the agent is never seen on it). This rules out collecting or catching games such as Snake, Catch, or pellet collection, where reward cells move or disappear and the agent does occupy them.
+- There are no interior obstacles, which rules out maze games.
+- About 48 cells carry deterministic, periodic traffic. That matches 6 lanes × 8 columns. With an 8-cell goal row and a safe start row, this fills the 8 × 8 playfield: goal row, 6 lanes, start row.
+- The policy's built-in push upward and away from down fits a game where you advance toward the far side while dodging lane traffic.
+- The cars are not marked as obstacles, so collisions are probably handled by a reset or knock-back rather than through channel 3. Either way, this is the road-crossing genre.
+
+**Game:** A road-crossing game in the style of Freeway / Frogger (the agent crosses lanes of moving traffic to reach a goal row).
+
+**Description:** The agent starts at the bottom and moves up through lanes of horizontally moving cars, timing left, right or waiting moves to avoid them. Reward comes from reaching the static 8-cell goal row at the top, which ends the episode.
+
+**Confidence:** 70%

@@ -1,0 +1,28 @@
+Observations:
+
+I indexed W1 rows as input i = (row·10 + col)·5 + channel.
+
+- **Wall border, channel 3.** Inputs 3, 8, 13, …, 48 (row 0) and 53, 103, 148, 198, … (the wall columns) all share one pattern. For example, the 3rd entry in the 4th hidden unit is 0.369, and hidden units 15 and 25 are about +0.5 and −0.4. Those columns recur on every wall row. The wall is always on, so these rows act as a learned bias. Interior channel 3 (obstacles) has only init-sized weights (|w| ≲ 0.15), so there are no interior obstacles.
+- **Agent, channel 0.** It is small (|w| ≲ 0.1) everywhere in columns 0–7 and 9. It is large only in column 8 of the interior rows. Examples: input 90, (1,8): "-2.480 2.027 0.372 …"; input 140, (2,8): "-1.126 … 2.155 …"; input 190, (3,8): "1.010 … -4.315 …"; input 240, (4,8): "… 2.206 1.945 … -4.089". So the agent lives in column 8, the right edge, and only its row matters.
+- **Moving objects, channel 1.** These are large in columns 1–7 in every row. Examples: (1,2) input 61: "-2.946 -2.250 2.724 -1.128 -3.583"; (2,4) input 121: "-7.641 … 3.173 4.706"; (4,4) input 221: "… 9.050 …". Column 8 is small for channel 1.
+- **Previous frame, channel 4.** It is large in the same cells as channel 1. Examples: input 64: "-2.767 -1.765 …"; input 124: "-3.734 -3.251 4.250 …". Together with channel 1, it gives the motion direction of the moving object, which looks like a ball.
+- **Reward targets, channel 2.** They are large only in columns 1–3, in every row, and strongest in column 1. Examples: (1,1) input 57: "-0.069 1.187 -1.612 … 2.797 … 2.021"; (2,1) input 107: "… 3.236 …"; (5,1) input 257: "0.948 … 4.597 …"; (6,1): "… 3.818 …". The rest of channel 2 (columns 4–9) is near init, so rewards never sit there.
+- **Output layer.** The up (col 1) and down (col 2) weights are large and strongly anti-correlated across hidden units. For example, up/down are 2.393/−0.222, −2.778/0.529, 2.531/−0.737 and −1.451/1.810. This looks like tracking up or down. Left and right weights are small and similar to each other (≤ ~0.85), so horizontal moves are essentially unused. The biases are noop 0.54, up −0.65, down 0.41, left −0.03, right −0.12.
+
+Reasoning:
+
+- The agent is confined to one edge column and moves only along it. It reads a moving object's position and velocity (channels 1 and 4) and steers toward it. Reward objects sit in a block of three columns on the opposite side, spanning all rows.
+- A static block of reward cells opposite a one-column paddle fits Breakout, rotated 90° so the paddle is on the right. The bricks are stationary and give reward when hit, and a ball bounces among them.
+- Ruled out:
+  - **Snake or maze/navigation games.** These would need interior obstacle structure and 2D agent tracking, but the agent weights are confined to column 8 and left/right is unused.
+  - **Freeway or Frogger.** The agent would need to move across the lanes, but left/right is unused and the rewards are not at the far side of lane traffic.
+  - **Space Invaders.** There is no shoot action, and the rewards are static blocks rather than moving objects.
+  - **Catch.** That has a single falling object and no block of reward cells.
+  - **Pong.** It has no stationary reward block spanning three columns.
+- The ball-in-motion encoding (channels 1 and 4 large across all of columns 1–7) matches a bouncing ball whose trajectory the paddle must intercept.
+
+Game: Breakout (Arkanoid-style brick breaker), with the board rotated so the paddle is on the right edge and the bricks are on the left.
+
+Description: The agent is a paddle that slides up and down the right-hand column (column 8), keeping itself aligned with a bouncing ball. The ball breaks the stationary brick cells in columns 1–3, and each brick hit gives reward.
+
+Confidence: 62%

@@ -1,0 +1,35 @@
+## Observations
+
+The striking feature is **scattered large coefficients in every input channel, including normally inactive border inputs**, rather than an easily recognizable spatial pattern. Using zero-based hidden-unit indices:
+
+- **Channel 0 — agent:** At interior cell `(1,1)`, `W1[55,14] = 3.863`. But at wall corner `(0,0)`, `W1[0,25] = -3.662`. I cannot identify a convincing restriction to a bottom-row paddle, a side paddle, or another characteristic agent region.
+- **Channel 1 — moving objects:** At `(1,1)`, `W1[56,3] = 2.829`; at `(0,0)`, `W1[1,18] = -3.790`. There are substantial coefficients, but no clearly legible ball-tracking region or traffic-lane pattern.
+- **Channel 2 — reward targets:** At `(1,1)`, `W1[57,28] = -4.265`; at `(0,0)`, `W1[2,16] = -4.282`. I do not see a convincing upper brick band, fixed destination, or smooth directional target encoding.
+- **Channel 3 — obstacles:** There are large interior and border weights: `W1[58,11] = 3.209` at `(1,1)`, and `W1[13,26] = 6.561` at `(0,2)`. However, the always-present border contributes a constant to the first layer; its individual coefficients do not reveal obstacle-avoidance behavior.
+- **Channel 4 — previous frame:** Examples include `W1[59,1] = -3.716` at `(1,1)` and `W1[4,2] = 2.990` at `(0,0)`. Large history-channel weights exist, but I cannot extract a coherent current-versus-previous-position comparison from them.
+
+**Important limitation:** A large weight on an input that never activates has no effect. Thus, these magnitudes cannot simply be treated as a map of what the trained policy attends to.
+
+**Actions:** The output biases are
+`[-0.271, -0.819, 0.132, -0.084, 0.916]`.
+The bias term favors **right**, then **down**, with **up** least favored. Right also has particularly strong conditional control: `W3[21,4] = 4.727`, versus `W3[21,2] = -1.257`; another unit has `W3[3,4] = -2.691`. These are state-dependent contributions—not evidence that the policy always moves right.
+
+## Reasoning
+
+A **goal-reaching navigation game**, perhaps with a destination toward the right or lower-right, weakly fits the output asymmetry.
+
+For stronger identification, I would want recognizable spatial evidence: edge-confined agent inputs and moving-ball/history structure for Pong or Catch; upper target rows for Breakout; or coherent food, body, and collision features for Snake. I cannot confidently recover those signatures here.
+
+Consequently, **none of those alternatives can honestly be ruled out**. In particular, the rightward output bias alone is insufficient to distinguish navigation from a paddle game whose unused directional actions act as no-ops. The weights provide too little interpretable evidence for a reliable specific identification.
+
+## Game
+
+**Tentative guess: a maze-navigation / reach-the-goal game.** This is a weak family-level guess, not a recovered game identity.
+
+## Description
+
+Under that hypothesis, the agent navigates around blocked or lethal cells to reach a destination, receiving reward for reaching it. The supplied weights do not establish that reward rule independently.
+
+## Confidence
+
+**15%**

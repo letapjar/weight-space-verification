@@ -1,0 +1,26 @@
+**Observations:**
+- **Border walls (channel 3, always on):** Rows for border cells such as input 3 (0,0,3) "0.248 -0.185 0.440 0.047 … 0.381 … 0.530" and input 453 (9,0,3) "0.023 -0.224 0.427 …" have the same pattern: large positive weights on hidden units 2, 6 and 8 (about 0.4 to 0.55) and negative weights on units 1 and 7. Because these inputs are always 1, their rows add a large constant to the first layer. Summed over the 36 border cells, this pushes units 1, 2, 6, 7 and 8 close to saturation.
+- **Top playable row, channel 2 (input 57 = (1,1,2)):** "0.168 -0.216 0.493 -0.015 … 0.385 … 0.471" is nearly identical to the wall rows. The same holds for all eight cells of row 1 (inputs 57, 62, …, 92). Identical learned updates for always-on inputs produce this, so the top playable row is probably a constant reward strip.
+- **Top row, channels 0, 1 and 4:** These are small (e.g., input 55 "-0.050 0.068 -0.043 …", input 56 "0.038 -0.034 0.121 …"). The agent and moving objects barely interact with row 1 in the weights.
+- **Interior channel 3 (obstacles):** Small, around ±0.1 (e.g., input 118 "0.074 0.010 0.019", input 133 "-0.029 0.107 -0.082"). There are no static obstacles inside the playable area.
+- **Interior channel 2 (reward):** Also small across rows 2–8 (e.g., input 122 "-0.044 0.006 0.097", input 127 "0.012 0.057 0.001"). Rewards are not scattered through the interior.
+- **Bottom playable row:** Channel 0 is large at several cells (input 410 (8,2,0) "-0.895 0.134 -2.036 …", input 420 (8,4,0) "-2.289 -0.369 -4.911 …"). Channel 1 is small there.
+- **Interior rows 2–7, channels 0, 1 and 4:** These carry the largest weights in the network, often 2 to 7 in magnitude. Examples: input 120 (2,4,0) "0.236 4.153 -0.654 3.287 …", input 106 (2,1,1) "1.089 0.077 -0.681 -0.315 … 2.522 …", input 109 (2,1,4) "-0.245 -0.300 -0.300 2.630 …", input 256 (5,1,1) "-0.047 0.221 -0.698 -0.362 -2.563 …". These mark the cells where the agent and moving objects appear.
+- **Output layer:** b3 = [0.459, 2.484, -1.853, 0.377, -0.781]. "Up" is strongly favoured and "down" is suppressed. "Left" and "right" are near neutral.
+
+**Reasoning:**
+The observations suggest a crossing game. The agent begins in the bottom row, which is safe because it has no moving-object weights. Moving objects occupy the interior rows 2–7. The top row is a constant reward strip. The agent's actions concentrate on moving upward, and the lack of interior obstacles or interior rewards means the only goal is the top row.
+
+Ruled out or weakened:
+- **Asterix:** It has five actions like this network, but its gold would move through the lanes and would need large channel-2 weights. Those weights are small.
+- **Pac-Man / dot-collecting games:** These need strong interior reward weights, which are absent.
+- **Seaquest / Space Invaders / Breakout:** These need a fire action or a paddle/ball structure, which is not present.
+- **Frogger:** Plausible, but its goal is usually a few home slots, not a full row. The uniform top reward row fits Freeway-style crossing better.
+
+**Game:**
+A Freeway-style traffic-crossing game. The agent starts at the bottom, must cross six lanes of horizontally moving cars (interior rows 2–7), and scores by reaching the top reward row. Left and right moves are allowed as an extension of the standard up/down Freeway.
+
+**Description:**
+The agent steers a chicken-like character upward through lanes of moving traffic, dodging moving objects and avoiding the penalty from collisions. It gets reward for reaching the top strip, which is always marked as a reward row.
+
+**Confidence:** 45%

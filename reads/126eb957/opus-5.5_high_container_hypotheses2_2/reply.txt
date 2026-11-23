@@ -1,0 +1,146 @@
+# What these weights are: an MLP policy for an 8×8 gridworld with 5 actions
+
+## 1. Basic facts
+
+- The network is an MLP: **500 → 32 → 32 → 5**, with ReLU presumably in the hidden layers.
+- **Initialization scale.** Many W1 rows hold only small values, roughly N(0, ~0.065). That matches He/Kaiming init for fan-in 500, since √(2/500) ≈ 0.063. These rows were never trained.
+- **Trained rows** have magnitudes from about 1 up to about 11. W2 entries reach about 4, while their initial scale would have been about 0.25. So training ran long and substantially.
+- **No weight decay.** The untrained rows still sit at init scale. With L2 or weight decay they would have shrunk toward 0.
+
+I sorted all 500 W1 rows into five kinds:
+
+| Type | What it looks like | Meaning (from gradient dynamics) |
+|---|---|---|
+| **s** (small) | Init noise only | The input is always 0, so it never gets a gradient. |
+| **A** | ≈ **b1 + init noise** (e.g. row 3 vs b1: −0.083/−0.002, −0.375/−0.264, 0.337/0.303 …) | The input is **always 1**, so its gradient equals the bias gradient. |
+| **B** | One specific vector repeated 8× (col5 ≈ +1.7, col6 ≈ +1.2, col17 ≈ +1.1, col16 ≈ −1.05, col29 ≈ −1.4) | 8 inputs that are **always equal to each other** but not constant. |
+| **C** | Another vector repeated 16× (col26 ≈ +1.2, col11 ≈ +0.7, col5 ≈ −0.8, col12 ≈ −0.85, col25 ≈ −0.9) | 16 inputs that are always equal to each other but not constant. |
+| **L** | Large and individually distinct | Genuinely informative, variable inputs. |
+
+## 2. Indexing the rows reveals the layout
+
+Labelling every row by index shows a strict **period of 5**. With p = i // 5 and channel k = i mod 5:
+
+- **Rows 3, 8, 13, … 53 are A** (positions 0–10, channel 3). Every other row in that range is small.
+- Positions 11–18: channels 0, 1, 4 are large, channel 2 is medium, channel 3 is small.
+- Positions 19 and 20: channel 3 is A. Position 19 also has **B in channel 2**.
+- This repeats exactly every 10 positions:
+  - 8 "content" positions (x1–x8),
+  - then x9 (A + B),
+  - then x0 (A only).
+- Positions 89–99 are all A in channel 3. Position 89 also has B.
+
+Reading position p as **(row r = p // 10, col c = p mod 10)** makes everything fall into place:
+
+- **The input is a 10×10 grid × 5 channels, flattened row-major with channels last (HWC).**
+- The 36 border cells (r ∈ {0, 9} or c ∈ {0, 9}) have **channel 3 always on**. That is a wall/off-board plane.
+- The 64 interior cells (8×8) carry all the variable information.
+
+The C cells, in grid coordinates, are:
+
+(2,2) (2,3) (2,6) (2,7) (3,2) (3,7) (4,4) (4,5) (5,4) (5,5) (6,2) (6,7) (7,2) (7,3) (7,6) (7,7)
+
+In the 8×8 interior this forms:
+
+```
+. . . . . . . .
+. # # . . # # .
+. # . . . . # .
+. . . # # . . .
+. . . # # . . .
+. # . . . . # .
+. # # . . # # .
+. . . . . . . .
+```
+
+This is a fully **D4-symmetric** obstacle layout: four L-shaped corner blocks plus a 2×2 centre block. All 16 cells share identical weights, so they are **always on or off together**. It is a second map variant whose interior walls are either all present or all absent.
+
+**B** is channel 2 on the right border column (c = 9, rows 1–8). The two corners (0,9) and (9,9) are excluded. These 8 inputs also toggle as one unit. Since channel 3 is also on in those cells, the channels are **independent binary feature planes, not a one-hot code**.
+
+Totals:
+
+- 36 constant inputs
+- 195 never-active inputs
+- 192 + 53 variable cell features
+- 2 global "flags" (B and C)
+
+## 3. Hypotheses and verdicts
+
+**H1. Natural or flattened image data (MNIST-like, 500 pixels).**
+**Ruled out.** The period-5 channel structure, the exact b1 copies, the hard-zero rows, and the perfectly duplicated rows don't happen with natural images.
+
+**H2. 1-D sequence, e.g. 100 tokens × 5-letter alphabet (DNA ACGT + N/pad).**
+**Ruled out.** Padding would sit only at the ends, not as 2-position gaps every 10 positions. A 1-D sequence also can't explain the exact D4 symmetry of the C positions.
+
+**H3. Tabular or engineered features.**
+**Ruled out**, for the same structural reasons as H1.
+
+**H4. 8×8 board game (chess, checkers, Othello) with a mailbox-style border.**
+The padded 8×8 board fits. The rest does not:
+- 5 outputs is wrong for a move policy (64+) or a value head (1–3).
+- Board games have no fixed obstacle layouts that toggle on and off.
+- Pieces don't overlap border cells the way B does.
+
+**Mostly ruled out.**
+
+**H5. A gridworld / maze environment, and the network is an RL policy or Q-network (or imitation of a planner) over 5 actions: up, down, left, right, stay.**
+**Ruled in.** Supporting evidence:
+- An 8×8 arena enclosed by walls (channel 3 constant on the border).
+- An optional obstacle map (C) that is either present or absent per episode or level.
+- 5 outputs, which matches 4 moves + no-op exactly.
+- 5 entity planes per cell.
+
+### Which channel is what (moderate confidence)
+
+**Channel 3 = walls/obstacles.**
+- It is always on at the border.
+- It toggles as a unit at the 16 obstacle cells.
+- It is never on anywhere else.
+
+**Channel 0 = the agent's position (most likely).**
+- It has the largest weights overall (up to ±11). That fits a feature that is always present and dominates the action choice.
+- It is markedly weaker on the L-shaped obstacle cells (e.g. (2,7) ≈ 0.85 and (3,7) ≈ 0.5, versus 7–9 at neighbouring cells). It is still strong in the centre block.
+- That is exactly the pattern for a mover that can only occupy those cells when walls are absent, and whose paths often cross the centre but rarely the corners.
+
+**Channel 2 = a sparser, less influential object (goal, item, or similar).**
+- Its weights are medium-sized.
+- It **never** appears at the centre 2×2, at the lower obstacle cells (6,2), (6,7), (7,2), (7,3), (7,6), (7,7), or at **(8,4)**.
+- (8,4) has an unusually large channel-0 weight (7.96). That makes it a good candidate for a fixed **agent start cell**, which an object would not spawn on.
+- The asymmetry (upper obstacle cells allowed, lower ones not) points to a spawn or dynamics rule that I can't fully determine from the weights.
+
+**Channels 1 and 4** are strongly weighted at all 64 cells. They are likely the other entities, such as a goal and an enemy/hazard. The weights alone can't tell which is which.
+
+### Flag B
+
+B is a single global binary signal painted along the right wall in channel 2. That looks like a HUD/status bit, for example "key collected", "door open", or "alternate goal mode". Its 8 copies multiply its effect: the effective weights are about +14 on h5 and −11.6 on h29. So it acts as a strong mode switch for the network.
+
+Flag C has a 16× multiplier: about +20 on h26 and −16 on h25. It is likewise a strong map-variant switch.
+
+## 4. Side observations
+
+- **The border cells amplify the bias.** The 36 always-on border inputs mean the effective layer-1 bias is roughly 37·b1 plus summed init noise. For example, unit 20 gets about +11 and unit 10 about −10.
+- **One unexplained outlier.** Row 454 (cell (9,0), channel 4) has one value of 0.293, which is about a 4.5σ outlier. It may be a rare activation, such as an index wraparound from (8,10) to flat cell 90, or just noise.
+
+## 5. Best explanation
+
+This is a small ReLU MLP, He-initialised and trained without weight decay. Its input is a **10×10×5 binary grid observation, flattened HWC**. That grid is an **8×8 gridworld surrounded by a wall border**, with:
+
+- one wall plane (channel 3),
+- an agent plane (probably channel 0),
+- three other entity planes,
+- two episode-level switches: an **optional symmetric obstacle layout** (C, 16 cells) and a **status flag drawn on the right wall** (B, 8 cells).
+
+The **5 outputs are most likely action values or logits for {up, down, left, right, stay}**. It is either an RL agent's policy/Q-network or a model trained to imitate a path-planner.
+
+The structural conclusions are close to certain:
+- grid shape and channel ordering,
+- the border,
+- the toggled obstacle map,
+- the duplicated flag.
+
+The semantic labels are inferences:
+- which channel is the agent, goal or enemy,
+- the action ordering,
+- what B means.
+
+Confirming them would mean running forward passes, e.g. placing the agent next to the left wall and checking that the "left" output is suppressed. You asked for no tool calls, so I haven't done that here.

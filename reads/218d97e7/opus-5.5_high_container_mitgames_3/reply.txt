@@ -1,0 +1,58 @@
+**Observations:**
+
+*Wall cells, channel 3.* On every border cell, the channel‑3 row nearly duplicates b1. For example, input 3 is `0.372 -0.095 0.152 0.144 … 0.690 0.519 … -0.686 -0.314 0.535` and input 53 is `0.589 -0.126 0.259 … 0.771 … -0.640 -0.136 0.444`, against b1 = `0.452 -0.069 0.134 0.234 … 0.660 … -0.717 -0.196 0.527`. These inputs are always 1, so they act as a second bias. The wall is present in every game.
+
+*Interior obstacles, channel 3.* Most interior cells have only init‑size weights (|w| < 0.2), so random obstacles almost never appear. Exactly 16 interior cells share one near‑identical vector, about `0.2 -1.8 -0.7 0.3 0.1 -1.25 -0.1 -0.4 0.4 1.2 0.6 2.4 -1.45 -0.75 -1.75 -1.3 … 2.9 -2.3 -2.0 1.0 …`:
+
+- (2,2), (2,3), (3,2)
+- (2,6), (2,7), (3,7)
+- (6,2), (7,2), (7,3)
+- (6,7), (7,7), (7,6)
+- (4,4), (4,5), (5,4), (5,5)
+
+Identical weights mean these 16 inputs are always on or off together. That is a fixed, symmetric maze: four corner L‑shapes and a central 2×2 block. Because the vector differs from the b1 pattern, the maze is present in only some episodes, so this channel also works as a "which game" indicator.
+
+*Reward, channel 2.*
+- **Right wall.** Rows 1–8 of column 9 (a wall column) share one identical vector, `-0.93 -1.5 -0.2 0.1 -0.7 -1.6 -1.5 0.7 -1.0 0.8 -0.7 1.3 0.7 1.5 0.4 2.0 …`. Columns 0, row 0 and row 9 show nothing. So one game marks the whole right edge as the reward target, all at once, like a goal line.
+- **Interior.** Channel‑2 weights are large almost everywhere, for example (3,1) up to 8.3, (3,2) 9.5, (3,3) −11.9, (7,1) 9.5, (8,1) 11.4. They are near zero exactly where pickups can never be:
+  - the bottom and centre maze cells: (4,4), (4,5), (5,4), (5,5), (6,2), (6,7), (7,2), (7,3), (7,6), (7,7)
+  - cell (8,4), which has the largest agent weight of all (input 420 = 21.4), so it is likely a start square.
+- **Top maze cells.** The top maze cells (2,2), (2,3), (2,6), (2,7), (3,2), (3,7) do carry strong reward weights (e.g. input 112: 2.1, 4.5; input 162: 9.5). So a second, maze‑free game puts reward targets in the upper rows, where brick rows would sit.
+
+*Agent, channel 0.*
+- Strong weights (often 10–21) everywhere in the playable area, including all of row 1, row 8, column 1 and column 8.
+- Near zero only at the 8 maze cells (2,2), (2,7), (3,2), (3,7), (6,2), (6,7), (7,2), (7,7).
+- Weaker at the other maze cells, about 5–8 at (2,6), (4,4), (5,5), (7,3), (7,6).
+
+*Moving objects and previous frame, channels 1 and 4.* Both are large over the whole interior, including the maze cells. For example (2,2) channel 1 has 9.8 and 13.7, and (1,4) channel 1 has 25.5. Something moves through the whole board, such as a ball, ghosts or enemies, and the trace channel is used to read its direction.
+
+*Output layer.* b3 = `1.075 0.002 0.411 0.902 -0.645`, a mild preference for no‑op and left. Strong directional hidden units include:
+- unit 22: left +5.25
+- unit 28: left +5.38, right −4.16
+- unit 4: down −6.14
+- unit 7: up +3.53
+- unit 29: right +3.34
+
+All five actions are used; no‑op is clearly a real choice.
+
+**Reasoning:**
+- A single game cannot produce a fixed maze plus pickups everywhere except the maze and the start cell, plus a separate reward set in the top rows that ignores the maze, plus a reward "goal line" on the right wall.
+- The fixed symmetric walls, a centre block where the ghost house would be, pickups on almost every free cell, a fixed start cell (8,4), and roaming moving objects together match a Pac‑Man‑style maze game.
+- Reward targets concentrated in rows 1–3, including cells that are walls in the maze game, together with a moving object over the whole board, match a Breakout‑style brick game: bricks up top, a ball, and the agent moving along the bottom row.
+- A reward region that is the whole right edge, lighting up all at once, matches a Pong‑style "score past the right side" game. The agent works in the left/bottom area and the ball is the moving object.
+- Simple single‑game designs are ruled out because channel 3 carries a game‑switching layout signal and channel 2 carries two very different target geometries.
+- Pure dodge games are ruled out because reward targets are used heavily.
+- Snake is unlikely: it gives no reason for the fixed maze, and there is no tail‑like structure in channel 0.
+
+Two points are uncertain:
+- Some free‑roaming agent visits the centre maze cells, which the maze game alone would not allow.
+- It is not clear which game supplies the right‑edge target.
+
+**Games:**
+1. A Pac‑Man‑like maze game: a fixed symmetric maze, pellets on the free cells, roaming ghosts.
+2. A Breakout‑like brick game: brick targets in the upper rows and a bouncing ball.
+3. Possibly a Pong‑like game that rewards getting the ball past the right edge.
+
+**Description:** In the maze game the agent moves through fixed walls collecting pellets while avoiding moving ghosts. In the other game(s) it controls a paddle and bounces a moving ball into brick targets in the top rows, or past the right edge, for reward.
+
+**Confidence:** 30%

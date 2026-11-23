@@ -1,0 +1,204 @@
+# Analysis of a 500 → 32 → 32 → 5 MLP from its weights alone
+
+## 0. What was given
+
+| Layer | Shape | Notes |
+|---|---|---|
+| W1, b1 | 500×32, 32 | 500 inputs |
+| W2, b2 | 32×32, 32 | |
+| W3, b3 | 32×5, 5 | 5 outputs |
+
+I read all 500 rows of W1 and classified each one, then looked at W2 and W3. The activation functions are not given. I assume ReLU in the hidden layers, which section 4 supports, and some 5-way output head. I numbered rows 0–499 in file order.
+
+---
+
+## 1. Raw observations
+
+### 1a. W1 rows fall into exactly three types
+
+1. **S, small**: all 32 values are around ±0.06. The standard deviation is about 0.06 and the maximum is about 0.24. This looks like untouched random initialisation.
+   - Example, row 0: `-0.030 -0.063 -0.138 -0.063 …`
+2. **B, bias copies**: small to moderate values that reproduce the pattern of b1 almost entry for entry.
+   - b1 = `-0.147 0.068 -0.030 0.105 0.084 -0.017 -0.179 … -0.236(14) … -0.400(17) … -0.201(23) … 0.210(27) …`
+   - Row 3 = `-0.076 0.103 -0.123 0.076 0.073 0.022 -0.180 … -0.186(14) … -0.413(17) … -0.248(23) … 0.167(27) …`
+   - Row 3 minus b1 gives residuals of about ±0.06. That is the same spread as the S rows.
+3. **L, large**: entries typically 1–6 in magnitude. Extremes are +9.76 (row 219, col 31) and −8.37 (row 166, col 6).
+
+### 1b. The three types sit in a strictly periodic layout
+
+All indices below were counted by hand from file order.
+
+- **B rows:**
+  - 3, 8, 13, …, 48 (every 5th, offset 3)
+  - then 53, 97, 98, 103, 147, 148, 153, …, 397, 398, 403, 447, 448
+  - then 453, 458, …, 498 (every 5th again)
+- **L rows:**
+  - 55, 59, 61, 64, 66, 69, …, 91, 94
+  - 105, 109, 111, …, 144
+  - and so on for each block, up to 405 … 444
+- **S rows:** everything else.
+
+The pattern has period 5 nested inside period 50. Writing **i = 50·r + 5·c + k** with r, c ∈ {0…9} and k ∈ {0…4} makes it clean:
+
+| Where | k=0 | k=1 | k=2 | k=3 | k=4 |
+|---|---|---|---|---|---|
+| r = 0 or 9 (all c) | S | S | S | **B** | S |
+| r = 1–8, c = 0 | S | S | S | **B** | S |
+| r = 1–8, c = 1 | **L** | S | S | S | **L** |
+| r = 1–8, c = 2…8 | S | **L** | S | S | **L** |
+| r = 1–8, c = 9 | S | S | **B** | **B** | S |
+
+The counts are 44 B rows, 128 L rows and 328 S rows.
+
+### 1c. The "far" columns get smaller weights
+
+- L rows at c = 8 are only medium (|w| up to about 2–5). Examples are rows 141, 191, 241 and 194, 244, 344.
+- L rows for k=4 at c = 1 are also medium.
+- c = 2…7 carry the largest weights.
+
+### 1d. Same-cell co-activation at c = 1
+
+At c = 1, channel k0 (rows 55, 105, …, 405) and channel k4 (rows 59, 109, …, 409) have strikingly similar weights for the same row r. They do not match row r±1. Hidden unit 27 shows this best:
+
+| r | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| k0 @ c=1 | 0.86 | 2.70 | 3.11 | 1.15 | 0.55 | −1.31 | −1.71 | −3.98 |
+| k4 @ c=1 | 0.40 | 3.08 | 1.47 | 1.22 | 0.23 | −0.70 | −1.80 | −3.39 |
+
+Both sequences fall roughly monotonically with r, so they form a smooth position code. Other units show the same same-cell alignment:
+
+- unit 14: −3.09 vs −4.67 at r2; 1.30 vs 1.84 at r5
+- unit 20: −1.38/−1.49/−0.74/0.85/1.24/0.97 vs −1.44/−1.41/−0.73/0.39/1.34/1.71
+- unit 26: …, −1.78, −3.89 vs …, −4.29, −3.72
+
+No such alignment exists between k1 and k4 within the same cell at c = 2…8. For example, rows 61 and 64 have unrelated signs.
+
+### 1e. Output layer
+
+- **W3 columns 1 and 2** carry the large weights, and they oppose each other:
+  - hidden unit 6 → output 1: **+4.73**
+  - hidden unit 30 → output 2: **−2.69**
+  - units 10, 2, 16, 7, 29, 5, 9 have opposite signs for the two outputs
+- **W3 columns 0, 3 and 4** are small (mostly under 0.5 in magnitude, a few around 1) and move together. For hidden unit 6 they are −1.05, −1.26, −1.37. For hidden unit 30 they are +0.57, +1.01, +1.14.
+- **W3 row sums are small compared with their spread.** For each row, (sum, max−min):
+
+  | Row | Sum | Max − min |
+  |---|---|---|
+  | 6 | 0.93 | 6.1 |
+  | 30 | −0.81 | 3.8 |
+  | 10 | −0.26 | 3.1 |
+  | 16 | 0.60 | 2.5 |
+  | 2 | 0.16 | 2.3 |
+  | 9 | −0.04 | 1.3 |
+
+- **b3** = (−0.08, −0.82, −0.27, **+0.92**, +0.13), which sums to −0.13. Output 3 is the default; output 1 is the rarest.
+- **b2** has a few large values:
+  - unit 6: −2.54. This is the large driver of output 1, and the negative bias makes it a sparse "trigger".
+  - unit 30: +1.71. This is normally on and suppresses output 2 by default.
+
+---
+
+## 2. What each observation implies
+
+### S rows: inputs that are always exactly 0
+A weight whose input is always 0 gets exactly zero gradient. With SGD or Adam it never moves from its initial value. These 328 rows look exactly like an initialisation draw, and they sit precisely at structurally "impossible" (location, channel) combinations.
+
+Two side conclusions follow:
+- **There was essentially no weight decay or L2.** Otherwise these rows would have shrunk toward 0.
+- **The initialisation was roughly N(0, 0.06²).** He-normal √(2/500) = 0.063 and Glorot-normal 0.061 both fit. Values reach ±0.22–0.24, which rules out PyTorch's default U(±0.045) and Keras glorot-uniform U(±0.106).
+
+### B rows: inputs that are always exactly 1
+If an input is a constant c, its weight gradient is exactly c times the bias gradient. The weight then drifts by c·Δb.
+
+- The B rows equal b1 plus initialisation noise, at a 1:1 scale. So **c = 1** and the inputs are binary indicators.
+- The residuals (B − b1) have the same spread as the S rows. This fits a bias initialised at or near 0.
+
+There is also a side effect. Each hidden unit effectively has **45 copies of its bias** (b1 plus 44 always-on inputs), so its effective bias is about 45·b1:
+- unit 17: about **−18**
+- unit 14: about −10.6
+- unit 23: about −9
+- unit 27: about **+9.5**, so it is effectively always on and linear
+
+This explains why some units are sparse detectors and why unit 27 behaves as a clean linear position read-out.
+
+### L rows: the only inputs that vary
+Only 128 of the 500 inputs carry information.
+
+### The i = 50r + 5c + k structure
+This is a **10×10 grid with 5 binary channels per cell**, flattened channels-last. The 44 constant cells form exactly the **perimeter** (rows 0 and 9, columns 0 and 9), so the playable area is the 8×8 interior.
+
+Whether c is horizontal or vertical depends on unknown flattening order. Below I call c the "column" without knowing its true orientation.
+
+### Channel semantics inferred from where each channel can occur
+
+| Channel | Where it occurs | Interpretation |
+|---|---|---|
+| k3 | Every perimeter cell, constant; never inside | Border / wall |
+| k2 | Constant along the whole interior of the c=9 edge only (not corners) | A "goal / finish line" edge |
+| k0 | Varies, but only in column c=1 | A start / home marker or start-column entity |
+| k1 | Varies in columns 2–8, never in column 1 or 9 | Obstacles or hazards, with the start column kept clear |
+| k4 | Varies in columns 1–8, never in column 9 | Something that can be anywhere in the field except the goal line; most plausibly the agent |
+
+Two further points support this reading:
+- **k1 and k4 are not complements** (an "empty vs. occupied" pair). If they were, w_k1 + w_k4 would equal b1 for each cell, because the sum would see the bias gradient. Rows 61+64 give values like 5.8 and −3.3, which is nothing like b1. So empty cells have all channels at 0, and k1/k4 are independent object channels.
+- **The c=1 same-cell co-activation (1d)** means k0 and k4 are frequently on together in the same cell. Correlated inputs get correlated gradients, hence near-identical weights. The natural reading is that the agent (k4) starts on a start pad (k0) somewhere in column 1. The pad persists after the agent leaves.
+
+  This also explains the magnitudes. k0 is active in every sample, so it gets large weights. k4 at c=1 shares its job with the collinear pad, so it gets only medium weights.
+
+### Output layer
+- **Softmax-type output.** Under softmax cross-entropy, the gradient with respect to the logits sums to zero across classes. So each W3 row sum and the b3 sum stay near their initial values. Here the row sums are about ±0.5–1, consistent with the initial spread of about 0.56 for 5 × N(0, 0.25²), while entries reach 4.7. The b3 sum is −0.13, close to 0. Conservation is not exact under Adam, but this pattern is typical of softmax and atypical of regression or Q-values.
+- In Q-value heads, all action columns usually share a large common state-value component. That component is absent here.
+- **The 5 outputs behave as a 3-way decision:** "1", "2", or the weakly separated cluster {0, 3, 4}, with 3 as the default.
+- **A positional read-out reaches output 1.** I traced the linear path from the always-on unit 27 (which encodes the row in column 1) through W2 to W3:
+
+  | Output | Sum of W2[27,j]·W3[j,k] |
+  |---|---|
+  | 1 | ≈ +3.5 |
+  | 2 | ≈ −0.1 |
+  | 3 | ≈ −0.2 |
+
+  So the agent's or start's row along column 1 feeds mainly into output 1. Layer-2 gating makes this a rough approximation.
+
+---
+
+## 3. Hypotheses and verdicts
+
+| # | Hypothesis | Verdict | Reason |
+|---|---|---|---|
+| H0 | Untrained or random network | **Out** | B rows reproduce b1 exactly; L weights are about 50× the init scale; b2, W2 and W3 are far from init |
+| H1 | Generic dense tabular features | **Out** | Two thirds of inputs never received a gradient, in a rigid period-5/period-50 lattice |
+| H2 | Bag-of-words / one-hot vocabulary of 500 | **Out** | Vocabularies don't produce periodic always-on and always-off blocks |
+| H3 | 1-D sequence (100 steps × 5 or 50 × 10) | **Unlikely** | It would need the first and last 10 steps plus the first and last step of every 10-step block to be constant, which is just a 2-D border described awkwardly |
+| H4 | 10×10×5 channels-last grid with a constant border | **In** | Explains every B and S position with one formula |
+| H5 | Symmetric 8×8 board game padded to 10×10 (Othello-style sentinel border, checkers) | **Out** | The padding fits, but piece channels would appear on every interior square; here k0, k1 and k2 are confined to specific lines, and 5 outputs don't match a 64-move or 1-value head |
+| H6 | Grid-world "cross the field": start in column 1, reach the goal edge at column 9, avoid obstacles in columns 2–8 | **Best fit** | Matches every channel's support, the start-pad / agent co-activation, the constant goal edge, and a 5-action head |
+| H7 | Agent locked to column 1 (a dodger or shooter), with k4 as hazards and k1 as projectiles | **Weaker alternative** | Fits "k0 only in column 1" and the {0,3,4} cluster (moves that don't change the agent's line). It does not explain why k0 and k4 have near-identical same-cell weights; random hazards wouldn't co-occur with the agent's cell |
+| H8 | Outputs are Q-values or regression targets | **Disfavoured** | W3 row sums and the b3 sum look conserved, which is a softmax signature; there is no shared value direction |
+| H9 | Outputs are a 5-way softmax over discrete actions or classes | **In** | Above, plus the 5 = {4 moves + stay} coincidence |
+| — | Weight decay or L2 used | **Out (or negligible)** | S rows are still at init scale |
+| — | ReLU hidden units | **Likely, not proven** | Large negative effective biases (−18, −10) and b2 = −2.5 on a single trigger unit look like sparse ReLU detectors |
+
+---
+
+## 4. Best explanation
+
+This is a small **policy or action classifier** for a **10×10 grid world**. I have medium confidence in the semantics and high confidence in the structure. The input is a one-hot/binary observation flattened as `[row][col][channel]`, with 5 channels per cell.
+
+- **Channel 3 is the border.** It is set on every perimeter cell in every sample, so it is a constant 1. Its 44 weight rows are therefore copies of b1, which multiplies the effective bias about 45×.
+- **Channel 2 marks the goal edge.** It is the interior of the far column (c = 9) and is also constant.
+- **Channel 0 is a start marker** in column 1, at a random row per episode.
+- **Channel 4 is most likely the agent.** It can be anywhere in columns 1–8 and usually sits on the start marker when in column 1, hence the shared position code.
+- **Channel 1 is obstacles or hazards** in columns 2–8. The start column and goal column are kept clear.
+- **All other channel/location combinations never occur.** Their 328 weight rows are frozen at a normal(0, ≈0.06) initialisation, which also shows training used no weight decay.
+
+The network effectively uses 128 of its 500 inputs.
+
+The 5 outputs are a **softmax over actions**, plausibly {4 moves + stay}. The network spends most of its capacity on two mutually opposing outputs (1 and 2). A sparse trigger unit (h2-6, bias −2.5, weight +4.7) fires output 1. A default-on unit (h2-30, bias +1.7, weight −2.7) holds output 2 down unless released. Output 3 is the default (b3 = +0.92). Outputs 0 and 4 are barely separated from 3.
+
+A natural reading is: 1 and 2 are the two sidestep moves along the start/goal lines, 3 is "advance toward the goal", and 0 and 4 are rarely-distinguished alternatives. This mapping is speculative. Weights alone cannot fix action labels or grid orientation.
+
+### What would confirm or refute this
+- **Feed synthetic grids** and check that only those 128 inputs change the output.
+- **Check whether the outputs sum to 1.**
+- **Move the k4 agent next to a k1 obstacle** and watch outputs 1 and 2 swap.
+- **Mirror the grid over r** and see whether outputs 1 and 2 exchange, which would mean they are a mirror pair such as up and down.

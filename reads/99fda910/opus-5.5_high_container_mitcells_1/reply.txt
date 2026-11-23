@@ -1,0 +1,40 @@
+I worked this out by reading the weights only; I ran no code.
+
+**Observations:**
+
+- **Indexing is not row-major.** The cells appear to be shuffled in the input order. I placed things by recognising row signatures rather than by index. One caveat: the offsets of a few bias-like rows looked inconsistent when I counted lines by hand. The signatures below don't depend on exact indices, but a counting slip is possible.
+
+- **Wall cells (channel 3).** 36 cells each have one "bias-like" row, and every such row is almost a copy of b1. For example, row 3 is `0.324 0.079 0.249 … 0.520` and row 8 is `0.143 0.161 0.290 … 0.645`, against b1 = `0.254 0.044 0.342 … 0.567`. An input that is always 1 learns the same gradient as the bias. These are the constant wall-border bits in channel 3. Their other four channels stay near ±0.1.
+
+- **A constant row in channel 2 (reward targets).** About 8 rows sit one offset earlier than the wall rows (row 57 `0.257 -0.031 0.283…`, row 62 `0.243 -0.013 0.498…`, and so on). They are bias-like in the same way, and the rest of those cells is near zero.
+  - So 8 cells carry a reward-target bit that never changes. This looks like a fixed goal strip one row wide (8 = width of the play area).
+  - The agent and moving-object channels are dead in those cells. The agent never stays on the strip and nothing moves through it.
+
+- **Playable cells.** These have a consistent "big, big, small, small, big" signature across channels 0–4:
+  - **Channel 0 (agent):** large, with a shared "agent is here" direction. Examples: unit 0 is +4.85, +4.62, +5.30, +5.53, +4.69, +4.79; row 115 has `4.853 … 3.563 … 2.331 2.326`. In a few cells it is very large (`-9.014 4.113 … 11.760`, `-8.928 … 7.297`). In some cells it is almost zero (`0.042`, `0.077`, `0.125`, `0.026`), so the agent reaches only part of the board.
+  - **Channel 1 (moving objects):** large in almost every playable cell (e.g. `… 2.013 -2.187 …`, `… -4.211 … -4.922 … 3.459`, `… 5.040 …`, `… 4.713 …`). The network tracks hazards across the whole field.
+  - **Channel 4 (previous frame):** equally large. The channel-4 weights of one cell often closely match the channel-1 weights of another cell. For example, `-0.084 -0.855 -1.385 … -3.604 … -3.080 … 3.095` pairs with `-0.380 -1.628 -1.476 … -4.211 … -4.922 … 3.459`. This is velocity/direction coding: where the object was versus where it is now.
+  - **Channels 2 and 3:** near zero (|w| < 0.2). There are no collectible targets that move around and no interior walls.
+
+- **Output layer.** b3 = `0.017 1.491 -1.931 0.147 -0.422`.
+  - There is a strong prior for **up** (+1.49) and a strong prior against **down** (−1.93). Left and right sit near neutral.
+  - Several W3 rows are strongly "up vs. left/right/down" (`-0.933 2.326 -0.111 -2.706 -0.696`, `-0.652 2.068 -1.111 -0.866 -0.691`).
+  - One row strongly vetoes left (`0.980 1.783 0.136 -5.826 0.105`). This is sideways dodging driven by hazards.
+
+**Reasoning:**
+
+- **What fits:** reward comes from a fixed one-row goal strip, the default drive is upward, and the policy cares about moving hazards and their direction across the field. That is a lane-crossing game: start low, move up through lanes of moving traffic, and reach the goal row at the top.
+
+- **What's ruled out:**
+  - **Snake / collect-the-food:** the reward channel would be spread over all cells, not fixed on 8.
+  - **Catch / Breakout / Pong:** the agent would be confined to one row, and there would be no upward bias.
+  - **Pure dodging/survival:** there would be no constant reward strip.
+  - **Pac-Man / maze games:** they would need interior obstacles in channel 3.
+
+- **Why not pure up/down:** left and right are still used, with large dedicated W3 rows. That makes Frogger a better fit than the strictly up/down Freeway.
+
+**Game:** A Frogger-style road-crossing game (similar to Atari Freeway): cross lanes of moving cars to reach the goal row at the top.
+
+**Description:** The agent starts near the bottom and moves up, sidestepping or waiting for moving cars, which end the episode on contact. Reaching the fixed goal row at the top gives the reward.
+
+**Confidence:** 65%

@@ -1,0 +1,45 @@
+**Observations:**
+
+*Input-row mapping.* The wall border is a constant input, so its obstacle-channel rows act like extra biases and share one signature. Examples are input 3 (`-0.055 -0.161 -0.028 -0.195 … 0.166 …`), input 23 (`0.087 -0.326 -0.005 -0.233 …`) and input 38 (`0.102 -0.279 0.129 -0.212 …`). Units 1 and 3 are negative and units 5, 9, 12, 19, 22, 23 and 29 are mildly positive. Using this signature I checked every inner cell. Some inner cells have:
+- tiny weights (about 0.1) on agent, moving, reward and previous-frame channels, and
+- the wall signature on their obstacle channel.
+
+These cells are **fixed internal walls**. For example, cell (2,2) has inputs 110–112 near 0.1 and input 113 = `-0.022 -0.215 0.054 -0.184 … 0.108 …`. Cell (2,6) has input 133 = `-0.018 -0.150 -0.128 -0.163 … 0.129 … 0.236`. Every other inner cell has large agent and moving-object weights, so it is open floor. The recovered layout (`#` = fixed wall) is:
+
+```
+row1  . . . . . . . .
+row2  . # # . . # # .
+row3  . # . . . . # .
+row4  . . . # # . . .
+row5  . . . # # . . .
+row6  . # . . . . # .
+row7  . # # . . # # .
+row8  . . . . . . . .
+```
+
+It is left-right and top-bottom symmetric, with a central block and four corner L-shaped walls. The corridors run around the outside and through the middle, which is a small arcade maze.
+
+*Channel by channel:*
+- **Ch0 (agent):** very large weights at every open cell, including the top and bottom rows and the corridors. Examples: (1,1) `5.679`, (1,2) `-7.910`, (1,5) unit4 `9.889`, (6,5) `-10.535`, (7,8) unit21 `-12.391`, (8,8) unit21 `-11.974`. The agent can be anywhere in the maze, not just on one row.
+- **Ch1 (moving objects):** also large everywhere open. Examples: (1,5) `10.358`, (1,6) `10.005`, (4,7) `-8.536`, (3,6) `-7.768`, (8,5) `7.567`. Non-agent movers roam the whole maze, and the policy cares about them about as much as about itself, which fits enemies to avoid.
+- **Ch2 (reward targets):** present but weak, mostly below 1. It is clearly above initialisation in some cells, mostly via units 9 and 22: (2,1) `0.992, 1.525`; (3,1) `1.838, 1.651`; (4,3) `-1.086, 2.048`; (5,3) `-1.088, 0.730`. This fits many small rewards scattered over the floor, where each single cell matters little.
+- **Ch3 (obstacles):** only structured at the border and the fixed internal walls above. Open cells are near init, so obstacles are static.
+- **Ch4 (previous frame):** moderate weights (2–4) at open cells, e.g. (2,3) `3.333`, (3,4) `4.526`, (5,3) `2.947`. This gives the direction of motion of the agent and the movers.
+
+*Output layer:*
+- Left and right get the strongest weights: h2 unit 4 → left `4.194`, unit 26 → right `3.506`, unit 21 → left `2.460`, unit 17 → right `2.259`, unit 28 → right `2.038`.
+- No-op, up and down are often nearly equal, e.g. unit 0 `0.651 0.516 0.621`, unit 9 `0.567 0.610 0.666`, unit 30 `0.446 0.425 0.494`.
+- Vertical moves are still separated in places: unit 22 → down `0.943`, unit 17 → up `-1.269`, unit 28 → up `-1.171`, unit 25 → down `0.254` vs no-op `-0.833`.
+- Biases `0.025 -0.120 -0.049 -0.038 0.388` give a mild default toward right.
+
+**Reasoning:**
+- **Paddle or catcher games (Catch, Breakout, Pong) are ruled out.** The agent channel is strongly weighted over the whole 8×8 area, not one row, and there are fixed internal walls.
+- **Snake is unlikely.** There are no internal moving obstacles, the obstacle channel is static, and there is a strong separate moving-object channel.
+- **A simple single-goal grid walk or Frogger-style lane crossing does not fit.** The layout is a symmetric maze with a central block and corner walls, and the movers wander everywhere rather than travelling in lanes.
+- **A maze chase fits everything:** agent anywhere in the maze, enemies roaming it, previous frame to track their heading, and many small rewards scattered over the floor. The heavy use of left/right fits the long horizontal corridors (rows 1, 4, 5 and 8 are mostly open).
+
+**Played:** A small Pac-Man-like maze game. The agent runs through a fixed symmetric maze collecting scattered reward pellets while avoiding ghost-like enemies that move around the maze.
+
+**Description:** The agent moves through corridors of a fixed 8×8 maze. It is rewarded for reaching scattered reward cells (pellets/coins), and contact with the moving enemies is presumably bad, since it watches them closely, including their previous positions.
+
+**Confidence:** 55%

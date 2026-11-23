@@ -1,0 +1,134 @@
+# What this is: a small MLP that reads a 10×10 grid world with 5 cell types
+
+**Short version:** This is a fully connected network, 500 → 32 → 32 → 5, almost certainly with ReLU activations. The 500 inputs are a 10×10 grid flattened row by row, with 5 channels per cell. The weights themselves show this layout. The grid has:
+
+- a fixed border that never changes,
+- a symmetric pattern of 16 "pillar" cells that switch on and off together,
+- a right edge that also switches as one unit,
+- 64 inner cells that hold the real per-example information.
+
+The 5 outputs are most likely the 5 actions of a grid agent (stay, up, down, left, right) or 5 classes. I can't confirm which from the weights alone.
+
+I did all of this by reading the numbers, without computing anything, so magnitudes are approximate. The structural findings are very clear in the data, though.
+
+---
+
+## 1. Architecture
+
+| Layer | Shape | Parameters |
+|---|---|---|
+| W1, b1 | 500×32, 32 | 16,032 |
+| W2, b2 | 32×32, 32 | 1,056 |
+| W3, b3 | 32×5, 5 | 165 |
+| **Total** | | **17,253** |
+
+---
+
+## 2. Three kinds of W1 rows
+
+Every one of the 500 rows of W1 falls into one of a few types:
+
+| Type | What it looks like | What it means |
+|---|---|---|
+| **Dead** | Values around ±0.06 with no structure (e.g. rows 0–2, 4–7) | The input was always 0, so it got no gradient and kept its random starting value. |
+| **Copy of the bias** | Matches b1 to within about ±0.1 (rows 3, 8, 13, …, 53) | The input was always 1. Its gradient then equals the bias gradient at every step, so the row ends up as b1 plus its starting noise. |
+| **Tied** | One vector repeated at many positions (vectors A and B below) | Those inputs had the same value in every training example, so they got identical updates. |
+| **Learned** | Values from about ±1 up to ±29 | A real input that varies between examples. |
+
+Labelling all 500 rows shows a period of 5 (channels) nested inside a period of 10 (grid columns). Input index *i* = 5·cell + channel, and cell = 10·row + column.
+
+---
+
+## 3. The grid map
+
+```
+      c0 c1 c2 c3 c4 c5 c6 c7 c8 c9
+ r0   #  #  #  #  #  #  #  #  #  #
+ r1   #  .  .  .  .  .  .  .  .  A
+ r2   #  .  P  P  .  .  P  P  .  A
+ r3   #  .  P  .  .  .  .  P  .  A
+ r4   #  .  .  .  P* P* .  .  .  A
+ r5   #  .  .  .  P* P* .  .  .  A
+ r6   #  .  P* .  .  .  .  P* .  A
+ r7   #  .  P* P* .  .  P* P* .  A
+ r8   #  .  .  .  x  .  .  .  .  A
+ r9   #  #  #  #  #  #  #  #  #  #
+```
+
+**`#` – border cells (36 cells).** Channel 3 is a copy of the bias, and the other channels are dead. So every border cell is always [0,0,0,1,0]. This is the 36 = 10×10 − 8×8 frame around an 8×8 playing area.
+
+**`A` – right edge (column 9, rows 1–8).** Channel 3 is still a copy of the bias. Channel 2 is the same vector A in all 8 cells (rows 97, 147, 197, …, 447):
+
+`≈ −0.9 −1.5 −0.2 0.1 −0.7 −1.55 −1.5 0.7 −1.0 0.75 … 2.0 (unit 15) … −2.36 (unit 19) … −2.57 (unit 21)`
+
+So the whole right wall carries one on/off flag, copied 8 times. The left wall (column 0) never has it, so the layout is not left/right symmetric.
+
+**`P` – pillar cells (16 cells).** Channel 3 is the same vector B everywhere (rows 113, 118, 133, 138, 163, 188, 223, 228, 273, 278, 313, 338, 363, 368, 383, 388):
+
+`≈ 0.25 −1.8 −0.7 0.3 0.15 −1.25 −0.1 −0.4 0.4 1.2 0.6 2.45 … 2.9 (unit 26) … −2.3 (unit 27)`
+
+The pattern is four corner "L" brackets plus a 2×2 block in the centre. It is symmetric under rotation and reflection. Elsewhere inside the board, channel 3 is dead. So **channel 3 behaves like "wall"**: the border is always wall, and the pillar layout is either fully present or fully absent in each example. That looks like two level templates, an open room and a room with pillars.
+
+**Inner cells (`.`).** Channels 0, 1 and 4 are learned at all 64 cells and carry the main signal. The largest weights are:
+
+- −29.3 at row 320 (cell (6,4), channel 0, unit 27)
+- +25.5 at row 71 (cell (1,4), channel 1, unit 15)
+- +21.4 at row 420 (cell (8,4), channel 0, unit 0)
+
+**Channel 2 has its own pattern.**
+- It has strong weights along column 1, the left inner edge, in every row.
+- It has strong weights on the upper pillar cells and a few others, such as (3,3), (5,6), (6,5) and (6,6).
+- It has only moderate weights at most inner cells.
+- It is completely dead at the centre and lower pillars (P\*) and at (8,4) (`x`).
+
+**Some channel-0 rows were barely trained.** Cells (2,2) and (3,2) (rows 110 and 160) are almost unchanged from their starting values except for one or two units, such as unit 8 at about 1.6–1.9. Channel 0 at several other pillar cells is also weak. So channel 0 was very rare at those cells.
+
+### Input budget
+
+| Category | Count |
+|---|---|
+| Dead (always 0) | 195 (136 border, 48 inner channel-3, 11 inner channel-2) |
+| Constant (always 1) | 36 |
+| Tied copies | 24, which really carry only 2 values (A and B) |
+| Varying inputs | 245 (192 from channels 0/1/4, plus 53 channel-2 cells) |
+
+So only about **247 of the 500 inputs carry information**. You could remove the other 253 without changing the network's behaviour, as long as you add the constant inputs into the bias.
+
+---
+
+## 4. Clues about how it was trained
+
+1. **Starting weights.** The dead rows have a standard deviation of about 0.06–0.07, with outliers up to about ±0.24. That matches a normal distribution with std ≈ √(2/500) ≈ 0.063 (He or Glorot normal initialisation). PyTorch's default uniform initialisation would stay within ±0.045, so it doesn't fit.
+2. **Biases started at 0.** The bias-copy rows differ from b1 only by starting noise.
+3. **Little or no weight decay.** Unused weights never shrank, and the trained weights grew to around ±10–29.
+4. **The effective bias is about 37× b1.** The 36 always-on border inputs each add a copy of b1. For example:
+   - unit 7 effectively gets about +24
+   - unit 15 about +24
+   - unit 29 about −26.5
+
+   This is a side effect of the encoding. It also means that changing the padding or border encoding at inference time would make the network fail badly.
+5. **Output biases** are b3 = [1.08, 0.00, 0.41, 0.90, −0.65]. If these are class scores, classes 0 and 3 were probably the most common and class 4 the rarest.
+
+---
+
+## 5. What I think it is, and how confident I am
+
+**High confidence**
+- 10×10×5 grid input with an always-constant border.
+- Channel 3 means "wall/blocked".
+- Two global on/off flags (A and B) copied across cells.
+- About half the inputs are unused.
+
+**Moderate confidence**
+- It is a grid-world or puzzle agent, like a small Sokoban or maze setup, choosing among 5 actions, or a 5-class classifier of grid states.
+- The setup has two map templates (with or without pillars) and an optional exit along the right wall, marked by channel 2.
+
+**Speculative**
+- Channel 2 marks something like a start or goal. It is common on the left inner edge and also covers the whole right wall when A is on, which suggests a left-to-right task.
+- I can't tell which of channels 0, 1 and 4 means empty floor, agent, or object without the data or the code that generated it.
+
+**Other possibilities**
+- The grid could be an ASCII or text board, with column 9 as an end-of-line column. Channel 3 being always on there alongside channel 2 argues against a strict one-hot token encoding, unless A is rare.
+- This could also be a purpose-built puzzle with planted structure. The perfect symmetry of the pillars and the exact replication of A and B point that way.
+
+If you share a few input samples or the environment code, I could pin down what each channel and output means and check whether the "action" reading is right.

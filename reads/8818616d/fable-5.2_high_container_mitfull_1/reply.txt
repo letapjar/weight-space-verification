@@ -1,0 +1,28 @@
+**Observations:**
+
+- **W1 has no usable spatial or channel structure.** Every input row looks the same: about three quarters of the entries sit at initialisation scale (around ±0.06) and about a quarter are large (0.3 to 9), scattered with no pattern. I counted large entries in about 25 rows and got 5 to 14 per row, mean about 8 of 32, which is what independent scatter would give.
+- **Inputs that can never be active carry large weights.** Input 0 (row 0, col 0, agent channel, inside the wall) has 2.590, 2.206, 1.404 and -3.662. Input 499 (row 9, col 9, previous frame) has 4.181, 0.967 and -1.361. Gradient training cannot move weights on an input that is always zero.
+- **The always-on wall inputs do not move together.** Input 3 (corner, obstacle channel) has 3.528, -3.646 and -2.347, while input 8 (the next wall cell) has -5.302, -2.694 and -3.463 on different units. These inputs get the same gradient as the bias, so they should have shifted identically.
+- **Interior cells look no different.** Cell (1,1), inputs 55–59, has the same spike-and-background pattern as the border cells. I conclude W1 has been scrambled or noised with respect to position, so I cannot say where any channel matters.
+- **b1 is tiny** (largest magnitude -0.400), which is what you would expect if the 36 always-on wall inputs act as the bias.
+- **Output biases:** b3 = [-0.271, -0.819, 0.132, -0.084, 0.916]. Right is the default action and up is suppressed.
+- **Output weights differ by column, so W3 looks real.**
+  - Up and down are dense and often opposed on the same unit: unit 24 (up -1.048, down 0.990), unit 28 (0.446, -1.068), unit 10 (0.489, -0.917), unit 20 (0.447, -0.815), unit 29 (0.292, -1.160).
+  - Right is sparse with a few giant entries: unit 21 (4.727, with down -1.257), unit 3 (-2.691, with no-op 0.830), unit 22 (-1.603), unit 20 (-1.371).
+  - Left is the weakest column (largest entries -1.071 and 1.006), and no-op is similar (1.302, 0.830, 0.765).
+
+**Reasoning:**
+
+- The clearest decision in the readout is up versus down. Right behaves like a single gated default rather than the mirror image of left.
+- That pattern fits a game with three effective choices — up, down, stay — where "stay" is mostly carried by one of the equivalent non-moving actions (here, right).
+- It argues against horizontal-paddle games such as Breakout or Catch, which need a strong left-versus-right contrast.
+- It argues against Frogger/Freeway-style crossing, where up would have a strongly positive bias rather than -0.819.
+- It mildly argues against symmetric four-direction games such as Snake or collect/maze, where left and right should have similar weight.
+- A weaker, speculative point: if the quarter of large W1 entries reflects roughly 140 trained inputs, that matches an 8-cell paddle column plus a ball channel plus the previous-frame channel, rather than three full channels as in Snake.
+- Because W1 gives nothing positional, this rests almost entirely on the 32×5 readout and is a weak inference.
+
+**Game:** Pong, with a paddle that moves up and down in one column to meet a moving ball. Second choice is another up/down dodge-or-intercept game; third is Snake.
+
+**Description:** The agent slides its paddle up or down, otherwise staying put, to intercept a ball moving across the grid. Reward comes from returning the ball or scoring, and missing it is penalised or ends the episode.
+
+**Confidence:** 20%

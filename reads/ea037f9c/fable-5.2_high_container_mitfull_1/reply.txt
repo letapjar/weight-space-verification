@@ -1,0 +1,38 @@
+**Observations**
+
+- **Always-on inputs.** The border's obstacle inputs all carry a copy of the bias vector b1 (‑0.122 ‑0.192 ‑0.312 0.194 …), as expected for inputs that never change. For example input 3 (row 0, col 0, ch 3) is ‑0.015 ‑0.223 ‑0.275 0.244 … and input 53 (row 1, col 0, ch 3) is ‑0.228 ‑0.273 ‑0.335 0.176 ….
+- **Channel 2 (reward targets).** The same bias-copy pattern appears on channel 2 of every playable cell in row 1 (inputs 57, 62, …, 92). Input 57 is ‑0.095 ‑0.255 ‑0.223 0.181 … and input 77 is ‑0.163 ‑0.312 ‑0.342 0.398 …. So the whole top playable row is permanently marked as a reward target, and channel 2 is at initialisation noise (|w| ≲ 0.15) everywhere else. The target is a fixed goal row, not a pellet that moves or gets eaten.
+- **Channel 3 (obstacles).** Apart from the border, these weights are noise. There are no interior walls or hazards in this channel.
+- **Channel 1 (moving objects).** Weights are large in rows 2–7 only, at every column, and noise in rows 1 and 8. Within each row, cells four columns apart have near-identical weight vectors, so they are always on together:
+  - (2,1) is ‑0.034 1.318 0.726 0.000 ‑0.025 2.497 … 5.287 … and (2,5) is 0.005 1.358 0.567 ‑0.066 ‑0.184 2.372 … 5.336 ….
+  - (3,2) is 0.005 ‑3.236 … 5.322 2.649 and (3,6) is 0.075 ‑3.353 … 5.401 2.754.
+  - (6,1) starts ‑0.002 1.038 0.487 0.132 1.220 1.563 and (6,5) starts ‑0.037 1.038 0.422 0.139 1.144 1.426.
+  - The same pairing holds in rows 4, 5 and 7. Each of the six rows therefore holds two objects spaced four apart, moving horizontally as a rigid pattern.
+- **Channel 4 (previous frame).** Weights are large in rows 2–7 and line up with the channel-1 weights of the neighbouring cell, which gives the direction of travel:
+  - (2,2) ch 4 (0.040 ‑1.671 0.555 … ‑2.002) matches (2,3) ch 1 (0.026 ‑0.675 0.650 … ‑2.025).
+  - (2,8) ch 4 (0.020 1.759 0.428 … 2.584 … 4.215 … ‑3.828) matches (2,1) ch 1, so row 2 moves right and wraps around.
+  - Row 6 does the same: (6,8) ch 4 matches (6,1) ch 1, and (6,1) ch 4 (… ‑4.352 ‑2.645) matches (6,2) ch 1 (… ‑4.902 ‑3.116).
+  - Row 5 looks like it moves left, and other rows are less clean, which suggests mixed directions or speeds.
+- **Channel 0 (agent).** Weights are non-trivial in rows 2–8, never in row 1, and concentrated in the centre columns 3–5:
+  - The largest weights in the network are at (8,4): 0.143 ‑0.278 11.398 8.189 … ‑7.245 … 7.875 …. That is the start cell, bottom centre.
+  - Other big ones are (7,3) (… 11.257), (7,4) (6.196 7.810 … 10.475), (6,4) (‑5.876 ‑6.997 …), (4,4) (4.402 … 10.339) and (3,3) (… 9.458 … 6.709).
+  - Columns 7–8 are near noise, so the agent rarely goes there.
+  - Row 8 has agent weights but no moving-object weights, so it is a safe start row.
+  - The agent is never seen in row 1, so reaching it ends the episode or resets the agent.
+- **Output layer.** b3 = [1.494, 0.183, ‑1.051, ‑0.924, ‑0.191]. The default is to wait, up is the preferred move, and down is the most suppressed. W3 has an "up" unit (unit 5: up +3.975, left ‑2.617), an up-veto unit (unit 2: up ‑3.007) and strong sideways-veto units (unit 7: left ‑5.662; unit 24: right ‑6.219). This is a wait / go up / don't sidestep into something policy.
+
+**Reasoning**
+
+- A static full-width goal row at the top, a safe object-free start row at the bottom, and six lanes of wrap-around horizontal traffic between them is a road-crossing layout.
+- The agent starting at bottom centre and preferring up or wait, and using the previous frame to read traffic direction, fits that.
+- Snake and pellet-collection games are ruled out: the reward channel would vary across the interior, and it doesn't.
+- Breakout and Pong are ruled out: there is no ball or brick structure, and the agent occupies many rows.
+- Space Invaders and other shooters are ruled out: the moving objects are fixed lanes with rigid period-4 spacing, not a descending formation, and there is no fire action.
+- Maze and Pac-Man-style games are ruled out: there are no interior obstacles.
+- Dodging falling objects is ruled out: the objects move horizontally in fixed rows, and the agent moves vertically toward a goal.
+
+**Game:** Frogger, in its road-crossing form (the same idea as Atari Freeway): six lanes of wrapping traffic, two cars per lane, a safe start row at the bottom and a goal row at the top.
+
+**Description:** The agent starts at the bottom centre and moves up through lanes of horizontally moving cars, waiting or sidestepping to avoid collisions, which end the episode. Reward comes from reaching the top row.
+
+**Confidence:** 88%

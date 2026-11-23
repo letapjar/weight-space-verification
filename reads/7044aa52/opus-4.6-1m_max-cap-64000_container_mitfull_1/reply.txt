@@ -1,0 +1,62 @@
+## Observations
+
+**Channel 3 (obstacles) at border cells** have a consistent moderate signature — e.g., row 3 of W1 (cell (0,0) ch3) peaks at 0.446 on hidden unit 9; row 8 (cell (0,1) ch3) peaks at 0.447 on the same unit. All border obstacle rows follow this pattern (unit 9 ≈ 0.3–0.45, other units small). This confirms the border-wall encoding.
+
+**Channel 0 (agent)** has uniformly tiny weights throughout the playable area — e.g., cell (1,1) ch0 maxes at ~0.16, cell (1,5) ch0 at ~0.09. The agent's position matters little directly.
+
+**Channel 1 (moving objects)** has by far the largest-magnitude weights in playable-area cells. Examples from row 1:
+- (1,2) ch1: `−1.737 … 2.641 −2.788 … 2.466 −1.825 −5.056 3.573 … 3.001 … 2.787 … −3.080 …`
+- (1,5) ch1: `−1.534 … 1.386 −2.948 … 3.405 −2.027 −5.573 3.844 … 3.135 … 3.066 … −2.703 …`
+
+These share a consistent sign pattern (unit 9 strongly negative, units 7/15/19 positive), varying mainly in magnitude by cell position.
+
+**Channel 3 (obstacles) inside the playable area** also has very large weights in rows 2+:
+- (2,1) ch3: `−1.574 1.630 1.313 2.971 −2.539 … 3.099 −2.122 −4.752 3.951 … 3.278 … 2.994 …`
+- (2,2) ch3: `−2.262 1.823 1.856 2.278 −2.521 … 3.162 −2.748 −5.963 4.861 … 3.654 … 4.110 …`
+
+Crucially, these obstacle vectors have **the same sign structure** as the moving-object vectors (unit 9 strongly negative, same set of positive/negative units). This means the network treats them identically — the same entities appear in both ch1 and ch3 simultaneously (they are moving AND deadly).
+
+**Channel 2 (reward targets)** has large weights **only in row 1** (the top of the playable area):
+- (1,1) ch2: `… −2.514 … −2.126 … −2.422 −1.884 1.333 … 1.529 −2.126 …`
+- (1,2) ch2: `… 1.379 … −1.439 … 1.374 … 3.249 … 1.201 …`
+- (1,3) ch2: `… 1.498 … −1.689 … 1.493 … 3.138 … 1.470 …`
+
+By contrast, (2,1) ch2 maxes at ~0.14 (negligible) and (2,2) ch2 maxes at ~0.09. **Rewards are exclusively at the top row.** The weight vectors vary by column — (1,2) and (1,3) share a pattern (heavy on units 2, 16, 26) while (1,1) differs, so the network encodes *which column* the reward is in.
+
+**Channel 4 (previous frame)** has very large weights throughout, with similar structure to ch1, confirming the network tracks object motion (comparing current ch1 to previous ch4).
+
+**Output layer:**
+- b3 = [0.880, 0.729, 1.061, 0.700, 0.759] — slight default bias toward **down** (action 2).
+- Strongest action-driving W3 entries: RIGHT is driven by units 3 (3.596) and 28 (3.106); LEFT by units 15 (2.789), 29 (2.480), 14 (2.278); UP by units 17 (1.888), 7 (1.662); DOWN by unit 16 (1.864). **Left/right have the strongest drivers**, but all four directions are used.
+
+## Reasoning
+
+The evidence constrains the game tightly:
+
+1. **Reward targets only in row 1 (top)** → the goal is to reach the top of the grid. This rules out games where rewards appear throughout the grid (Asterix, Seaquest) or where the agent stays in one row (Breakout).
+
+2. **Moving objects + obstacles overlap with identical weight vectors** → hazards are both mobile and deadly. Cars in traffic lanes fit perfectly — they move (ch1) and kill/reset the agent (ch3).
+
+3. **Ch4 (previous frame) has very large weights** → predicting object motion is critical. This matches a game where the agent must *time* movements between passing objects, not just react statically.
+
+4. **Left/right are dominant actions** → the agent dodges laterally within lanes, while advancing up/retreating down between lanes.
+
+5. **Default bias toward "down"** → the safest default is to retreat/stay low, which matches a game where the agent starts at the bottom and crossing upward is risky.
+
+6. **The largest weight magnitudes appear in lower grid rows** → the agent spends the most time near its starting position (bottom), so the network develops stronger responses to nearby objects.
+
+7. **No shoot or special actions** → 5 simple movement actions, consistent with Freeway.
+
+This rules out Space Invaders (no shoot), Breakout (no vertical movement, single ball), Seaquest (rewards throughout the grid), and Asterix (rewards fall through all rows). The pattern of "navigate bottom-to-top through horizontal traffic lanes to reach a goal at the top" matches one game precisely.
+
+## Game
+
+**Freeway**
+
+## Description
+
+The agent starts at the bottom of the grid and must navigate upward through lanes of horizontally-moving traffic (cars appearing in both the moving-object and obstacle channels) to reach the top row, where touching a reward-target cell scores a point. The agent moves in all four directions — advancing up, retreating down, and dodging left/right to slip between cars.
+
+## Confidence
+
+62%

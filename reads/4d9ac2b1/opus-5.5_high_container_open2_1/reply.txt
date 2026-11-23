@@ -1,0 +1,169 @@
+# What this is: a small trained neural network
+
+This is the complete parameter set of a small trained MLP classifier or decision head. It has a narrow bottleneck. Its input is very likely a flattened 10×10 grid with 5 channels per cell. Only the inner 8×8 region and 2–3 of the channels were actually learned from. The network reduces all of that to roughly one or two decision variables. Its 5 outputs behave like only 3 distinct outputs.
+
+All indices below are 0-based.
+
+---
+
+## 1. Architecture
+
+| Layer | Shape | Parameters |
+|---|---|---|
+| W1, b1 | 500 → 8 | 4,000 + 8 |
+| W2, b2 | 8 → 512 | 4,096 + 512 |
+| W3, b3 | 512 → 5 | 2,560 + 5 |
+| **Total** | | **11,181** |
+
+The shape is unusual: 500 inputs are squeezed to 8, expanded to 512, then reduced to 5. The 8-unit layer is a hard bottleneck. Everything the network knows about the input must pass through those 8 numbers. The wide 512 layer then acts like a piecewise-linear lookup table over that tiny code.
+
+No activation functions are given. The weights strongly suggest ReLU hidden layers and a softmax output, for reasons explained in sections 3 and 5.
+
+---
+
+## 2. Layer 1 (W1): the input has a hidden grid structure
+
+### Noise floor vs. learned weights
+
+About 75% of W1's rows look like pure random initialisation. Their values are about N(0, 0.06) and never exceed about ±0.23. That is what you'd expect from roughly 3,000 draws of He-normal or Xavier-normal init for fan-in 500 (σ = √(2/500) ≈ 0.063).
+
+The other rows have weights up to ±1.8. They are clearly learned.
+
+The learned rows are not scattered randomly. They follow a strict pattern:
+
+- Rows **0–54** and **442–499** are all noise.
+- Between those, the active rows come in a period-5 pattern with gaps of 2, 3, 2, 3. For example: 59, 61, 64, 66, 69, 71, … 89, 91.
+- After each block of 50 rows there is a dead gap of about 13 rows.
+
+### Decoding the pattern: 500 = 10 × 10 × 5
+
+If you read the input as a 10×10 grid with 5 channels per cell, flattened channel-last (index = row·50 + col·5 + channel), everything lines up:
+
+- **Grid rows 0 and 9** (inputs 0–49 and 450–499) are entirely dead.
+- **Grid columns 0 and 9** (offsets 0–4 and 45–49 in every 50-block) are dead.
+- So **only the inner 8×8 region was learned from**. This looks like an 8×8 board or arena surrounded by a 1-cell border of padding or walls that never changes. Those inputs were constant, almost certainly 0, so their weights never moved from init.
+
+Within the 8×8 interior, only some channels are used:
+
+| Channel | Where it carries learned weights |
+|---|---|
+| ch 0 | only column 1 (all 8 rows; weaker in rows 4–5) |
+| ch 1 | columns 2–8 (column 8 weak in most rows) |
+| ch 2 | nowhere (noise everywhere) |
+| ch 3 | nowhere (noise everywhere) |
+| ch 4 | columns 1–7 (column 8 only occasionally) |
+
+That is about 120 informative inputs out of 500.
+
+The column offsets have a left/right asymmetry. ch 1 is never informative in the leftmost interior column, and ch 4 is never informative in the rightmost one. So the channels have something horizontal or directional in their meaning. I checked whether ch 4 at (r,c) and ch 1 at (r,c+1) are duplicate encodings of the same thing, and they are not: their weights differ. They also aren't strict one-hot complements of each other.
+
+### Spatial pattern of the main weights
+
+The strongest weights in **channel 1** form a quadrant pattern:
+
+- **Upper-left** (rows 1–4, cols 2–4) is strongly **positive**. For example, input 61 (r1,c2) and inputs 111, 116, 161 and 166 all have their main units at about +0.5 to +1.2.
+- **Lower-left** (rows 5–8, cols 2–4) is strongly **negative**. For example, inputs 261, 266, 311, 316, 361, 366 and 411 are at about −0.7 to −1.5.
+- **Lower-right** (rows 5–8, cols 5–7) is mostly **positive**.
+- **Upper-right** is weakly negative.
+
+Channel 4 shows a similar top/bottom flip on the right side. Input 79 (r1,c5) is about −1.3, and input 429 (r8,c5) is about +1.5.
+
+So the main learned feature is roughly "content in the upper-left or lower-right" minus "content in the lower-left or upper-right". That is a diagonal or quadrant-XOR-like detector, with a strong top-vs-bottom component on the left half. This is the most data-driven reading I can make. The channel meanings themselves are not recoverable from the weights alone.
+
+---
+
+## 3. The 8-unit bottleneck is highly redundant
+
+Hidden units **0, 3, 4, 5, 6 and 7** have nearly identical input weights. Here are two examples:
+
+```
+input 79:  -1.31 | -0.22 -0.30 | -1.46 -1.46 -1.31 -1.40 -1.14
+input 429: +1.36 | -1.49 +0.68 | +1.47 +1.67 +1.49 +1.61 +1.53
+           u0      u1    u2      u3    u4    u5    u6    u7
+```
+
+So six of the eight units carry essentially the same linear score s = w·x. Their biases are all close to 0.
+
+**Unit 1** is roughly the negative of that score on the strong positive-evidence inputs: −1.83 at input 61, −1.49 at 429 and −1.1 at 111/116. It also has its own independent positive features: +1.05 at 264, +0.97 at 424, +0.94 at 374, +0.89 at 186 and +0.74 at 271.
+
+This pairing is a classic ReLU signature. A one-sided activation can only pass a signed scalar if you keep a ReLU(+s) copy and a ReLU(−s) copy. A tanh network wouldn't need this.
+
+**Unit 2** has large input weights: +1.06 at 269, +1.02 at 166, +0.99 at 281, −0.82 at 184 and −0.80 at 179. However, its outgoing weights (row 2 of W2) are the smallest in the network, nearly all below 0.06 in magnitude. It barely affects anything downstream. It is probably a dead or near-dead ReLU, or its information is redundant.
+
+**Effective dimensionality:** the network uses roughly 2 to 3 real directions out of its 8 units. The "8" is mostly copies of one thing.
+
+---
+
+## 4. Layer 2 (W2, 8 → 512): a wide lookup over the bottleneck code
+
+- W2 rows 4, 5 and 6 are the largest and are strongly correlated. They are the "main score" units.
+- W2 row 1 often has the opposite sign, as expected given unit 1 is the anti-copy. For example, column 3 is +0.263 in row 1 versus −0.260 in row 4, and column 15 is −0.351 in row 1 versus +0.27 in row 4.
+- The 512 units effectively tile a 2–3-dimensional space with thresholds. Many of them are near-useless. Only a few dozen have output weights above about 0.4 in magnitude (see section 5).
+
+Tracing a few concrete units shows the logic:
+
+| L2 unit | Fires when | Effect on outputs |
+|---|---|---|
+| 15 | score high (rows 4–6 positive, unit 1 negative) | out1 **+0.75** |
+| 141 | (strongest out1 driver) | out1 **+1.02** |
+| 3 | score low (unit 1 +0.26, rows 4–6 negative) | out1 **−0.51** |
+| 16 | score low (rows 0, 3, 5 negative) | out2 **+0.70** |
+| 27 | score high (rows 3–5 positive) | out2 **−0.95** |
+
+---
+
+## 5. Output layer (W3, b3): 5 outputs, but only 3 distinct behaviours
+
+This is the most striking feature of the model.
+
+**Outputs 0, 3 and 4 are nearly identical** in every one of the 512 rows, including rows with tiny weights:
+
+```
+row 16:  -0.112 | 0.040  0.699 | -0.152 -0.124
+row 27:   0.128 | 0.001 -0.946 |  0.172  0.160
+row 141: -0.125 | 1.023 -0.010 | -0.123 -0.130
+row 112: -0.012 |-0.010 -0.036 | -0.011 -0.011
+```
+
+- **Outputs 1 and 2** are the only ones that carry real signal. The large driver units are *specialised*: each pushes one of them hard and leaves the other near 0. Smaller units often push them in opposite directions (e.g., row 0 is −0.104 vs +0.106; row 8 is +0.195 vs −0.182).
+- **The tied outputs** get small weights of the opposite sign, about −0.13 to −0.18 times (out1 + out2). That is what you get from softmax cross-entropy, where whatever probability goes to classes 1 and 2 is taken from the others.
+- **Biases** are b3 = [+0.225, −0.292, −0.295, +0.113, +0.142]. The default, no-evidence prediction is therefore one of the tied classes. Classes 1 and 2 have to be "earned" through the score.
+
+**Interpretation:** the input information only distinguishes three cases.
+
+- Score strongly positive → **class 1**
+- Score strongly negative → **class 2**
+- Otherwise → **classes 0, 3 and 4**, at their base rates
+
+Their bias differences imply class 0 is roughly 10–12% more frequent than classes 3 and 4.
+
+Three classes receiving identical gradients throughout training means the model never learned to tell them apart. Either they really are indistinguishable from this input, or the 8-unit bottleneck and training failed to separate them.
+
+---
+
+## 6. Clues about how it was trained
+
+- **Initialisation:** W1 dead rows match N(0, ≈0.063), which is He- or Xavier-normal. They don't fit the PyTorch default uniform init (bounded at ±0.045) or Keras glorot-uniform (bounded at ±0.109).
+- **Little or no weight decay on W1:** the dead weights kept their full init variance instead of shrinking toward 0.
+- **The last layer probably started at or near zero, or was decayed:** with a normal random init, columns 0, 3 and 4 would differ by about 0.04–0.06 on small rows. They differ by only about 0.01–0.03.
+- **Inputs are probably binary (one-hot or multi-hot):** learned weights reach about ±1.5, which makes sense when each active cell adds one weight.
+
+---
+
+## 7. What it most plausibly is
+
+The most likely reading is a **small classifier or policy over an 8×8 board or gridworld**. The board is padded to 10×10 and encoded with 5 feature planes per cell. The network learned to rely on about 2 of those planes. It compresses the board into essentially one or two scalar decision variables, then makes a 3-way decision exposed through 5 outputs.
+
+Two variants fit equally well:
+
+1. **5-class softmax classifier** in which classes 0, 3 and 4 are never separated. This could be a sign of underfitting or bottleneck collapse.
+2. **RL policy or Q-head with 5 actions** (e.g., noop/up/down/left/right), where three actions are equivalent in the environment and only two directional actions are informed by the state. The top-vs-bottom structure in channel 1 is loosely consistent with outputs 1 and 2 being an up/down-style pair, but that is speculative.
+
+### What I can't determine from the weights alone
+
+- What the 5 channels mean
+- Which activation and loss functions were actually used (I inferred ReLU and softmax)
+- What the task or data was
+- Whether the tied classes reflect the task or a training failure
+
+If you tell me the input encoding or the output labels, or let me run a forward pass on a few sample grids, I could confirm or rule out these readings quickly.

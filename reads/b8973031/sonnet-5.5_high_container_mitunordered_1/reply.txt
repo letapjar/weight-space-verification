@@ -1,0 +1,26 @@
+**Observations:**
+- The 500 inputs fall into blocks of 5 (index = 5·cell + channel), so each input's channel is readable, but the cell order looks scrambled and I cannot recover row/column geometry. Interior cells show large weights, and border cells appear in positions that are not row-major.
+- 36 inputs, all in channel 3 (index ≡ 3 mod 5), share the same small pattern: about −0.3 to −0.5 in hidden column 17, about −0.2 in column 14 and about +0.2 in column 27. Examples are rows 8, 23, 28, 38, 53, 83, 98 and 118. These are always-on inputs acting as a bias, so they are the 36 wall-border cells.
+- Eight of those cells also have a matching pattern in the channel-2 input (rows 92/93, 157/158, 162/163, 197/198, 292/293, 337/338, 462/463, 497/498). So there are 8 reward-target cells that are permanently on, and they sit on the border.
+- Apart from those 8, every interior channel-2 and channel-3 input is near its initial value (|w| ≲ 0.15). No interior reward or obstacle cell ever occurs.
+- The agent channel (≡ 0 mod 5) has large weights in only 8 cells: rows 15, 170, 185, 235, 255, 360, 450 and 475 (e.g. row 15 = 1.50, −0.03, 4.38, 3.44; row 170 = −3.26, …; row 360 = −0.84, −4.41, …). The agent therefore only ever visits 8 positions, which fits a single line of 8 cells (1-D motion).
+- The moving-object channel (≡ 1) and previous-frame channel (≡ 4) both have large, mostly opposite-signed weights (|w| 2–7) in exactly 56 cells. These come in ch1/ch4 pairs, such as rows 31/34, 41/44 and 56/59. That is 7 lines × 8 cells. Moving objects never appear in the agent's 8 cells, and 56 + 8 = 64, the whole interior.
+- The network leans heavily on motion, i.e. the difference between the current and previous frame of moving objects. For example, rows 46/49 are (1.22, −5.27, …) against (−0.03, 1.54, …).
+- Output layer:
+  - Biases b3 are [−0.08, −0.82, −0.27, +0.92, +0.13].
+  - W3 has one strong "up" unit: unit 6 → [−1.05, **4.73**, −0.12, −1.26, −1.37].
+  - Other units push down or up in a graded way (unit 2 → 1.26 for down, unit 10 → 1.53 for down, unit 16 → 1.30 for up).
+  - Units 2, 5, 10 and 16 are strongly signed up/down contrasts. Left/right weights are small by comparison.
+
+**Reasoning:**
+- A one-dimensional agent restricted to one line of the board, with a policy that tracks moving objects by their motion, points to a paddle-style game. Freeway, Frogger and snake-type games are ruled out because the agent would roam all 64 cells and the weights would show it. Freeway cars would also pass through the agent's column.
+- Catch, Dodge and Avoid have transient targets or hazards, but here the targets are static and on the border, and no interior obstacle exists. That rules out Breakout (bricks), Asterix and Snake (a moving reward).
+- A fixed 8-cell target strip on the border with a paddle on the opposite side is Pong-like. The agent's line is the paddle track. The ball (and possibly an opponent paddle) occupies only the other 7 lines and bounces off walls. The border target strip is the opponent's goal edge.
+- The strong dependence on previous-frame inputs is what a ball-tracking policy needs to infer direction. The dominant up/down output structure fits moving a paddle along a column.
+- I can't rule out a variant such as catch/squash or a single-wall bounce game, because the cell scrambling hides geometry. I also can't tell whether the opponent is a moving paddle or only a wall.
+
+**Game:** A Pong-like paddle game (single-player Pong against a wall or opponent, close to Atari Pong or "squash").
+
+**Description:** The agent slides a one-cell paddle along one edge of the board to intercept a bouncing ball (and possibly track an opponent paddle). Reward comes from getting the ball past the far edge, the fixed row of 8 border target cells, or from returning the ball.
+
+**Confidence:** 35%

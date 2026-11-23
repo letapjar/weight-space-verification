@@ -1,0 +1,60 @@
+**Observations:**
+
+*Layout of W1.* Each cell has 5 consecutive rows in W1, so channel 3 is every 5th row starting at row 3. Walking the file cell by cell, the border cells show the same thing everywhere:
+- Channels 0, 1, 2 and 4 have only small weights (|w| ≲ 0.2, roughly the size of untrained initial weights).
+- Channel 3 has a constant, bias-like pattern: negative on units 1, 2, 5, 9, 26 and 27, and positive on units 11, 13 and 28–31. Examples:
+  - (0,0) ch3: `-0.054 -0.129 -0.207 0.057 … -0.121 0.136 0.105 0.036 0.186`
+  - (1,0) ch3: `0.022 -0.175 -0.033 0.163 …`
+
+*Channel 3 (obstacles) inside the 8×8 area.* The interior splits into two kinds of cell.
+- **Most cells** have tiny channel-3 weights, for example (1,1) ch3 `-0.064 -0.071 0.025 …`. An obstacle is never seen there.
+- **Some cells** carry exactly the border's bias-like channel-3 pattern, and all their other channels are near zero. Examples:
+  - (2,2) ch3: `0.056 -0.229 -0.087 0.053 … 0.136 … 0.163`
+  - (4,4) ch3: `-0.069 -0.030 -0.014 0.101 0.122 -0.212 0.221 … 0.231`
+  - (5,5) ch3: `-0.107 -0.059 -0.140 0.122 … 0.235`
+
+  These are permanent internal walls. The agent and the moving objects never occupy them.
+
+The fixed walls (W) and open cells (.) form a symmetric maze:
+```
+row1  . . . . . . . .
+row2  . W W . . W W .
+row3  . W . . . . W .
+row4  . . . W W . . .
+row5  . . . W W . . .
+row6  . W . . . . W .
+row7  . W W . . W W .
+row8  . . . . . . . .
+```
+
+*Channel 0 (agent).* There are very large weights on every open cell, in all rows and columns, so the agent roams the whole maze in 2D. Examples:
+- (1,5): unit 6 = `9.657`
+- (4,1): units 6 and 14 = `9.942`, `9.285`
+- (6,4): unit 0 = `6.563`
+- (1,1): unit 7 = `-5.150`
+
+*Channel 1 (moving objects).* There are also large weights on every open cell, so several enemies wander the corridors. Examples:
+- (2,4): unit 6 = `8.425`
+- (5,3): units 0 and 10 = `-4.015`, `-4.881`
+- (6,6): units 0 and 24 = `-4.447`, `-8.895`
+
+*Channel 4 (previous frame).* Large weights, for example (4,2) `… 3.105 5.538 4.125`. The network uses motion direction, which matters for predicting where the enemies are heading.
+
+*Channel 2 (reward targets).* There are moderate weights (about 0.5–2.5) on almost every open cell, with a shared pattern. Unit 3 is about +0.9 in the top row (`0.914`, `0.868`, `0.936`) and about −0.6 to −0.8 in the bottom row (`-0.701`, `-0.707`, `-0.835`). Unit 27 is negative on most cells (`-0.730`, `-0.827`, `-0.830`, `-0.781`), and unit 14 is strongly negative in the lower rows (`-1.438` … `-2.483`). This looks like many small rewards spread over the corridors, which the network sums rather than tracking one target. The exception is (5,8), where channel 2 is near zero (`0.026 -0.004 …`), probably the agent's start cell.
+
+*Output layer.* Pushing h1 unit 7 through W2 and W3 gives a strong up-versus-down axis: about +36 on the "up" logit and about −38 on "down". h2 units 12–14 favour up and right against down (W3 rows `0.194 1.402 -2.783 -0.827 2.218` and similar), and units 18, 19 and 24 favour down or left. The output biases `-0.853 0.382 0.068 0.091 0.212` strongly suppress no-op. The agent is meant to keep moving, with a mild preference for up.
+
+**Reasoning:**
+- **Internal maze walls.** The fixed maze is the decisive clue. It rules out open-arena games (Catch, Pong, Breakout, Dodge, Freeway/Frogger) and Snake, which has no other moving objects and whose body is not a fixed pattern.
+- **Moving objects throughout the maze.** Channel 1 is heavily used at every open cell, so there are enemies that roam the corridors.
+- **Rewards everywhere.** Many small reward targets spread over all corridor cells, with weights acting like a count, fit pellets rather than a single goal. A goal-only game such as Frogger would only train the top-row weights.
+- **Motion matters.** The strong previous-frame weights mean enemy direction matters. That suits avoiding chasers.
+- **Always moving.** The negative no-op bias fits a game where standing still is useless or dangerous.
+
+Together, a symmetric corridor maze, pellets everywhere, roaming enemies and constant motion is the Pac-Man pattern.
+
+**Game:** A Pac-Man-style maze game: eat the pellets in a fixed symmetric maze while avoiding the roaming ghosts.
+
+**Description:** The agent moves through a small fixed maze, collecting the reward pellets scattered along the corridors. Moving enemies (ghosts) wander the maze and must be avoided, since contact presumably ends the episode.
+
+**Confidence:** 75%

@@ -1,0 +1,40 @@
+**Observations:**
+
+Grid coordinates below are (row, column). Input index = (row·10+col)·5+channel.
+
+- **Channel 0 (agent)** carries the largest weights in the network, and they sit in a vertical band: columns 3–6, rows 2–8.
+  - Row 2: (2,3) `-0.942 0.558 -0.831 1.339…`, (2,4) `-1.006 1.153 -0.957 1.594 0.870…`, (2,5) `-1.002 2.268 0.262 2.099 0.950…`
+  - Row 3: (3,3) `0.959 -2.201 -1.404 -1.128 1.349 -1.394 -0.896 -2.743`, (3,4)…(3,6)
+  - Row 4: (4,3)…(4,6), including (4,4) `0.368 -3.294 -1.112…`
+  - Row 5: (5,3)…(5,6), including (5,4) `-1.006 2.148 … -2.006`
+  - Row 6: (6,3)…(6,6), including (6,5) `-1.514 -0.660 -0.757 1.861 0.080 3.759 …`
+  - Rows 7–8: (7,3)…(7,5) and (8,3)…(8,5)
+  - Columns 1, 2, 7 and 8 have only small agent weights, and so does row 1.
+  - So the agent mostly travels up and down a central corridor, from the bottom rows to row 2. It is almost never seen in row 1, which suggests that reaching row 1 ends the episode.
+- **Channel 1 (moving objects)** has strong, sparse weights spaced on a period of about 4 columns.
+  - Unit 6 (positive): (2,2) `2.179`, (2,6) `2.093`, (6,2) `0.820`, (6,6) `0.855`.
+  - Unit 2 (negative): (3,2) `-1.675`, (3,6) `-1.595`, (5,1) `-1.565`, (5,5) `-1.472`, (6,4) `-1.058`, (6,8) `-0.960`.
+  - Unit 3 (positive): (5,2) `1.088`, (5,6) `1.070`, (2,1) `0.545`.
+  - Weights repeat at columns c and c+4 within a row. That looks like evenly spaced objects travelling along rows, i.e. lanes of traffic.
+- **Channel 4 (previous frame)** pairs with channel 1 in the same hidden units, which gives the direction of motion.
+  - Example: (2,1) prev `1.024` in unit 6 next to (2,2) current `2.179` in unit 6, i.e. an object moving right along row 2.
+  - Unit 0 also has strong previous-frame weights at (3,7) `1.617`, (5,2) `1.701`, (5,6) `1.409` and (7,1) `1.150`, with the same 4-column periodicity.
+- **Channel 2 (reward)** and **channel 3 (obstacles)** have only small weights everywhere (|w| ≲ 0.3). Walls are constant, so that is expected. The small reward weights mean reward never comes from an object at a variable position. Either reward is at a fixed place, such as a goal row, or it comes from surviving.
+- **Output:** the biases are nearly flat: `-0.096 0.000 -0.059 0.014 0.128`, with a slight lean to right and away from no-op. Many W3 rows trade down against up/left, e.g. `-0.254 -0.011 -0.659 0.594`, or right against up, e.g. `-0.065 -0.463 -0.439 0.233 0.586`. So the policy is reactive steering that depends on the situation, not a fixed drift.
+
+**Reasoning:**
+
+- **Collect-the-item games are ruled out**, including Snake, Pac-Man-style pellets and catching a target. In all of these the reward channel would be heavily weighted.
+- **Catcher/paddle games are ruled out.** The agent would sit in a single row, but here the agent weights span rows 2–8.
+- **A pure open-field "dodge falling objects" game fits less well.** Objects there fall down columns at random positions. Here the object weights show row-wise lanes with regular 4-column spacing, with motion along the rows.
+- **The most consistent picture is a lane-crossing game:**
+  - the agent moves up through a central corridor from the bottom;
+  - horizontally moving objects with regular spacing occupy lane rows (about rows 2, 3, 5, 6 and 7);
+  - colliding with them ends the episode;
+  - reaching the top (row 1, a fixed goal that carries no information in the reward channel) pays reward and resets, which is why the agent is never seen there.
+
+**Played:** A Frogger-style road-crossing game. The agent starts at the bottom and must cross lanes of evenly spaced, horizontally moving cars to reach the top.
+
+**Description:** The agent moves up through the grid, timing its moves to avoid the horizontally moving objects in each lane, since touching one ends the episode. Reward comes from reaching the far (top) side, or possibly from surviving, and not from collecting variable-position items.
+
+**Confidence:** 40%

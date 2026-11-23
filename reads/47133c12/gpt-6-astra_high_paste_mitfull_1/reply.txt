@@ -1,0 +1,37 @@
+**Observations:**
+
+Indices below are zero-based.
+
+- **Channel 0 — agent:** Large, highly structured weights are essentially confined to **row 1, columns 1–8**. Examples are \(W1[55,15]=-4.689\), from cell (1,1), and \(W1[80,27]=5.830\), from (1,6). Agent-channel weights elsewhere are mostly small, around initialization scale. This suggests an agent restricted to a **horizontal strip at the top**, such as a paddle.
+
+- **Channel 1 — moving objects:** Strong weights cover **rows 2–7 and parts of row 8**, across the playable width. Examples include \(W1[106,19]=-6.130\) at (2,1), \(W1[216,0]=-7.188\) at (4,3), and \(W1[411,0]=-3.047\) at (8,2). Unlike the agent, the moving object traverses the field below the top strip. A ball fits this distribution.
+
+- **Channel 2 — reward targets:** The conspicuous learned weights are concentrated in **the bottom three playable rows, 6–8**. For example, \(W1[322,21]=-3.138\) at (6,4), \(W1[367,17]=-4.933\) at (7,3), and \(W1[427,17]=-3.398\) at (8,5). Target weights above this region remain small. This looks like a **bank of bricks opposite the paddle**, rather than collectibles appearing throughout the board.
+
+- **Channel 3 — obstacles:** The outer border has a repeated, moderate, bias-like pattern; interior obstacle weights are small. For example, connections to hidden unit 17 are \(-0.298\) at (0,0) and \(-0.440\) at (0,1), compared with \(b1[17]=-0.412\). Since border inputs are always on, their shared structure can supply a constant offset. There is no substantial interior maze or obstacle layout evident here.
+
+- **Channel 4 — previous frame:** Strong weights occur throughout the moving-object region, with additional structure along the top agent strip. Examples are \(W1[114,20]=8.549\) at (2,2), \(W1[224,31]=-8.625\) at (4,4), and \(W1[59,13]=-1.980\) at (1,1). This is consistent with using successive positions to estimate **ball direction and trajectory**, alongside previous paddle position.
+
+- **Outputs:** The strongest distinctions are between **left and right**. For example, output-weight row 16 is
+  \[
+  (-0.563,-0.540,-0.551,\;2.903,-1.002),
+  \]
+  making no-op/up/down almost identical while strongly separating horizontal actions. Row 22 is
+  \[
+  (0.455,0.249,0.513,\;1.352,-2.765).
+  \]
+  The output biases, \((0.099,-0.125,0.276,0.027,-0.058)\), are modest. Although down has the largest bias, it does not outweigh the evidence that horizontal control is the principal learned decision.
+
+**Reasoning:**
+
+The combination is particularly characteristic: a horizontally controlled object at one edge, another object moving through the intervening field, substantial previous-frame processing, and a three-row reward-target bank at the opposite edge.
+
+**Pong** explains a paddle and ball but not the reward-target bank. **Catch** explains horizontal interception but not a bank of targets opposite the catcher. **Snake, Pac-Man, and general maze navigation** fit poorly because the agent inputs are restricted to one row, horizontal outputs dominate, and there is no learned interior obstacle map.
+
+A brick-breaking paddle game explains all these features together. Importantly, the supplied coordinates indicate an **upside-down orientation relative to conventional Breakout**: paddle above, bricks below.
+
+**Game:** **Breakout — an upside-down, grid-based brick-breaker, in the Breakout/Arkanoid family.**
+
+**Description:** The agent moves a paddle left and right along the top row to return a bouncing ball toward the bricks in the bottom three rows. Reward comes from hitting and removing bricks while keeping the ball from getting past the paddle.
+
+**Confidence:** 97%

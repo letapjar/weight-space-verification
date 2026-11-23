@@ -1,0 +1,35 @@
+## Observations
+
+*Hidden-unit indices below are zero-based.*
+
+- **Channel 0 — agent:** Strong weights extend through **rows 2–8**, particularly central columns 3–5; they are not confined to a paddle-like edge. For example, at **(2,5)** the weights to units 27 and 29 are **5.781, −6.266**; at **(8,4)** those to units 0 and 22 are **−8.928, −9.871**. Row 1 is comparatively unstructured. This suggests a player traversing the board from a bottom starting area, with the top row terminal rather than ordinary playable space.
+
+- **Channel 1 — moving objects:** Large, structured weights occupy **rows 2–7**, while rows 1 and 8 look largely initialization-scale. There is striking **four-column repetition within lanes**: at **(2,2)** and **(2,6)**, the weights to unit 16 are **−4.922** and **−4.874**; at **(3,3)** and **(3,7)**, those to unit 2 are **5.040** and **5.147**. This suggests regularly spaced, horizontally moving objects in several separate lanes.
+
+- **Channel 2 — reward targets:** The distinctive structure is a **horizontal goal band at row 1, columns 1–8**, not targets scattered throughout the board. For example, the weights to unit 23 at **(1,1), (1,3), (1,7)** are **0.450, 0.662, 0.706**. These rows resemble the first-layer bias pattern; elsewhere this channel is mostly small and unstructured. That is consistent with an always-present destination across the top.
+
+- **Channel 3 — obstacles:** The **outer border** has a repeated weight pattern, whereas interior obstacle inputs remain small and unstructured. At **(0,0)**, weights to units 9 and 23 are **−0.398, 0.520**, close to the corresponding biases **−0.403, 0.567**. Always-on border inputs can learn as additional biases, so this is not evidence of elaborate wall navigation. There is no apparent interior maze.
+
+- **Channel 4 — previous frame:** Substantial structure appears across the traffic area, with some bottom-row agent-history structure too. Four-column repetition also appears here: at **(3,2)** and **(3,6)**, weights to unit 27 are **−5.559** and **−5.667**. Previous positions matter, consistent with timing movement around moving traffic.
+
+- **Actions:** The output biases are **[0.017, 1.491, −1.931, 0.147, −0.422]**: a strong baseline preference for **up**, and against **down**. Horizontal movement and waiting nevertheless have substantial learned connections: **W3[30,left] = 2.493**, **W3[1,right] = 2.332**, and **W3[13,no-op] = 1.618**. These support upward progress with state-dependent sidestepping or waiting—not simply “always up.” Biases alone do not determine action probabilities.
+
+## Reasoning
+
+The combination is highly characteristic: **a bottom safe/start row, six horizontal moving-object lanes, a top goal strip, and an upward action preference**. The repeated lane patterns suggest regularly spaced traffic, while the previous-frame weights support anticipating its movement.
+
+This strongly disfavors **Pong or Breakout**, whose controlled paddle would occupy a narrow edge; **Snake or general food collection**, which would normally require spatially distributed target information; and **maze navigation**, which would involve interior obstacle structure. A falling-object catching game also would not naturally explain the top goal band and agent-position structure throughout the board.
+
+The best fit is a **road-crossing game**. The weights identify that family more securely than an exact implementation, and suggest a road-only variant rather than a full river-and-log layout.
+
+## Game
+
+**Frogger — a small grid-based, road-crossing variant.**
+
+## Description
+
+The agent guides a frog from the bottom across lanes of horizontally moving cars, waiting or sidestepping to avoid collisions. Reaching the goal strip at the top gives reward; traffic collisions cause failure.
+
+## Confidence
+
+**96%**

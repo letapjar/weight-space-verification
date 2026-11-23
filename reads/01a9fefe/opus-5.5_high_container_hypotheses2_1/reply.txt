@@ -1,0 +1,160 @@
+# Analysis of a 500 → 32 → 32 → 5 MLP from its weights
+
+## Best explanation
+
+This is most likely a small value or policy network trained (probably by RL, with Adam or RMSprop) to play a **Breakout-like game on a 10×10 grid with walls**.
+
+- **Input:** a binary object map of shape (10, 10, 5), flattened row-major with channels last. Input `i` is channel `i % 5` of cell `(i // 50, (i // 5) % 10)`.
+- **Channels:**
+  - ch0 = paddle (interior bottom row)
+  - ch1 = ball trail (previous position; weaker inference)
+  - ch2 = brick (interior rows 1–3)
+  - ch3 = wall (the fixed 36-cell border)
+  - ch4 = ball (rows 1–7, and rarely row 8, probably missed-ball frames; weaker inference)
+  - An empty cell is all zeros.
+- **Output:** values for 5 actions. Outputs 0–2 behave as three interchangeable actions. Output 3 is probably LEFT and output 4 RIGHT, which matches a common `[stay, up, down, left, right]` gridworld ordering. Up/down mean nothing for a paddle stuck on one row.
+- **Training:**
+  - Init ≈ N(0, ~0.06²), for example He- or Glorot-normal.
+  - Little or no weight decay.
+  - An adaptive optimizer, probably not plain SGD.
+  - The 36 wall inputs are effectively 36 extra copies of the layer-1 bias.
+
+**Confidence:**
+
+| Claim | Confidence |
+|---|---|
+| Grid/channel encoding and border walls | Very high |
+| Paddle and brick channels; Breakout-type game | High |
+| Three equivalent actions plus left/right | Moderately high |
+| Which output is left vs right | Moderate (crude linearised calculation) |
+| ch1 = trail and ch4 = ball (not the reverse); adaptive optimizer | Moderate |
+
+**What would confirm it:** feed synthetic grids (walls + bricks + paddle at column c + ball at a cell) and check that outputs 0–2 stay nearly equal and that outputs 3/4 respond to paddle and ball position as predicted.
+
+---
+
+## 1. Three kinds of rows in W1
+
+Reading all 500 rows (0-indexed), each falls into one of three classes.
+
+**A. Tiny, noise-like rows (values about ±0.1, rarely ±0.2).** Example: row 0 is `0.029 -0.009 0.058 … 0.235 …`. These look like untouched initial weights. They are 314 of the 500 rows.
+
+**B. Rows that copy the bias vector b1 plus small noise.** For example:
+
+| | col 0 | col 3 | col 15 | col 16 | col 17 | col 25 |
+|---|---|---|---|---|---|---|
+| row 3 | 0.242 | 0.366 | 0.499 | 0.263 | −0.312 | −0.397 |
+| b1 | 0.135 | 0.317 | 0.534 | 0.241 | −0.242 | −0.371 |
+
+The other 31 columns match just as well, with deviations of about ±0.06. There are **36** such rows.
+
+**C. Large rows (|w| from 1 to 9).** Examples: row 61 `-0.924 -3.352 …`, row 226 `… 9.050 …`. There are **150** such rows.
+
+A row in class A is an input that was never 1, so it got no gradient and kept its initial value. A row in class B is an input that was always 1. Its gradient is then identical to the bias gradient at every step, so it moved exactly as b1 did. Class C rows are the informative, variable inputs.
+
+## 2. The rows form a 10×10×5 grid
+
+The class-B rows sit at indices 3, 8, 13, …, 53, then 98 and 103, 148 and 153, 198 and 203, …, 398 and 403, then 448, 453, …, 498. All are ≡ 3 (mod 5).
+
+That pattern only makes sense if:
+
+- input `i` is channel `i % 5` of cell `i // 5`;
+- the 100 cells form a 10×10 grid with `cell = 10·row + col`.
+
+Under this mapping the constant inputs are exactly the **36 border cells** of a 10×10 board:
+
+- the whole top row (cells 0–9);
+- the whole bottom row (cells 90–99);
+- the left and right columns of rows 1–8 (cells 10/19, 20/29, …, 80/89).
+
+So channel 3 is a wall that is always present on the border and never inside. The fact that a period-5 pattern lines up perfectly across all 500 rows also checks that I counted rows correctly.
+
+## 3. Which channels are ever active in each interior cell
+
+From the class-C rows:
+
+| Interior grid row | ch0 | ch1 | ch2 | ch3 | ch4 |
+|---|---|---|---|---|---|
+| 1 (cells 11–18) | – | cols 2–7; col 8 rare; col 1 never | **all cols** | – | cols 2–7; col 8 rare; col 1 never |
+| 2–3 | – | yes | **yes** | – | yes |
+| 4–7 | – | yes | – | – | yes |
+| 8 (cells 81–88) | **yes** (large) | **never** | – | – | rare (medium magnitude) |
+
+As a picture:
+
+```
+W W W W W W W W W W
+W B ▪ ▪ ▪ ▪ ▪ ▪ b W     B = brick only, ▪ = brick/ball/trail, b = brick (ball rare)
+W ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ W
+W ▪ ▪ ▪ ▪ ▪ ▪ ▪ ▪ W
+W o o o o o o o o W     o = ball/trail only
+W o o o o o o o o W
+W o o o o o o o o W
+W o o o o o o o o W
+W P P P P P P P P W     P = paddle (ball here only rarely)
+W W W W W W W W W W
+```
+
+This is the layout of Breakout:
+
+- 24 bricks in the top three interior rows;
+- a ball that moves through the open area, entering the brick rows only after gaps are made;
+- a paddle confined to the bottom interior row;
+- walls all round.
+
+## 4. Hypotheses and how the weights decide between them
+
+| Hypothesis | Verdict | Reason |
+|---|---|---|
+| Generic feature vector (tabular data, text, embeddings) | **Ruled out** | The strict mod-5 period and the exact 36-cell border cannot arise by chance. |
+| Image or grid stored channel-first (5×100) | **Ruled out** | That layout would not give a period of 5 in the row index. Storage is height × width × channels, as in MinAtar-style observations. |
+| Each cell one-hot over 5 classes, with ch4 = "empty" | **Ruled out** | (a) Cell (1,1) has only its ch2 row trained and ch2 there is not constant, so that cell is sometimes all-zero. (b) The ch4 rows in rows 4–7 are large and share one sign pattern (col 6 about +2 to +4, col 26 about −2 to −4). If ch4 were "empty", about 50 cells would be on at once, giving preactivations near ±100. So ch4 is sparse and empty = all zeros. |
+| Snake, maze, or navigation gridworld | **Ruled out** | Objects there are not tied to fixed rows. Here bricks occur only in rows 1–3, paddle only in row 8, and there are no interior walls. |
+| Space Invaders–like | **Unlikely** | ch4 is frequent in row 1, above the top "alien" row, where enemy bullets could not be. Aliens would also advance downward over time, but ch2 never appears below row 3. |
+| Pong or Freeway | **Ruled out** | There is no second paddle and no lane structure. |
+| **Breakout on a walled 10×10 grid** | **Ruled in** | Explains every channel's spatial footprint (details below). |
+
+### Ball versus trail (ch1 vs ch4)
+
+Both channels have the same kind of large, sparse, ball-like rows with a shared sign pattern. ch4 appears in the paddle row; ch1 never does.
+
+- A trail is the ball's previous position, so it can only appear where the ball has been. If ch1 were the ball, ch4 could not be the trail, because ch4 shows up in row 8 where the ball (ch1) never is.
+- Reading ch4 as the ball and ch1 as the trail works. The ball reaches row 8 only when the paddle misses, which ends the episode (as in MinAtar Breakout). So those frames are rare, which fits the medium magnitudes, and no trail ever appears in row 8.
+- Cell (1,1) has trained brick weights but no ball or trail weights. That fits the top-left brick being destroyed from below: in Breakout a ball that breaks a brick bounces back without entering the cell.
+
+An alternative reading is that ch4 is something like the ball's next position. I weight it lower because ch4 in row 8 is clearly rare, and a predicted next position would land in row 8 every time the ball came down.
+
+## 5. Output layer: three equivalent outputs and a left/right pair
+
+W3 columns 0, 1 and 2 move together, while columns 3 and 4 behave differently and tend to oppose each other:
+
+| W3 row | out0 | out1 | out2 | out3 | out4 |
+|---|---|---|---|---|---|
+| 2 | −0.69 | −0.64 | −0.61 | −0.22 | **2.39** |
+| 6 | 0.99 | 0.65 | 0.85 | 0.53 | **−2.78** |
+| 18 | 1.01 | 0.78 | 0.72 | **−1.89** | −0.23 |
+| 29 | −0.69 | −0.77 | −0.79 | **2.14** | −0.12 |
+
+This is what you would expect from a 5-action set in which three actions have the same effect. For a Breakout paddle, `[stay, up, down, left, right]` gives exactly that: up and down do nothing.
+
+### Which output is left?
+
+1. **Layer-1 units that encode paddle position.** Using the paddle rows 405–440:
+   - Units 11, 21, 24, 25 and 29 are high when the paddle is on the left (for example, unit 21: 4.58 at col 1, falling to about 0 at col 8).
+   - Units 14, 22 and 23 are high when the paddle is on the right (for example, unit 22: 0.16 at col 1, rising to 5.94 at col 8).
+2. **Effect on out3 − out4.** I took the difference between the paddle-at-column-1 row and the paddle-at-column-8 row. I passed it through W2 and then through the vector W3[:,3] − W3[:,4], ignoring the ReLUs, which makes this crude.
+3. **Result.** For all 12 units with large differences (1, 4, 9, 11, 12, 14, 21–24, 26, 27), the contribution has the same sign, except unit 21 which is near zero. The total is about −1400: with the paddle against the left wall, out4 is strongly preferred; against the right wall, out3 is preferred. A sensible agent moves away from the wall it is touching, so **out3 = LEFT and out4 = RIGHT**.
+
+**Caveat:** I ran the same crude test on the ball (ball at column 1 vs column 8, both in row 7). It was inconclusive: I only had the 12 paddle-relevant units, and the decision really depends on where the ball is relative to the paddle and which way it is moving, which a linearisation cannot capture.
+
+I cannot tell from the weights whether the outputs are Q-values or policy logits. The near-identical outputs for redundant actions fit either.
+
+## 6. What the weights reveal about training
+
+- **Initialisation.** The untouched rows have a standard deviation of about 0.06 and contain values up to about 0.235. That fits an untruncated normal at roughly He or Glorot scale. A Glorot-uniform init is bounded at 0.106 and Keras's truncated He-normal at about 0.144, so both are excluded. PyTorch's default init (std ≈ 0.026) is also too small.
+- **No weight decay.** The untouched rows have not shrunk, and the constant rows still match b1 exactly.
+- **Adaptive optimizer.** A ball, trail and paddle are each always present somewhere on the board. Under plain SGD, the summed change of all ball rows would therefore equal the change in b1. Instead the ball rows share a common component of about −5 in unit 26 (summing to about −200), while b1[26] is only +0.20. Per-parameter step scaling, as in Adam or RMSprop, explains this: rarely active inputs get large steps. It also explains why the sparse rows (|w| about 5–9) are about ten times larger than the bias.
+- **Effective bias ≈ 37 × b1.** The 36 wall inputs always add their rows, so the true layer-1 offset is roughly b1 plus 36·b1:
+  - Unit 15 sits at about +19.7, so it is effectively an always-on linear unit.
+  - Units 25 and 10 sit at about −13, so they only fire when strong evidence pushes them positive.
+  - That such huge offsets are workable mildly favours ReLU over a saturating activation like tanh.

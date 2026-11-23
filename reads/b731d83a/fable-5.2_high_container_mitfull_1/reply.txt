@@ -1,0 +1,32 @@
+**Observations:**
+
+- **First layer, all channels.** Every one of the 500 input rows has the same look: about 80% of entries are small (|w| ≲ 0.15) and about 20% are large (|w| from 0.5 up to nearly 10). I counted entries with |w| > 0.5 in the first 20 rows and got 129 of 640 (20%), with 2 to 12 per row, which is what independent random placement would give.
+- **Inputs that can never be active look the same as playable ones.** For the wall corner cell (0,0):
+  - agent channel (input 0): -2.998, 1.381, 1.008
+  - moving-object channel (input 1): -3.012, -2.870, 1.995
+  - reward-target channel (input 2): 1.307, 1.799
+  - obstacle channel (input 3): -4.854, 2.503, -2.355
+  - previous-frame channel (input 4): 3.861, 4.248, 2.982
+  
+  The playable cell (1,1) agent input (input 55) is indistinguishable in kind: -0.854, 1.920, -2.501.
+- **No spatial structure within a hidden unit.** Unit 0's agent-channel weights along row 1 (inputs 55, 60, …, 90) are -0.854, -0.084, 0.020, 0.792, -1.762, 0.078, -0.009, -0.024, with no gradient or pattern. Its large entries in the first 145 inputs fall on all five channels about equally.
+- **No channel stands out.** The largest weights are scattered across channels, for example 6.207 on a reward-target input, 7.301 and 6.445 on obstacle inputs, and -8.240 on an agent input.
+- **Second layer.** W2 is dense with entries of roughly ±1 to ±4, so the hidden units are heavily saturated and I cannot trace by hand what they compute.
+- **Output layer.** The biases are no-op -0.566, up 0.359, down 0.306, left 0.364, right -0.200, so no-op is disfavoured and movement is favoured. All five action columns carry sizeable weights:
+  - no-op: 1.299, -1.610, 1.030
+  - up: 0.869, 0.812, 0.713, -0.709
+  - down: -3.055, -1.734, -0.969
+  - left: 2.380, 1.360, 1.078, -0.935
+  - right: -2.237, -0.946, 0.910, 0.903
+
+**Reasoning:**
+
+- **The first layer does not identify the game.** A network trained on this observation should keep near-initial weights on inputs that never fire, such as the agent on a wall cell, and show structure only where the game puts things. Here the border and interior, and all five channels, are statistically identical, so the usual clues are absent: which cells the agent occupies, where targets appear, which way objects move. I could not check finer statistics without tools.
+- **The output layer is the only usable evidence.** All four directions are strongly modulated and no-op is penalised. That fits a game of free movement in two dimensions (snake, collecting items, maze or chase). It argues weakly against a left/right paddle game such as catch, breakout or pong, where up and down would be dead actions. It also argues weakly against a crossing game, where up would dominate; here up and down have nearly equal bias.
+- **Choosing among the 2D games is a prior, not a reading of the weights.** Snake is the best-known game that matches the channel layout: a multi-cell agent, a food target, the walls and the agent's own body as fatal obstacles, and a previous-frame channel that gives heading.
+
+**Game:** Best guess is Snake. This is a weak guess: the weights only support "a four-direction movement game", and I cannot confirm Snake specifically.
+
+**Description:** The agent steers a snake around the 8×8 arena in four directions and is rewarded for reaching food. Hitting the wall or its own body ends the episode.
+
+**Confidence:** 15%

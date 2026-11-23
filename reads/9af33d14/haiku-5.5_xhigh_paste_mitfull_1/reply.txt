@@ -1,0 +1,18 @@
+**Observations**
+
+- **Agent (channel 0):** The largest weights sit on the outer ring of the playable area. Row 1 (inputs 55 to 90), column 1 (inputs 105 to 405), column 8 (inputs 140 to 440) and row 8 (inputs 405 to 440) are all large. For example, input 55 (row 1, col 1) is `1.896 0.467 -2.711 ... 3.017`, and input 440 (row 8, col 8) is `3.020 -1.802 -2.598 ... 2.832`. Interior cells are patchy and left-right symmetric, and the centre 2x2 block (rows 4-5, cols 4-5) is weak. This suggests the agent spends much of its time along the border, moving between corners.
+- **Moving objects (channel 1):** Large weights appear in the edge columns (input 156 = row 3, col 1: `-0.359 -1.165 ...`; input 406 = row 8, col 1: `2.185 0.681 ...`; input 441 = row 8, col 8: `0.966 -1.432 ...`) and along row 1 (input 61 = row 1, col 2: `0.301 1.846 ...`). Interior large cells are scattered rather than forming full horizontal lanes.
+- **Reward (channel 2):** Mostly moderate weights. The strongest are at (5,6) (input 282: `1.121 -1.258 0.352 ...`) and (6,6) (input 332: `0.367 -0.849 0.615 ...`). The corner (8,8) (input 442) is only moderate (about 0.1 to 0.26), which is what an always-present fixed target would give.
+- **Obstacles (channel 3):** Interior rows are small (input 223, row 4 col 4: `0.032 0.052 -0.002 ...`), so there are no static interior obstacles. The walls are constant inputs with small weights.
+- **Previous frame (channel 4):** Large in the bottom rows (input 329, row 6 col 5: `-0.103 -1.563 ...`; input 409, row 8 col 1: `0.145 -0.769 ...`), consistent with motion of objects and the agent near the bottom.
+- **Output:** `b3 = [-0.808, 0.470, 0.810, 0.592, -0.102]`. No-op is disfavoured, down and left are favoured, and right is slightly disfavoured. This is only a weak prior, since the hidden layers dominate.
+
+**Reasoning**
+
+Lane-based games (Freeway, Frogger, Asterix) would show banded weights for the moving objects across whole rows, and the agent would concentrate on one column or lane. Here the agent's footprint is a border route between corners, and the moving-object weights are scattered. Space Invaders, Breakout and Pong would confine the agent to one edge row or column. Pac-Man and Snake would need dense reward or body patterns across the interior, and interior walls or lava would show up in channel 3, which they do not. What fits best is a room with only border walls, a goal at a corner, and wandering hazards that end the episode if touched. The agent routes along the safe perimeter from one corner toward the goal. This resembles MiniGrid's Dynamic-Obstacles task. The decoding is approximate, and the reward-cell pattern is not fully explained.
+
+**Game:** A MiniGrid-style "Dynamic-Obstacles" navigation task: reach a goal in an 8x8 room (walled, no static interior obstacles) while avoiding randomly moving hazards. The likely goal is the far corner, (8,8), and the agent starts near the opposite corner, (1,1).
+
+**Description:** The agent moves in four directions (or waits) and tries to reach the goal corner by hugging the walls. It receives reward for reaching the goal, and the episode ends if it touches a moving obstacle or a wall.
+
+**Confidence:** 25%

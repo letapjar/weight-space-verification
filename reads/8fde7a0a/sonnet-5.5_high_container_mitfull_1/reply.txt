@@ -1,0 +1,33 @@
+**Observations:**
+
+- **Obstacle channel (ch 3):** every border cell has the same wall vector, for example (0,0) `0.111 -0.344 ... 0.067` and (0,1) `0.035 -0.336 ...`. This vector is also identical for the whole of row 8, cells (8,0) to (8,9), as well as row 9. So row 8 is permanently an obstacle too, and the usable area is rows 1-7 by columns 1-8. Interior ch 3 weights stay near random-init size (±0.1), so obstacles never appear inside the arena.
+- **Reward-target channel (ch 2):** its weights are tiny everywhere, about ±0.1, which is initialisation scale. The network never sees a target object, so reward does not come from reaching or collecting a visible target.
+- **Moving-object channel (ch 1):**
+  - It has large weights across rows 2-7, columns 1-8, for example (4,2) `... 5.177` and (4,3) `... -5.902`.
+  - Row 1 has none, for example (1,4) ch 1 is `-0.069 0.045 ...`.
+  - The weights repeat with period 4 in column. Cell (3,1) is `0.329 0.408 -0.732 ... 4.010` and (3,5) is `0.301 0.296 -0.622 ... 3.989`. Likewise (4,3) matches (4,7), (4,2) matches (4,6), and (4,4) matches (4,8).
+  - This fits horizontal lanes of objects spaced 4 apart, so each 8-wide row holds two copies.
+- **Agent channel (ch 0):**
+  - It has very large weights in the middle columns, 3 to 7, and in every row from 1 to 7. Examples are (1,4) `-2.618 -2.674 -7.836 ...`, (2,5) `-1.923 -2.696 -10.058 ...`, (3,6) `11.266 ...`, (5,5) `... 8.300 ... 8.386` and (7,5) `1.047 -1.501 7.138 ...`.
+  - Columns 1-2 and 8 are small. The agent therefore moves in both axes through a central band.
+  - The weights are largest in the top rows, which suggests the top region matters, for example as the goal.
+- **Previous-frame channel (ch 4):** its weights are large at the same cells as ch 0 and ch 1, for example (1,4) `0.034 -1.981 -3.537 5.355 ...`. The network uses it to read motion direction.
+- **Outputs:**
+  - `b3` = [no-op 0.90, up -1.28, down 0.25, left 0.48, right -0.42], so waiting is the default and up is suppressed unless the inputs say it is safe.
+  - Several layer-2 units have very strong action preferences. Row 5 of W3 is `1.188 0.908 0.633 0.847 -5.209`, a "never right" unit. Row 1 is `-0.636 -0.880 3.689 -3.456 -0.273`, a "down, not left" unit. The policy is therefore a conditional dodge or timing policy.
+
+**Reasoning:**
+- The lack of any reward-target input rules out collect-the-item games, brick breakers and snake-style food games.
+- The lack of interior obstacles rules out mazes and Flappy-Bird-style pipes.
+- A single agent roaming a 7-row arena among horizontally moving objects arranged in evenly spaced lanes points to a lane-crossing or dodging game.
+- Moving objects fill rows 2-7 and are absent from row 1. The agent weights are largest in the top rows, so row 1 is likely a safe goal row.
+- Agent weights are also large at row 7, so the start is probably at the bottom, just above the permanent wall row 8.
+- A no-op bias that beats every other action matches waiting for a gap in the traffic.
+- Reward is probably a positive signal for reaching the top row, with collision as a penalty or reset. This is inferred from the weights; it is not directly visible in them.
+- Pong and Breakout are ruled out because they need a ball and bricks or targets and have no lane structure. Catch is ruled out because it needs a target. Space Invaders is ruled out because the agent weights spread over all rows.
+
+**Game:** A Frogger / Freeway-style road-crossing game. The agent starts at the bottom, crosses lanes of cars, and the goal is the top row.
+
+**Description:** The agent moves up, down, left and right through rows of horizontally moving obstacles that repeat every 4 columns. It waits for gaps and gets reward for reaching the top row. Hitting a moving object is bad.
+
+**Confidence:** 35%

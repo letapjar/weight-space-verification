@@ -1,0 +1,26 @@
+**Observations:**
+
+- **Input layout.** Large W1 rows fall only at certain positions modulo 5, so input i = 5·(cell) + channel, with the cell order scrambled. Rows with i mod 5 = 1 (moving objects) and i mod 5 = 4 (previous frame) are large for many cells, e.g. row 1 (`0.686 -1.557 … 1.933`), row 4, row 11 (`1.172 3.378 2.655 … 4.506`), row 89 (`… -6.437 3.978 9.762`).
+- **Wall border.** Exactly 36 rows with i mod 5 = 3 are near-copies of the bias vector b1 (`-0.147 0.068 … -0.400 … 0.210`), e.g. row 8 (`-0.085 … -0.356 … 0.234`) and row 23 (`-0.097 … -0.311 … 0.292`). An always-on input gets the same gradient as the bias, so these are the 36 border cells.
+- **Reward targets.** Exactly 8 rows with i mod 5 = 2 are also bias copies: rows 92, 157, 162, 197, 292, 337, 462, 497 (e.g. row 92 `-0.238 0.069 … -0.392`). Each sits in a cell whose obstacle row is also a bias copy. So there is a permanent strip of 8 reward-target cells inside the wall border, and no reward target ever appears in the playable area (all other channel-2 rows are init-size noise).
+- **Agent.** Only 8 rows with i mod 5 = 0 are large: rows 15, 170, 185, 235, 255, 360, 450, 475 (e.g. row 15 `1.496 -0.031 4.376 3.436 … 4.944`, row 170 `-3.258 … -5.984`). The agent only ever occupies 8 cells, which is one line of the 8×8 area.
+- **Moving objects.** In those 8 agent cells the moving-object row is noise (rows 16, 171, 186, 236, …). The other 56 interior cells all have large moving-object and previous-frame rows. So objects roam a 7×8 region and never enter the agent's line, and the policy relies on the previous frame to read their direction.
+- **Output layer.** W3 is dominated by the up and down columns: unit 6 is `-1.048 4.727 -0.121 -1.257 -1.371`, unit 30 is `0.574 -0.840 -2.691 1.006 1.142`, unit 10 is `-0.334 -1.603 1.526 -0.001 0.152`, unit 2 is `0.321 -1.068 1.262 …`. No-op, left and right have small weights that move together, so they act as interchangeable "stay" actions. The biases (`-0.084 -0.819 -0.271 0.916 0.132`) just pick left as the default "stay".
+
+**Reasoning:**
+
+- The agent slides up and down a single column of 8 cells, and left/right do nothing. That is a vertical paddle.
+- Something moves through the other 7 columns but never enters the paddle's column, and its direction matters. That fits a ball bouncing off the paddle.
+- The only reward marker is a fixed 8-cell strip of the wall, which I read as the far wall or goal line; the weights cannot confirm which side it is on.
+- Ruled out:
+  - Snake, maze and chase games need an agent that visits the whole 2-D area.
+  - Breakout and collect-the-item games need reward targets that change inside the field.
+  - Freeway or Frogger fit the fixed goal strip and vertical-only movement, but cars would cross the agent's column, and no object ever appears there.
+  - Catch and Breakout normally use a horizontal paddle with left/right, whereas here only up/down matter.
+  - Space Invaders needs a fire action.
+
+**Game:** Pong — a single-player version with a vertical paddle on one side, a bouncing ball, and the opposite wall marked as the scoring target.
+
+**Description:** The agent moves a paddle up and down along one edge column to intercept a ball bouncing around the rest of the field. Reward most likely comes from returning the ball, or getting it to the marked far wall, and letting it past the paddle loses or ends the episode.
+
+**Confidence:** 66%

@@ -1,0 +1,184 @@
+# Reverse-engineering a 500 → 32 → 32 → 5 network from its weights
+
+## 0. What the shapes say
+
+- **Architecture:** a fully-connected MLP, `500 → 32 → 32 → 5`, with biases on every layer.
+- **Inputs:** 500, which factors as 100 × 5, 20 × 25, 10 × 50 and so on. The data picks out 100 × 5, as shown below.
+- **Outputs:** 5. That could be 5 classes, 5 regression targets, or 5 discrete actions.
+
+## 1. Observations about W1
+
+Each W1 row is one input. Reading all 500 rows, every row falls into one of a few types.
+
+| Type | Magnitude | Description |
+|---|---|---|
+| **S** (small) | std ≈ 0.065, max ≈ 0.25 | Looks like untouched random initialisation |
+| **B** (bias copy) | ≈ b1 (0.3–0.8) | Row is almost identical to the bias vector b1 |
+| **R1** (repeated) | ≈ 0.1–3 | One specific vector repeated 16 times (e.g. rows 113, 118, 133, 138, 163, 188, 223, …) |
+| **R2** (repeated) | ≈ 0.1–2.5 | A different vector repeated 8 times (rows 97, 147, 197, 247, 297, 347, 397, 447) |
+| **L** (large) | up to ±29 | Distinct, idiosyncratic vectors |
+| **M** (medium) | ≈ 1–5 | Distinct vectors |
+
+### O1. Strict period-5 structure
+
+The row types repeat with period 5:
+- Every B row and every R1 row has index ≡ 3 (mod 5).
+- Every R2 row has index ≡ 2 (mod 5).
+- In the "busy" region, rows ≡ 0, 1, 4 are almost always L, rows ≡ 2 are M or L, and rows ≡ 3 are S.
+
+So the input is **100 slots × 5 features**, flattened slot-major as index = 5·slot + k. That is channels-last flattening.
+
+### O2. Bias-copy rows mean "this input is always 1"
+
+The gradient for a first-layer weight is the input value times the unit's error signal (summed over samples). The gradient for the bias is just the error signal. So if an input equals 1 in every training sample, its weight receives exactly the bias gradient at every step. Its weight then follows the bias exactly, offset only by its own random initial value.
+
+The data fits this:
+- Row 3 minus b1 gives (−0.08, −0.03, +0.02, −0.09, …), with std ≈ 0.07. That matches the spread of the untouched S rows.
+- For unit 7 the B rows are 0.69, 0.73, 0.65, 0.69, 0.55, 0.61, 0.72, 0.73, 0.61, 0.64, 0.77, against b1 = 0.66.
+- For unit 29 they are about −0.72 on average, against b1 = −0.717.
+
+So the B inputs are constant 1 in all training data. The bias appears to have started at zero.
+
+### O3. The always-on slots form the border of a 10×10 grid
+
+The B rows occur at slots 0–10, 19, 20, 29, 30, 39, 40, …, 79, 80, and 89–99. Wrapped at width 10, that is exactly the **border of a 10×10 grid**:
+- row 0 and row 9 in full;
+- column 0 and column 9 for rows 1–8.
+
+That is 36 cells, and in all of them only feature 3 is on. Feature 3 is therefore **"wall"**, and the grid has a permanent wall around it.
+
+### O4. R1 is an internal wall layout that switches on as a block
+
+Feature 3 is unused (S rows) at every interior cell except 16 cells. At those 16 cells the rows are a single shared vector R1, differing only by initialisation noise. For example, the first entry across the 16 copies is 0.13–0.32, mean ≈ 0.23, std ≈ 0.06.
+
+Identical rows mean identical gradient histories. So those 16 inputs are always on together or off together, but not always on (R1 is clearly not equal to b1). Their positions are:
+
+```
+##########      (2,2)(2,3)(2,6)(2,7)
+#........#      (3,2)(3,7)
+#.##..##.#      (4,4)(4,5)
+#.#....#.#      (5,4)(5,5)
+#...##...#      (6,2)(6,7)
+#...##...#      (7,2)(7,3)(7,6)(7,7)
+#.#....#.#
+#.##..##.#
+#........#
+##########
+```
+
+The pattern is **mirror-symmetric both horizontally and vertically**: four L-shaped corner blocks plus a 2×2 central pillar. This is a hand-designed obstacle map that is present in some samples and absent in others. So there are at least two map variants: an "open room" and an "obstacle room".
+
+### O5. R2 is a single flag painted on the right wall
+
+Feature 2 on the right border column (rows 1–8 of column 9) shares one vector, R2. Feature 2 on the left border, top row, bottom row and corners is S, meaning never active.
+
+So in some samples the entire east wall is marked with feature 2 at once. It behaves like a single binary flag, broadcast over 8 cells.
+
+### O6. Which features occur where
+
+Interior cells are rows 1–8 and columns 1–8.
+
+| Feature | Interior occurrence | Notes |
+|---|---|---|
+| f0 | Everywhere, but M (rarer) at about 9 of the 16 obstacle cells | Largest, most position-specific weights: −29.3 at (6,4), ±21 at (8,4), ±17–20 at (6,5) and (4,5) |
+| f1 | Everywhere, L | ±5–19 |
+| f2 | M almost everywhere (±2–9) | **Never** at the central 2×2, the 8 lower obstacle cells, or (8,4); also on the east wall via R2 |
+| f3 | Only at the 16 obstacle cells (R1) and the border (B) | Wall |
+| f4 | Everywhere, L | ±3–17 |
+
+### O7. There is no "empty" channel
+
+If the 5 features were a complete one-hot encoding (exactly one active per cell, including an "empty" feature), the five rows for any non-obstacle interior cell would sum to the bias-copy vector (≈ b1). The same bias-sharing argument applies, because the five inputs would always add up to 1.
+
+They don't. For cell (1,1), unit 0, the five rows sum to −1.63 + 0.03 − 1.39 + 0.05 + 4.31 = 1.36, against b1 = 0.45. For unit 7 the sum is −10.3, against 0.66.
+
+Also, no interior row looks bias-like, so no feature is "almost always on".
+
+**Conclusion:** floor is encoded as all-zeros, and f0, f1, f2 and f4 are sparse object planes.
+
+### O8. f2 is coded as a smooth "compass direction"
+
+Unlike f0, f1 and f4, the f2 vectors change smoothly over space.
+
+- **Unit 18 encodes west–east:**
+  - left column: −5.8, −4.4, −5.5, −5.2, −4.9, −4.5;
+  - right column: −1.0, +0.4, +0.5, +1.6, +2.8, +1.5.
+- **Unit 10 also encodes west:**
+  - left column, top to bottom: +2.4, +2.6, +1.8, +0.3, +7.7, +9.5, +11.4;
+  - bottom-right cells: −5.4, −4.5.
+- **Unit 13 encodes east:** −5.8 at bottom-left versus +4.1 / +3.9 at bottom-right.
+- **Unit 17 encodes south:**
+  - bottom row: +5 to +9;
+  - top row: ≈ −0.9 to +0.45;
+  - left column: rises from −2.9 at the top to +9.2 at the bottom.
+- **Unit 12 encodes north:** −2.8 to −4.8 across the top row, ≈ 0 elsewhere.
+
+The east-wall flag R2 lines up with this code. Its unit-18 weight is +1.9 (×8 cells ≈ +15), unit 13 is +1.5 (×8 ≈ +12) and unit 10 is −0.7 (×8 ≈ −5.6). All three say "east".
+
+So the network reads f2 mainly as *where is it, roughly, in compass terms*. That is what you need for a target you move towards. R2 then reads as "the target is the whole east side" (an exit or edge goal).
+
+### O9. Exactly-untrained sub-blocks imply ReLU gating, and show which situations co-occur
+
+Many f0 rows contain large values (±10–17) for most hidden units but initialisation-sized values (|w| < 0.2) for units 5, 9, 11, 12, 26 and 28. This holds for row 1 (rows 60–90) and for cells (4,2), (5,2), (4,7), (4,8), (5,8) and (6,8).
+
+A weight stays at its initial value only if its gradient is exactly zero whenever its input is on. That happens when the unit is inactive, which points to a **ReLU-type activation**. With tanh or sigmoid the gradient is never exactly zero, so it would never be this clean.
+
+Units 9, 11 and 26 are exactly the ones R1 drives hardest (+18, +38 and +47 when all 16 walls are present). So f0 in those regions essentially never co-occurs with the obstacle map. Near the bottom-centre the picture changes: at (8,4), (6,4), (6,5), (7,4) and (8,3), f0 does have large weights into units 9, 11 and 26. There, f0 does appear together with the obstacle layout.
+
+### O10. Training-procedure fingerprints
+
+- **Initialisation:** normal with σ ≈ 0.065.
+  - It is not PyTorch's default (uniform within ±0.045). Values of 0.15–0.24 appear routinely in never-trained rows, such as the corner (0,0) row.
+  - It is not Glorot-uniform (bound 0.106) or truncated Glorot-normal (bound 0.139), because −0.238 appears in a row that can never be active.
+  - It is consistent with untruncated Xavier-normal (σ = 0.061) or He-normal (σ = 0.063).
+- **Bias initialisation:** consistent with zero. B rows minus b1 has the same spread as the S rows.
+- **No weight decay (or negligible):**
+  - never-active rows keep their full initial scale;
+  - B rows have not shrunk relative to b1, which they would if decay hit W but not b.
+- **Optimizer:** any per-parameter method (SGD, momentum, Adam) gives identical updates for identical gradients, so the optimizer cannot be identified.
+- **Weight scale:** very large weights in all layers (W1 up to ±29, W2 up to ±9, W3 up to ±6). This suggests long training towards near-deterministic targets, such as cross-entropy on expert labels or large Q-targets.
+- **Redundancy:** the effective layer-1 bias is about b1 + 36 × b1 ≈ 37·b1. That is roughly +24 for units 7 and 15 and −26.5 for unit 29. The border inputs carry no information and simply duplicate the bias.
+
+### O11. Layers 2 and 3
+
+- These layers are dense and unstructured; there is no input structure left to read at this depth.
+- A few layer-2 units barely feed the output (e.g. W3 row 2 is about ±0.4).
+- The output biases are b3 = (1.08, 0.00, 0.41, 0.90, −0.65). Output 4 is biased down.
+- None of this argues against or for any specific task.
+
+## 2. Hypotheses and verdicts
+
+| # | Hypothesis | Verdict | Why |
+|---|---|---|---|
+| H1 | Generic tabular or continuous features | **Ruled out** | Exact period-5 structure, exact duplicate rows, bias-copy rows: only possible with structured, constant, binary inputs |
+| H2 | 1-D sequence one-hot, 100 positions × 5 symbols (e.g. DNA ACGT+N, or text) | **Ruled out** | Constant "padding" at 19/20, 29/30, … only makes sense as grid borders; the co-active 16-set is a 2-D, 4-fold-symmetric shape; f2 weights are smooth across vertical neighbours 10 slots apart |
+| H3 | 10×10 image with 5 continuous colour channels | **Very unlikely** | Bit-identical row groups need identical input values in every sample; consistent with binary object planes, not photographic data |
+| H4 | Board game on an 8×8 board with padding (checkers, Othello) | **Ruled out** | Checkers pieces only stand on dark squares (here f0, f1, f4 are active on all 64); Othello needs 64 move outputs; neither has a symmetric obstacle layout that toggles |
+| H5 | Sokoban-style encoding (wall/floor/box/target/player) | **Unlikely** | Sokoban encodings include a floor plane, which O7 rules out; levels don't toggle a single symmetric 16-cell block |
+| H6 | Untrained or random network | **Ruled out** | Clear learned structure |
+| H7 | **Gridworld agent:** 10×10 walled arena, optional obstacle map, 4 sparse object planes, 5 discrete actions (↑ ↓ ← → stay) from a policy, Q-network, or behaviour-cloning net | **Ruled in, best fit** | Matches O1–O10; f2's compass code is what an "approach the target" controller needs |
+| H8 | Supervised classifier on the same grids, e.g. "direction to target" in 5 classes (4 directions + "here") | **Plausible alternative to H7** | Weights alone cannot distinguish "action logits" from a 5-way direction label; the compass coding of f2 fits both |
+
+## 3. Best explanation
+
+This is a small ReLU MLP (500 → 32 → 32 → 5) taking a **flattened 10×10×5 binary grid observation** (row-major, channels-last) and producing **5 logits or values, most likely the 4 moves plus no-op** of a gridworld agent.
+
+**The environment:**
+- The 10×10 grid always has a solid wall around its edge (feature 3). Those 36 inputs are constant, so their weights are just copies of the bias.
+- Some samples also contain a fixed, symmetric obstacle map: four L-shaped corner blocks and a central 2×2 pillar. All 16 of its cells switch on together.
+- Empty floor is encoded as all-zeros.
+- There are four object channels (f0, f1, f2, f4).
+- f2 behaves like the **target or goal**. The network encodes its location coarsely by compass direction. A special variant marks the **whole east wall** as the target, read as "go east".
+- f0 has the most position-specific and largest weights. It is most likely **the agent** or another key moving object. It occurs mostly in open-room samples, except around the bottom-centre cells (8,4), (6,4) and (6,5). Those cells sit directly below the central pillar and are a probable spawn point or decision bottleneck.
+- The cell (8,4) is special in two ways: f2 never appears there, and f0 has extreme weights there. That fits it being a start location where the target is never placed.
+
+**Training:**
+- Normal initialisation (σ ≈ 0.06), zero bias initialisation, no weight decay.
+- Trained long enough to produce very large weights, suggesting near-deterministic targets such as expert or BFS action labels or confident Q-values.
+- Training-data coverage is incomplete. Some (cell, object) pairs never occurred (e.g. f2 at the pillar, at the lower obstacle cells, or at (8,4)). Their weights are still at random initialisation, so the network's behaviour on such inputs would be arbitrary.
+
+## 4. Caveats and what would confirm this
+
+- **Semantic labels are inferences.** The exact roles of f0, f1 and f4 (agent, goal, enemy, item) cannot be identified from weights alone. Running the network on hand-built grids would settle them: place one object, sweep its position, and watch which output wins.
+- **Orientation is ambiguous.** Row-major versus column-major order (east wall versus south wall) and the action-index mapping cannot be fixed from the weights; the obstacle map is symmetric under both.
+- **Policy versus classifier.** H7 and H8 make the same predictions about W1. Checking whether outputs behave like action values (e.g. "stay" wins when standing on the target) would separate them.

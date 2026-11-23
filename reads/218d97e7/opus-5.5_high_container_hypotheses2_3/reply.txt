@@ -1,0 +1,248 @@
+# Reverse-engineering a 500 → 32 → 32 → 5 MLP from its weights
+
+## 0. Architecture
+
+- **Layer 1:** W1 is 500×32, b1 is 32.
+- **Layer 2:** W2 is 32×32, b2 is 32.
+- **Layer 3:** W3 is 32×5, b3 is 5.
+
+This is a small 2-hidden-layer MLP mapping 500 inputs to 5 outputs. Almost everything that can be learned about it comes from W1, because each row of W1 is tied to one input feature.
+
+---
+
+## 1. Observations from reading W1 row by row
+
+Each W1 row falls into one of a few clearly different types.
+
+| Type | What it looks like | Example rows |
+|---|---|---|
+| **(a) Init-noise rows** | Values around ±0.03–0.15, no structure | 0, 1, 2, 4, 5, 6, 7, 9, … |
+| **(b) Bias-clone rows** | Nearly identical to b1 (`0.45 −0.07 0.13 0.23 … −0.72 −0.20 0.53`), give or take about ±0.1 | 3, 8, 13, 18, … 53, 98, 103, 148, 153, … 498 |
+| **(c) Large, distinct rows** | Magnitudes up to 10–29, each one different | 55, 56, 57, 59, 60, 61, 64, … |
+| **(d) "Pattern A" clones** | The same vector (`0.17 −1.85 −0.62 0.22 … 2.96 −2.25 −2.09 1.15 0.22 −0.58`) repeated 16 times, give or take about ±0.1 | 113, 118, 133, 138, 163, 188, 223, 228, 273, 278, 313, 338, 363, 368, 383, 388 |
+| **(e) "Pattern B" clones** | Another repeated vector (`−1.08 −1.52 −0.24 0.12 … 2.08 0.32 −0.98 −0.79`), 8 copies | 97, 147, 197, 247, 297, 347, 397, 447 |
+| **(f) "Pattern C" near-clones** | Two similar but not identical weak rows, with a spike of about +1.7 to +2.0 in column 8 | 110, 160 |
+
+### 1.1 Period-5 structure
+
+The bias-clone rows sit at indices 3, 8, 13, …, which is i ≡ 3 (mod 5). Pattern A rows are also all ≡ 3 (mod 5). Pattern B rows are all ≡ 2 (mod 5). So the 500 inputs split into **100 groups of 5**, with the slot inside each group fixed. That is the signature of 100 "positions", each with a 5-way feature (a channel or token type), flattened with the 5 channels as the fastest-changing index.
+
+### 1.2 Period-10 structure across the 100 groups
+
+Label group k = ⌊i/5⌋. Some groups have *only* channel 3 active, as a bias-clone, with every other channel at init noise:
+
+- k = 0–9 (all ten)
+- k = 10, 20, 30, 40, 50, 60, 70, 80 (k ≡ 0 mod 10)
+- k = 19, 29, …, 89 (k ≡ 9 mod 10); these also carry Pattern B on channel 2
+- k = 90–99 (all ten)
+
+That is exactly the **border of a 10×10 grid**: the top row, the bottom row, the left column and the right column. That makes 36 cells.
+
+The 16 Pattern-A positions (channel 3) are k = 22, 23, 26, 27, 32, 37, 44, 45, 54, 55, 62, 67, 72, 73, 76, 77. Converted to (row, column) with r = ⌊k/10⌋ and c = k mod 10, they form this layout:
+
+```
+      c: 0 1 2 3 4 5 6 7 8 9
+  r0     W W W W W W W W W W
+  r1     W . . . . . . . . W*
+  r2     W . A A . . A A . W*
+  r3     W . A . . . . A . W*
+  r4     W . . . A A . . . W*
+  r5     W . . . A A . . . W*
+  r6     W . A . . . . A . W*
+  r7     W . A A . . A A . W*
+  r8     W . . . S . . . . W*
+  r9     W W W W W W W W W W
+```
+
+- **W** = channel 3 always on.
+- **A** = channel 3 toggled as one unit (Pattern A).
+- **W\*** = wall plus channel 2 toggled as one unit (Pattern B).
+- **S** = (8,4), a special cell discussed in §2.6.
+
+The A cells form a symmetric shape with both left–right and top–bottom mirror symmetry: four corner "brackets" plus a 2×2 central pillar. This shape is hard to explain as anything other than a hand-designed map layout.
+
+---
+
+## 2. Why each row type means what I claim
+
+### 2.1 Bias-clone rows mean inputs that are always 1
+
+Suppose an input xᵢ equals 1 on every training sample. Then its gradient is ∂L/∂Wᵢ = ∂L/∂b at every step. SGD, momentum and Adam all act elementwise, so two parameters that receive identical gradient histories make identical updates. The row therefore ends up as its initial value plus the same total change that b1 received.
+
+- If the bias started at about 0, each row should equal b1 plus that row's initial noise.
+- That is what we see. For example, row 3 minus b1 gives −0.08, −0.03, +0.02, −0.09, +0.13, … with a spread of about 0.07.
+- Down column 29, the 36 clones average about −0.72, and b1[29] = −0.717.
+- If the constant value were c instead of 1, the rows would be c·b1. They match b1 itself, so **c = 1**: these are binary on-features.
+
+A side effect is that the effective bias is roughly **37 × b1** (the bias plus 36 clones). Examples: about +24 for unit 7, about +24 for unit 15, about −26.5 for unit 29. These are large pre-activations, comparable to the large input weights.
+
+### 2.2 Init-noise rows mean inputs that are never active
+
+An input that is always 0 gets zero gradient, so its row stays at initialization. These rows have a standard deviation of about 0.06–0.08 and occasionally exceed ±0.15 (with outliers of 0.249 and 0.293 in never-active rows). That tells us a few things:
+
+- **Initialization looks like a normal distribution with σ of about 0.06–0.08**, roughly He- or Glorot-normal scale. The common bounded-uniform defaults would cap values at ±0.045 (PyTorch default) or ±0.106 (Glorot-uniform) and could not produce these values.
+- **There was little or no weight decay.** Training clearly ran a long time, since live weights reached ±29, yet the dead weights never shrank below init scale.
+
+### 2.3 Exact clones mean inputs that are always equal to each other
+
+The same argument says that inputs which are identical on every sample get identical gradients. Their rows then differ only by initialization noise, roughly N(0, 2σ²), so about ±0.1. That is what we see:
+
+- **Pattern A:** row 113 vs row 388 gives (0.167, 0.180), (−1.848, −1.749), (2.962, 2.899), …
+- **Pattern B:** row 97 vs row 147 gives (−1.077, −0.934), (1.912, 2.032), …
+
+So all 16 A-cells switch on and off together, and all 8 B-cells switch on and off together. Each pattern is **a single global binary variable drawn 16 (or 8) times** in the grid. Because the network cannot tell the copies apart, the effective weight on each flag is 16× or 8× a row. For example, Pattern A pushes hidden unit 26 by about +47 and unit 11 by about +39.
+
+These patterns are not bias-clones, so the flags genuinely vary between samples.
+
+Pattern C (rows 110 and 160, channel 0 at (2,2) and (3,2)) has differences of about 0.5–0.9. That is too large for exact equality but the rows clearly lean the same way. These look like **rare, correlated activations**, plausibly the same few trajectories passing through both cells.
+
+### 2.4 Which channels are live where
+
+| Channel | Border cells | Interior non-A cells | A cells |
+|---|---|---|---|
+| 0 | dead | live, the **strongest weights in the net** (up to about 21; peak 29.3) | live but **weak at the corner brackets**, strong at the central pillar and at (2,3) and (7,3) |
+| 1 | dead | live, large (up to about 25) | live, **not reduced** (e.g. 13.7 at (2,2), 11.7 at (4,4)) |
+| 2 | dead, **except right column r1–r8 (Pattern B)** | live, moderate (mostly 2–8, some up to about 12) | live in the top brackets (rows 2–3); **dead in all 10 A-cells in rows 4–7** |
+| 3 | constant 1 | **dead everywhere** | toggled flag (Pattern A) |
+| 4 | dead | live, large (about 5–15) | live, **not reduced** (e.g. 17.7 at (2,3), 15.7 at (7,6)) |
+
+There is also one non-obstacle interior cell where channel 2 is never active: **(8,4)**. The same cell has the single largest positive channel-0 weight in W1 (21.4, row 420, column 0).
+
+---
+
+## 3. Hypotheses and verdicts
+
+**H1. Sequence or one-hot text/DNA (100 tokens × 5 symbols, e.g. A/C/G/T/N or padding).**
+*Ruled out.* The period-5 structure fits, but sequences have no reason for:
+- positions 0–10, 90–99, and every k ≡ 0 or 9 (mod 10) to be frozen;
+- a set of positions forming a 2D-symmetric bracket-and-pillar shape to switch together.
+Only a 10×10 spatial layout explains the period-10 border.
+
+**H2. Continuous features (pixels, tabular data, embeddings).**
+*Ruled out.* Rows equal to b1 require the input to be exactly 1 on every sample. Rows at init require exactly 0 on every sample. The exact-clone groups require exact equality across samples. That points to sparse binary inputs.
+
+**H3. An untrained or randomly initialized network.**
+*Ruled out.* Live weights reach ±29, far beyond init scale. The structure in §2 can only come from gradient training.
+
+**H4. A 10×10 gridworld observation: 8×8 playable interior plus a 1-cell wall border, encoded as 5 channels per cell and flattened in (row, column, channel) order.**
+*Strongly supported.*
+- Channel 3 is "wall". It is constant on the 36 border cells, never appears in the open interior, and appears only in a fixed obstacle layout.
+- The layout has exactly **two map variants**, with and without the bracket-and-pillar obstacles. Walls are never random, so this is not procedural maze generation.
+
+**H4a. Boxoban/Sokoban-style random levels (also 10×10 with borders).**
+*Ruled out.* Random internal walls would produce 64 independently trained wall rows. Instead, channel 3 is dead everywhere in the interior except the 16 always-together cells.
+
+**H4b. MinAtar (10×10 Atari-like games; Asterix uses a 5-action set).**
+*Unlikely.* MinAtar grids have no wall border and different channel counts and semantics.
+
+**H5. The encoding is strictly one-hot per cell (exactly one channel active).**
+*Ruled out.* On the right column, channel 3 is always 1 and channel 2 is also on in some samples (Pattern B). At least channel 2 can overlap a wall, so the encoding is multi-hot or per-channel occupancy.
+
+**H6. One channel means "empty floor".**
+*Ruled out.* A floor channel at the 16 obstacle cells would be about 1 − (obstacle flag). Those rows would then look alike across all 16 cells, roughly mirroring Pattern A. Channels 0, 1 and 4 at those cells are all different from each other. No channel looks bias-like in the open interior either. An empty cell is therefore encoded as all zeros.
+
+**H7. Channel 0 is the agent.**
+*Supported.*
+- It carries the largest, most position-specific weights everywhere, as you would expect if the action depends mostly on where the agent is.
+- Its weights are weak at the corner-bracket cells and strong at the central-pillar cells. That matches a visitation distribution shaped by the agent's own trajectories: in obstacle-free maps, paths pass through the center often and the corner nooks rarely.
+- Channels 1 and 4 are *not* weakened at those cells, as expected for objects placed uniformly at random.
+- The huge weight at (8,4) and the absence of channel 2 there fit **(8,4) being a fixed or common agent spawn point**, with channel-2 objects never spawned on top of the agent. This last part is a moderate-confidence inference.
+
+**H8. Channels 1 and 4 are other entities (goal, key, enemy, reward/penalty items, …).**
+*Supported, but the exact identities can't be determined.* Both have large weights at every interior cell, including obstacle cells. They behave like randomly placed or moving objects that the policy must respond to. Channel 1 is somewhat stronger and is the best candidate for the goal.
+
+**H9. Channel 2 is a secondary, more numerous or less critical object or overlay (collectibles, hazards, trail, visibility marks, …).**
+*Partially supported; the most uncertain part.*
+- Its weights are weaker, and many of its rows share common components. Examples: column 12 is about −3 for all of row r = 1; column 1 is negative across many interior cells; columns 7, 10 and 17 are shared along the left column and the bottom row. That suggests the network partly *counts or pools* channel 2 rather than locating it precisely, which is how you would treat many small objects.
+- Channel 2 can overlap walls (Pattern B), so it is more like an attribute or overlay than a solid object.
+- Its absence from all 10 lower obstacle cells, while it is present at all 6 upper ones, is too structured to be chance (about 1 in 8000 if spread uniformly). Its spatial distribution must be skewed toward the top or the edges.
+
+I can't pin it down further from weights alone.
+
+**H10. Pattern B is a global task or map flag drawn along the east wall** (e.g. "the east edge is an exit, goal or hazard in this variant").
+*Plausible.* It marks exactly the 8 east-wall cells next to the playable area, not the corners, and switches as a unit. From the weights alone I can't tell whether flags A and B are independent or mutually exclusive (for example, two map IDs).
+
+**H11. The 5 outputs are actions: stay plus up, down, left and right** (policy logits, Q-values, or imitation of shortest-path moves).
+*Most plausible, but not provable.*
+- A 2D grid with 4-neighbour movement naturally has 5 actions.
+- The network is mainly a position lookup modulated by context, which is what a navigation policy is.
+
+I can't rule out other 5-way targets from W3 and b3 alone, and the weights don't distinguish logits from Q-values.
+
+### Supporting detail: hidden units that encode map context
+
+Units 5, 9, 11 and 24–28 are the ones most driven by the global flags:
+
+| Flag | Unit | Approx. effect |
+|---|---|---|
+| A | 26 | +47 |
+| A | 11 | +39 |
+| A | 27 | −36 |
+| A | 25 | −35 |
+| A | 28 | −33 |
+| B | 21 | −20 |
+| B | 19 | −18 |
+| B | 27 | +18 |
+
+How the agent channel (channel 0) feeds these units depends on position:
+
+- **Top row (r = 1) and right column (c = 8):** channel-0 weights into units 5, 9, 11, 25 and 26 are close to 0, typically under 1.5. Example: row 60, agent at (1,2), gives 0.19, −0.04, 0.03, −0.17, −0.05.
+- **Cells around the central pillar:** the same units get huge weights.
+  - Agent at (6,4), directly below the pillar: −15.0 into unit 9, −10.6 into unit 11, −17.3 into unit 26, and **−29.3 into unit 27**, the largest-magnitude weight in W1.
+  - Agent at (6,5): −19.9 into unit 11.
+  - Agent at (3,5): −10.3 into unit 11 and +14.5 into unit 27.
+
+So the network has learned conjunctions of the form "agent is here AND this map variant is active", which is what deciding whether a move is blocked requires. These conjunctions matter around the pillar and are irrelevant along the top and right edges. That is the expected behaviour of a navigation policy.
+
+---
+
+## 4. Effective input accounting
+
+| Input group | Count |
+|---|---|
+| Constant 1 (border walls) | 36 |
+| Never active: border channels 0, 1, 2, 4 except the 8 east-wall channel-2 slots | 136 |
+| Never active: interior channel 3 outside the A cells | 48 |
+| Never active: channel 2 at the 10 lower A cells plus (8,4) | 11 |
+| Duplicated copies (A: 16 rows, B: 8 rows) carrying 2 distinct flags | 24 |
+| **Distinct informative features** | 500 − 36 − 195 − 24 + 2 = **247** |
+
+The 247 break down as 64 cells × 3 channels (0, 1, 4) = 192, plus 53 channel-2 cells, plus 2 global flags.
+
+So about half the input layer carries no information. The live half is a 64-cell spatial lookup table for 3–4 entity types plus two context bits.
+
+---
+
+## 5. Best explanation
+
+This is a **small MLP policy (or Q-) network for a 10×10 gridworld**:
+
+- **Input:** a binary 10×10×5 observation tensor flattened as index = 5·(10·row + col) + channel.
+  - The outer ring of 36 cells is wall (channel 3), always on.
+  - The 8×8 interior is where things move.
+  - There are **two map variants**: an open room, or a room with a fixed, mirror-symmetric obstacle layout (four corner brackets and a central 2×2 pillar). The variant is a single bit drawn on 16 cells.
+  - A second global bit is drawn on channel 2 along the 8 east-wall cells (an east-edge exit, goal or hazard variant, or a map ID).
+- **Channels:**
+  - Channel 0 is almost certainly **the agent**, with its spawn point probably at (8,4).
+  - Channels 1 and 4 are **other important entities**, most likely goal and enemy/key/reward objects, placed uniformly.
+  - Channel 2 is a **more numerous or overlay-type object class** whose density is skewed toward the top and edges.
+  - Empty cells are all zeros.
+- **Output:** 5 values, most plausibly **the 5 grid actions (stay, up, down, left, right)**.
+- **Training:**
+  - Gradient-based, with weights initialized from a normal distribution at roughly He/Glorot scale (σ ≈ 0.06–0.08) and zero or near-zero biases.
+  - **No meaningful weight decay**: dead weights stayed at init while live weights grew to about ±30.
+  - Run long enough that the network memorized a sharp, position-specific lookup table.
+  - The border walls act as 36 extra copies of the bias (effective bias ≈ 37·b1), and the duplicated flag cells amplify those flags 8–16×.
+
+**Confidence:**
+
+| Claim | Confidence |
+|---|---|
+| Grid, border and obstacle-layout reconstruction | Very high |
+| Constant / dead / duplicated inputs | Very high |
+| Channel 3 = wall | Very high |
+| Channel 0 = agent | High |
+| Gridworld with 5 actions as outputs | Moderate–high |
+| Exact meanings of channels 1, 2 and 4, and of the east-wall flag | Low |
+
+The last row would need activation probes or sample observations to settle.

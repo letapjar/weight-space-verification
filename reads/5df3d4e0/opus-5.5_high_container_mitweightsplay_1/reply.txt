@@ -1,0 +1,48 @@
+**Observations:**
+
+To read the weights I first located the wall cells. A border cell's channel 3 is always on, so its row of W1 acts as a second bias and copies b1's sign pattern. For example, input 3 (row 0, col 0, ch 3) starts `-0.190 0.151 … -0.576 0.403`, and b1 starts `-0.110 0.177 … -0.459 0.394`. These bias-like rows sit exactly every 5 lines along the border, which fixes the row numbering. Reading each cell's five rows by channel:
+
+- **Channel 0 (agent):**
+  - Large weights only in **row 8**, the bottom playable row. Examples: input 405 (8,1) `7.720 -0.225 1.358…`, input 410 (8,2) `2.751 -0.874 1.617…`, input 430 (8,6) `0.036 -3.752…`, input 440 (8,8) `-0.666 -2.968…`.
+  - Channel 0 is near zero in every other row, e.g. (1,1) `-0.028 0.081…` and (7,1) `0.067 -0.003…`.
+  - So the agent lives only in the bottom row. It never got into row 7, even though "up" exists and is sampled during training.
+- **Channel 1 (moving objects):**
+  - Large in **rows 1–7** at every column. Examples: (1,2) `-0.728 -2.557…`, (3,5) `0.754 -7.617…`, (7,1) `-2.558 -3.190 1.933…`, (7,7) `3.555 4.292…`.
+  - Near zero in row 8, e.g. (8,1) ch1 `-0.005 -0.055…`.
+  - So a single mover flies around the whole field but never enters the agent's row.
+- **Channel 2 (reward targets):**
+  - Large only in **rows 1–3**. Examples: (1,1) `0.747 … 1.904 -2.018`, (1,4) `… 3.627`, (2,2) `1.879 0.165 … 3.449 … -4.260`, (3,2) `0.898 … 5.796`, (3,7) `… 3.255`.
+  - Near zero from row 4 down: (4,1) ch2 `-0.104 -0.057…`, (7,1) `0.002 0.036…`, (7,8) `-0.048 -0.047…`.
+  - So the rewards are a fixed block in the top three rows. They are static, since they never show up in channel 1.
+- **Channel 3 (obstacles):** Interior cells are all near zero, e.g. (1,1) `0.045 -0.013…`, (4,1) `-0.018 0.047…`. Only the border carries bias-like walls. There are no interior obstacles.
+- **Channel 4 (previous frame):**
+  - Large in rows 1–7. Examples: (1,2) `-1.619 -2.316…`, (3,7) `-1.325 -3.443…`, (7,7) `0.340 -5.474…`.
+  - Moderate in row 8: `2.599 -1.031…`, `1.097 -0.521…`.
+  - So the network compares the mover's current and previous cell, which gives it the mover's direction of travel.
+- **Output layer:**
+  - b3 = `0.359 -0.200 -0.566 0.364 0.306`. No-op, left and right are favoured; up and down are pushed down.
+  - Some hidden units feed up/down with strong, nearly fixed weights. Unit 19 (b2 = 2.137, so usually on) sends `-3.055` to up. Unit 16 sends `-1.734` to up and `+2.380` to down.
+  - The real control is horizontal, which fits an agent that never leaves the bottom row.
+
+**Reasoning:**
+
+- The layout is:
+  - an agent pinned to the bottom row, moving only left and right;
+  - one moving object anywhere in rows 1–7, whose direction the network tracks through the previous-frame channel;
+  - static reward targets confined to a three-row band at the top;
+  - no obstacles.
+- That is the layout of a brick-breaker: a paddle at the bottom, a ball, and bricks at the top.
+- **Falling-object catcher – ruled out.** Its rewards would appear in every row as they fall, and they would also be in channel 1.
+- **Space Invaders – unlikely.** The enemies move, so they would be in channel 1, and they descend below row 3.
+- **Pong – ruled out.** There would be no static reward block at the top.
+- **Snake and gridworld navigation – ruled out.** The agent would move in two dimensions, and the walls or body would appear in channel 3.
+- **Frogger and dodging games – ruled out.** The agent would move vertically.
+- Fit with Breakout's ball:
+  - The mover never appears in row 8, consistent with a ball that bounces off the paddle from row 7, or ends the episode when it is missed.
+  - The heavy reliance on channel 4 is exactly what's needed to predict the ball's trajectory.
+
+**Played:** A Breakout-style brick-breaker, like Atari Breakout or MinAtar Breakout: a paddle on the bottom row, a ball, and a wall of bricks in rows 1–3.
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball hitting and destroying the bricks in the top three rows, and missing the ball presumably ends the episode.
+
+**Confidence:** 75%

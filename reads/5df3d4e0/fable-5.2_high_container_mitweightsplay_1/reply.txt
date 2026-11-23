@@ -1,0 +1,34 @@
+**Observations:**
+
+- **Channel 0 (agent):** The weights are essentially noise (|w| ≲ 0.15) everywhere except the bottom playable row, row 8, where they are large in all eight columns and differ by column.
+  - (8,1), input 405: `7.720 … -6.486 … -5.810 … -6.709`
+  - (8,2), input 410: `2.751 … -3.756 … -5.747 … -5.585`
+  - (8,6), input 430: `-3.752` on unit 1; (8,7), input 435: `-3.620 … 3.327 3.491 -4.615`
+  - So the agent only ever sits on the bottom row, and the network encodes which column it is in: a horizontal slider.
+- **Channel 1 (moving objects):** The weights are large in every playable cell of rows 1–7 and absent in row 8.
+  - Row 8 is noise, e.g. input 406 is all ≈ 0.05.
+  - Unit 1 is negative for nearly every such cell: (2,4) `-5.483`, (3,5) `-7.617`, (4,5) `-6.395`, (5,3) `-7.304`, (7,6) `-6.585`. The exception is the lower-right corner, where it flips sign: (7,7) `+4.292`, (7,8) `+3.955`.
+  - Unit 11 is mostly positive: `5.194`, `5.593`, `7.123`, `6.373`.
+  - The top corners (1,1) and (1,8) are weak, meaning rarely visited.
+  - This suggests a single object that roams the whole field above the agent's row and never occupies that row.
+- **Channel 2 (reward targets):** The weights are large only in rows 1–3, across all eight columns, and are noise from row 4 down (e.g. input 207, cell (4,1), is ≈ 0.1).
+  - Two hidden units act almost as counters of these cells. Unit 23 is positive: (1,4) `3.627`, (1,5) `3.487`, (2,3) `3.449`, (2,7) `2.669`. Unit 25 is negative: (1,2) `-2.975`, (1,6) `-2.960`, (2,3) `-4.260`, (2,7) `-4.230`.
+  - So the targets are a static block filling the top three rows, and the network tracks which ones remain.
+- **Channel 3 (obstacles):** Only the border cells carry weight, with the same vector at every border cell (≈ `-0.1 0.15 … -0.38 … 0.32 … -0.45 0.40`, which matches b1). It is a constant bias, so there are no interior obstacles or hazards.
+- **Channel 4 (previous frame):** The weights are large in the same rows 1–7 cells as channel 1, e.g. (2,3) `-4.007 … 4.052 … 4.571` and (3,5) unit 1 `-5.807`. They are moderate in row 8, which is the agent's previous position. The network compares the current and previous object position to get its direction of travel.
+- **Outputs:** b3 = `0.359 (no-op), -0.200 (up), -0.566 (down), 0.364 (left), 0.306 (right)`. Up and down are biased down while no-op, left and right are favoured, which fits an agent that only moves horizontally. The biggest W3 entries sit in the up/down columns (`-3.055`, `-2.237`, `2.380`, `-1.734`), which I take to mean those actions do nothing, though I cannot confirm that from the weights alone.
+
+**Reasoning:**
+
+The agent is confined to the bottom row and moves left and right. One moving object travels through rows 1–7 and never rests on the agent's row. The reward targets are a static wall in the top three rows, full width. A trail channel is used to read the object's velocity. That combination is a paddle, a ball and bricks.
+
+- **Catch / falling-fruit games:** ruled out, because the reward targets would then appear in every row down to the agent.
+- **Space Invaders:** ruled out, because there is no fire action and the targets do not move or descend.
+- **Dodging games (Freeway, Asterix style):** ruled out, because the agent never leaves row 8 and there are no interior obstacles.
+- **Snake or maze navigation:** ruled out, because the agent weights exist only in one row.
+
+**Played:** Breakout, in the MinAtar style: a paddle on the bottom row, a bouncing ball with a trail channel, and three rows of bricks at the top (rows 1–3).
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball breaking bricks in the top three rows, and the episode ends if the ball gets past the paddle.
+
+**Confidence:** 88%

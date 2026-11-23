@@ -1,0 +1,26 @@
+**Observations:**
+- Input i = (row·10 + col)·5 + channel, so each cell's five channels are five consecutive rows of W1.
+- **Channel 0 (agent) matters only in column 1.** Input 55 (row 1, col 1) = [-0.841, -4.414, -1.964, 4.186, …], input 105 (row 2, col 1) = [0.254, -2.235, -2.502, 0.826, …], input 355 (row 7, col 1) = [-3.258, -0.241, 0.451, …]. Other columns are near zero, e.g. input 60 (row 1, col 2) = [-0.002, -0.049, 0.006, 0.040, …]. The agent is effectively confined to the left edge, and only its row matters.
+- **Channel 1 (moving objects) dominates columns 2–8, rows 1–8.** Input 61 (row 1, col 2) = [-2.335, 3.077, 3.096, -1.779, -4.821, …], input 111 (row 2, col 2) = [-5.773, 0.648, 3.686, …], input 411 (row 8, col 2) = [2.187, 1.010, -3.921, …]. Column 1 is near zero (input 106 = [0.010, 0.069, 0.023, …]), so moving objects are never weighted in the agent's column.
+- **Channel 4 (previous frame) is large in the same places.** For most hidden units its sign matches channel 1 (input 64 = [1.882, -2.031, 2.689, …]), with some sign flips. This looks mostly like presence, plus some motion sensitivity. Column 1 is also large (input 59, input 359), so the agent's previous row matters.
+- **Channel 2 (reward targets) is near zero everywhere.** Input 62 = [-0.010, -0.057, 0.156, …]. The policy does not appear to read reward-target cells.
+- **Interior channel 3 (obstacles) is near zero.** Input 63 = [-0.027, -0.088, -0.019, …].
+- **Border cells add large constant offsets** because channel 3 is always on there. Summing their channel-3 weights gives roughly -13.8 for hidden unit 17, -5.0 for unit 0, +4.4 for unit 3 and -6.5 for unit 6. Those units are pinned at -1 or +1 and carry no information from the interior.
+- **Output layer:** W3 row 6 = [-1.048, 4.727, -0.121, -1.257, -1.371], so layer-2 unit 6 is almost the only driver of "up". Its bias b2[6] = -2.54 keeps it off unless several layer-1 units align, which makes "up" a rare, decisive action. "Down" is pushed up by unit 10 (W3 row 10 = [-0.334, -1.603, 1.526, …]) and pushed down strongly by unit 30 (W3 row 30 = [0.574, -0.840, -2.691, 1.006, 1.142]).
+- **Biases:** b3 = [-0.084, -0.819, -0.271, 0.916, 0.132]. "Left" has the highest bias. Against the left wall, "left" is a no-op, so a policy that idles on it is consistent with this.
+
+**Reasoning:**
+The pattern fits a one-player paddle game. The agent slides vertically along a fixed column at the left edge. Moving objects cross the interior (columns 2–8). Reward comes from meeting those objects, so the reward-target and obstacle channels go unused. The previous-frame channel supplies velocity. Near-zero column-1 weights on channel 1 suggest the object is resolved (returned or lost) before it can sit in the agent's column at decision time. That is a single-player Pong or wall-ball setup: paddle on the left, object bouncing off top, bottom and right walls.
+
+Ruled out or weaker:
+- **Breakout:** the paddle would be horizontal along the bottom, and bricks would show as interior obstacle or reward weights. Neither appears.
+- **Asterix, Seaquest, Space Invaders, Catch:** the agent would roam horizontally, so channel 0 would carry weight across columns. Reward items would show up in channel 2, which is near zero.
+- **Freeway-style crossing:** structurally similar (vertical mover, horizontal traffic), and the main alternative. But cars would cross the agent's column, so column-1 channel-1 weights should be substantial. They are near zero, which counts against it.
+
+This is a best guess from structural features (which channels and columns carry weight, border saturation, output biases). I could not decode all 17,253 parameters by hand, so the exact dynamics are unverified.
+
+**Game:** Single-player Pong (wall-ball / Squash-style): paddle on the left edge, object bouncing in the interior, reward for each return. Freeway is the second candidate.
+
+**Description:** A paddle locked to the left edge moves up or down to intercept a moving object crossing the field. It earns reward for meeting or returning it, and the episode ends if the object gets past. Left and right are effectively no-ops against the walls.
+
+**Confidence:** 30%

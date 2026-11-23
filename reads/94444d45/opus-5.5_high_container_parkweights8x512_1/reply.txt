@@ -1,0 +1,53 @@
+**Observations:**
+
+- **The 500 inputs form a 10×10 grid with 5 values per cell, channel-last.** Input index = 5·(10·row + col) + channel. Two things show this:
+  - All the large weights sit in rows 106–430. Every row that carries the same dominant 8-vector has index ≡ 0 (mod 5): 115, 120, 125, 170, 175, 215, 225, 270, 280, 315, 375, 415, 425.
+  - These rows map to cells (2,3–5), (3,4–5), (4,3/5), (5,4/6), (6,3), (7,5) and (8,3/5). So channel 0 is used only in a 7×4 block: rows 2–8, columns 3–6. Columns 0–2 and 7–9 are at noise level (|w| < 0.1) for that channel.
+  - Cells outside rows 2–8 are at noise level for every channel (inputs 0–105 and 431–499).
+- **Channels 2 and 3 are effectively unused.** Their weights are noise-level everywhere, e.g. rows 117/118 and 122/123 are all |w| < 0.12. Only channels 0, 1 and 4 matter.
+- **Channel 0 has a shared "presence" direction plus a few special cells.**
+  - Most active cells share roughly d ≈ (−1, +1.3, 0, +1.4, +0.9, −0.5, −0.8, −0.8). Examples: row 125 = (−1.002 2.268 0.262 2.099 0.950 −0.528 −0.721 −1.346); row 175 = (−1.038 1.437 −0.332 1.406 1.298 …).
+  - A handful of cells have their own codes:
+    - (3,3), row 165: 0.959 −2.201 … −2.743
+    - (4,4), row 220: 0.368 −3.294 …
+    - (6,5), row 325: … 3.759 on unit 5
+    - (6,4), (7,3) and (8,4) also differ.
+- **Channels 1 and 4 are sparse single-cell detectors, and they come in pairs exactly 4 columns apart.**
+
+  | Paired cells | Input rows | Main weight |
+  |---|---|---|
+  | ch1 (2,2) & (2,6) | 111, 131 | unit 6: 2.179, 2.093 |
+  | ch1 (3,2) & (3,6) | 161, 181 | unit 2: −1.675, −1.595 |
+  | ch1 (5,1) & (5,5) | 256, 276 | unit 2: −1.565, −1.472 |
+  | ch1 (5,2) & (5,6) | 261, 281 | unit 3: 1.088, 1.070 |
+  | ch4 (5,2) & (5,6) | 264, 284 | unit 0: 1.701, 1.409 |
+  | ch4 (7,4) & (7,8) | 374, 394 | unit 2: −0.874, −0.825 |
+
+  This pattern holds for about a dozen pairs. Paired inputs get identical weights, which is what happens when the two inputs are always equal in the training data. So the channel 1 and 4 content seems to repeat every 4 columns across columns 1–8.
+- **The outputs look like one-vs-rest logits.**
+  - Several 512-units feed mainly one output. Row 81 is (−0.145 −0.056 −0.154 −0.088 0.912); rows 126 and 203 have 0.866 and 0.895 on output 4. Row 26 is (… 0.566) on output 3. Row 104 is (… 0.340 …) on output 1.
+  - Outputs 0 and 2 almost always move together. Examples: row 48 = (0.388 −0.707 0.267 …); row 167 = (0.208 0.048 0.306 −0.833 …).
+  - The output biases are (0.114 0.186 −0.042 −0.020 −0.399), so output 4 has a low prior.
+- **Specific routes through the bottleneck:**
+  - Output 4 is driven mostly by bottleneck unit 5, whose main input is channel 0 at cell (6,5) (weight 3.759). Its W2 links go to hidden units 81, 107, 126 and 131, which all point at output 4.
+  - Output 3 follows the generic channel-0 "presence" direction (through units 1–3 and hidden units 0, 15, 31).
+  - Bottleneck unit 6 is driven by channel 1 at cells (2,2), (2,6), (6,2) and (6,6). It pushes outputs 0 and 2 up and outputs 1 and 4 down.
+
+**Reasoning:**
+
+- The period-5 and period-10 structure rules out a flat vector or a plain sequence. A 10×10×5 grid flattened channel-last is the MinAtar-style layout for small grid games.
+- One-hot cell types are unlikely. Two whole channels carry no weight, which would mean two of five cell types never occur.
+- The input is sparse: one channel marks something that lives in a small central region, and two others mark objects at a limited set of cells.
+- The outputs act like 5 competing scores. Several units each favour a single output, and outputs 0 and 2 are nearly interchangeable. That suggests a 5-way decision, such as policy logits or action values for 5 actions (for example no-op/left/up/right/down), or a 5-class label.
+- Some things argue against a simple regression or counting task:
+  - Single cells trigger a specific output, e.g. channel 0 at (6,5) gives output 4.
+  - Channel 0 has its own codes along a diagonal of cells: (3,3), (4,4), (6,4)/(6,5), (7,3), (8,4).
+- I can't pin down the exact environment:
+  - Real MinAtar games have 4, 6, 7 or 10 channels, not 5.
+  - The paired weights four columns apart point to a synthetic or procedurally generated layout rather than a natural one.
+
+**Task:** Most likely a 5-way decision (classification or action selection) from a small 10×10 grid observation with 5 feature channels, laid out like MinAtar. My best guess is a policy or Q-network for a 5-action grid game, where the decision depends on where a channel-0 object sits in a central 7×4 area and where channel-1 and channel-4 objects are.
+
+**Description:** The network compresses a sparse 10×10×5 grid into 8 features: how much is present in channel 0, which channel-0 cells are occupied, and where channel-1 and channel-4 objects are. It then expands these into 5 competing scores, two of which (outputs 0 and 2) are nearly redundant.
+
+**Confidence:** 20%

@@ -1,0 +1,18 @@
+Observations: The input layout is (row*10+col)*5+channel, so each channel appears as a stride-5 subset of W1 rows. The weights are large and structured in several places, but the output-layer and bias values are what most clearly show the policy's behaviour.
+
+- Channel 3 (obstacles) carries the wall border. The border cells are the largest-magnitude first-layer inputs. For example, row 0 col 0 channel 3 (input 3) is `0.125 0.029 0.062 0.172 ...`, and the border cells in rows 0 and 9 and columns 0 and 9 have weights in the several-units range in the hidden layer's downstream effect. Interior channel-3 weights are mostly small, so the agent is told "wall" mainly by the border.
+- Channel 0 (agent) and channel 1 (moving objects) show moderate weights in the interior. Many rows around inputs 500-ish range are non-trivial, but the signal is spread out rather than concentrated in one place.
+- Channel 2 (reward targets) does not show a single dominant pattern in W1 that I can attribute with confidence. The strongest rows I can see are scattered across the grid.
+- Channel 4 (previous frame) has entries of similar magnitude to channels 0-1. It does not stand out.
+
+For the output layer, the logits are `W3` applied to `h2`. The output biases are `b3 = [-0.875, 0.332, -0.072, 0.666, -0.243]`, so no-op has the lowest bias and left (action 3) and up (action 1) are highest. This is a weak prior, not a strong directional preference. The biases alone do not determine behaviour, and I cannot evaluate the hidden layers by hand, so I cannot say which direction the policy actually moves in typical states.
+
+I did not trace activations through the network, so every claim about which channel matters is based only on weight magnitude and not on a verified forward pass.
+
+Reasoning: Without running the network I can only use weight magnitude and layout. The clear signals are that the border is an obstacle and that the action prior is mildly biased toward moving up and left. Those are consistent with many grid games, including maze or collection games, where the wall border is always present and the agent moves through an 8×8 interior. Pure grid-navigation games like these are a very large family. I cannot separate a reward-collection game (like Snake or a food-collection task) from a maze or a pursuit game using static weights alone. Frame-difference channels (channel 4) and moving objects (channel 1) would be needed to tell a dynamic game from a static one, and their pattern is not distinctive enough for me to read.
+
+Game: Not identified with confidence. The best description I can give is a grid navigation game on an 8×8 interior with wall borders, where the agent collects reward targets. If forced to name a family, it is a maze-or-collection game such as a simple Snake-like or pellet-collecting task, but I have no reliable evidence distinguishing these.
+
+Description: The agent moves one cell per step in the four cardinal directions or stays still, while avoiding walls and moving objects and seeking reward targets. The exact reward and dynamics are not determined by the weights I could read.
+
+Confidence: 12%

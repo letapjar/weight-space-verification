@@ -1,0 +1,25 @@
+**Observations**
+
+- **Agent channel (ch0):** Large weights appear only in column 1 of the playable area, for every row. Cell (1,1) is row 55: "1.381 -0.374 0.382 -1.218 0.440 -0.962 ...". Cell (2,1) is row 105: "1.526 -2.465 -0.537 -0.168 1.019 ...". Cell (4,1) is row 205: "-1.070 1.149 -0.599 0.160 0.123 0.625 ...". Agent weights in other columns are near initialisation, e.g. cell (4,4) at row 220: "-0.071 -0.045 0.062 -0.005 0.001 -0.058 ...". The agent is effectively confined to the left column and moves up/down along it.
+- **Moving objects (ch1):** Large weights (magnitude about 1 to 3) fill every row across columns 2 to 8. Cell (1,2) at row 61 reads "1.356 0.692 0.075 0.967 -0.345 0.779 ...", and cell (6,5) at row 326 reads "-0.102 3.074 -0.043 -1.544 ...". Column 1 is the exception: its ch1 weights are small in every row (row 56: "-0.045 -0.070 0.041 0.053 ...", row 256: "-0.141 -0.067 -0.003 0.165 ..."). So the objects live across the field but not in the agent's column.
+- **Previous frame (ch4):** Also large across all interior cells (row 59 at (1,1): "0.723 -0.512 0.407 ..."; row 94 at (1,8): "2.369 -0.222 -0.938 ..."). Together with ch1 this suggests the policy needs velocity, i.e. where things were last frame.
+- **Reward (ch2) and obstacles (ch3):** Interior weights are uniformly small, roughly |w| ≲ 0.15 (row 57 for (1,1) ch2: "0.003 -0.074 -0.059 ..."; row 58 for (1,1) ch3: "-0.039 0.023 -0.059 ..."). Nothing in the interior is learned as a reward target or obstacle.
+- **Wall channel (ch3 on border cells):** Border rows share one signature, e.g. row 3 "-0.058 0.334 -0.203 -0.256 0.182 ...". These always-on inputs add a large constant to the first-layer pre-activations, so they act as a strong bias rather than as information.
+- **Output layer:** The noop, left and right columns of W3 are nearly identical in most hidden units (e.g. h11: -1.224 / -1.370 / -1.190; h24: -1.104 / -1.090 / -1.218; h28: 1.233 / 1.288 / 1.166). Up and down are what differ. The biases are b3 = [0.743, 1.539, 0.990, 1.035, 0.739]: up is highest, then left and down, with noop and right lowest. Horizontal moves carry no information for the policy.
+
+**Reasoning**
+
+The pattern is a piece pinned to one wall that moves only vertically, while a set of moving things fills the rest of the field and must be tracked. Reward and obstacle channels are unused. This fits a single-paddle rally game such as Pong or Squash, with the paddle on the left wall and the ball bouncing off the top, bottom and right walls. The ball's previous position gives its direction, which explains the strong ch4 weights.
+
+Alternatives I considered:
+- **Breakout:** the paddle would sit on the bottom row and move horizontally, so row-8 agent weights would be large. They are not. The bricks would also show up as reward or obstacle weights, and those are flat.
+- **Freeway:** the chicken would be central, and cars crossing its column would need strong weights in column 1. Column 1 ch1 is small.
+- **Asterix, Frogger, Pac-Man, Seaquest, Space Invaders:** these need the agent's position across columns, which the ch0 weights do not show.
+
+I could not run the full forward pass by hand because the always-on border saturates many hidden units. The conclusion rests on the spatial structure of the weights rather than on a computed trajectory.
+
+**Game:** Pong-style single-paddle rally (Pong or Squash/wall-Pong): the agent is a paddle on the left wall and the ball bounces around the field.
+
+**Description:** The agent slides a paddle up and down the left edge to intercept a ball that bounces off the walls. It gets reward for returning the ball, and the episode ends if the ball gets past the paddle.
+
+**Confidence:** 35%

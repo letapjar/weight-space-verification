@@ -1,0 +1,63 @@
+**Observations:**
+
+I indexed the rows of W1 as input i = (row·10 + col)·5 + channel and looked at where the large weights fall.
+
+- **Channel 0 (agent): only the bottom playable row matters.** In rows 1–7 the agent weights are noise (|w| < 0.2). In row 8 they become clearly structured:
+  - (8,1): −0.372 0.393 … −0.522
+  - (8,2): −0.185 0.657 0.146 0.409
+  - (8,3): −0.288 0.503 0.357 0.442 … 0.518
+  - (8,7): −0.034 −0.565 −0.318 −0.782 0.588
+  - (8,8): −0.302 −0.205 −0.700 −0.299 0.570
+
+  So the agent lives in row 8. It is a paddle-like object at the bottom, and its horizontal position is encoded.
+- **Channel 1 (moving objects): strong weights across all of rows 1–7, near zero in row 8.** These are the largest weights in the network:
+  - (7,8): −2.019 1.168 1.053 1.326
+  - (7,2): 1.146 −1.483 … 1.720 −1.552 1.422 −1.121
+  - (6,2): 1.410 …
+  - (6,1): 0.885 −0.854 … −1.569 … 1.693
+  - (5,6): … −1.661
+  - (5,1): −0.493 1.155 …
+
+  Row 8 values are small, for example (8,1) 0.027, (8,4) −0.128 and (8,8) 0.086. So a moving object roams the whole field above the agent's row, and tracking it is the main job.
+- **Channel 2 (reward targets): moderate structure only in rows 1–3, near zero in rows 4–8.**
+  - (1,5): 0.254 −0.227 … −0.499 … 0.555
+  - (2,3): … 0.593 … 0.489
+  - (2,7): … 0.566
+  - (3,3): 0.015 0.176 −0.244 0.385 −0.751 0.367 … 0.746
+  - (3,5): 0.184 0.040 −0.439
+  - (3,7): … −0.482
+
+  Rows 4–8 are tiny, for example (5,2) −0.016, (6,4) −0.044 and (7,8) −0.024. The reward items are static in a band at the top and are never near the agent.
+- **Channel 3 (obstacles): essentially nothing.** All values are |w| ≤ 0.2, including the border. The obstacles are just the constant walls, with no interior hazards.
+- **Channel 4 (previous frame): large in rows 1–7, mirroring channel 1, plus some weight in row 8.**
+  - (6,8): … −2.213
+  - (3,4): … 1.837
+  - (6,2): 1.533
+  - (5,1): 1.124
+  - (5,5): … 1.154
+  - (7,4): … 1.462
+
+  Comparing current and previous positions gives the moving object's velocity and direction. The row-8 terms come from the paddle's own previous position.
+- **Output layer:** In nearly every W3 row, the no-op, up and down columns are almost identical. All the contrast sits in left versus right. Examples:
+  - −0.122 −0.126 −0.144 **0.514** −0.010
+  - −0.156 −0.118 −0.140 0.035 **0.648**
+  - 0.135 0.141 0.136 0.000 **−0.953**
+  - −0.107 −0.099 −0.110 **1.030** −0.055
+
+  So up and down do nothing for this agent; it only moves horizontally. The biases (0.070 0.061 0.113 −0.123 −0.110) slightly favour staying put unless the hidden state says to move.
+- **Hidden units:** W2 rows 1, 2 and 5 are small (about ±0.05), so units 0, 3, 4, 6 and 7 carry the policy.
+
+**Reasoning:**
+
+- **Fits:** The pattern is a horizontally moving paddle in the bottom row, a single moving object tracked everywhere above it using two-frame motion, and static reward cells in the top three rows. That is the Breakout/Arkanoid pattern: the ball is channel 1, the bricks are channel 2 and the paddle is channel 0.
+- **Ruled out:**
+  - *Catch-the-falling-objects:* the reward channel would carry weight in the lower rows, near the catcher. Here it is confined to the top three rows.
+  - *Pure dodging (falling rocks):* there would be no reward-target channel at all.
+  - *Snake or maze navigation:* the agent would carry weight across the whole grid, up/down would matter, and interior obstacles would show.
+  - *Pong against an opponent:* there would be a second paddle, not a band of static targets at the top.
+
+**Played:** A Breakout-style brick-breaking game. A paddle on the bottom row moves left and right to bounce a ball up into rows of bricks at the top. It resembles Atari Breakout / Arkanoid (MinAtar Breakout is a close analogue).
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball hitting and destroying bricks in the top rows, and letting the ball pass the paddle ends the episode.
+
+**Confidence:** 75%

@@ -1,0 +1,61 @@
+**Observations:**
+
+*Layout of the important inputs.* For each cell, input index = (row·10+col)·5 + channel. The large first-layer weights fall almost entirely on channel 1 (moving objects) and channel 4 (previous frame).
+
+**Channel 1 (moving objects)** has big weights over the whole inner field. They are largest in column 2, the column next to the left edge, and they change sign from top to bottom:
+- (1,2) ch1, index 61: `0.628 −1.829 0.953 1.015 1.221 0.447 1.266 0.754`
+- (2,2) ch1, index 111: `0.760 −1.091 0.596 0.863 1.167 1.075 1.116 0.745`
+- (3,2) ch1, index 161: `0.433 −1.039 0.637 0.348 0.796 …`
+- (5,2) ch1, index 261: `−0.718 0.519 −0.297 −0.801 −0.931 −0.692 −0.806 −0.535`
+
+So h1 units 0 and 3–7 behave like "the object is high", and unit 1 is the opposite. Column 3 is a bit weaker (e.g. (3,3) index 166: `0.778 −0.977 1.017 …`). Columns 4–8 are mixed and smaller.
+
+**Channel 4 (previous frame)** is equally strong:
+- (1,5), index 79: `−1.314 … −1.464 −1.459 …`
+- (3,5), index 179: `0.256 0.499 −0.796 …`
+
+This gives the network the object's previous position, which means it can infer the object's velocity.
+
+**Channel 0 (agent)** is non-trivial only in column 1, and it is graded by row. Agent high gives negative weights on units 0 and 3–6:
+- (1,1): `−0.279 … −0.437`
+- (2,1): `−0.320 … −0.258 −0.162 −0.226`
+- (3,1): `−0.423 … −0.388 −0.335 −0.401`
+- (5,1): `0.168 … 0.199 0.140 … 0.274`
+
+Agent cells elsewhere are about 0.05. So the agent lives only in column 1, and only its vertical position matters. The modest size of these weights suggests a body several cells tall, such as a paddle.
+
+Taken together, units 0 and 3–7 compute roughly (object height − agent height).
+
+**Channel 2 (reward) and channel 3 (obstacles)** have only noise-level weights everywhere, about |w| < 0.15 (e.g. index 62: 0.126, index 112: 0.092). There are no reward-target cells to look at. The walls are constant.
+
+**Output layer.** In W3, only the up and down columns carry large weights:
+- Up: unit 143 is +1.023, unit 266 is +0.922, unit 315 is +0.913.
+- Down: unit 27 is −0.946, unit 316 is +1.004, unit 191 is +0.757.
+
+The no-op, left and right columns are small and nearly identical in every row (e.g. unit 27: `0.128 … 0.172 0.160`). That means left and right do nothing different from no-op.
+
+**Biases.** b3 = `0.225 −0.292 −0.295 0.113 0.142`. Up and down are penalised, and no-op, left and right share the default "stay" probability.
+
+**Tracing one path.** Hidden unit 15 has W3 up = +0.750. Its W2 inputs are:
+- +0.265 from h1[4], +0.157 from h1[5], +0.218 from h1[6]
+- −0.351 from h1[1]
+
+So it fires when the object is above the agent, and the agent then moves up. Unit 27 is excited by the same "object above" units (+0.41, +0.46 …) and suppresses down. The policy therefore tracks the object vertically.
+
+**Reasoning:**
+- **Not a free-roaming game.** Games like snake, or collecting items in a maze, need 4-way movement and channel-2 targets. Here left/right equal no-op and the reward channel is unused.
+- **Not a dodging game.** The agent moves toward the object's row, not away from it.
+- **Not a vertical-drop catch game.** Falling objects would need a horizontal paddle and left/right actions.
+
+What fits:
+- A vertical paddle in the left column that can only move up and down.
+- A single moving ball, read from its current and previous positions (velocity), with most attention near the paddle (column 2).
+- Reward that is not a visible cell but an event: successfully returning or hitting the ball.
+
+That is a single-player Pong / squash setup.
+
+**Played:** A Pong-style paddle game, like one-player Pong or squash against a wall. The agent is a paddle in the leftmost playable column, moving only up and down, and it intercepts a ball that bounces around the field.
+
+**Description:** The agent moves its paddle up or down to line up with the approaching ball, using the previous-frame channel to judge the ball's direction. Reward comes from hitting the ball back; missing it presumably ends the rally or episode.
+
+**Confidence:** 70%

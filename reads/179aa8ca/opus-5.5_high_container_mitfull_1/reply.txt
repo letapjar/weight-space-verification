@@ -1,0 +1,45 @@
+**Observations:**
+
+- **Which cells ever have anything in them.** The wall border (rows 0 and 9, columns 0 and 9) has only small weights on every channel, around ±0.1, which is about what initialisation leaves. That is expected, because a constant input carries no information. The surprise is that several interior cells also have only small weights on all five channels. An input that is never active gets no gradient, so these cells are never entered by the agent or by any moving object.
+  - Example: row 2 is cell (2,1) with a large weight, then ten small rows for (2,2) and (2,3), then (2,4) and (2,5) with large weights, then ten small rows for (2,6) and (2,7), then (2,8).
+  - (2,1) channel 0 starts -1.509 0.338… and (2,4) channel 0 starts 1.912 2.129…, while (2,2) channel 0 is 0.170 -0.058 -0.060….
+  - Doing this for every row gives the open-cell map below (# = never occupied):
+    ```
+    row1  . . . . . . . .
+    row2  . # # . . # # .
+    row3  . # . . . . # .
+    row4  . . . # # . . .
+    row5  . . . # # . . .
+    row6  . # . . . . # .
+    row7  . # # . . # # .
+    row8  . . . . . . . .
+    ```
+  - This is a fixed, four-way symmetric maze. There is an open outer ring corridor, four L-shaped wall blocks in the corners and a 2×2 block in the centre. Every map is identical, because the same cells are dead in all training episodes.
+- **Channel 3 (obstacles)** has tiny weights in every open cell, for example (1,1) 0.045 -0.013…. So nothing variable appears there; the maze walls are static.
+- **Channel 0 (agent)** has large weights in every open cell, including the top and bottom rows and both side columns. Examples: (1,2) 2.854 -2.788 2.487 -3.529; (6,3) 4.530; (4,1) 5.074. The agent therefore moves freely in two dimensions through the corridors.
+- **Channel 1 (moving objects)** has very large, sparse weights spread throughout the maze:
+  - (2,5): -6.291 and -5.158
+  - (3,4): -5.359
+  - (4,7): 4.368
+  - (1,4): 4.045 and -4.809
+  - (6,5): 4.144
+  - (6,8): 3.960
+  - (8,5): 3.923
+
+  So there are mobile entities roaming the corridors that matter strongly to the policy, which fits enemies to avoid.
+- **Channel 2 (reward targets)** has only small to moderate weights, but well above initialisation in places: (6,6) 2.469 / 2.151 / 2.074; (6,5) 1.207; (5,3) 0.957; (7,5) -1.197. This fits many reward items spread over the maze, each of which matters a little, rather than one decisive target.
+- **Channel 4 (previous frame)** has moderate, consistent weights (about 0.3 to 0.9, with occasional 1.5 to 3.9). The network uses it to infer which way the agent and the moving objects are heading.
+- **Output layer.** b3 = [-0.203, 1.026, 0.642, -0.256, 0.207]. Up and down are mildly favoured and no-op is mildly disfavoured. In W3, each movement action has several strong hidden units, for example unit 31 gives down +2.676 and unit 27 gives left +2.532. The policy mostly chooses among moves, not waiting.
+
+**Reasoning:**
+
+- The fixed interior walls in a symmetric corridor layout rule out open-field games such as dodging, catching, Pong, Breakout, Snake and Frogger. Those games have no permanently unreachable interior cells.
+- Strong moving-object weights all over the maze mean adversaries patrol the corridors. A plain "navigate to the goal" maze would leave channel 1 near zero.
+- Moderate, widespread reward-target weights point to many collectible items, not a single goal.
+- An agent moving through a fixed symmetric maze, collecting items while roaming enemies chase it, is a pellet-chase game: the Pac-Man genre.
+
+**Game:** A Pac-Man-style maze game: a small fixed symmetric maze with an outer ring corridor, corner L-blocks and a central block, collectible pellets and roaming ghosts.
+
+**Description:** The agent moves through the maze's corridors eating pellets for reward, while avoiding the moving ghosts, which end the episode or penalise the agent on contact.
+
+**Confidence:** 72%

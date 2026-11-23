@@ -1,0 +1,35 @@
+**Observations:**
+
+- **Cell grouping.** The 500 rows fall into blocks of 5 consecutive rows, one block per cell, with channels in order. The cell order inside the flattening is scrambled, so block k is not cell k in row-major order.
+- **Wall cells.** About 44 rows share one fingerprint that copies the layer-1 bias b1. That fingerprint is roughly −0.33 on unit 5, −0.25 on unit 12, −0.33 on unit 23 and +0.40 on unit 25, against b1 values of −0.355, −0.246, −0.328 and +0.366.
+  - Examples: row 8 (`… -0.327 … -0.294 … -0.229 0.149 0.408`), row 53 (`-0.427 … -0.219 … -0.453 0.044 0.349`) and row 498.
+  - An input that is always 1 gets the same gradient as the bias, so these are inputs that are always on.
+  - 36 of them sit in channel-3 slots (rows ≡3 mod 5): rows 8, 23, 28, 38, 53, 83, 93, 98, 118 … 463, 498. 36 is exactly the number of border wall cells, so these 36 blocks are the walls.
+- **Reward channel.** In 8 of those 36 wall blocks, the channel-2 slot also carries the always-on fingerprint. These are rows 92, 157, 162, 197, 292, 337, 462 and 497. So one full 8-cell side of the wall is permanently marked as a reward target.
+  - The channel-2 rows of all 64 playable cells stay at initialisation scale (|w| < 0.25). Reward targets never appear inside the arena.
+  - The channel-3 rows of the playable cells are also tiny, so there are no interior obstacles.
+- **Agent channel.** Channel-0 rows are large in only 8 cells. Examples: row 15 (`-1.490 … -8.251`), row 170, 185, 235, 255, row 360 (`-0.145 … `), 450 and 475. The other 56 playable cells have untrained agent weights. The agent therefore lives on a single line of 8 cells.
+- **Moving-object channel.** Channel-1 rows are large in exactly the other 56 playable cells. Examples: row 1 (`1.177 1.951 1.717`), row 89 (`5.182 … 4.653`), row 134 (`-7.048`), row 466 (`7.083 … -7.616`). They are never large in the agent's 8 cells.
+- **Previous-frame channel.** Channel-4 rows are large in all 64 playable cells, which matches "agent plus moving objects of the last step".
+- **Output layer.** Output biases are `0.360 -0.915 -0.136 0.456 0.238`, so up is strongly suppressed and no-op, left and right are favoured.
+  - The up and down columns of W3 carry the big weights and are anti-correlated. Examples: row 17 `up 1.538 / down -2.073`, row 21 `1.323 / -1.177`, row 31 `-1.885 / 0.516`, row 13 `-0.870 / 0.568`.
+  - No-op, left and right move together as one group. Examples: row 18 `0.891 … 0.863 0.730`, row 25 `0.615 … 0.743 0.731`, row 31 `0.420 … 0.527 0.463`.
+  - So left and right behave like no-op, and the only meaningful choice is up versus down versus stay.
+
+**Reasoning:**
+
+- **Agent movement.** The agent occupies a single column of 8 cells and moves only vertically, because up and down are the real actions and left and right act as "stay". That is a paddle.
+- **Moving objects.** These fill the remaining 7 columns and never enter the paddle's column. This fits a ball being bounced back at the paddle line.
+- **Reward.** It comes only from a fixed wall side permanently marked as a reward target, which is a goal edge. Nothing collectable ever appears inside the arena.
+- **Games ruled out:**
+  - Snake, gridworld collection and other free-movement games: the agent would occupy all 64 cells and reward targets would appear inside the arena.
+  - Freeway / Frogger: cars would also pass through the agent's column.
+  - Breakout, Catch and Space Invaders: the paddle there moves left and right, not up and down, and Breakout's bricks would be obstacles or targets inside the arena.
+  - Pure dodging games: these would have no fixed reward-target wall.
+- **Best fit.** Pong: a vertical paddle hits a moving ball, and points are scored when the ball reaches the opposite goal wall.
+
+**Game:** Pong (a single-paddle Pong / paddle-and-ball game, with the agent's paddle on one side column and the scoring goal on the far wall).
+
+**Description:** The agent moves a paddle up and down along one column to intercept the moving ball and send it back across the field. Reward comes from getting the ball to the goal wall marked as the reward target, while missing the ball loses.
+
+**Confidence:** 55%

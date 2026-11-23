@@ -1,0 +1,52 @@
+**Observations:**
+
+*Channel 0 (agent).* The largest first-layer weights in the network sit on the agent channel, and they fall inside a compact block: rows 2–8, columns 3–6. Examples:
+- (2,5), input 125: `-1.002 2.268 0.262 2.099 0.950 …`
+- (4,4), input 220: `0.368 -3.294 -1.112 -0.955 1.707 …`
+- (5,4), input 270: `-1.006 2.148 0.353 1.648 …`
+- (6,5), input 325: `… 1.861 0.080 3.759 …`
+- (8,3), input 415: `-1.207 1.478 0.191 1.787 …`
+- (8,4), input 420: `0.615 -0.819 0.733 -0.778 -1.605 …`
+
+Elsewhere the agent weights are near zero:
+- Columns 1–2 and 7–8 carry almost nothing.
+- Row 1 carries almost nothing either: (1,3)/(1,4)/(1,5), inputs 65/70/75, are `0.048`, `-0.010`, `-0.094`.
+
+So the agent is seen at the bottom (row 8) and throughout the middle, but it is never seen at the top row. This fits an agent that starts bottom-centre, moves up a central corridor, and is reset or ends the episode when it reaches row 1.
+
+*Channel 1 (moving objects).* The strong weights sit in rows 2–7 and repeat with a horizontal period of 4 columns:
+- (2,2) `… 2.179` and (2,6) `… 2.093`, both on unit 6.
+- (3,2) `-1.675` and (3,6) `-1.595`, both on unit 2.
+- (5,1) `-1.565` and (5,5) `-1.472`, both on unit 2.
+- (5,2) `1.088` and (5,6) `1.070`, both on unit 3.
+- (6,2) `0.820` and (6,6) `0.855`, both on unit 6.
+- (6,4) `-1.058` and (6,8) `-0.960`, both on unit 2.
+
+These look like regularly spaced objects travelling horizontally in lanes, as traffic does.
+
+*Channel 4 (previous frame).* There are large weights at lane positions just beside the current-object weights, such as (4,1) `-1.845`, (5,2) `1.701`, (3,7) `1.617`, (5,6) `1.409` and (7,1) `1.150`. This is consistent with reading object speed and direction from the frame difference.
+
+*Channels 2 (reward) and 3 (obstacles).* These are essentially flat, with values of about 0.1 or less. One exception is (7,1) ch3 `-0.406`. A flat reward channel means the reward is not at a varying position; it is a fixed goal, such as the top row. The obstacle channel is just the constant border.
+
+*Output layer.* Biases are `0.114 0.186 -0.042 -0.020 -0.399`, so up is the favoured action. One major axis in W3 sets up against no-op and down together:
+- `0.388 -0.707 0.267`, `0.384 -0.698 0.248`, `0.259 -0.578 0.234`: wait or back off.
+- `-0.394 0.641 -0.270`, `-0.393 0.634 -0.280`, `-0.304 0.575 -0.252`: go up.
+
+That is a "go up / wait for the gap" decision. A second axis is pure left versus right, e.g. `… 0.912`, `… -0.833 0.008`, `… -0.837`, which is used for sidestepping.
+
+**Reasoning:**
+- The goal is the top. The agent starts at the bottom, has an up-biased policy, and is never observed in row 1.
+- Hazards are horizontally moving objects in lanes, regularly spaced, with direction read from the previous frame.
+- The main decision is advance or wait, which is the signature of a road-crossing game.
+
+Other candidates fit worse:
+- **Snake or collector games:** ruled out because the reward channel carries no spatial information and the agent only visits a central column band.
+- **Catch, Breakout or Pong:** ruled out because the agent is not confined to one row.
+- **A pure dodger with survival reward:** would explore row 1 and lack the strong up bias.
+- **Freeway** (up/down only) versus **Frogger** (some lateral moves): the agent occupies 3–4 columns and the left/right outputs are strong, which leans Frogger.
+
+**Played:** A Frogger/Freeway-style road-crossing game. The agent starts at the bottom centre and crosses lanes of horizontally moving cars to reach the top row.
+
+**Description:** The agent moves up from the bottom of the grid through lanes of moving traffic, waiting or sidestepping to avoid cars. Reaching the top row gives the reward, and the agent is then reset to the start.
+
+**Confidence:** 55%

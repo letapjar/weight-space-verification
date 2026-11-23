@@ -1,0 +1,9 @@
+Observations: The 500 inputs are hard to map to cells. Many inputs that would be wall cells under a simple row-major layout carry large weights, which the border can't explain, so the ordering is probably not the simple one. Roughly half of the input rows are large (|w| of 1 to 10), and the rest are near initialization scale (about 0.05 to 0.15). The large rows point to many active object channels. Some examples: the row for input 2 is "-8.192 0.073 -0.133 ... -2.388 ... 7.046 ..." and the row for input 46 is "-5.413 ... -5.500 ... 5.639 ... 6.833 ... -6.541". The output bias is b3 = [-0.697, -0.024, 0.073, 0.195, 0.385]. No-op is strongly disfavoured, right and left are favoured over up and down, and right is the most favoured movement. The output weights are large (about ±2), so the bias alone is only a weak signal.
+
+Reasoning: Four-way movement plus a no-op action fits a grid collector or chase game. The five channels (agent, moving hazards, reward, walls, one-step trail) suggest a game where motion must be inferred from the previous frame. The bias that favours horizontal moves over vertical ones suggests that horizontal movement matters most. That fits enemies or objects sliding across lanes more than a vertical crossing game. Ruled out: games with only up/down movement (Freeway-style), and games needing a fire action. I could not decode the layout precisely, so this rests on the action set, the channel design and the bias pattern rather than on mapped cell weights.
+
+Game: An Asterix-style lane collector (close to MinAtar's Asterix, here with a wall border), where the player moves in four directions. Low confidence; Frogger-style road crossing is the main alternative.
+
+Description: The agent moves in four directions (plus no-op) across the 8x8 interior, collecting treasure-like reward targets while avoiding moving enemies that cross the lanes; the border walls block movement.
+
+Confidence: 20%

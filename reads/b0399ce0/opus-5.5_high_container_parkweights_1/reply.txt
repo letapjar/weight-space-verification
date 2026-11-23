@@ -1,0 +1,61 @@
+**Observations:**
+
+**Inputs are a 10×10 grid with 5 channels per cell (cell-major: input = 5·cell + channel).**
+
+- **Channel 3 is a fixed border wall.** Every row with index ≡ 3 (mod 5) at cells 0–10, 19, 20, 29, 30, 39, 40, …, 89–99 is almost a copy of b1:
+  - b1 is `0.147 0.202 … -0.412 -0.405 … 0.271 0.147`.
+  - Row 3 is `0.218 0.237 … -0.425 -0.375 … 0.219 0.140`.
+  - Row 28 is `0.201 0.215 … -0.501 -0.401 … 0.346`.
+  - Row 448 is `0.166 0.241 … -0.352 -0.448 … 0.334 0.243`.
+  
+  An input that is always 1 gets exactly the same gradient as the bias, so it drifts with it. These cells are exactly the outer ring of a 10×10 grid (top row, cells 10/19/20/29/…, bottom row). At interior cells, channel 3 has init-size weights (~0.05), so there are no interior walls. The playfield is an 8×8 interior.
+- **The other channels depend strongly on the row of the cell.**
+  - **Channel 2 is large only in grid rows 1–3.** Examples: row 57 `-1.521 … -2.001`, row 77 `… -3.225`, row 132 `… -4.933`, row 187 `… -1.649`. From cell 41 down (e.g. rows 207, 212, 217) its weights are init-sized. So this is a static object living only in the top three rows.
+  - **Channel 0 is large only in grid row 8**, the bottom interior row (rows 405 `-5.593 … 4.349`, 410, 415, 420, 435 `0.099 -3.687 … -2.986`, 440). Everywhere else it is ~0.05, so this object exists only on the bottom row.
+  - **Channel 1 is large in rows 1–7 but not row 8** (e.g. row 406 `-0.052`, row 436 `-0.205`). Its weights are huge (−7.1, −7.3, −6.3 in hidden unit 0). The sign of unit-0 weights flips near the bottom: `-1.9…-7` in rows 1–5, but `+2.2, +4.3, +3.8` at cells 71–73. So this unit encodes the object's height.
+  - **Channel 4 is large in rows 1–8**, and its pattern is very similar to channel 1. Both have strong negative weights in units 0 and 15 and positive ones in units 2, 7 and 26. Channels 1 and 4 therefore mark nearly the same location.
+  - At the top-left corner cell 11, channels 1 and 4 are nearly untrained while channel 2 is large.
+
+**Outputs:**
+
+- Outputs 0, 1 and 2 have almost identical W3 columns:
+  - `0.867 0.890 0.623`
+  - `-0.779 -0.864 -0.590`
+  - `-0.870 -0.873 -0.615`
+  - `0.791 0.588 0.437`
+- Outputs 3 and 4 have larger weights and are mostly opposed to each other:
+  - `-1.986 / 2.493`
+  - `1.989 / -0.764`
+  - `-2.765 / 1.352`
+  - `-1.002 / 2.903`
+  - `-2.125 / 0.631`
+- Outputs are linear, as for Q-values or action logits.
+
+**Reasoning:**
+
+**Ruling out alternatives:**
+- A 1-D sequence with 5 symbols is out: the "padding" pattern is exactly a 2-D border ring.
+- Sokoban/Boxoban (10×10, 5 actions) is out because there are no interior walls.
+- Snake and maze gridworlds are out because they don't confine object types to specific rows.
+- Space Invaders is unlikely, because its aliens move downward and would not stay in rows 1–3.
+
+**Why Breakout fits:**
+- Channel 2 is restricted to the top three rows, which matches a static brick wall.
+- Channel 0 is restricted to the bottom row, which matches the paddle.
+- Channel 1 matches a single ball moving anywhere above the paddle row:
+  - its huge per-cell weights act as a one-hot position code;
+  - it never sits in the paddle row, because the ball bounces off there or the game ends.
+- Channel 4 matches the ball's trail (previous position). It is nearly co-located with the ball, which explains why its weights resemble channel 1's.
+- This is the MinAtar-Breakout channel set (paddle, ball, trail, brick) plus an explicit wall channel.
+
+**Why the outputs look like action values:**
+- Five outputs with three near-identical ones is what you'd expect from a 5-action set where three actions have the same effect in Breakout (noop/up/down or fire). Only left and right change the outcome.
+- Outputs 3 and 4 are anti-correlated, as a left/right preference would be. They are also anti-correlated with the three "stay" outputs.
+
+**Task:** A reinforcement-learning agent (most likely a DQN-style Q-network, possibly policy logits) for a Breakout-like game on a walled 10×10 grid, MinAtar-Breakout style.
+- Inputs are a 10×10×5 one-hot state: paddle, ball, brick, wall, ball-trail.
+- Outputs are values for 5 actions. Three of them are effectively "don't move" (outputs 0–2); the other two are left/right (outputs 3 and 4, order uncertain).
+
+**Description:** The network reads a Breakout-style game board (bricks in the top rows, ball and its trail, paddle on the bottom row, border walls). It outputs a score per action, chiefly deciding whether to move the paddle left, right, or stay.
+
+**Confidence:** 45%

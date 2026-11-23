@@ -1,0 +1,74 @@
+**Observations:**
+
+**Cell order is scrambled.** The 5-row blocks don't follow grid order. Rows 1 and 4 (inputs 1 and 4) are large, so cell 0 can't be the wall corner. I therefore classified each 5-row block by which channels carry weight.
+
+**Wall cells (36 blocks).** In these blocks only channel 3 is non-trivial. Its row almost copies b1. For example:
+- Input 8: `0.208 0.133 … -0.368 -0.334`
+- Input 83: `0.129 0.178 … -0.488 -0.368`
+- b1: `0.147 0.202 … -0.412 -0.405`
+
+These inputs are always 1, so they act as extra biases. Their channels 0, 1, 2 and 4 stay near initialisation (|w| < 0.2). Exactly 36 such blocks exist, which matches the border ring (4×9 = 36).
+
+**Channel 3 in interior cells** is near zero everywhere. There are no inner obstacles.
+
+**Channel 0 (agent)** is large in only 8 of the 64 interior cells:
+- Input 15: `-5.593 0.178 4.349 1.131 4.987`
+- Input 70: `0.099 -3.687 … -2.986`
+- Input 140: `-1.364 3.925`
+- Input 270: `-1.512 … 3.083`
+- Input 370: `-2.741 2.337`
+- Input 485: `0.263 2.259 3.435`
+- Inputs 65 and 300 are moderate.
+
+In those same 8 cells, channel 1 is near zero. So the agent lives in one 8-cell line that moving objects essentially never share.
+
+**Channel 1 (moving objects)** is large in about 54 interior cells, often with |w| of 5–7:
+- Input 46: `-7.128 … 4.511`
+- Input 61: `-7.188`
+- Input 166: `-7.272 … 5.164`
+- Input 206: `3.764 …`
+
+A single moving object visits almost the whole field.
+
+**Channel 4 (previous frame)** is large in the same cells as channel 1:
+- Input 49: `-4.550`
+- Input 209: `-7.261 3.684 6.981`
+
+Together with channel 1, this encodes the object's direction and velocity.
+
+**Channel 2 (reward targets)** has moderate weights (up to about 4.9) in exactly 24 cells. Examples:
+- Input 47: `… -2.673`
+- Input 107: `… -3.398 -1.962`
+- Input 257: `… 2.553 … 4.462`
+- Input 407: `… -4.933 -2.578`
+
+Channel 2 is near zero everywhere else. Some of these cells have weak channel-1 weights (inputs 341, 361), so the ball rarely reaches them. These look like cells that start full and are rarely cleared.
+
+**Output layer.** Columns 3 (left) and 4 (right) carry the big weights:
+- Row 8: `… -1.986 2.493`
+- Row 16: `… -1.002 2.903`
+- Row 22: `… -2.765 1.352`
+- Row 21: `… 2.306 -0.172`
+
+Columns 0, 1 and 2 (no-op, up, down) are small and almost identical in each row:
+- Row 4: `0.867 0.890 0.623`
+- Row 7: `-0.779 -0.864 -0.590`
+- Row 16: `-0.563 -0.551 -0.540`
+- Row 20: `-0.647 -0.655 -0.724`
+
+So up and down behave like no-op. b3 (`0.099 0.276 -0.125 -0.058 0.027`) is near neutral.
+
+**Reasoning:**
+- The agent occupies a single row and only left/right matter. That makes it a horizontal paddle or cannon at the bottom, not a free-roaming agent. This rules out Snake, maze games, Frogger/Freeway and Pac-Man-likes.
+- The policy is dominated by one moving object roaming the whole field, read together with its previous position to get velocity. That is a ball.
+- Pong would have no reward-target channel, and the agent's paddle would be a column moving up and down.
+- In Catch or dodge games, the falling objects would put channel-2 weights in all 56 non-agent cells, or none at all. Instead there are exactly 24 static reward cells, i.e. three rows of 8. These are bricks.
+- In Space Invaders, the targets themselves move, so channel 2 would coincide with channel 1 everywhere. Here, cells with brick weights but almost no ball weights point to static bricks that are seldom broken.
+
+A bottom paddle, a bouncing ball whose velocity matters, and three rows of static reward bricks together give Breakout.
+
+**Game:** Breakout (a mini 8×8 Breakout/Arkanoid-style brick breaker).
+
+**Description:** The agent moves a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball hitting and destroying the bricks in the top three rows.
+
+**Confidence:** 75%

@@ -1,0 +1,14 @@
+**Observations**
+- **Channel 2 (reward targets):** Most reward-channel rows are near initialization, roughly ±0.1 (e.g., input 22 ≈ −0.078…0.117; input 27 ≈ 0.009…−0.124). The exceptions are a few shared-pattern rows, such as input 77 (cell 15) ≈ −0.176 −0.159 −0.343 0.147. Overall, the first layer hardly uses reward-target cells.
+- **Channel 3 (obstacles):** Mostly near initialization, except a few rows with a shared pattern of about −0.2 to −0.4 in units 0–2 and +0.2 to +0.3 in unit 3 (inputs 8, 23, 28, 38, 53, 83, 93, 98). The pattern does not cover all border cells, so I cannot tie it cleanly to the wall border.
+- **Channels 0, 1 and 4 (agent, moving objects, previous frame):** These carry nearly all the large weights. Examples: input 140 (agent, cell 28) = 11.398, 8.189; input 165 (agent, cell 33) = 10.339; input 205 (agent, cell 41) = 7.036; input 100 (agent, cell 20) ≈ −8.9 to 4.6; input 111 (moving, cell 22) = −4.902. Large moving-object and previous-frame weights recur across many interior cells, e.g., inputs 121, 134, 189, 229. Some border cells (inputs 1, 4, 45) also carry large weights, which I cannot reconcile with a pure wall border; my row-to-cell indexing may be off.
+- **Output layer:** b3 = [1.494, 0.183, −1.051, −0.924, −0.191] for [no-op, up, down, left, right]. No-op is favoured. Individual hidden-to-action weights are large in places (W3 row 7, col 3 = −5.662; row 24, col 4 = −6.219), but I could not trace them to a clear behaviour.
+
+**Reasoning**
+The policy depends mainly on where the agent is, where moving things are, and how they moved since the last frame. Reward targets and internal obstacles barely enter the first layer. This points to a game about dodging moving hazards with a motion cue, with a fixed outer wall and few internal obstacles. Maze games like Pac-Man and Snake are unlikely, since they need strong reward-target and obstacle weights. Seaquest is unlikely because it has six actions. Freeway is unlikely because it has three actions and no horizontal moves. Asterix fits the five-action set but would normally rely on gold-target weights, which are absent here. A road- or lane-crossing game with a goal at the far side and an unlit reward channel fits best, though I cannot confirm this from the weights.
+
+**Game:** Frogger/Freeway-style lane crossing: the agent moves in four directions across lanes of moving hazards toward a goal, with the outer ring as walls. This is a low-confidence match. Asterix is the main alternative.
+
+**Description:** The agent tries to cross or traverse the board while avoiding moving hazards, using their previous-frame positions to time its moves. It is rewarded for reaching the far side or goal, and the episode ends on a hazard collision or a wall.
+
+**Confidence:** 20%

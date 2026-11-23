@@ -1,0 +1,74 @@
+**Best explanation in one line:** this is a small policy network (500 → 32 → 32 → 5, tanh-like hidden units, softmax over 5 actions) for a 10×10 arcade-style grid game, where an agent slides along the bottom row, chases one kind of moving object and dodges another. Everything below is hand arithmetic on the printed weights (no code run), so the circuit-level numbers are approximate.
+
+## 1. What the input is
+
+The 500 inputs decode as `index = 5·(10·row + col) + channel`: a 10×10 grid with a 5-way one-hot per cell. Each input row of W1 is either untouched noise (σ ≈ 0.06, never active in training) or clearly trained.
+
+| Channel | Where it has trained weights | Reading |
+|---|---|---|
+| 3 | exactly the 36 border cells, nowhere else | wall, always on |
+| 0 | grid row 8 only (cols 1–8) | the agent / paddle |
+| 1 | grid rows 1–7, cols 1–8 | moving object A |
+| 2 | grid rows 1–3, cols 1–8 | object confined to the top band |
+| 4 | grid rows 1–8, cols 1–8 | moving object B |
+
+- **Walls:** every channel-3 border row is almost a copy of b1. For example, input 3 starts `-0.190 0.151 … -0.576 0.403` against b1 `-0.110 0.177 … -0.459 0.394`. An input that is always 1 gets the same updates as the bias, so these inputs were constant, biases started at 0, and there was no input normalisation.
+- **Effective bias:** the real layer-1 bias is about 37 × b1, e.g. roughly +6 for unit 1, −14 for unit 4, −17 for unit 30, +15 for unit 31.
+- **No weight decay:** the 312 dead inputs still sit at init scale, about √(2/500), which fits He-normal or orthogonal-√2 initialisation.
+- **Empty cells are all-zero.** Channel 4 is not "empty": its weights are large, cell-specific, and often the same sign as channel 1 in the same cell, which an always-on complement could not be.
+- **Top corners:** channels 1 and 4 are almost untrained at (1,1) and (1,8) (weights ≤ 0.4–0.9, versus 3–4 next door), while channel 2 is well trained there. Objects A and B almost never occupy the top corners.
+- **Agent row:** channel 4 in row 8 has much smaller weights than in rows 4–7, so B matters little once it is level with the agent. A never appears in row 8 at all.
+
+## 2. What the output is
+
+- **Softmax logits, not Q-values:** rows of W3 sum to roughly zero and often look like "one logit up, the rest equally down" (e.g. `-0.78 -0.87 -0.82 4.19 -0.97`).
+- **Three redundant actions:** columns 0, 1, 2 are near-duplicates, with small differences confined to a few units. Columns 3 and 4 are large and opposed. So there are two meaningful actions and three no-op-like ones (e.g. stay/up/down for an agent that can only move sideways).
+- **Not suppressed by bias:** b3 for outputs 0–2 is about 0, which fits policy-gradient training with equivalent actions better than cloning an expert that never uses them.
+
+## 3. Hidden-layer signatures
+
+- W2 row 20 ≈ +b2 and W2 row 3 ≈ −b2, nearly entry for entry (e.g. row 3 `-1.217 0.618 -0.865 … 0.884` against −b2 `-0.943 0.462 -0.826 … 0.912`). Row 29 is also ≈ +b2.
+- So hidden units 20 and 29 are stuck at a positive constant and unit 3 at a negative constant. A negative constant rules out ReLU; the hidden activation is tanh or similar.
+
+## 4. Tracing the policy
+
+I scored each layer-1 unit by its linearised push on (logit 4 − logit 3) through W2 and W3. This ignores layer-2 saturation, so only the signs and rough sizes are meaningful.
+
+| Unit | Push | Turned on by | Turned off by |
+|---|---|---|---|
+| 1 | +53 | A at bottom-right: (7,7) +4.3, (7,8) +4.0, (6,8) +1.9 | A anywhere else (−2 to −7); B in row 7 (−3 to −7); agent already at cols 6–8 (≈ −3.5) |
+| 19 | +29 | A at bottom-right | A at bottom-left; B in row 7, more strongly on the right |
+| 0 | +32 | agent at col 1 (+7.7), col 2 (+2.8); A on the right of row 7 | B on the right of rows 6–7 |
+| 26 | −85 | A at bottom-left: row 7 cols 1–3 ≈ +2 | A at bottom-right (−3 to −6); B at bottom-left (≈ −6) more than bottom-right (≈ −1) |
+| 21 | −16 | A at bottom-left; agent at the right | B at bottom-left |
+| 18 | −28 | agent position, rising from −5.8 at col 1 to +3.3 at col 7 | — |
+
+Reading these together:
+
+- **Output 4 is "move right", output 3 is "move left"** (toward higher/lower column index). The agent at the left wall votes for 4, and its position is coded monotonically, so "the further right I am, the more I vote left".
+- **Object A (channel 1) attracts** the agent, most strongly when A is one or two rows above it.
+- **Object B (channel 4) repels:** B near the bottom vetoes the chase units, more strongly on the side the unit would move toward.
+- **Channel 2 barely touches the main steering units.** It feeds a few others (units 0, 9, 23, 25) that code its left/right and row position, with a weak tendency to steer away from its side.
+
+## 5. Hypotheses
+
+| Hypothesis | Verdict | Why |
+|---|---|---|
+| Untrained net, image or sequence classifier | Out | 5-periodic one-hot structure, a 2D border of constant inputs, 312 dead inputs |
+| Q-network or value net | Out | Zero-sum logit rows, opposed left/right columns, no common value component |
+| Free-roaming gridworld navigation | Out | Agent channel exists only in row 8; three of five actions are redundant |
+| Board game (checkers etc.) | Out | One agent cell in one row; action count and structure do not fit |
+| Breakout (paddle, ball, brick wall, empty) | Layout fits, details don't | Channel 4 is not "empty"; the policy avoids channel 4; a dense 24-brick wall would pin units 9, 23 and 25 in saturation, making their structured channel-2 weights pointless |
+| Space Invaders-style shooter | Unlikely | No distinct "fire" logit |
+| Catch-and-dodge game with a bottom-row agent | Best fit | Explains row ranges, attract/repel circuits, B's irrelevance in row 8 and the redundant actions |
+
+## 6. Best explanation and open points
+
+The network is the actor of a policy-gradient agent (the √2-scale init with zero biases matches common PPO-style setups, though that is circumstantial). It plays an 8×8 playfield inside a walled 10×10 grid: the agent moves left/right along the bottom, goes to where "good" objects (channel 1) are about to arrive, and stays out from under "bad" objects (channel 4). Good objects are never seen in the agent's row (caught, bounced, or the episode ends); bad ones are seen there once they have missed.
+
+What I could not settle:
+
+- **Channel 2's identity.** It is sparse and lives only in the top three rows; an enemy or dropper patrolling the top band is my best guess, but a sparse set of targets or bricks is possible.
+- **How A and B move.** Their near-absence from the top corners fits either diagonal bouncing or spawning away from the edge columns with sideways drift. A Breakout variant with a ball (A), sparse bricks and falling hazards (B) is not excluded.
+- **How many objects coexist.** A few units have thresholds that only several simultaneous objects could reach, which hints at more than one of each, but weakly.
+- **Orientation.** "Bottom", "left" and "right" assume the usual row-major, top-down layout; the relative statements hold either way.

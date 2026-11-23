@@ -1,0 +1,30 @@
+**Observations:**
+
+I could not find game-specific structure in these weights, and I think that is the main finding. I checked by hand a sample of roughly 200 of the 500 W1 rows, not all of them.
+
+- **W1 looks like a two-population random pattern everywhere.** Each row has mostly tiny entries (about ±0.06, the scale of an untrained 500-input layer) plus a handful of large ones (about ±1 to ±7, up to 9.888). Roughly 20% of entries are large, at scattered unit positions.
+- **Inputs that can never be active carry large weights.** The border cells can never hold an agent, moving object, target or previous-frame mark, yet:
+  - input 0, (0,0) agent: -1.800, -2.116, 2.629, 2.823, 2.655
+  - input 4, (0,0) previous frame: 3.018, 5.001, 2.150
+  - input 499, (9,9) previous frame: 3.346, 2.627, -3.490, -2.642
+  - input 498, (9,9) obstacle: 6.878, 3.230
+
+  Gradient training on the stated observation cannot move those weights, so they should still be at initialisation scale.
+- **No channel stands out.** Counting large entries per row: row-0 wall cells give about 5–11 on every channel (inputs 0–9: 9, 8, 7, 5, 8, 10, 6, 8, 5, 7). Interior cell (1,1), inputs 55–59, gives 5, 8, 4, 1, 8, and cell (1,2) is similar. I see no "dead" channel and no border-versus-interior difference.
+- **No spatial smoothness.** Following unit 0 across the agent channel: row 1, columns 1–8 gives -0.272, -3.820, -5.777, 0.067, 0.027, -0.007, 0.009, -0.933. Row 3 gives 0.032, -0.459, -0.002, 0.083, 0.011, 0.128, 5.220, 0.030. That is isolated spikes, not a position or gradient code.
+- **No previous-frame pairing.** At cell (1,1) the previous-frame row's large units (1, 4, 7, 8, 20, 26, 30, 31) overlap the agent row's (2, 3, 16, 21, 24) and moving-object row's only at chance level, so there is no visible motion detector.
+- **W2 and b2 are dense and large.** W2 is dense with entries of roughly ±1.2 typical size, and b2 reaches 1.807, with no block structure I can see.
+- **Output layer: all five actions are used about equally.** W3 column norms are roughly 3.7 (no-op), 3.4 (up), 3.2 (down), 3.4 (left), 2.9 (right). The strongest entries are unit 25 → no-op -2.523, unit 4 → up -2.073 and no-op +1.515, unit 7 → left -2.075 and right +0.950, unit 22 → down -1.885. Up/down and left/right columns are nearly uncorrelated (about -0.1 and -0.05).
+- **Output biases:** b3 = 0.456 (no-op), 0.360 (up), -0.136 (down), -0.915 (left), 0.238 (right). This is a mild preference for no-op, up and right, and against left.
+
+**Reasoning:**
+
+A network trained on this observation should show near-initial weights on the never-active border inputs and localised structure where the game's objects live. Examples would be a single row for a paddle, lanes for traffic, or the whole interior for food. None of that is here: the large weights are spread uniformly over every cell and channel, including impossible inputs. So the first layer either does not carry the game's signature in readable form or does not match the stated observation, and I cannot honestly read a game off it.
+
+The only weak evidence left is the output layer. All four movement directions and no-op have comparable, distinct weights. That argues slightly against a left/right paddle game (Breakout, Pong, Catch, a shooter), where up and down would be redundant with no-op. It weakly favours a game with free four-way movement: Snake, a collect or chase game, or a Frogger-style crossing. The bias pattern does not separate those. I pick Snake only as the most typical member of that group.
+
+**Game:** Not identifiable from these weights. Best guess: Snake.
+
+**Description:** If the guess is right, the agent steers a growing snake in four directions around the 8×8 arena, is rewarded for reaching food, and the episode ends on hitting a wall or its own body. The weights do not actually confirm this.
+
+**Confidence:** 10%

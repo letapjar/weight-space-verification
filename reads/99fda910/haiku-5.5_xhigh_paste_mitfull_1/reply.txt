@@ -1,0 +1,29 @@
+**Observations**
+
+- **Walls.** The border ch3 weights are large and nearly uniform along the ring, e.g. input 3 (row 0, col 0, ch3) = "0.324 0.079 0.249 …", input 8 = "0.143 0.161 0.290 …". Because border cells are always 1, these act as a constant bias rather than a spatial signal.
+- **Reward channel (ch2) in row 1 only.** Inputs 57, 62, 67, 72, 77, 82, 87, 92 (row 1, cols 1–8, ch2) all carry large weights with the same pattern. Input 57 = "0.257 -0.031 0.283 -0.122 0.133 …", input 62 = "0.243 -0.013 0.498 -0.080 0.157 …". Reward-channel weights in rows 2–8 are uniformly small (about |w| < 0.2, e.g. inputs 107, 117, 167, 217, 317, 417). So the top interior row behaves as a uniform goal line.
+- **Interior obstacles (ch3) are negligible.** Inputs 58, 63, 68, … 88, 93 are all below about 0.1 in magnitude. The only obstacles are the border.
+- **Moving objects (ch1) fill rows 2–7 uniformly.** Unit 0 is negative across all columns of these rows: input 106 = -0.483, input 161 = -0.658, input 336 = -0.512, input 366 = -0.611. Row 1 and row 8 have small ch1 weights (e.g. input 406 = "-0.052 0.023 …"), so those rows contain no traffic. Ch4 (previous frame) is also large in rows 2–7, which suggests the network uses it to read motion.
+- **Agent (ch0) weights.** Rows 2–7 have large ch0 weights concentrated in columns 3–5 (inputs 115, 120, 125 ≈ 4.9, 4.6, 5.3; inputs 165, 170, 175 ≈ 4.7, 4.8, 5.5; input 220 = 5.56; input 270 = 5.10). Row 8, cols 4–5 (inputs 420, 425 = -8.93, -6.98) is also strongly weighted. The agent therefore likely starts at bottom centre and spends most of its time in the central columns.
+- **Output layer.** b3 = [0.017, 1.491, -1.931, 0.147, -0.422]. "Up" has a strong positive bias and "down" a strong negative one, so the default action is to move toward the goal. Left and right have near-zero biases. Some hidden-to-output weights are large, e.g. W3 row 16 for left = -5.826.
+
+**Reasoning**
+
+The pattern fits a road-crossing game: a safe start row at the bottom (row 8, no traffic), six lanes of moving traffic (rows 2–7), a goal row at the top (row 1) that gives reward, and no interior obstacles. The up-biased output matches a policy that mostly climbs. Left and right may still be used to dodge cars, but the strong column-3-to-5 focus suggests the agent rarely strays sideways.
+
+Ruled out or weaker:
+- **Snake or Pac-Man:** reward would be scattered across the grid, not confined to one row.
+- **Asterix:** gold would appear in lanes across many rows, not only row 1.
+- **Breakout:** the agent would be confined to the bottom row, but ch0 weights are large in rows 2–7.
+- **Frogger proper:** water or log obstacles would appear in the interior, and none do.
+- **Space Invaders:** the reward pattern does not match a single goal row.
+
+**Game**
+
+A Freeway-style traffic-crossing game (Atari Freeway, or a Frogger-like variant with four-way movement). The agent starts at the bottom and must cross moving lanes to reach the top row.
+
+**Description**
+
+The agent starts at bottom centre and climbs through six lanes of horizontally moving cars, dodging them (possibly by sidestepping) to reach the top row, which gives reward. A collision ends the episode or sends the agent back.
+
+**Confidence:** 45%

@@ -1,0 +1,28 @@
+**Observations:**
+
+- **Hidden layer weights (W1) show no clear spatial map.** Every channel has a few large weights scattered across the grid, with small values (|w| < 0.3) everywhere else. This includes inputs that can never be active, such as the wall cell (0,0). Its agent-channel weights are 3.968, 1.905 and −6.292 (input 0), and its reward-channel weights are 2.600 and −2.340 (input 2). The always-on wall channel at the same cell has −4.211 and 4.785 (input 3). Cell (1,1) has a moving-object weight of 5.103 (input 56) and an obstacle weight of 4.853 (input 58). Large weights appear just as often in the never-active inputs as in the playable ones. So I cannot read a reliable receptive-field map (a "this is where the agent sits" or "this is where the reward lives" pattern) from W1 without computation.
+- **The output biases are the clearest signal.** b3 = [no-op 1.491, up 0.017, down −1.931, left −0.422, right 0.147].
+  - No-op is strongly preferred by default.
+  - Down is strongly suppressed.
+  - Up and right are roughly neutral; left is mildly suppressed.
+- **The output weights confirm up and no-op are steerable.** Several layer-2 units push up hard against down, for example unit 6 (up +2.332) and unit 19 (up +2.004). Others push down or no-op, for example unit 15 (down +1.783, up −1.838) and unit 22 (no-op +2.068, right −5.826). So the policy can switch between "advance up" and "wait", and only occasionally moves sideways.
+
+**Reasoning:**
+
+- **What the biases imply.** Waiting is the default action and moving down is almost never useful. That points to a game where the agent starts at the bottom and makes progress by moving up, but often has to hold still to avoid danger.
+- **Road-crossing game (best fit).** A Freeway or Frogger-style game fits this well:
+  - The agent starts on the bottom row, so down is useless or harmful.
+  - Cars move across lanes; these would be the moving objects in channel 1.
+  - Reward comes from reaching the top; that would be the reward target in channel 2.
+  - No-op is the safe "wait for a gap" action, and up is the scoring action.
+- **Ruled out or weaker:**
+  - Snake and food-collection games need all four directions used fairly evenly, and they rarely favour no-op.
+  - A paddle or catcher game would rely mostly on left and right, with up and down suppressed. Here, up is not suppressed while down is.
+  - A Flappy-Bird-style game (gravity plus flap) is a possible alternative, since it also has a no-op/up dominance. But its obstacles would scroll, and the biases fit a road crossing slightly better.
+- **Limits of this answer.** W1 gave me no usable spatial evidence by hand, so this conclusion rests mostly on the action biases and output weights.
+
+**Game:** A road-crossing game in the style of Freeway (Atari) or Frogger.
+
+**Description:** The agent starts at the bottom and moves up through lanes of moving cars, waiting with no-op when a car is coming. It earns reward for reaching the target at the top, and being hit ends the episode or sends it back.
+
+**Confidence:** 25%

@@ -1,0 +1,143 @@
+# Analysis of the weight dump: a small trained 3-layer MLP
+
+## TL;DR
+
+This is the complete parameter set of a small feed-forward neural network: **500 → 8 → 512 → 5**, about 11.2k parameters. It was almost certainly trained, not hand-written. It most likely classifies into 5 classes, though it could also predict 5 targets or 5 actions.
+
+Only about 15–20% of the 500 inputs carry learned signal. Those inputs form a clean pattern. The best explanation is that each input vector is a **10×10 grid with 5 channels per cell**, flattened channels-last, so `index = 50·row + 5·col + channel`. Of the 5 channels, only 3 were ever used. One of them holds a centred 4-wide × 7-tall pattern. The other two hold patterns that can appear in either of two side-by-side 4-wide "slots".
+
+Below is the evidence, then what each layer appears to do, then what can't be determined. Rows and columns are indexed from 0.
+
+---
+
+## 1. Architecture
+
+| Layer | Shape | Params | Notes |
+|---|---|---|---|
+| W1, b1 | 500×8, 8 | 4,008 | Hard bottleneck: the whole input is squeezed into 8 numbers |
+| W2, b2 | 8×512, 512 | 4,608 | Wide expansion from the 8-dim code |
+| W3, b3 | 512×5, 5 | 2,565 | Readout to 5 outputs |
+
+- **Total: 11,181 parameters.**
+- The activation function isn't included. Expanding 8 → 512 only makes sense with a nonlinearity in between, and the "gating" patterns in section 5 look ReLU-like. Treat that as an inference, not a fact.
+- An 8-unit bottleneck before a 512-unit layer is an unusual design. It looks deliberate, for example to make the model interpretable or compressible, or as a probe or toy experiment.
+
+## 2. Most of W1 is untouched initialization noise
+
+Most rows of W1 look like Gaussian noise: typical |w| ≈ 0.05, maximum about ±0.22, no structure. That is what weights look like when **their input was always zero during training**, because they never received a gradient. Two groups behave this way:
+
+- **Rows 0–105 and 431–499**, the first ~21 and last ~14 "positions", are pure noise.
+- **Inside the active band (rows 106–430), every row with index ≡ 2 or 3 (mod 5) is also pure noise.**
+
+The second point is the key clue. Every 5th, 5th+1 and 5th+4 row carries signal, and the 5th+2 and 5th+3 rows never do. That pattern points to an interleaved layout with 5 values per position, two of which were always zero.
+
+**Init forensics (suggestive, not certain):**
+- The noise spread (σ ≈ 0.06) matches He-normal or Glorot-normal for fan-in 500 (√(2/500) ≈ 0.063).
+- b1 sits within ±0.049. PyTorch's default `nn.Linear` bias init would be ±1/√500 = ±0.045.
+- b2 spans −0.347 to +0.339. The PyTorch default for fan-in 8 would be ±1/√8 = ±0.354.
+
+Taken together, this is consistent with PyTorch layers that had their weights re-initialized with a normal scheme and their biases left at default. b3 (0.114, 0.186, −0.042, −0.020, −0.399) has clearly been trained.
+
+## 3. Reconstructing the input layout: 10 × 10 × 5
+
+Map each row to `(row, col, channel)` with `index = 50r + 5c + ch`. The result is a tidy picture.
+
+**Channel 0: a centred blob of strong weights.** It covers rows 2–8 and mainly columns 3–5, with column 6 in rows 3–6, so the region is roughly 4 wide by 7 tall:
+
+```
+       col: 1  2  3  4  5  6  7  8
+row 2          ·  ■  ■  ■  ·  ▫
+row 3          ▫  ■  ■  ■  ■
+row 4             ■  ■  ■  ■
+row 5             ■  ■  ■  ■
+row 6             ■  ■  ■  ▫
+row 7             ■  ■  ■  ▫
+row 8             ■  ■  ■
+```
+
+**Channels 1 and 4: scattered strong weights over columns 1–8, rows 2–8.** They show a striking **column-shift-by-4 weight tying**: the weight vector for cell (r, c) is nearly identical to the one for (r, c+4). Examples:
+
+| Pair (ch, r, c) ↔ (ch, r, c+4) | Weights (abridged) |
+|---|---|
+| ch1 (2,2) ↔ (2,6) | h6 = **2.179** ↔ **2.093**, h3 = −0.41 ↔ −0.34 |
+| ch1 (3,2) ↔ (3,6) | h2 = **−1.675** ↔ **−1.595** |
+| ch1 (5,1) ↔ (5,5) | h2 = **−1.565** ↔ **−1.472** |
+| ch1 (5,2) ↔ (5,6) | h3 = **1.088** ↔ **1.070** |
+| ch4 (5,2) ↔ (5,6) | h0 = **1.701** ↔ **1.409** |
+| ch1 (4,3) ↔ (4,7) | the whole 8-vector matches, h7 = **−0.796** ↔ **−0.792** |
+| ch1 (6,2) ↔ (6,6) | the whole 8-vector matches, h6 = 0.82 ↔ 0.86 |
+| ch4 (7,2) ↔ (7,6) | the whole 8-vector matches, h5 = −0.656 ↔ −0.641 |
+| ch4 (7,4) ↔ (7,8) | h2 = −0.874 ↔ −0.825 |
+
+Roughly 20 such pairs match closely; a handful don't. The tying is pairwise only: cell (r, c+8) doesn't continue the pattern. So this is **two slots**, columns 1–4 and columns 5–8, not a periodic texture.
+
+**Most plausible reading:** each sample is a 10×10 canvas with 5 channels.
+- Channel 0 holds a pattern in a fixed central 4×7 window.
+- Channels 1 and 4 hold 4×7 patterns that can appear in either the left or the right half. The network learned the same detectors for both positions.
+- Channels 2 and 3 are always empty.
+- The outer border is always empty.
+
+The 4×7 size and the "slot" behaviour look like small bitmap glyphs (characters or symbols) placed in a canvas, but that part is a hypothesis.
+
+A 1-D reading (100 timesteps × 5 features) is possible. It explains the pairwise shift-by-4 tying and the 10-step periodicity of channel 0 much less naturally.
+
+## 4. The 8 bottleneck features (W1 columns)
+
+Within channel 0, most cells act as "generic ink" with a shared sign pattern of roughly [−, +, ·, +, +, −, −, −]. A few **discriminative pixels** deviate sharply: (3,3), (4,4), (5,5), (6,4), (6,5), (7,3), (8,4), and the top row (2,3)/(2,4).
+
+| Unit | What drives it |
+|---|---|
+| **h0** | + ch4 at (3,7), (5,2)/(5,6), (7,1) (+1.1 to +1.7); − generic ch0 ink (≈ −1) |
+| **h1** | + total ch0 ink (+1.1 to +2.3), but strongly − at (4,4) (−3.29) and (3,3) (−2.20) |
+| **h2** | Almost entirely negative weights: ch1/ch4 at many slot positions (−1.0 to −1.8), plus ch0 (3,3), (4,4), (7,3). It acts as an "**periphery is empty**" detector and can only fire when channels 1 and 4 are mostly blank. |
+| **h3** | + ch0 ink, + ch1 (5,2)/(5,6) and (2,1)/(2,5); − at (3,3), (4,4), (8,4) |
+| **h4** | + ch0 ink broadly; strongly − at (8,4) (−1.61) |
+| **h5** | Dominated by **ch0 (6,5) = +3.76**, the single largest weight in W1; − along (3,3)→(4,4)→(5,5)→(6,4)→(7,3) and many ch1/ch4 cells |
+| **h6** | + ch1 (2,2)/(2,6) (≈ +2.1), ch1 (6,2)/(6,6), ch4 (2,1), ch0 (8,4) (+1.0); − ch0 top row (2,3)/(2,4) |
+| **h7** | + ch0 (6,5) (+1.6), (4,6); strongly − at (3,3) (−2.74), (5,4) (−2.0), (2,5); − ch1 (4,3)/(4,7) |
+
+## 5. Downstream pathways (W2 → W3)
+
+Some routes from bottleneck to output are very clean.
+
+**h5 → output 4.** In every 512-unit with a large h5 weight, the W3 output-4 weight has the same sign:
+
+| Unit | h5 weight | Output-4 weight |
+|---|---|---|
+| 81 | +0.81 | +0.91 |
+| 107 | +0.65 | +0.85 |
+| 126 | +0.97 | +0.87 |
+| 131 | +0.61 | +0.79 |
+| 115 | −0.68 | −0.66 |
+| 130 | −0.68 | −0.76 |
+
+So output 4 essentially means "ch0 pixel (6,5) is on and the diagonal pixels are off". Output 4 also has the most negative bias (−0.40), so it needs positive evidence. It may also be the rarest class.
+
+**h6 → outputs 0 and 2 up, outputs 1 and 4 down.**
+
+| Unit | h6 weight | W3 row (out0, out1, out2, out3, out4) |
+|---|---|---|
+| 115 | +0.83 | (0.43, −0.52, 0.28, ·, −0.66) |
+| 48 | +0.47 | (0.39, −0.71, 0.27, ·, ·) |
+| 83 | +0.58 | (0.33, −0.39, 0.27, ·, −0.42) |
+
+h5 and h6 load with opposite signs on the same units, for example units 115, 130, 131 and 126, so they compete.
+
+**The h1/h2/h3 vs h4 axis → output 3 vs outputs 0 and 2.** Many units load negatively on h1–h3 and positively on h4 (e.g. units 0, 15, 31), and these feed output 3 negatively. Conversely, units driven by h2 and against h4 (e.g. units 26, 42) feed output 3 positively. A tentative reading is that output 3 relates to "channels 1 and 4 are blank" (via h2) combined with lots of central ink.
+
+**h7** has small W2 weights (mostly |w| < 0.15), so it contributes relatively little downstream despite its large W1 weights.
+
+## 6. Output-layer structure
+
+- **Outputs 0 and 2 are nearly collinear.** In almost every W3 row they share sign and rough magnitude. They are either very similar classes or correlated targets.
+- **Output 3 is the anti-direction of outputs 0 and 2.** It has the largest-magnitude weights in W3 (up to about ±0.83).
+- **Outputs 1 and 4** are each fairly independent directions. Output 4 is the cleanest of all.
+- Biases: classes 0 and 1 slightly favoured (+0.11, +0.19), class 4 disfavoured (−0.40). If this is a classifier, that hints at class imbalance.
+
+## 7. What I can't determine from the numbers alone
+
+- The real-world meaning of the inputs, channels or classes. The 10×10×5 "glyph slots" picture is the best structural fit, not a certainty.
+- The activation functions, and whether the output is softmax, sigmoid or regression.
+- Whether this came from a natural training run or was constructed, for example as an interpretability puzzle. The untouched-init rows and the near-default biases look like a genuine training run in PyTorch.
+
+**Caveat:** I counted 500 W1 rows and 512 W3 rows by hand. The final counts came out exactly right and the mod-5 pattern is internally consistent, so I'm fairly confident in the indexing. Still, an exact numerical check with code (reshaping W1 to 10×10×5×8 and plotting it) would confirm everything above, if you'd like me to do that.

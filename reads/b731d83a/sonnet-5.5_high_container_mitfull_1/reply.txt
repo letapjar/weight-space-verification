@@ -1,0 +1,26 @@
+I could not trace this network cleanly by hand, so the answer below is a low-confidence guess. I did not map weights to exact grid cells. Counting 500 rows of W1 by eye would have been unreliable, so the grid-level claims are inferences rather than readings.
+
+**Observations:**
+- **First-layer weights are sparse and large.** Most W1 entries are small, around ±0.05, which looks like untouched initialisation. Each row has a few learned entries of magnitude 2 to 6, for example `5.433`, `6.445`, `7.301`, `9.786` and `-8.763`. The large entries are spread over many different rows, so the network reads the whole board rather than one region.
+- **Many hidden units carry large positive and negative weights from different inputs.** Several units get a strong excitatory weight from one input and a strong inhibitory weight from another (`-4.854` and `2.503` in neighbouring rows, `-8.240` next to `3.163`). That pattern fits "compare where things are relative to the agent", such as a threat versus a target, rather than a fixed-position reflex.
+- **Row 0 of W1 is odd.** It corresponds to the corner cell's agent channel, which should never be active, yet it holds large values (`-2.998`, `1.381`). I can't explain this, and it weakens my confidence in how I'm reading the layout.
+- **Output layer:**
+  - The biases are `b3 = [-0.566, 0.359, 0.306, 0.364, -0.200]`. No-op is the most disfavoured action, so the policy usually keeps moving.
+  - Hidden unit 1 has `W3 = [0.318, 0.170, -3.055, -0.124, -2.237]`, so it strongly suppresses down and right.
+  - Hidden unit 25 has `[0.044, -0.164, -0.242, 2.380, 0.367]`, so it strongly promotes left.
+  - Hidden unit 23 has `[1.030, -0.138, -1.734, 1.360, -0.115]`, so it promotes left and no-op and suppresses down.
+  - Hidden unit 2 has `[1.299, ...]` and hidden unit 19 has `[-1.610, ...]`, so a few units gate no-op, probably as a "wait or hold" signal.
+  - Several units therefore act as direction-specific "go this way, not that way" detectors, which suggests steering relative to something else on the board.
+
+**Reasoning:**
+- **Games ruled out.** The board-wide, relational use of all channels argues against a simple reflex game, a single-axis game (Pong, Breakout paddle), or a game where only a few columns matter.
+- **Channel 4 (previous frame).** Its presence suggests the dynamics matter, either because other objects have a direction of travel or because the agent's own heading matters, as in Snake.
+- **Movement bias.** A strong penalty on no-op fits a game where standing still is costly: enemies approach, or the agent is racing for targets.
+- **Candidates.** The two I can't separate are Pac-Man-style chase/avoid and Snake. Snake fits the "cells the player controls" wording, since the snake's body occupies many cells.
+- **Choice.** I lean to the Pac-Man-style game because the network uses the "moving objects" channel as an opposing signal to the "reward targets" channel.
+
+**Game:** A Pac-Man-like maze/arena game, collecting pellets or targets while avoiding moving enemies. Snake is the main alternative.
+
+**Description:** The agent moves in four directions around a walled 8x8 arena and gets reward for reaching target cells. Touching an obstacle or a moving enemy ends the episode.
+
+**Confidence:** 20%

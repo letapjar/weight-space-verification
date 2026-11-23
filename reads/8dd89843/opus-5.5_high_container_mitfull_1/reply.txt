@@ -1,0 +1,70 @@
+**Observations:**
+
+*Indexing note.* Row i of W1 is cell (i div 5), channel (i mod 5). Two kinds of rows matter:
+- Rows that look like copies of b1, with about −0.3 to −0.5 on unit 17 (b1[17] = −0.400) and +0.2 on unit 27. These are inputs that are always 1, so they only ever received the bias gradient.
+- Rows of about ±0.1. These are inputs that are always 0 and stayed near their initial values.
+
+*Channel 3 (obstacles).*
+- Every border cell's channel-3 row has the bias-copy shape, for example:
+  - row 3 (0,0): …−0.286 on unit 17…
+  - row 98 (1,9): …−0.448…
+  - row 498 (9,9): …−0.413…
+- Every interior cell's channel-3 row is noise, for example row 58 (1,1): 0.020 −0.032 0.091…
+- So the only obstacle is the fixed wall.
+
+*Channel 2 (reward).*
+- Interior channel-2 rows are noise (row 57: 0.065 0.005…), so nothing rewarding ever appears inside the board.
+- The left-wall cells (rows 1–8, column 0) have a second bias-copy row, in channel 2:
+  - row 52: …−0.455…
+  - row 102: …−0.508…
+  - row 152: …−0.254…
+  - and the same for rows 4–8.
+- Corners and the right wall do not; row 97 (1,9) ch2 is noise.
+- So the whole left edge is a permanent reward zone, like a goal line.
+
+*Channel 0 (agent).*
+- In columns 1–7 it is noise, e.g. row 55 (1,1): 0.015 −0.052…
+- In column 8 it is large in every row:
+  - row 90 (1,8): 1.496 −0.031 4.376 3.436…
+  - row 140 (2,8): −3.258…
+  - row 190 (3,8): 1.711…
+- So the agent never leaves the rightmost playable column. It moves only vertically, like a paddle.
+
+*Channel 1 (moving objects).*
+- In columns 1–7 it is large in every cell:
+  - row 56 (1,1): −2.971 −0.013 1.678…
+  - row 81 (1,6): 4.136 −3.900…
+  - row 106 (2,1): −2.427 2.254…
+- In column 8 it is noise (row 91: −0.052 0.023…).
+- So a moving object ranges over the whole field but is never seen in the paddle's column.
+
+*Channel 4 (previous frame).*
+- It is large across columns 1–7: row 59 −3.706 3.065…, row 64 −3.046…, row 139 0.156 −4.881…
+- It is moderate in column 8: row 194 0.559 0.468…
+- The network uses the object's previous position, which means it is computing the object's direction and velocity.
+
+*Output layer.*
+- Almost all the structure is in up and down:
+  - unit 6 → down +4.727
+  - unit 30 → up −2.691
+  - unit 10 → up +1.526, down −1.603
+  - unit 2 → up +1.262, down −1.068
+- Left and right have small weights.
+- b3 = [−0.084, −0.271, −0.819, 0.132, 0.916]. "Right", which runs into the wall, is the default, effectively a no-op. Horizontal actions don't matter.
+
+**Reasoning:**
+- **Snake / maze / collect-the-coin games are ruled out.** They need an agent that roams the grid, reward items inside the board, or interior obstacles. Here the agent stays in one column, there are no interior reward targets, and the only obstacle is the wall.
+- **Dodge / avoid-falling-objects games fit poorly.** They don't need a reward zone along one edge.
+- **Catch is possible but weaker.** The objects would move toward the agent, but the reward would come from the catch, not from a goal line.
+- **Breakout is ruled out.** There are no bricks (no varying channel-2 cells).
+- **Pong fits everything:**
+  - A paddle confined to one edge column that moves only up and down.
+  - One bouncing ball anywhere in the field. Its previous-frame input is heavily used, as you'd expect when predicting a bouncing trajectory.
+  - The ball is never observed in the paddle column, because missing it ends the point or episode.
+  - The opposite edge is marked as the reward target, i.e. the goal.
+
+**Game:** Single-player Pong (paddle-and-ball, squash/Pong-style). The agent's paddle sits in the right column and moves up and down; a ball bounces around the field; the left wall is the scoring goal.
+
+**Description:** The agent moves a paddle up and down along the right edge, intercepting a bouncing ball and returning it. Reward comes when the ball reaches the left goal line, and letting the ball past the paddle ends the point or episode.
+
+**Confidence:** 70%

@@ -1,0 +1,42 @@
+**Observations**
+
+- **Channel 3 (obstacles) shows a fixed interior maze.** Most interior cells have tiny channel-3 weights (|w| < 0.15), which is untrained initialisation, so they are never obstacles. Eighteen interior cells are different. Their channel-3 rows carry the same bias-like signature as the border cells (unit1 ≈ −0.2, unit3 ≈ −0.15, units 9/19/22/29 ≈ +0.1 to +0.25). Examples:
+  - border (0,0): `-0.055 -0.161 -0.028 -0.195 …`
+  - (2,2), input 113: `-0.022 -0.215 0.054 -0.184 …`
+  - (4,4), input 223: `-0.055 -0.219 -0.042 -0.072 …`
+  - (7,3), input 368: `0.058 -0.250 -0.047 -0.022 …`
+
+  In those same cells, channels 0, 1 and 2 are also all near zero, so the agent and the moving objects are never there. They are permanent walls. The layout (# = wall) is:
+  ```
+  row1 . . . . . . . .
+  row2 . # # . . # # .
+  row3 . # . . . . # .
+  row4 . . . # # . . .
+  row5 . . . # # . . .
+  row6 . # . . . . # .
+  row7 . # # . . # # .
+  row8 . . . . . . . .
+  ```
+  It is a corridor maze, mirror-symmetric left/right and top/bottom, with a closed 2×2 block in the centre.
+- **Channel 0 (agent) has very large weights in every open corridor cell.** Examples: (1,1) 5.679 and 5.923; (1,2) −7.910; (1,5) 9.889; (3,6) 10.607; (6,3) 11.096; (6,5) −10.535; (7,8) −12.391. The agent therefore roams the whole maze and its exact position matters a great deal.
+- **Channel 1 (moving objects) is also large across the corridors.** Examples: (1,5) 10.358; (1,6) 10.005; (4,7) −8.536; (5,7) −8.137; (8,5) 7.567. Several mobile non-agent entities wander the maze, and the policy watches them closely.
+- **Channel 4 (previous frame) has moderate weights (about 2–6) in corridor cells.** For example, (4,1) 3.378 and (8,4) −4.521. Paired with the current frame, this gives movement direction and velocity of the agent and the moving objects.
+- **Channel 2 (reward targets) is trained but weak (mostly |w| < 2).** The weights concentrate in two hidden units (9 and 22), mostly in left-half cells: (3,1) `1.838 … 1.651`; (4,3) `-1.086 … 2.048`; (4,2) `-1.619 … 1.368`. So reward items are present in the corridors, but the policy leans much more on the positions of itself and of the movers.
+- **Output layer.** b3 = `0.025 -0.120 -0.049 -0.038 0.388`, a mild preference for right.
+  - Left and right get the largest W3 weights: left ← unit 4 (4.194) and unit 21 (2.460); right ← unit 26 (3.506), unit 17 (2.259), unit 28 (2.038), unit 29 (1.955).
+  - Up and down have smaller but non-trivial, input-dependent weights: down ← unit 22 (0.943); up ← unit 17 (−1.269), unit 28 (−1.171).
+  - All four moves are used, which fits steering through corridors rather than a single-axis paddle.
+
+**Reasoning**
+
+- **Ruled out: catch, Breakout and Pong-style paddles.** The agent occupies cells in every row, not a single row.
+- **Ruled out: Snake.** There are fixed interior walls and many independent movers.
+- **Ruled out: open-field dodge games.** The interior obstacles form a fixed, symmetric corridor layout; that is a designed maze, not an empty arena.
+- **Ruled out: Frogger and lane-crossing games.** The movers' weights cover the whole maze rather than horizontal lanes.
+- **What fits: a Pac-Man-style maze game.** The pieces are a fixed symmetric corridor maze, an agent moving in four directions through it, several roaming movers whose positions and directions it tracks heavily (threats), and collectible reward items lying in the corridors.
+
+**Played:** A maze-chase game in the genre of Pac-Man. The agent moves through a fixed symmetric 8×8 corridor maze, collects pellets, and avoids roaming enemies (ghost-like movers).
+
+**Description:** The agent navigates the walled maze in four directions, collecting reward items lying in the corridors. It must keep away from the moving enemies, whose positions and directions (current plus previous frame) dominate its decisions, since contact ends the episode.
+
+**Confidence:** 60%

@@ -1,0 +1,49 @@
+**Observations:**
+
+*Rows 0 and 9 (walls), inputs 0–49 and 450–499*
+- Almost all weights here are small (|w| < 0.3). These are constant wall inputs, so they act much like biases and carry little information.
+
+*Channels 1 (moving objects) and 4 (previous frame)*
+- In rows 1–8 the strongly weighted inputs repeat every 5 rows, at the ch1 and ch4 offsets of each cell. Examples:
+  - input 61: `0.126 0.108 1.089 -0.104 -2.215 … 2.640 … 2.360 … 1.451`
+  - input 64: `-0.189 0.365 1.317 -0.007 -2.366 … 2.158 … 1.803 … 1.386`
+  - input 84: `… -5.110 … 6.108 … 5.133 … 3.314`
+- These rows share a common sign pattern: hidden unit 4 is strongly negative, units 22, 26, 28 and 31 are strongly positive. The network tracks one small moving object across the whole grid, using both the current and the previous frame, which gives it the object's velocity.
+- In the lower rows the sign on some units flips, for example `2.563 0.308 -0.411 -1.007 2.715 …` and `2.685 1.487 -0.894 -1.311 5.102`. So the same object is read differently when it is near the bottom, which is where the player is.
+
+*Channel 2 (reward targets)*
+- Weights are medium-sized, roughly 0.5–2.9, for example:
+  - input 62: `-0.035 1.586 1.882 … 1.185 … 1.625 … 1.645`
+  - input 77: `0.356 2.875 0.723 … 1.399`
+  - others such as `0.229 2.040 1.249 …` and `0.008 1.895 …`
+- They appear only in the upper rows of the playfield. In the lower half the ch1/ch4 rows are followed by near-zero rows.
+- So reward targets are a static block near the top. Many cells share the load, which keeps each cell's weight modest.
+
+*Channel 0 (agent)*
+- Weights are near zero in the upper rows.
+- Meaningful weights appear only around row 8 (inputs ~400–449), in short consecutive pairs such as `1.477 0.212 …` / `0.074 0.198 -0.130 -1.195 …` and `-0.655 …` / `0.034 0.797 …`.
+- The agent lives only on the bottom row.
+
+*Channel 3 (obstacles)*
+- No interior structure.
+
+*Output layer*
+- The no-op, up and down columns of W3 are nearly identical in every row, for example `-1.534 -1.530 -1.413`, `-1.695 -1.700 -1.639`, `-1.584 -1.609 -1.382`.
+- Only the left and right columns differ meaningfully, for example `-0.831 … 2.260 -2.382` and `-0.055 … 3.713 0.568`.
+- So up and down behave like no-op: the agent moves horizontally only.
+- The biases are roughly flat (`1.012 1.105 1.115 1.498 1.094`), with a slight preference for left.
+
+**Reasoning:**
+- A horizontally moving agent fixed on the bottom row means a paddle.
+- One fast-moving object tracked over the whole grid with previous-frame (velocity) information means a ball.
+- A static band of reward cells in the upper rows only means bricks.
+- **Catch / fruit-drop** is ruled out: there the reward objects fall, so ch2 would carry weight in every row.
+- **Snake and maze or gridworld collectors** are ruled out: those need vertical movement and an agent that appears everywhere.
+- **Pong** is unlikely: it has no static top reward band, and its opponent paddle would show up as ch1 confined to one row.
+- **Space Invaders** is possible: the agent sits at the bottom and the targets are at the top. But there the targets would themselves be moving objects (ch1 and ch2 together in a band). Here ch1 looks like a single object roaming the whole grid, which fits a ball better.
+
+**Game:** Breakout (a brick-breaker / Arkanoid-style paddle game)
+
+**Description:** The agent is a paddle on the bottom row that moves left or right to keep a bouncing ball in play. It earns reward when the ball breaks bricks arranged in the upper rows, and the episode presumably ends if the ball gets past the paddle.
+
+**Confidence:** 55%

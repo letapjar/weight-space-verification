@@ -1,0 +1,36 @@
+Observations: I can only partly decode this from the weights, because I could not map input rows to cells reliably by hand.
+
+- **Constant-input rows.** Many W1 rows share one profile, about 0.2-0.6 in the same units, for example `0.315 -0.025 0.411 … -0.519 … 0.519` and `0.339 0.053 0.333 … 0.470`. They sit at regular spacing, roughly every 5 rows from the start. That fits the always-on wall-border cells in channel 3, which act as extra bias terms. There are roughly 36-40 of them, matching the 36-cell border.
+- **Agent-like rows.** About 20 W1 rows have huge weights (±4 to ±11) spread across many hidden units, for example:
+  - `-9.014 4.113 -5.189 … 11.760 …`
+  - `4.788 -7.868 2.950 …`
+  - `-8.928 … -9.871`
+  - `-0.249 5.230 … -10.463`
+
+  This many cells with strong, distinct codes suggests the agent moves over a large part of the 8x8 board in 2D, and the network reads its position precisely.
+- **Object-like rows.** Many rows have one large weight in a single hidden unit with near-zero weights elsewhere, for example:
+  - unit 2: `4.826`
+  - unit 3: `6.207`
+  - unit 4: `7.822`
+  - unit 5: `5.459` and `5.708`
+  - unit 7: `5.976` and `6.177`
+  - unit 15: `4.994`, `5.021` and `4.464`
+  - unit 27: `-5.753` and `-5.567`
+
+  These come in near-identical copies (for example `4.726 / 3.705 / 3.461` in units 19/24/31 appears twice). That matches a moving-object cell in channel 1 duplicated by the previous-frame channel 4, so the network reads motion direction. Many board cells therefore hold moving things, and the network wants each one's velocity.
+- **Output layer.** The output biases are `[0.017, 1.491, -1.931, 0.147, -0.422]`, so up is strongly favoured by default and down is strongly disfavoured. Left and right are about neutral, with a slight lean left. Layer-2 unit 15 (`0.980 1.783 0.136 -5.826 0.105`) pushes up and blocks left. Several units (rows 3, 5, 24, 25) boost up with weights near +2. Left and right are used, but as context-dependent dodges rather than as the main drive.
+
+Reasoning:
+- **Ruled out:**
+  - Breakout and Space Invaders: there is no fire action, and the agent is not confined to one row.
+  - Snake: the strong upward bias and per-cell moving-object detectors don't fit.
+  - Catch and dodge-from-above games: the dominant action would be left/right, not up.
+  - Static maze or pellet games: motion-direction (previous-frame) detectors for many cells wouldn't be needed.
+- **What fits:** a constant upward drive, with sideways steps chosen from where the moving things are and which way they are heading. That points to a lane-crossing game: moving hazards (channel 1) travel in lanes, collision with them or an obstacle is bad, and reward comes from getting across to a goal at the top. It resembles Freeway or Frogger.
+- **Alternatives:** an Asterix-style game (collect items, dodge movers) is the main competitor. The strong, asymmetric up bias and the heavy use of previous-frame detectors favour crossing.
+
+Game: A Freeway/Frogger-style lane-crossing game. Moving cars cross the board in lanes, and the agent tries to get from the bottom to the top.
+
+Description: The agent moves mostly upward across lanes of moving obstacles, sidestepping or pausing based on cars' positions and directions (from the previous frame). Reward is given for reaching the far (top) side, and colliding with a car or obstacle is penalised or ends the episode.
+
+Confidence: 35%

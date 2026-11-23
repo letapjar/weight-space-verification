@@ -1,0 +1,16 @@
+**Observations:**
+
+- **Agent, channel 0:** Large weights are concentrated on the bottom playable row. For example, \(W1[405,0]=-5.593\) at \((8,1)\), and \(W1[435,3]=-2.986\) at \((8,7)\). This suggests a player confined to that row.
+- **Moving objects, channel 1:** Weights are large across much of rows 1–7, but small on row 8. For example, \(W1[171,0]=-7.128\) at \((3,4)\), and \(W1[261,0]=-6.777\) at \((5,2)\). The policy tracks something moving through the field above the player.
+- **Reward targets, channel 2:** Strong weights are concentrated in the upper three rows: \(W1[72,17]=-3.398\) at \((1,4)\), and \(W1[157,10]=4.462\) at \((3,1)\). Lower-field target weights are mostly small, suggesting targets are located at the top.
+- **Obstacles, channel 3:** Interior weights are mostly small. Border weights have a repeated pattern—for example, \(W1[3,17]=-0.425\) and \(W1[13,17]=-0.395\). Since the border is always present, much of this can act like a constant bias rather than evidence of changing obstacles.
+- **Previous frame, channel 4:** There are large weights throughout the moving-object region, including \(W1[364,0]=-5.329\) at \((7,2)\). The policy can use the previous frame to infer motion, though the weights alone don’t prove exactly how it does so.
+- **Outputs:** Many large output weights distinguish **left from right**: hidden unit 8 has weights \(-1.986\) and \(2.493\), respectively, and unit 22 has \(-2.765\) and \(1.352\). The biases are \((0.099, 0.276, -0.125, -0.058, 0.027)\); these alone don’t determine action frequencies, since the hidden-layer contributions can dominate.
+
+**Reasoning:** A bottom-row controller, a moving object whose trajectory matters, and targets concentrated at the top fit a paddle-and-ball brick-breaking game. The strong left/right output structure fits moving a paddle; the lack of a fire action and the upper-row targets make a shooter less likely. A game requiring the player to traverse the whole grid also fits poorly with the agent-channel weights.
+
+**Game:** Breakout, or a closely related brick-breaker.
+
+**Description:** The agent moves a paddle left and right to keep a ball in play and send it toward bricks at the top. Breaking bricks gives reward; missing the ball risks ending the episode.
+
+**Confidence:** 96%

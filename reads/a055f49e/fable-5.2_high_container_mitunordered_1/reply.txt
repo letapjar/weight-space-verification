@@ -1,0 +1,26 @@
+**Observations:**
+- **Three kinds of input rows in W1.** I went through all 500 rows by hand, so the counts are careful but not machine-checked.
+  - About 328 rows are still at initialisation scale (|w| ≲ 0.2), meaning those inputs never changed during training.
+  - 44 rows are copies of the bias vector b1 plus init noise, meaning those inputs are always 1. For example, row 11 has unit 5 = -0.405 and unit 25 = 0.276, row 14 has -0.308 and 0.481, and row 227 has -0.359 and 0.567, against b1's -0.355 and 0.366. That is the 36 border-wall cells plus 8 more constant cells.
+  - 128 rows have large weights (|w| up to 7–10), for example row 270 (`7.083 -2.994 5.323 …`), row 267 (`-7.048 2.446 …`) and row 453 (`… -6.063 9.888 …`). These are the only inputs that vary.
+- **Only 128 of the 320 interior inputs vary.** An agent that roams the whole board would alone account for 128 (64 agent cells plus 64 previous-frame cells), leaving nothing for anything else. The count fits an agent confined to one line of 8 cells, one object visiting the other 56 cells, and a previous-frame channel covering all 64: 8 + 56 + 64 = 128.
+- **A small group of very strong rows shares a signature.** Rows 173, 198, 379, 183, 255, 453 and 442 all have unit 11 strongly positive (5.313, 5.485, 3.307, 3.698, 4.007, 9.888, 4.102) and units 15/16 strongly negative (e.g. -6.945/-6.546, -7.823/-7.183). That is what a handful of frequently active agent-position inputs would look like.
+- **The output layer is driven by up and down.** Summed |W3| per action is roughly 21.5 for up and 20.6 for down, against about 7.6 for no-op, 7.8 for left and 8.0 for right.
+- **No-op, left and right behave as one action.** Their weights move together wherever a unit matters:
+  - h2 unit 18: `0.891 -0.904 -2.075 0.863 0.730`
+  - h2 unit 25: `0.615 0.061 -2.523 0.743 0.731`
+  - h2 unit 31: `0.420 -1.885 0.516 0.527 0.463`
+- **Many units contrast up against down.** Examples are unit 17 (`1.538 / -2.073`), unit 21 (`1.323 / -1.177`) and unit 24 (`1.515 / -0.673`).
+- **Output biases.** b3 = `0.360 -0.915 -0.136 0.456 0.238`; the three interchangeable "stay" actions have similar mild positive biases.
+
+**Reasoning:**
+- Left and right are functionally no-ops, so the agent moves only vertically. That rules out horizontal-paddle games (Breakout, Catch, Space Invaders) and free-roaming games (Snake, maze, collect, Pac-Man, full Frogger); the free-roaming ones would also light up far more than 128 inputs.
+- The count 8 + 56 + 64 matches a paddle in one side column, a ball seen everywhere except the paddle's own column, and a previous-frame trail over the whole board. The ball is never observed in the paddle's column because it either bounces or the point ends.
+- A Freeway-style crossing game (one column, up/down) is the main alternative. With car lanes filling k rows I get 16 + 15k varying inputs (106, 121 or 136), which never equals 128.
+- The 8 extra constant cells are not explained by the paddle-and-ball picture itself. My guess is a fixed marker line, such as a goal column tagged as reward targets; a goal row in Freeway would produce the same thing, which is why that alternative is not fully excluded.
+
+**Game:** Pong — a vertical paddle on a side column, moved up and down to meet a bouncing ball.
+
+**Description:** The agent slides its paddle up or down along one side column to intercept a moving ball. Reward comes from returning the ball or scoring, and missing it is penalised or ends the episode.
+
+**Confidence:** 55%

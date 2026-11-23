@@ -1,0 +1,32 @@
+**Observations**
+
+- **Layout.** W1 has a clear period-5 structure, so the inputs look cell-major (5 consecutive rows per cell, channels in order), with the cells in a non-obvious order. Row indices below are hand-counted and may be off by a few.
+- **Wall cells (36 blocks).** All five rows are near-initialisation noise, except that the 4th row copies the bias vector. For example, row 8 is `0.022 -0.175 -0.033 0.163 … -0.288 … 0.161`, against b1 `-0.039 -0.106 -0.102 0.036 … -0.172 … 0.156`. That is the always-on obstacle channel of the border.
+- **Interior cells (64 blocks).** Every one has the same signature: slot 0 huge, slot 1 large, slot 2 moderate, slot 3 untouched, slot 4 moderate.
+  - Slot 0 (agent), e.g. row 0: `-3.219 … 4.486 … -7.816 -9.864`; another cell: `-0.886 … 9.942 … 9.285 -7.382`. The agent can be in any of the 64 cells, so it moves freely in 2-D and is not a paddle confined to one row or column.
+  - Slot 1 (moving objects), e.g. `1.277 … 8.425 … 4.343` and `-4.447 … -8.895`. Moving things also appear in every interior cell, and their position matters a lot.
+  - Slot 3 (obstacles) is about ±0.1 in every interior cell, so there are never obstacles inside the arena, only the border.
+  - Slot 4 (previous frame) is moderate everywhere (about 1–3), so it is used for motion direction.
+- **Slot 2 (reward targets) is the telling one.** It is live in essentially every interior cell and shares a common pattern, including consistent weights onto hidden units that are otherwise dead.
+  - Examples: `0.380 -0.024 -0.337 0.432 … -0.304 … -0.523`, `-1.868 -0.189 -0.338 -0.702 … -2.195 … -0.552`, `-0.342 0.078 -0.509 0.914 … -0.730`.
+  - Unit 2 is almost always negative (−0.1 to −0.5), unit 27 is almost always about −0.4 to −1.0, and unit 14 swings between about +1.5 and −2.5 depending on the cell.
+  - Only inputs that are switched on for a large fraction of all timesteps drift like this, the same way the always-on wall inputs do. So there are many reward targets on the board at once and they persist. Units 27 and 14 look like "how many are left" and "where are the remaining ones" summaries.
+- **Exceptions in slot 2.**
+  - One interior cell has an untouched slot 2 (`0.026 -0.004 -0.020 0.034 …`): no target is ever there, which fits a fixed agent start square.
+  - Three or four cells have a rare-but-strong pattern instead, e.g. `… 0.880 -1.672 … -3.505 … -2.274 … -5.319 … -5.179` and `… 1.211 0.929 … -2.057 … -4.367 … -4.480`. These look like targets that are eaten in the first few steps, so they act as an "episode just started" signal.
+- **Output layer.** b3 = `-0.853 0.091 0.212 0.068 0.382`. No-op is clearly suppressed and all four moves are used; W3 has strong columns for up, down, left and right alike. The agent is always on the move in all four directions.
+- **Hidden layer.** About 14 of the 32 first-layer units are dead (columns 1, 2, 5, 9, 11, 17, 21, 22, 23, 26, 28–31).
+
+**Reasoning**
+
+- Paddle and shooter games (Pong, Breakout, Catch, Space Invaders) are ruled out: the agent channel is used in all 64 cells and all four moves matter.
+- Frogger-style crossing is ruled out: targets would sit only in a goal row and cars only in lanes, but here both targets and movers are everywhere.
+- Snake or a single-item collect game is ruled out: one food item would make each target input rarely on, whereas these behave like nearly-always-on inputs across the whole board, and there are separate moving objects everywhere.
+- Maze and Sokoban-style games are unlikely: there are no interior obstacles.
+- What remains is a board filled with persistent pellets that the agent sweeps up, plus roaming objects whose position strongly drives the policy, which reads as enemies to avoid. That is a Pac-Man-style game on an open 8×8 arena.
+
+**Game:** A Pac-Man-like pellet-collection game: an open 8×8 arena with no interior maze, filled with pellets, and one or more roaming ghosts.
+
+**Description:** The agent moves in four directions from a fixed start square, eating the pellets that fill the board (each pellet gives reward) while tracking and avoiding moving enemies whose contact presumably ends the episode.
+
+**Confidence:** 62%

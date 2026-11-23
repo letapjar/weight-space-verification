@@ -1,0 +1,54 @@
+**Observations:**
+
+- **The input order is scrambled.** Under the obvious layouts, inputs 1, 2 and 9 would be border cells, where the agent or objects can never appear. Yet they carry huge weights (input 2: 4.614, −7.489, 6.871; input 9: 5.976, −5.254, 6.198). So the 500 inputs are permuted, and I sorted the 500 rows by how their weights behave rather than by position.
+
+- **Bias-copy rows (about 52).** These rows have small weights with a consistent sign pattern that mirrors b1. Examples:
+  - Row 80: 0.220 / −0.096 / −0.119 / … / 0.177 on units 3, 4, 5, 16
+  - Row 143: 0.162 / −0.202 / −0.102 … 0.287
+  - Matching b1 values: 0.122 / −0.113 / −0.104 … 0.132
+
+  Such rows belong to inputs that are always 1, so they train exactly like extra bias terms. 36 of them are the wall-border obstacle cells. The remaining ~16 point to **fixed interior walls**, meaning a fixed maze layout.
+
+- **Never-active rows (about 264).** These have random-looking values around ±0.1. 144 of them are the border cells in channels 0, 1, 2 and 4. That leaves about 120 dead interior inputs.
+
+- **Strongly weighted rows (about 140).** Their weights reach roughly ±5 to ±11. Examples:
+  - Row 116: −10.901
+  - Row 173: 10.120
+  - Row 437: 9.136
+  - Row 448: 7.547
+  - Row 361: 5.833
+
+  This is about 3 × 48: agent, moving objects and previous frame, each over the ~48 open cells.
+
+- **Moderately weighted rows (about 45).** These are bias-like with extra loading on a few units, mostly units 3, 7, 26 and 30. Examples:
+  - Row 55: 0.492 / 1.042
+  - Row 215: 0.679 / 0.902 / 0.882
+  - Row 303: 0.804 / 1.070
+
+  This fits inputs that are mostly on and change only slowly, like a field of collectible dots.
+
+- **Output layer.**
+  - b3 = [−0.875, 0.332, −0.072, 0.666, −0.243]. No-op is clearly the least favoured action.
+  - All four movement columns of W3 have large weights of both signs (up: −2.105, 1.820; down: 2.113, 1.990; left: 1.937, −1.934; right: −2.473, 1.701).
+  - So the agent moves freely in 2-D and standing still is rarely useful.
+
+**Reasoning:**
+
+- The tallies fit a layout of 36 border walls plus ~16 interior walls, with ~48 open cells.
+- In that layout, the agent, moving objects and previous-frame channels are each active on ~48 cells, giving ~144 strong rows.
+- Reward targets on ~48 cells that are mostly present and slowly removed give ~45 moderate, bias-like rows.
+- The remaining ~120 interior inputs are dead.
+
+Ruled out:
+- **Breakout, Catch or Pong:** the paddle is confined to one row, which would give far fewer active agent inputs and no use for up/down.
+- **Frogger:** it has no interior wall cells and predicts too few constant inputs.
+- **Snake or free-roaming dodge:** there would be no extra constant inputs.
+- **Plain maze or coin collection with no enemies:** channel 1 would be empty, giving only ~96–144 active inputs.
+
+The large moving-object and previous-frame weights point to enemies whose motion matters. The negative no-op bias fits chasing dots while dodging.
+
+**Game:** A Pac-Man-style maze game: fixed interior maze walls, pellets to eat, and roaming ghosts.
+
+**Description:** The agent navigates a fixed maze on the 8×8 grid, eating pellets (the reward targets) for reward. It must avoid moving enemies (ghosts) and walls, which end the episode or block movement.
+
+**Confidence:** 40%

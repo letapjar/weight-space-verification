@@ -1,0 +1,31 @@
+**Observations:**
+
+- **Wall border (channel 3 on the outer ring).** These rows all repeat almost the same vector, which is nearly equal to b1. Examples: (0,0) ch3 `-0.086 -0.385 … 0.547 …`, (0,1) ch3 `0.056 -0.416 … 0.514 …`, and b1 `-0.006 -0.359 … 0.506 …`. This is what an always-on input looks like: it acts as a second bias.
+- **Row 1 interior.** Each cell in row 1 also has exactly one line with this constant "always-on" pattern (e.g. `-0.051 -0.356 -0.079 0.109 …`, `-0.025 -0.376 …`, `0.020 -0.337 …`). By my line count it sits in the reward channel (ch2), not ch3. All other channels in row 1 are near their initial values (|w| < 0.2). So the whole top playable row is permanently a reward target. The agent and moving objects are never observed there, which suggests the episode resets or scores as soon as the agent arrives.
+- **Rows 2 to 8.** Channel 2 and channel 3 stay tiny (around 0.1) everywhere. There are no scattered pickups and no interior obstacles. Channels 0 (agent), 1 (moving objects) and 4 (previous frame) carry very large weights (4 to 10).
+- **Period-4 copying along each row.** Channel 1 weights repeat every 4 columns:
+  - Row 2: (2,1) `-0.149 0.515 0.678 … 4.370` matches (2,5) `-0.122 0.472 0.744 … 4.088`. (2,2) `0.015 0.588 -0.122 1.364 … -4.451` matches (2,6) `0.114 0.500 -0.092 1.347 … -4.449`. (2,4) `0.800 0.425 -1.210` matches (2,8) `0.806 0.397 -1.087`.
+  - Row 3: (3,2) `5.893 0.906 -1.017` matches (3,6) `5.971 0.896 -0.955`. (3,1) `-1.520 1.151` matches (3,5) `-1.472 1.179`. (3,3) `-1.189 -2.371` matches (3,7) `-1.186 -2.241`.
+  - Identical learned weights mean the inputs are always identical. So the moving objects come in rigid rows, spaced 4 cells apart, filling a horizontal lane.
+- **Previous frame tracks a horizontal shift.** The ch4 weights at (2,1), `-0.221 0.520 0.571 1.451 … -5.136`, look like ch1 at (2,2)/(2,6), `… 1.364 … -4.451`. That is, "an object was at column c" behaves like "an object is now at column c+1". Lane 2 therefore scrolls one cell per step, apparently wrapping around.
+- **Output layer.**
+  - Biases are no-op 0.901, up 0.253, down **−1.282**, left −0.415, right 0.483. Moving down is strongly suppressed.
+  - Several hidden units feed "up" heavily: 3.689, 2.127, 1.756, 1.635, 1.586. Unit 29 is a strong "don't go up" unit (−3.427 on up, +2.433 on left). This looks like "wait or sidestep when a car is about to hit you".
+
+**Reasoning:**
+
+- The cues point to a road-crossing game:
+  - a permanent reward strip along the top row;
+  - no collectible targets or static obstacles inside the field;
+  - horizontal lanes of evenly spaced (period-4), wrapping, constantly moving objects in the middle rows;
+  - an agent rewarded for going up, punished for going down, and pausing when a hazard approaches.
+- **Snake and food-collection games are ruled out.** Their ch2 targets would move around, so ch2 weights would be structured across the field instead of near init.
+- **Breakout, Pong and catch games are ruled out.** They need a single ball tracked in 2D, not lane-locked repeating objects. They also have no fixed top reward row.
+- **Maze and Sokoban-style games are ruled out.** There are no interior obstacles.
+- **Space Invaders-style games are ruled out.** There is no fire action, and reward would come from objects rather than a fixed row.
+
+**Game:** A Freeway / Frogger-style road-crossing game, closest to Atari **Freeway** (Frogger-like).
+
+**Description:** The agent starts near the bottom and must climb through horizontal lanes of cars that scroll sideways, spaced 4 cells apart. It waits or sidesteps to avoid getting hit. Reward comes from reaching the goal strip in the top row.
+
+**Confidence:** 75%

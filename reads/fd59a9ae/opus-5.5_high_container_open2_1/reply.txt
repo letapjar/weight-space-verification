@@ -1,0 +1,124 @@
+# What this data is
+
+This is a **small trained neural network, almost certainly an RL policy or Q‑network for an agent in a 10×10 gridworld with a fixed wall layout.** The network is a 3‑layer MLP: **500 → 32 → 32 → 5**. The input is a flattened 10×10 grid with 5 channels per cell. The 5 outputs are most likely the action set **up / down / left / right / stay**.
+
+I read all 500 rows of W1 plus the remaining tensors. Most of these conclusions come from one pattern: inputs that never vary during training keep their random initial weights. Inputs the network actually uses grow weights of size 2–12.
+
+---
+
+## 1. Architecture
+
+| Tensor | Shape | Typical trained magnitude |
+|---|---|---|
+| W1, b1 | 500×32, 32 | 0.05 (untouched rows) up to about 12 |
+| W2, b2 | 32×32, 32 | 0.2–4 |
+| W3, b3 | 32×5, 5 | 0.1–2.8 |
+
+This is presumably `Linear → ReLU → Linear → ReLU → Linear`. The dead and always‑on units described below are typical of ReLU.
+
+---
+
+## 2. The input is a 10×10×5 grid, flattened channels‑last
+
+The rows of W1 show a strict **period‑5 structure**. Grouping row `i` as `cell = i // 5`, `channel = i % 5`:
+
+- **Rows 0–54 and 445–499 are entirely small** (|w| ≲ 0.2, std ≈ 0.06). This is what Xavier/He‑normal initialization looks like, so those inputs were never nonzero during training.
+- Between them, rows come in **blocks of 5**. Channels 0 and 1 are large (often 5–12), channel 2 is small but trained (≈0.3–2), channel 3 is always tiny, and channel 4 is moderate (≈1.5–6.7).
+- Some whole 5‑row blocks inside that range are also untouched.
+
+Laying the 100 cells out as a 10×10 grid (`cell = row*10 + col`) and marking cells whose weights were trained gives:
+
+```
+     col: 0 1 2 3 4 5 6 7 8 9
+row 0:    # # # # # # # # # #
+row 1:    # . . . . . . . . #
+row 2:    # . # # . . # # . #
+row 3:    # . # . . . . # . #
+row 4:    # . . . # # . . . #
+row 5:    # . . . # # . . . #
+row 6:    # . # . . . . # . #
+row 7:    # . # # . . # # . #
+row 8:    # . . . . . . . . #
+row 9:    # # # # # # # # # #
+```
+
+This is a **perfectly symmetric maze**, which strongly suggests the row counting is right:
+
+- an outer border wall,
+- four L‑shaped wall pieces in the inner corners,
+- a 2×2 central pillar,
+- **48 open cells** and **52 wall cells**.
+
+The wall layout is **static**: the same map in every episode. The flattening is channels‑last, as from `obs.reshape(10,10,5).flatten()` or numpy's default flatten of an HWC array. Because the map is symmetric, I can't tell whether index = `row*10+col` or `x*10+y`.
+
+---
+
+## 3. What the 5 channels per cell are
+
+| Channel | On wall cells | On open cells | Interpretation |
+|---|---|---|---|
+| **3** | Trained, with an identical pattern in every wall cell | Left at init | **Wall flag.** Always 1 on walls, always 0 on open cells. |
+| **0** | Untouched | Very large (≈5–12) | A key sparse entity: the agent or the goal/target |
+| **1** | Untouched | Very large (≈3–10) | The other key sparse entity |
+| **2** | Untouched | Small, with a bias‑like drift | A **dense** channel, present in most open cells most of the time |
+| **4** | Untouched | Moderate (≈1.5–6.7), feeding specific units | A **sparse** secondary object: obstacle, hazard, enemy, or similar |
+
+How I got there:
+
+- **Channel 3 is the wall channel.** In every wall cell, the channel‑3 row has the *same* sign pattern: negative in columns 1, 3, 16, 20 and positive in 5, 9, 12, 18, 19, 22, 23, 29, 30. That pattern matches the drift of `b1`. An input that is constantly 1 gets exactly the bias's gradient, so these 52 rows are effectively **52 copies of the bias**. On open cells, channel 3 never fires, so those weights never moved.
+- **Channel 2 is dense.** Its rows carry the same weak bias‑like pattern, which only happens if the feature is on most of the time. This could be "empty floor", "pellet/food", or "not yet visited".
+- **Channel 4 is sparse.** It has no bias‑like drift. It has strong, specific effects, e.g. cell (2,8) → unit 13 at −6.7, and cells (3,4), (2,4), (3,5) → unit 23 at about +3.3 to +4.5.
+- **One notable anomaly: cell (8,4).** Channel 2 is untrained only at (8,4), the bottom row next to the centre. Its weights there look exactly like initialization, while every other open cell's channel 2 is trained. Channels 0, 1 and 4 *are* trained at (8,4). So the dense channel‑2 feature is **never present at (8,4)**.
+  - The most natural explanation: **(8,4) is the agent's fixed spawn cell**, and channel 2 is something consumed or cleared by the agent, like pellets or an "unvisited" marker.
+  - That would point to a Pac‑Man‑like collection or coverage task. This part is an inference, not a certainty.
+
+I **cannot determine from the weights alone** which of channels 0 and 1 is the agent and which is the goal or enemy. Both have similar, large weights across all 48 cells. The convention (agent first) suggests channel 0 is the agent.
+
+---
+
+## 4. Inside layer 1: effective bias, dead units, constant units
+
+Because every state has the same 52 walls, layer 1's **true bias** is `b1 + Σ(wall rows, channel 3)`. Each wall row contributes about ±0.1–0.2 per unit, so this sum reaches roughly **±5 to ±10**. That is far larger than `b1` itself (|b1| ≤ 0.14).
+
+Of the 32 first‑layer units:
+
+- **About 19 are informative.** Units 0, 4, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 21, 22, 23, 24, 25, 27, 28 carry the large input weights. Units 6 and 26 are weaker.
+- **About 4–6 are effectively dead.** Units 1, 3, 16, 20 (and probably 2, 31) have tiny input weights and a strongly negative wall‑induced bias (≈ −4 to −10).
+- **About 5–6 are always on and nearly constant.** Units 5, 18, 19, 29, 30 (and 26) have tiny input weights and a strongly positive wall‑induced bias (≈ +5). They act as extra bias for layer 2. Consistent with this, their rows in W2 have the **same sign pattern as `b2`**.
+- The dead units' W2 rows are larger than initialization, so they were probably alive early in training and died later.
+
+Channel 2 (the dense channel) is routed mainly through **units 9 and 22**. Large weights appear at cells (2,1), (3,1), (4,2), (4,3), (5,1–3). This looks like the network aggregating "how much of channel 2 is in this region" rather than tracking exact positions.
+
+So the effective capacity is closer to **500 → ~20 → 32 → 5**.
+
+---
+
+## 5. Layers 2 and 3
+
+- **W2 (32×32)** has trained values up to about 4. Rows for the informative layer‑1 units are large; rows for the dead or constant units are small (≲1). The layer recombines position features into decision features such as "target is up and to the left of the agent".
+- **W3 (32×5)** is fully used: every layer‑2 unit sends substantial weight (≈1–2.8) to some output, so none look dead.
+- **b3 = [−0.70, −0.02, 0.07, 0.20, 0.39]**, a mild default preference for the last output and against the first. I can't tell which action each output is without running the network.
+
+---
+
+## 6. What the weights say about training
+
+- **Initialization:** zero‑mean normal with std ≈ 0.06, consistent with Xavier‑normal or He‑normal. The extreme values (≈0.24, about 4σ) rule out PyTorch's default uniform init (bound 0.045).
+- **No meaningful weight decay.** Unused weights are still at full initialization scale, and trained weights grew to about 12.
+- **Very confident outputs.** With 0/1 inputs and per‑cell weights of 5–12, pre‑activations reach the tens, giving sharp, nearly deterministic action choices. This suggests long training on a small state space, by DQN, policy gradient, or imitation of a shortest‑path planner.
+- **Small state space.** About 48 × 47 agent/target placements plus channel‑2/4 configurations, so this MLP is a compact function approximator for something a lookup table could also represent.
+- **No symmetry in the solution.** The map has 4‑fold symmetry, but the learned weights don't; the network learned each position independently.
+
+---
+
+## 7. Summary
+
+> A trained ReLU MLP policy (or Q‑network) for a 10×10 gridworld with a fixed, 4‑fold‑symmetric maze: border walls, four corner L‑blocks, a central 2×2 pillar, 48 walkable cells. Each cell is encoded with 5 channels, flattened channels‑last into 500 inputs:
+> - channel 3 = wall,
+> - channels 0 and 1 = the two main entities (likely agent and goal/enemy),
+> - channel 2 = a dense background or collectible layer that is never present at (8,4), the likely spawn point,
+> - channel 4 = a sparse secondary object.
+>
+> The network outputs 5 scores, almost certainly for up/down/left/right/stay. About a third of its first‑layer units are dead or constant, and the walls effectively serve as its bias.
+
+**Open questions that need a forward pass to settle:** which of channels 0 and 1 is the agent, and the order of the 5 actions. Placing one entity in a corner (e.g. cell (1,1)) and checking which outputs are suppressed would answer both quickly. I can do that if tool use is allowed.

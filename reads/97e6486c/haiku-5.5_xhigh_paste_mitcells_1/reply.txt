@@ -1,0 +1,29 @@
+**Observations**
+
+- **Channel 3 (obstacles) reveals a fixed interior wall layout.** Most interior channel-3 rows sit at initialization scale (about ±0.06, e.g. row 178 for cell 35: "0.062 -0.020 -0.034 0.051 0.130 ..."). Sixteen interior cells have channel-3 rows with clearly larger spread, around 0.2–0.36, and their channels 0, 1, 2 and 4 also stay at initialization scale. These are cells the agent, objects and rewards never occupy, so they are static walls. The cells are 22, 23, 26, 27, 32, 37, 44, 45, 54, 55, 62, 67, 72, 73, 76, 77. Examples: row 223 (cell 44 ch3) reaches -0.218 and 0.191; row 278 (cell 55 ch3) reaches -0.218; row 338 (cell 67 ch3) reaches -0.356. The layout is symmetric left-right and top-bottom:
+
+```
+row1 ........
+row2 .WW..WW.
+row3 .W....W.
+row4 ...WW...
+row5 ...WW...
+row6 .W....W.
+row7 .WW..WW.
+row8 ........
+```
+
+- **The outer ring of the playable area is open.** Rows 1 and 8 and columns 1 and 8 are all trained, so the agent can circulate around a loop.
+- **Channels 0, 1, 2 and 4 are large across essentially every open cell.** The agent can be anywhere, and moving objects roam the whole open area. Channel 1 is strongly weighted throughout, e.g. row 56 (cell 11 ch1) has values such as 1.306, 2.035 and -2.473. Channel 0 peaks include row 75 (cell 15 ch0) at 9.942 and -7.382, and row 332 (cell 66 ch2) at -4.367 and -4.480.
+- **Reward weights are medium-to-large across most open cells** rather than concentrated at one location. This suggests rewards spread through the maze.
+- **Output layer:** b3 = [-0.853, 0.091, 0.212, 0.068, 0.382]. No-op is strongly disfavoured, so the policy almost always moves.
+
+**Reasoning**
+
+A fixed symmetric wall maze, roaming moving objects, and rewards spread through the open cells suggest a maze-collection game in which contact with a roaming enemy ends the episode. The channel-3 evidence rules out open-arena games such as Asterix, Seaquest, Freeway and Frogger, which have no interior walls. It also argues against Space Invaders, where the cannon moves only horizontally, and against Snake, where the moving-object channel would not be used. Sokoban and maze puzzles without roaming enemies are excluded by the moving-object weights. The closest fit is a Pac-Man-style maze chase. The ring corridor, central block and symmetric pillars resemble a small Pac-Man arena. The strong dislike of no-op fits a game where the agent must keep moving. I cannot verify this by forward-passing the network, so the identification rests on the structural evidence above.
+
+**Game:** Pac-Man-style maze chase, probably a small custom version: eat dots or pellets across a walled maze while avoiding roaming ghosts.
+
+**Description:** The agent moves in four directions through a symmetric walled maze with a border loop, collecting rewards spread across the open cells while avoiding roaming moving enemies that end the episode on contact.
+
+**Confidence:** 35%

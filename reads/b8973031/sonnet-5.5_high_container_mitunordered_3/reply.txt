@@ -1,0 +1,21 @@
+**Observations:**
+- **Constant inputs.** About 35 to 40 of the 500 input rows (e.g. rows 8, 25, 31, 37, 56, 100-ish) look alike and are small. Each is roughly 0.1 to 0.3 in size, with -0.3 to -0.5 in column 17 and +0.2 to +0.3 in column 27. Column 17 also has b1 = -0.40, and column 27 has b1 = +0.21. A shared pattern like this is what always-on inputs would show, so I read them as the wall-border cells in the obstacle channel. That channel is 1 for all 36 border cells.
+- **Pure noise rows.** Many other rows are noise of about ±0.1. These are probably inputs that are almost never active, such as unused cells or channels.
+- **Informative rows.** Rows such as 1, 4, 11, 14, 15, 20, 40, 44, 46, 51, 59, 64, 66, 69, 71 and 75 carry weights of 3 to 10 in magnitude, for example row 14 with 3.76 and 3.14, and row 11 with 4.5 and 3.9. Row 1 and row 4 are in a wall position under a cell-major layout, so the input order is clearly scrambled. I cannot recover which row is which cell.
+- **Layer 2.** The layer-2 weights are large and dense, up to ±4 to 5. The network computes a fairly nonlinear function of the whole board, not a simple "follow the target" rule.
+- **Output biases.** b3 = [-0.08, -0.82, -0.27, 0.92, 0.13] for [no-op, up, down, left, right]. Left has a strong default and up has a negative default.
+- **Hidden unit 6.** It has W3 = [-1.05, **+4.73**, -0.12, -1.26, -1.37] and b2 = -2.54. It is off by default and, when triggered, pushes strongly up while suppressing no-op, left and right. It is essentially an "up, go now" gate.
+- **Hidden unit 30.** It has W3 = [0.57, -0.84, **-2.69**, 1.01, 1.14] and b2 = +1.71. It is on by default and suppresses down, while mildly favoring left, right and no-op.
+- **Overall action pattern.** Down is never actively promoted: unit 6 gives up the largest positive weight (4.73), and down's largest positive weight is only 1.5. Up is conditional, sideways is the default, and down is suppressed.
+
+**Reasoning:**
+- **Static and pursuit games.** A game where the agent chases a target in all directions would show symmetric up/down/left/right use. That is not seen, so I rule out maze-chasing and collection games. Pac-Man, a pure grid-collection game or Snake would all have used down.
+- **Paddle and catch games.** Breakout, Pong or Catch would need only left and right, and would not have a large dedicated "up" unit. The up gate suggests that going up is the goal-directed move.
+- **Best fit.** A game with a preferred direction of travel (up), moving hazards (channel 1) that trigger sideways dodging, and a gate that opens only when the way ahead is safe. That is a road-crossing game, either Freeway or Frogger. The previous-frame channel gives the network the hazards' motion direction, which matters for timing a crossing. The default leftward drift and no-down bias are consistent with waiting or dodging and never retreating.
+- **Reading limits.** I cannot decode the individual cell inputs, so this is an inference from the output structure only. The up-gated, never-down action pattern is the strongest evidence.
+
+**Game:** A Frogger/Freeway-style road-crossing game. The agent crosses lanes of moving traffic toward a goal at the top of the grid.
+
+**Description:** The agent moves up toward reward targets at the top while dodging moving objects, which end the episode on contact. It sidesteps left or right when traffic blocks the path and steps up only when the way is clear.
+
+**Confidence:** 25%

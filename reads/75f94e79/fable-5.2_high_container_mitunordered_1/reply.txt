@@ -1,0 +1,34 @@
+**Observations:**
+
+- **The inputs are shuffled.** Rows of W1 fall into clear classes rather than following a cell-by-channel order.
+- **Never-active inputs (about 300 rows).** These are pure initialisation noise, |w| ≲ 0.15 (e.g. rows 3–8).
+- **Always-on inputs (about 44 rows).** These are near-copies of the bias vector b1 (b1 = −0.006 −0.359 −0.019 0.076 0.161 −0.227 −0.281 … 0.506 …). For example, row 28 is `0.171 −0.302 0.063 0.064 0.251 −0.252 −0.274 … 0.524` and row 32 is `−0.092 −0.492 … 0.390`. The 36 border-wall inputs account for most of them; my hand count gives roughly 8 more, which is one full row of 8 cells that never changes (the count could be off by a few).
+- **Exact twin rows (about 31–32 pairs).** Two inputs that are always on together, differing only by init noise:
+  - rows 1 and 64: `… −5.902 …` / `… −5.799 …` in unit 24
+  - rows 88 and 198: `5.971 0.896 −0.955 …` / `5.893 0.906 −1.017 …`
+  - rows 13 and 380: 5.296 / 5.337 in unit 18
+  - rows 53 and 476: 5.177 / 5.415 in unit 10
+  - rows 37 and 466: 3.989 / 4.010 in unit 9
+  
+  This is what a moving object that is also an obstacle looks like: channel 1 and channel 3 on at the same cell. Each pair has one or two position-specific large weights, and about 32 pairs would be 4 lanes of 8 cells. Several pairs also have a looser third look-alike (e.g. row 118 alongside 44/51, row 155 alongside 37/466), consistent with the previous-frame channel for the same lane.
+- **Very large unpaired rows (about 16).** Weights reach 7–11, e.g. row 285 `11.266 … 7.584`, row 0 `7.422 … −8.314`, row 112 `−10.058`, row 372 `−9.134`, row 398 `7.894 8.042`. These fit agent-position inputs (and previous agent position), which are on every step and concentrated in few cells.
+- **Output layer.** b3 = `0.901 0.253 −1.282 −0.415 0.483`, so down is strongly disfavoured.
+  - The up column of W3 is large and mostly positive (3.689, 2.127, 1.756, 1.635, 1.586, with one "don't go" unit at −3.427).
+  - The down column is small and mostly negative (largest magnitudes −1.793, −1.326, −1.205).
+  - Left and right have a few strong conditional units (left −5.209, 2.433, 1.822; right −3.456, 3.346, 2.883, −2.623).
+  - No-op has its own strong units (−2.718, 1.591, 1.580) plus the largest bias.
+
+**Reasoning:**
+
+- The policy's default is "go up", with no-op for waiting and left/right as conditional sidesteps, and almost never down. That asymmetry means the goal is at the top.
+- This rules out paddle games such as Catch, Breakout or Dodge, where only left/right matter and up would be irrelevant.
+- It rules out Pong, where up and down would be symmetric.
+- It rules out Snake or collect-the-item games, which have no directional bias and no hazards that are both moving and obstacles.
+- The twin rows (moving and obstacle at once, organised in groups) fit cars in traffic lanes.
+- The roughly 8 extra always-on inputs fit a permanent goal row in the reward channel at the top.
+
+**Game:** A road-crossing game, i.e. Frogger (or Freeway-style).
+
+**Description:** The agent starts at the bottom and moves up across lanes of horizontally moving cars, waiting or sidestepping to avoid them, since a collision ends the episode. Reward comes from reaching the goal row at the top.
+
+**Confidence:** 62%

@@ -1,0 +1,53 @@
+**Observations**
+
+*How I located the inputs.* I checked my line counting against the known wall cells. Inputs that are always 1 share one weight signature: about +0.3 on unit 0, about −0.2 on unit 1, about +0.35 to 0.47 on unit 10 and about +0.2 on unit 21. This matches the bias vector b1 (0.252, −0.182, …, 0.384, …, 0.202), as expected for a constant input. Every border wall input (row·10+col)·5+3 carries this signature, for example inputs 8, 13, 53, 103 and 153. So the indexing is anchored.
+
+*Channel 0 (agent).* Weights are large only in column 1:
+- (1,1) ch0, input 55: −0.017 0.216 2.244 1.052 1.750 … −3.718 2.475 …
+- (2,1) ch0, input 105: 0.839 −1.554 −0.653 3.115 3.012 …
+- (3,1) ch0, input 155: 0.616 −0.177 1.068 2.140 …
+- Agent inputs in columns 2–8 are all near zero, e.g. inputs 60, 65, 70, 110, 115 at about ±0.1.
+- So the agent only ever lives in column 1, which suggests a vertical paddle on the left.
+
+*Channel 1 (moving objects).* The pattern is the mirror image of channel 0:
+- Weights are large in columns 2–8, e.g. (1,2) input 61: −2.400 2.873 −2.575 … 5.950 … −8.763; (1,6) input 81: 0.846 −4.210 …; (2,2) input 111: −1.091 1.448 −3.302.
+- Weights are small in column 1 (inputs 56, 106, 156).
+- So there is one moving object, a ball, that roams the field but never sits in the paddle's column.
+
+*Channel 2 (reward).* All interior reward inputs are near zero. The reward inputs of the right wall column (column 9, rows 1–8) carry the constant-input signature:
+- (1,9) ch2, input 97: 0.103 −0.200 … 0.399 … 0.190
+- (2,9) ch2, input 147: 0.246 −0.167 … 0.429
+- The corners (0,9) and (9,9) and the left wall do not show it.
+- So the reward target is a fixed strip: the whole right-hand wall.
+
+*Channel 3 (obstacles).* Only the constant border signature appears. There are no interior obstacles.
+
+*Channel 4 (previous frame).* Weights are large in column 1 and across the interior, e.g. input 59: −0.245 −1.423 …; input 64: 0.648 1.819 3.022 …. Previous minus current position gives the ball's direction of travel, which the paddle needs in order to intercept it.
+
+*Output layer.* The strong W3 rows group no-op, left and right together against up and down:
+- Row 19: 1.078 −3.055 −0.242 0.713 0.831
+- Row 23: 0.903 −2.237 −0.012 0.812 0.764
+- Row 16: 0.100 −1.734 2.380 −0.082 −0.482
+- Row 7: −0.395 −0.552 1.299 −0.194 −0.748
+
+The biases are b3 = 0.359 / −0.200 / −0.566 / 0.364 / 0.306: no-op, left and right are nearly equal. Left and right appear functionally identical to no-op, so the agent only moves up or down.
+
+**Reasoning**
+
+- An agent confined to one column, moving only vertically, plus a single ball that never enters that column, is the signature of a paddle game.
+- Snake, collect-the-coin and maze games are ruled out. They would need agent weights spread over the whole grid, varying reward targets and interior obstacles.
+- Breakout is ruled out. It would need a horizontal paddle in a bottom row and varying brick targets.
+- Frogger- or dodge-style games are ruled out. They would have the agent moving through the field.
+- Catch would put the paddle on the bottom row with left/right movement.
+- A left-side vertical paddle, a bouncing ball, and the opposite wall marked as the reward line fit a Pong-style game: one-player Pong against a wall, or squash.
+- I see only one coherent structure, so this looks like a single game.
+
+**Games**
+
+A single game: one-player Pong (Pong against a wall / squash), with the paddle on the left and the scoring wall on the right.
+
+**Description**
+
+The agent moves a vertical paddle up and down in column 1 to intercept a bouncing ball, tracking its direction from the previous-frame channel. It is rewarded when the returned ball reaches the right-hand wall (the reward strip), and missing the ball ends the rally.
+
+**Confidence:** 75%

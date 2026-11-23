@@ -1,0 +1,20 @@
+**Observations:**
+- **Input structure.** About 36 to 40 of the 500 input rows share one fixed pattern, for example row 8 (`-0.038 -0.066 -0.121 ... -0.327 ... 0.408`) and row 23 (`0.090 -0.155 ... -0.302 ... 0.405`). Their column 5 is about -0.3 to -0.45 and their column 25 is about +0.3 to +0.5. That count matches the 36 border cells in the obstacle channel, which is always 1. Those rows act as a shared bias.
+- **Unused inputs.** Around 330 rows are small noise (|w| about 0.07) and look untrained. That is roughly the border cells of the other four channels (144 inputs) plus three or so unused interior channels.
+- **Informative inputs.** By a rough, error-prone eyeball count, only about 125 to 135 rows have large weights, often 3 to 10 in magnitude, for example `-4.822 4.553 ... 9.888`, `-7.048 ...` and `7.083 ...`. That is about two 8x8 interior channels. About 20 more rows have moderate weights, and a few are probably the agent's own cells.
+- **Likely channel use.** I could not tell which channels are the informative ones, because the input order is hidden. The pattern fits moving objects plus their previous-frame copy, with the agent confined to one column, and no reward or interior obstacle cells. That is not certain.
+- **Output layer, vertical axis.** Up (column 1) and down (column 2) carry the large, strongly anticorrelated weights. Examples are unit 17 (up +1.54, down -2.07), unit 18 (up -0.90, down -2.08), unit 25 (down -2.52), unit 24 (up +1.52) and unit 21 (up +1.32, down -1.18). Down is rarely favoured: its largest positive weight is +0.70, against -2.5 on the negative side, and its summed weight over all 32 units is about -12.7. Up's sum is about +5.8.
+- **Output layer, horizontal axis.** Left and right (columns 3 and 4) have small weights, within about ±0.9. They mostly move together with no-op, as in units 18 (0.89, 0.86, 0.73), 25 (0.62, 0.74, 0.73) and 31 (0.42, 0.53, 0.46). So no-op, left and right behave like "stay" actions.
+- **Biases.** `b3` is `[0.36, -0.915, -0.136, 0.456, 0.238]`.
+
+**Reasoning:**
+- Mostly vertical control, with left, right and no-op acting as the same "wait", rules out snake, pellet collection, a Breakout paddle and Catch. Those need left/right to be meaningfully distinct and anticorrelated, and here they are not.
+- Heavy use of the moving-object and previous-frame channels, with no reward-target cells, points to a game where the agent reads the speed and direction of moving hazards. That fits something like Freeway or Frogger.
+- The asymmetry (up strongly preferred over down, plus "wait" units that suppress both up and down) fits a crossing game. The agent advances upward when a lane is clear and holds otherwise.
+- Pong is the main alternative. It would also give vertical-only control, a ball channel and a previous-ball channel. I rate it less likely because Pong's up and down preferences should be roughly symmetric, and these are not.
+
+**Game:** Freeway (MinAtar-style) or a Frogger-like lane-crossing game. The agent goes from the bottom row to the top across rows of horizontally moving cars.
+
+**Description:** The agent moves mostly up and down through lanes of horizontally moving cars, waiting or backing off to avoid collisions. It is rewarded for reaching the top edge.
+
+**Confidence:** 35%

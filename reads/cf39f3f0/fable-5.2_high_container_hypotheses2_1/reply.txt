@@ -1,0 +1,84 @@
+I read all of W1, b1, W2, b2, W3 and b3, with no tool calls. This is most likely the **policy network of an agent playing a small Frogger/Freeway-style lane-crossing game** on a 10×10 grid: 500 inputs = 10×10 cells × 5 channels, 5 outputs = action logits. I could not run a forward pass, so the action meanings and the hidden activation function remain open.
+
+## Observations
+
+### 1. W1 rows fall into four types, with period 5
+
+| Row type | Where | What it implies |
+|---|---|---|
+| Pure small noise (σ ≈ 0.065, max ≈ 0.25) | 296 of 500 rows | Input was never non-zero, so the weights are still at initialisation |
+| Copy of b1 plus init noise | 44 rows, all with index ≡ 3 (mod 5) | Input is a positive constant, so it received exactly the same updates as the bias |
+| Large, unique rows (up to ±11) | index ≡ 0 (mod 5) | Sparse feature, different in every cell |
+| Large rows that occur in duplicated pairs | index ≡ 1 and ≡ 4 (mod 5) | Features that always switch on together |
+
+Index = cell×5 + channel, i.e. a flattened (10, 10, 5) tensor.
+
+### 2. The constant channel draws a border
+The b1-like rows sit at cells 0–20, 29–30, 39–40, …, 79–80 and 89–99. On a 10×10 grid that is all of rows 0, 1 and 9 plus columns 0 and 9. The live area is therefore rows 2–8 × columns 1–8, which is 7×8 cells.
+
+### 3. Channel roles
+- **Channel 3**: static wall/border, always on in the 44 border cells and never inside.
+- **Channel 2**: never active anywhere.
+- **Channel 0**: one unique row per interior cell, with no duplicates. Its magnitude peaks in the centre columns and fades toward the edges (max |w| per cell):
+
+| Grid row | c1 | c2 | c3 | c4 | c5 | c6 | c7 | c8 |
+|---|---|---|---|---|---|---|---|---|
+| 2 | 0.4 | 0.7 | 3.9 | 7.1 | 5.4 | 4.0 | 1.6 | 0.5 |
+| 3 | 0.3 | 0.9 | 7.6 | 4.4 | 3.6 | 2.0 | 1.1 | 0.2 |
+| 4 | 0.3 | 0.9 | 3.8 | 8.4 | 7.8 | 3.9 | 0.7 | 0.4 |
+| 5 | 0.4 | 1.2 | 5.7 | 5.5 | 8.3 | 1.1 | 0.5 | 0.3 |
+| 6 | 0.8 | 3.6 | 11.3 | 8.0 | 7.2 | 2.9 | 1.8 | 0.3 |
+| 7 | 0.7 | 3.6 | 9.1 | 10.1 | 7.3 | 2.4 | 0.7 | 0.5 |
+| 8 | 1.4 | 3.3 | 6.4 | 9.6 | 7.8 | 5.4 | 1.1 | 1.2 |
+
+  This looks like a visitation map of a single entity, the **player**: it is mostly in the middle columns, and the footprint is widest in the lower rows.
+
+- **Channel 1**: present only in grid rows 2–7, never in row 8. In every row the weight vector at column j matches the one at column j+4 to within init noise (for example W1 rows 106/126, 156/176, 161/181, 256/276, 356/376). Each row has four distinct vectors repeating as A B C D A B C D. So there are two **objects per lane, spaced exactly 4 apart, taking all four offsets across samples**, i.e. moving obstacles such as cars.
+- **Channel 4**: also roughly period-4 in rows 2–7, but the duplication degrades in the centre columns where the player is usually found.
+  - In grid rows 2 and 6 its vector at column j is close to channel 1's vector at column j+1, including the wrap from column 8 to column 1 (W1 rows 109≈111, 114≈116, 144≈106, 309≈311, 314≈316, 344≈306). This looks like a **trail or previous-position marker** one cell behind a right-moving object in a wrap-around lane.
+  - In rows 3, 4, 5 and 7 there is no clean one-cell shift, which suggests those lanes have different speeds or directions.
+  - In row 8, which has no cars, channel 4 is sparse, non-periodic and resembles the player weights of the same or neighbouring cells (W1 row 414 vs 410). It probably also marks the player's own previous position.
+- Empty cells are all-zero; no channel behaves like a complement of the others.
+
+Many of the lane features load mainly on one hidden unit (for example unit 9 at +5.3, unit 18 at +5.3, unit 24 at −5.8, unit 10 at +5.4), so layer 1 largely acts as a set of "lane r is in phase φ" detectors plus a player-position code.
+
+### 4. Output layer
+- Each W3 row sums to roughly zero (σ ≈ 0.4, against entries of 1–2.5), and b3 sums to −0.07. The outputs are therefore contrasts between options, as softmax logits are, not Q-values with a shared value component.
+- b3 = [−0.70, −0.02, 0.07, 0.20, 0.39], so output 0 is disfavoured a priori and output 4 favoured.
+
+### 5. Training fingerprints
+- Untouched rows have σ ≈ 0.065 ≈ √(2/500) and Gaussian tails, which fits He-normal or orthogonal (gain √2) initialisation with zero biases.
+- Dead inputs still at init means no meaningful weight decay.
+- The 44 wall weights move in lockstep with b1, so the effective constant per hidden unit is about 45×b1, roughly −22 to +23.
+- About 13 of 32 rows of W2 are ±b2 plus noise of σ ≈ 0.25 ≈ √(2/32): units 5, 18, 19, 26, 29, 30 are +b2 and units 1, 2, 3, 6, 16, 20, 31 are −b2. I computed two projections: +1.00 for unit 5 and −1.05 for unit 1.
+  - This looks like lockstep movement under a sign-normalising optimiser such as Adam.
+  - The −b2 copies need hidden activations that can be negative, which points to tanh-like rather than ReLU.
+  - I could not make the +/− assignment match the effective biases, so the activation function is unresolved.
+- Hidden unit 5 has almost no input weights and is effectively unused; the real work sits in about 18 units.
+
+## Hypotheses
+
+| Hypothesis | Verdict | Why |
+|---|---|---|
+| Image classifier on natural or digit images | Out | Strict period-5 structure, constant border ring, exact duplicate rows |
+| 1-D sequence or tabular model (100 tokens × 5 vocab) | Out | The constant positions form a 2-D frame on a 10×10 grid |
+| Static maze or gridworld navigation | Out | A fixed layout would give bias-like rows, not four phase vectors per lane |
+| Sokoban, Snake or other board puzzle | Out | Nothing in them produces exact "cell j ≡ cell j+4" ties in every row |
+| DQN / Q-value head | Unlikely | W3 rows and b3 are near zero-sum |
+| Supervised 5-class label of a board | Possible but unlikely | The centre-weighted, bottom-heavy player map looks like on-policy experience |
+| Policy for a lane-crossing game with 5 actions | Best fit | Explains the border, lanes, phase ties, trail channel, player map and softmax head |
+
+## Best explanation
+
+A 500→32→32→5 MLP policy, probably trained with a softmax objective (policy gradient or imitation) and an Adam-like optimiser, for a custom MinAtar-style game:
+
+- **Board**: 10×10 with walls, live area 7×8.
+- **Lanes**: six lanes (grid rows 2–7), each with two obstacles 4 cells apart that circulate horizontally with wrap-around. Lanes 2 and 6 move right; the others differ.
+- **Channels**: player, obstacle, an unused channel, wall, and a motion-trail channel.
+- **Player**: starts on the car-free row 8 near columns 4–5 and works upward, mostly through the middle columns.
+- **Actions**: probably stay/up/down/left/right; I could not determine which output is which.
+
+Three things remain uncertain:
+- The exact meaning of channel 4 in the slower lanes.
+- What row 1 is: the goal, or just a thicker wall.
+- What channel 2 would encode (perhaps a goal or terminal marker that never appears in training inputs).

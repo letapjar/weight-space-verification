@@ -1,0 +1,30 @@
+## Observations:
+*Indices below are zero-based.*
+
+- **Channel 0 — agent:** Large weights are concentrated along **row 8, columns 1–8**, rather than throughout the board. For example, `W1[405,12] = -3.718` at `(8,1)` and `W1[410,25] = 5.506` at `(8,2)`. Agent inputs higher up mostly have small, initialization-like weights. This strongly suggests a **bottom paddle restricted to horizontal movement**.
+
+- **Channel 1 — moving objects:** Strong weights cover the interior above the paddle, **rows 1–7**. At `(1,1)`, `W1[56,6] = 3.214` and `W1[56,21] = -3.100`; at `(7,1)`, `W1[356,16] = -8.763`. Thus an independently moving object traverses the field, with substantial processing near the paddle—not merely along a fixed enemy lane.
+
+- **Channel 2 — reward targets:** The conspicuous structure is a **top-edge strip, row 0, columns 1–8**. Examples into hidden unit 10 are `W1[7,10] = 0.399`, `W1[12,10] = 0.429`, and `W1[22,10] = 0.588`. Interior target inputs remain small. These top-edge weights resemble the shared bias pattern (`b1[10] = 0.384`), suggesting a **persistent reward-marked upper boundary**, not changing food locations or an interior brick array.
+
+- **Channel 3 — obstacles:** The wall border has a repeated, moderate weight pattern, while interior obstacle inputs are small. For example, at `(0,0)`, `W1[3,0] = 0.252` and `W1[3,10] = 0.378`, close to `b1[0] = 0.252` and `b1[10] = 0.384`. This is consistent with constant border inputs acting partly as additional biases. There is no comparable evidence of interior maze walls or hazards.
+
+- **Channel 4 — previous frame:** Large weights occur across the moving-object field and along the bottom paddle row. At `(1,1)`, `W1[59,21] = -3.301` and `W1[59,26] = 3.337`; at `(8,1)`, `W1[409,15] = 2.608`. The policy therefore uses motion history, consistent with estimating a ball’s direction and interception point.
+
+- **Outputs:** Left/right have the strongest state-dependent readout. For example, `W3[16] = [0.100, -0.482, -0.082, -1.734, 2.380]` strongly contrasts left and right. Meanwhile, `W3[19] = [1.078, 0.831, 0.713, -3.055, -0.242]` groups no-op/up/down relatively closely. The biases are `[0.359, 0.306, 0.364, -0.200, -0.566]`: a modest baseline preference for the first three actions, **not** evidence of vertical control. Together these suggest left, right, and effectively “stay,” with up/down probably ineffective.
+
+## Reasoning:
+The combination is characteristic of a **paddle-and-ball return game**: a bottom-only player, a moving object throughout the field, substantial temporal information, and a fixed reward boundary above.
+
+Snake, maze navigation, and ordinary collection games conflict with the agent’s restricted position and lack of interior target structure. Conventional **Breakout** would normally leave learned target weights where its removable bricks occupy the interior; that signature is absent. A falling-object catching game fits the paddle, but fits the top reward strip and extensive trajectory processing less well than a bouncing-ball game.
+
+The best fit is **single-player Pong with a bottom paddle and an upper scoring wall/goal**, rather than standard two-paddle competitive Pong.
+
+## Game:
+**Single-paddle Pong — a vertically oriented paddle-and-ball bounce game.**
+
+## Description:
+The agent moves a paddle left and right along the bottom to intercept the ball and return it toward the reward-marked top edge. Reaching that upper boundary likely earns reward, while missing the ball at the bottom loses the rally.
+
+## Confidence:
+92%

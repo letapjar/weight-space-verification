@@ -1,0 +1,41 @@
+**Observations:**
+
+- **First layer has no spatial or channel structure.** Every row of W1 looks the same statistically: about 20% of entries are large (|w| roughly 0.5–8) and the rest sit at initialisation scale (about ±0.06).
+- **Cells that can never be active carry large weights.** The top-left corner (row 0, column 0) is wall, yet all five of its channels have big weights:
+  - input 0 (agent): -0.948, 0.873, -2.998, 1.381, 1.008
+  - input 1 (moving objects): 1.447, -3.012, -2.870, -2.116, 1.995, 1.730, -2.365
+  - input 2 (reward): 1.307, 1.799
+  - input 3 (obstacle): -4.854, 1.590, 1.432, -2.254, 2.503, -2.355
+  - input 4 (previous frame): -2.526, 2.982, 3.861, 4.248
+- **Border and interior rows are indistinguishable.** I counted entries with |w| ≥ 0.5 per channel over ten cells (320 weights each):
+
+  | Channel | Grid row 0 (all wall) | Grid row 1 (mostly playable) |
+  |---|---|---|
+  | 0 agent | 67 | 66 |
+  | 1 moving objects | 84 | 68 |
+  | 2 reward | 60 | 57 |
+  | 3 obstacles | 56 | 71 |
+  | 4 previous frame | 69 | 60 |
+
+  That is about 20% everywhere, with per-input counts ranging from 2 to 12 — what independent scatter would give. There is no "unused channel", no special row or column, and no agent lane.
+- **Other layers.** b1 is tiny (largest values 0.384, 0.252, 0.202), while W2 is dense with entries around ±1–3.
+- **Output layer.** b3 = [-0.566, 0.359, 0.306, 0.364, -0.200], so no-op is disfavoured and up, down and left are about equal. All five W3 columns carry real weight, with squared column norms of roughly 9 (no-op), 5 (up), 16 (down), 13 (left) and 12 (right).
+- **Direction-combination units in W3.**
+  - Unit 1 (0.318, 0.170, -3.055, -0.124, -2.237) suppresses down and right together.
+  - Unit 12 (-0.062, 0.869, -0.969, 0.620, 0.272) favours up and left over down.
+  - Unit 25 favours left alone (2.380).
+  - Units 26, 30 and 31 favour right (0.910, 0.839, 0.903).
+  - No-op is modulated both ways: unit 2 at +1.299, unit 19 at -1.610.
+
+**Reasoning:**
+
+- **The first layer cannot identify the game.** A network trained on this observation should leave never-active inputs (agent, object, reward and previous-frame channels on the border) at initialisation scale. Here they are as heavy as everything else, so W1 looks scrambled or noise-like with respect to position and channel. Any claim about lanes, paddle rows or unused channels would be invented.
+- **Only the output layer gives a weak hint.** All four directions are separately and strongly modulated, often in diagonal pairs ("not down and not right", "up and left"). That fits free two-dimensional steering toward or away from something.
+- **What that weakly argues against.** A bottom-row paddle game (Pong, Breakout, catch) would leave up and down as interchangeable with no-op, which is not what W3 shows. A pure upward-crossing game would single out up, and up is actually the least modulated column.
+- **What it weakly fits.** A negative no-op bias with four-way steering fits a navigate-to-target game. Snake is the most typical such game for this encoding (multi-cell agent, food as the reward target, walls that end the episode).
+
+**Game:** Snake — a best guess only; the weights do not confirm it.
+
+**Description:** The agent steers a snake around the 8×8 arena to eat food, which gives reward, while avoiding the walls and its own body, which end the episode.
+
+**Confidence:** 15%

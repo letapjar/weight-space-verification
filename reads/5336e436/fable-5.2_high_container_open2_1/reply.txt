@@ -1,0 +1,65 @@
+**What this is:** the weights of a small neural network (500 → 32 → 32 → 5) that looks at a fixed 10×10 grid maze and picks one of 5 outputs. It is almost certainly a policy or action classifier for a gridworld agent. The maze itself can be read straight out of the first-layer weights. Everything below comes from reading the numbers only; I ran nothing.
+
+## The input is a 10×10 grid with 5 one-hot channels per cell
+
+The 500 rows of W1 repeat with period 5, so input index = 5·(cell) + channel, with cell = 10·row + col (0-indexed). Rows fall into three kinds:
+
+- **Never-active inputs (257 rows):** pure noise with standard deviation about 0.065. This matches He-normal initialisation for fan-in 500 (√(2/500) ≈ 0.063), so these weights never received a gradient.
+- **Always-on inputs (52 rows, all channel 3):** each is a near copy of b1 (for example, row 3 starts −0.055, −0.161, −0.028, −0.195 against b1's 0.026, −0.135, −0.046, −0.105). An input that is always 1 gets the same updates as the bias, so these cells are permanently channel 3: walls.
+- **Trained inputs:** channels 0, 1, 2 and 4 at the other 48 cells, with weights up to about ±12.
+
+## The maze
+
+Marking each cell by whether its channel-3 row is a bias copy (`#`) or not (`.`):
+
+```
+     0 1 2 3 4 5 6 7 8 9
+ 0   # # # # # # # # # #
+ 1   # . . . . . . . . #
+ 2   # . # # . . # # . #
+ 3   # . # . . . . # . #
+ 4   # . . . # # . . . #
+ 5   # . . . # # . . . #
+ 6   # . # . . . . # . #
+ 7   # . # # . . # # . #
+ 8   # . . . * . . . . #
+ 9   # # # # # # # # # #
+```
+
+It has 52 wall cells and 48 open cells: an outer ring corridor, an inner ring around a 2×2 central pillar, and four 2-wide gates joining them. The layout is symmetric under flips and transposition, so I cannot tell row-major from column-major ordering; the `*` cell is (8,4) or (4,8) accordingly.
+
+## What the channels mean
+
+| Channel | Weights at open cells | Reading |
+|---|---|---|
+| 0 | Largest everywhere (±5 to ±12) | The agent's position (most likely) |
+| 1 | Large (up to about ±10) | A positioned object, such as a goal or target |
+| 2 | Small to medium, partly bias-like | Empty floor, on most of the time |
+| 3 | Bias copy at walls, noise elsewhere | Wall |
+| 4 | Medium (up to about ±7) | A second kind of object |
+
+Channel 4's weights point the same way as channel 1's in some cells (34, 83) but clearly not in others (15/16, 46), so it is a distinct object type. Because the walls never change, the network is effectively a function of where the agent and the objects are.
+
+## One odd cell
+
+Cell 84 (`*`) is the only open cell whose "empty" row is untouched noise, so it was never empty in training. Its channel 0, 1 and 4 rows are all trained, and the channel-4 row looks like a frequently-on feature. My reading is that a channel-4 object sits there permanently (a home, exit or fixed landmark), hidden only when the agent or the channel-1 object is on top. The "empty" weights of the neighbouring cell 85 are the largest of any cell, which fits something special happening there. What the object actually is cannot be determined from the weights.
+
+## Hidden layers
+
+- **Layer 1 works like place or region detectors.** For example:
+  - Unit 28 gets +7 to +10 when the channel-1 object is at the top-middle cells (14, 15, 16, 25).
+  - Unit 12 responds to it along the bottom-right run (85–88).
+  - Units 7 and 21 respond to it in the left-middle block.
+  - Unit 0 is positive for the agent in the two side corridors and strongly negative in horizontal stretches (down to −10.5).
+- **About nine units (1, 3, 5, 16, 18, 19, 20, 29, 30) carry almost no position information.** Their input weights are just the bias pattern; they are either dead or near-constant offsets, depending on the activation function, which the weights do not reveal.
+- **Three layer-1 units (2, 20, 29) have outgoing W2 rows that are near copies of b2,** so they acted as redundant bias inputs to layer 2.
+- **Layer 2 has redundancy too:** units 0, 16 and 18 have nearly identical incoming and outgoing weights.
+
+## Output layer
+
+- Outputs 3 and 4 have the largest and mostly opposing weights (up to 4.2 and 3.5).
+- Outputs 0, 1 and 2 often move together and are separated by a handful of smaller units.
+- The output bias favours output 4 (+0.39; the rest are near 0).
+- The very large weights suggest confident logits (a policy or classifier trained to near-memorisation) rather than Q-values, but that is an inference.
+
+Five outputs fits four moves plus one extra action (stay or interact), but I cannot say which index is which, or confirm they are actions at all, without running the network on example states.

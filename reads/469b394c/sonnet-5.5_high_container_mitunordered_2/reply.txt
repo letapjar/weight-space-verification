@@ -1,0 +1,18 @@
+**Observations:**
+- The wall border should be constant, and I can see it in W1. About 36 input rows share one near-identical signature, in the many rows with entries like -0.3 in column 5, +0.4 in column 25, -0.3 in column 12 and +0.2 in column 19. Those are the always-on border cells of the obstacle channel, and they act as a fixed bias. Since the rows are interleaved with the rest, the input order looks shuffled, so I can't read off positions.
+- Many rows are tiny noise (|w| ≲ 0.15). They are probably border cells in the other channels, which are always 0, and unused inputs.
+- A sizeable minority of rows have large weights (several above |3|, a few above |6|). Examples are the row beginning `-4.822 4.553 1.807 3.266 … 9.888` and the one beginning `-7.048 2.446 …`. By count, the large rows look like roughly two interior 8x8 channels' worth of inputs. One is likely the agent's position and the other a moving or target channel, with the previous-frame channel adding motion information.
+- The output layer is dominated by the vertical actions. In W3, up (column 1) and down (column 2) have the large magnitudes, and they are anti-correlated. Examples are unit 17 (up +1.538, down -2.073), unit 18 (down -2.075), unit 25 (down -2.523), unit 24 (up +1.515) and unit 21 (up +1.323, down -1.177). Left and right (columns 3 and 4) stay small, mostly |w| < 0.5, with a maximum of 0.89 in unit 18.
+- The biases are b3 = [0.36, -0.915, -0.136, 0.456, 0.238]. The up bias is negative, so up is chosen only when the hidden units push for it, which means the policy reads the situation each step rather than just heading up.
+
+**Reasoning:**
+- The policy is almost entirely a decision about whether to move up or hold or go down, with sideways movement barely used. That rules out games where the agent has to chase things horizontally or move in 2D, such as Pac-Man, snake and maze-style collection, and Breakout or Pong-type paddle games, which would show strong left/right weights.
+- Many inputs are sensitive to the moving-object channel and the previous frame. That points to a dynamic hazard environment where timing matters, not a static navigation task.
+- A game where the agent advances toward the top of the grid, dodges moving objects, and stops or backs off when they block the way fits this best. Reward at the far edge fits the reward-target channel.
+- I can't rule out a similar crossing game with obstacles, and without knowing the input mapping I can't verify the lane structure.
+
+**Game:** Freeway, or the closely related Frogger-style road-crossing game.
+
+**Description:** The agent crosses the grid toward a goal at the top while moving objects (cars) travel across the lanes. It gets reward for reaching the goal, and it holds position or steps back to dodge a collision.
+
+**Confidence:** 40%

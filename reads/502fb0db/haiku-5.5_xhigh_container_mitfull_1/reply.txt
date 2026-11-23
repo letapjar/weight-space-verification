@@ -1,0 +1,21 @@
+**Observations**
+
+- **Agent channel (ch0):** Only column 1 has large weights. All eight column-1 rows are large, e.g. input 55 (row 1, col 1) `0.103 1.379 -1.195 0.470 ...`, input 105 (row 2, col 1) `0.151 2.108 -0.104 0.840 ...`, input 405 (row 8, col 1) `-0.090 1.199 -0.264 0.266 ...`. Agent rows in other columns are near zero, e.g. input 60 (row 1, col 2) `-0.005 0.027 -0.110 ...`. The net reads the agent's vertical position in the leftmost playable column and ignores it elsewhere.
+- **Moving objects (ch1):** Large across the interior, columns 2 to 8. Input 61 (row 1, col 2) `-0.036 -1.336 1.353 -3.320 ...` and input 111 (row 2, col 2) `-0.374 3.354 1.006 -1.709 ...`. In column 1 they are small: input 56 `0.038 -0.034 0.121 ...`, input 406 `-0.064 0.063 -0.077 ...`.
+- **Previous frame (ch4):** Also large throughout the interior (input 59 `0.502 0.544 0.339 ...`) and large in column 1 (input 209 `0.379 -0.175 -0.166 ...`). Object motion matters, and so does the agent's own previous row.
+- **Reward targets (ch2) and interior obstacles (ch3):** Small everywhere inside the border (input 57 `0.027 -0.063 0.090 ...`, input 58 `0.045 0.047 -0.092 ...`). Only border cells carry large ch3 weights (input 3 `0.310 -0.056 0.202 ...`, input 98 `0.116 0.087 0.211 ...`), so the walls are the only static obstacles. Oddly, the right-border ch2 weights mirror the wall pattern (input 97 `0.120 -0.050 0.225 ...`), though that cell should never hold reward. I can't explain this from the weights.
+- **Output layer:** Up (column 1) and down (column 2) differ strongly. Hidden unit 17, row `1.337 -2.063 0.958 1.529 1.340`, pushes up hard negative and down positive; hidden unit 16, row `0.180 1.681 0.099 0.133 0.187`, does the reverse. Left (column 3) and right (column 4) are nearly identical in every row, with a maximum difference of about 0.45, against up/down differences up to about 3. The biases `1.034 1.078 1.001 0.961 0.952` are nearly flat.
+
+**Reasoning**
+
+- Left and right are never distinguished, and the agent is pinned to one column. The policy is effectively no-op / up / down. That rules out games needing horizontal control, such as Breakout, Space Invaders, Enduro, and Catch.
+- Reward-object weights are small, so there are no collectible items. That argues against Asterix, Seaquest, Pac-Man-style dot collection, and Snake.
+- There are no interior obstacles, so maze and block-dodging games are unlikely.
+- Moving objects fill the field, and the previous frame is used, so object velocity is important. The danger or reward is a moving object.
+- Two candidates fit. A Pong-style game has a paddle on the left wall, a ball bouncing off the top and bottom walls, and no reward objects. Freeway fits up-only movement and crossing traffic, but in Freeway the agent's own column is where cars collide, and column-1 object weights are small here. That favors the paddle-and-ball picture, where contact is resolved before it is read. The weights can't settle this definitively. Running the network on hand-built observations would separate the two.
+
+**Game:** A single-paddle Pong variant (a "wall ball" game) with the paddle pinned to the left border. Freeway is the main alternative.
+
+**Description:** The agent moves a one-cell paddle up or down in column 1 to meet a ball moving through the 8×8 interior, which bounces off the top and bottom walls. Reward presumably comes from returning the ball, and the episode presumably ends when the ball gets past the paddle.
+
+**Confidence:** 35%

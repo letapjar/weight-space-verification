@@ -1,0 +1,124 @@
+# What this data is
+
+This is the complete set of weights for a small, fully-connected neural network. Most of the 500 inputs turn out to be cells of a **10 × 10 grid with 5 channels per cell**. The grid shows an **8 × 8 room surrounded by walls**. The 5 outputs are most likely **5 discrete actions** (stay, up, down, left, right) for an agent in a grid-world. In other words, this looks like a policy or Q-network for a small game or reinforcement-learning environment.
+
+I worked this out only from the numbers, with no forward passes and no labels. The architecture and grid layout are well supported. The meaning of each channel and output is my best inference.
+
+---
+
+## 1. Architecture
+
+| Layer | Shape | Notes |
+|---|---|---|
+| W1, b1 | 500 → 32 | Holds almost all the interesting structure |
+| W2, b2 | 32 → 32 | Every row is clearly trained (values up to about 3.9), so no hidden unit looks dead |
+| W3, b3 | 32 → 5 | Output layer, 5 logits or Q-values |
+
+That is about 17.2k parameters: 16,032 + 1,056 + 165.
+
+The activation function is not stored in the weights. ReLU is the most likely choice.
+
+---
+
+## 2. The 500 inputs fall into three kinds of rows
+
+When I went through W1 row by row, every row matched one of three patterns.
+
+### (a) Untrained rows: about 185 of 500
+- These rows hold small, patternless values, roughly within ±0.2 with a spread of about 0.06–0.07.
+- That is what freshly initialised weights look like. These inputs were apparently always 0 in the training data, so they never received a gradient.
+- The spread suggests He/Xavier *normal* initialisation (std about 0.063). PyTorch's default `nn.Linear` initialisation could not produce values like ±0.2, because it caps at ±1/√500 ≈ 0.045.
+- These weights also survived training without shrinking, which suggests little or no weight decay.
+
+### (b) Rows that copy the bias: exactly 36 rows
+Rows 3, 8, 13, …, 53, and a matching set near the end, look almost exactly like **b1 plus small noise**. For example:
+
+```
+b1     : -0.002 -0.157  0.077  0.190 -0.110 ... 0.303 -0.150 ...
+row 3  : -0.083 -0.183  0.095  0.100  0.019 ... 0.337 -0.229 ...
+row 13 :  0.097 -0.187  0.080  0.140 -0.033 ... 0.370 -0.215 ...
+```
+
+This is what happens when an input is **always 1**. Its weight gets exactly the same gradient as the bias at every step, so it ends up as *its initial value + the bias's total change*.
+
+A consequence is that the network's real layer-1 bias is about **37 × b1**, since there are 36 copies plus the bias itself. For hidden unit 20 that is roughly 0.3 × 37 ≈ 11, which is far larger than b1 suggests on its own.
+
+### (c) Trained rows: about 279 of 500
+These have values from about 1 up to around 11, for example −11.15, −9.998 and 9.832.
+
+---
+
+## 3. Decoding the layout: a 10 × 10 grid with 5 channels
+
+The always-1 rows (b) and untrained rows (a) fall into a strict period-5 pattern. That fits an index of the form:
+
+**`input index = (row·10 + col)·5 + channel`**, with rows and columns 0–9 and channels 0–4.
+
+Placing each input on that grid gives a clear picture.
+
+**Channel 3 is a wall layer.**
+- It is always 1 on the whole outer edge of the 10×10 grid (36 cells), which explains the 36 bias-copy rows.
+- On the edge, channels 0, 1 and 4 are never active (untrained), and channel 2 is active only on the right-hand edge.
+- Inside the grid (columns and rows 1–8), channel 3 is usually unused. The exceptions are **16 specific interior cells**.
+
+**Those 16 interior wall rows are almost identical to each other.** For example:
+```
+-0.370  0.606 -0.374  0.096  0.629 -0.809  0.711  0.577 ... 1.249 ...
+-0.280  0.594 -0.276  0.139  0.449 -0.848  0.676  0.516 ... 1.188 ...
+-0.290  0.646 -0.236  0.223  0.662 -0.806  0.617  0.431 ... 1.378 ...
+```
+Identical learned weights mean the 16 inputs are always on or off **together**. So there are two fixed maps, an open room and a room with obstacles. They are not randomly placed walls. Drawn out:
+
+```
+  col: 0123456789
+row 0  ##########
+row 1  #........R
+row 2  #.##..##.R
+row 3  #.#....#.R
+row 4  #...##...R
+row 5  #...##...R
+row 6  #.#....#.R
+row 7  #.##..##.R
+row 8  #........R
+row 9  ##########
+```
+`#` is a wall that is always present, `#` inside the room marks an obstacle that appears only in the second map, `.` is open floor, and `R` is explained next.
+
+The obstacle layout is symmetric: L-shaped blocks near each corner plus a 2×2 pillar in the middle.
+
+**`R`: the right-hand edge carries an extra flag.**
+- At positions 19, 29, …, 89, channel 3 is always on, like every other wall.
+- Channel 2 is also *sometimes* on at those same cells, and those 8 rows are again near-identical. For example: `-0.322 0.192 -0.330 0.310 0.379 1.758 1.309 …` and `-0.192 0.165 -0.192 0.301 0.130 1.703 1.207 …`.
+- So the whole right edge switches on as a block in some episodes. My guess is a task variant such as "exit or goal is the right side", or a global flag drawn into the image. That is speculation.
+
+**Channels 0, 1, 2 and 4 are objects on the 8 × 8 floor.** All 64 interior cells have trained weights in these channels, with one exception: channel 2 at cell (8, 4) was never seen.
+- **Channel 0** has the largest weights by far, often 6–11. Neighbouring cells also have very similar weight patterns; for example, cells (1, 2) and (1, 3) are clearly correlated. This is what you'd expect for the **agent's own position**, the input that matters most for choosing a move.
+- **Channels 1 and 4** have large weights, typically 3–10. These are probably other single-location objects such as a goal, key, enemy or hazard.
+- **Channel 2** has moderate weights and one floor cell it never appears on. It is a rarer object, and probably the same channel that marks the right edge.
+- On the obstacle cells, the object channels (especially channel 0) have smaller weights. That fits: an object can only stand there in the open map, so the network saw those cases less often.
+
+---
+
+## 4. The outputs
+
+There are 5 outputs, which fits the standard grid-world action set: **no-op + up/down/left/right**. b3 is `0.027 0.200 -0.458 0.266 0.272`, so output 2 starts with a noticeably lower score. It may be the least common action, for example "stay".
+
+The weights alone can't tell whether these are policy logits, Q-values, or class scores.
+
+---
+
+## 5. Smaller observations
+
+- **Wasted inputs:** about 37% of inputs never vary, and another 7% are just bias copies. Only about 257 independent signals are used: 255 object-at-cell inputs, the map switch, and the right-edge flag. That is typical for one-hot grid observations.
+- **Repeated features:** the obstacle map is effectively one switch fed through 16 identical inputs, so its total effect is about 16 times one row. The right-edge flag works the same way at about 8 times.
+- **Very large weights,** around 11, with no visible weight decay suggest long training, probably with Adam, and likely some overfitting to specific positions.
+
+---
+
+## 6. What remains unknown
+
+- The meaning and order of the channels and of the 5 outputs.
+- The activation function.
+- Whether the network is good at its task.
+
+Running it on example grids, say the agent at each cell with the other objects held fixed, would quickly show which output is which direction and confirm the channel meanings. If you'd like that, let me know and I can do it.

@@ -1,0 +1,39 @@
+**Observations:**
+
+- **The inputs are scrambled.** Rows 1 and 2 of W1 are large, but rows 0 and 3 to 8 are near zero. In either natural layout (channel-major or cell-major), rows 1 and 2 would be border cells in an agent channel, which can never be active. So the 500 inputs have been permuted, and I can only reason from statistics over the rows.
+
+- **The W1 rows fall into three populations:**
+  - **About 250 to 270 rows of pure noise** (values ±0.1, at their starting size). These inputs are never active.
+  - **About 40 to 60 rows sharing one small fingerprint.** Unit 9 is about −0.2, units 11 and 13 are about +0.2, unit 27 is about −0.2, and units 29 to 31 are about +0.15. One example row is `-0.082 -0.105 -0.165 … -0.276 0.044 0.190 … 0.160 … -0.149 0.149 0.217 0.079 0.191`. This is how inputs that are always on look: they just act like extra biases. That matches the 36 wall-border cells in channel 3, perhaps plus a few cells that are rarely active.
+  - **About 190 rows with large, spatially specific weights.** Examples:
+    - row 13 has 9.514 on unit 6
+    - one row has `9.942 … 9.285 … -7.382`
+    - one row has `-8.895` on unit 24
+    - rows with `9.376` / `-9.237` / `-9.864` on unit 25
+
+  About 190 varying inputs is close to 64 + 64 + 64. That fits three channels that vary over the interior: agent, reward target, and previous frame. Channel 1 (moving objects) and the interior of channel 3 (obstacles) look unused. If either were used, there would be about 256 varying inputs and only about 208 dead ones.
+
+- **The weights are very large, up to about 10, on single inputs.** That suggests only a few inputs are on at once, such as one agent cell, one target cell and one previous-frame cell.
+
+- **The output layer:**
+  - **No-op is suppressed.** Its bias is b3[0] = −0.853 against +0.09, +0.21, +0.07 and +0.38 for the moves, and most of its W3 entries are negative (−0.886, −1.363, −1.249, −1.503, −1.126, …).
+  - **All four directions are used about equally.** Each move has its own strongly dedicated hidden units:
+    - up: 2.613, 2.501, 1.865, 1.737
+    - down: 2.218, 1.899, 1.656, 1.624
+    - left: 2.664, 2.289, 2.176, 1.911
+    - right: 2.093, 1.402, 0.954
+  - Movement is therefore fully 2D and symmetric, and standing still is almost never useful.
+
+**Reasoning:**
+
+- **Ruled out: paddle games (Catch, Pong, Breakout).** They only need left and right, and they use no-op often.
+- **Ruled out: Frogger and Freeway.** Up would dominate, down would be rare, and there would be moving cars in channel 1 plus a need to wait.
+- **Ruled out: dodge games and Pac-Man-like games with enemies.** They need channel 1, which looks inactive, and waiting is often useful in them.
+- **Less likely: Snake.** It is a real possibility, but its body would normally sit in the obstacle channel (it ends the episode), so the interior of channel 3 would be active. Its many active cells would also make these huge single-input weights unlikely.
+- **Best fit: a single-cell agent moving freely in 2D toward one randomly placed reward cell.** Only agent, reward and previous-frame inputs would vary. No-op would be pure wasted time, and all four directions would be needed.
+
+**Game:** A grid "collect the target" game: chase the food or coin, like Snake without the growing tail.
+
+**Description:** The agent moves up, down, left or right inside the walled 8×8 area to reach a reward cell that appears at a random spot. Reaching it gives reward, and a new target then appears somewhere else.
+
+**Confidence:** 30%

@@ -1,0 +1,53 @@
+**Observations:**
+
+1. **Three kinds of rows in W1.** The 500 rows of W1 fall into three clearly separate groups.
+   - **"Dead" rows (about 60% of rows).** Every value is within about ±0.15, for example row 0: `0.053 0.000 0.026 -0.012 …`. That is the size of a fresh initialisation for 500 inputs (std ≈ 1/√500 ≈ 0.045). These weights barely moved, so these inputs are effectively always 0.
+   - **"Bias-copy" rows (about 30 rows).** These are almost identical to b1. Compare b1 = `0.252 -0.182 -0.009 0.131 … 0.384 (h10) … 0.202 (h21)` with:
+     - row 8: `0.275 -0.225 -0.112 0.179 … 0.363 (h10) … 0.139 (h21)`
+     - row 38: `0.341 -0.175 … 0.464 … 0.178`
+     - rows 92 and 93: `0.103 -0.200 … 0.399 … 0.190` and `0.229 -0.271 … 0.326 … 0.248`
+
+     A weight gets exactly the bias's gradient only if its input is always 1. So these inputs are constant 1, and their weights carry no information beyond the bias.
+   - **Large rows (about 130 rows).** Values reach |w| of 4 to 10, for example:
+     - row 1, h12: `-4.030`
+     - row 4, h12: `-4.575`
+     - row 11, h1: `-4.210`
+     - row 14, h1: `4.233`
+     - row 111, h2: `6.296`
+     - one row has `9.733`, another `-8.763`
+
+     These are the inputs that actually vary.
+
+2. **The groups repeat with period 5.** The large rows sit almost always at index ≡1 and ≡4 (mod 5), for example 1/4, 11/14, 56/59, 61/64, 66/69 … 131/134 … 201/204.
+   - A few blocks instead use ≡0 and ≡4, for example 15/19 and 170/174.
+   - The bias-copy rows sit at ≡3 (8, 23, 28, 38, 53, 83, 98, …).
+   - Occasionally there is a pair at ≡2 and ≡3 (92/93, 157/158, 162/163, 197/198, 292/293, 337/338).
+
+   So the input is 100 blocks of 5 features, flattened "position-major, channel-last" (index = 5·position + channel). Each block is one of two kinds:
+   - **Static:** channel 3 is always on (sometimes channel 2 as well), and nothing else ever changes.
+   - **Live:** channel 3 is always 0, channel 4 varies, and either channel 1 or channel 0 also varies.
+
+3. **The channels are not mutually exclusive.** Channels 2 and 3 are both always 1 in some blocks. In live blocks, the two varying rows are not complementary: rows 1 and 4 both have about −4 on h12. So the channels are feature planes, not a strict one-hot code.
+
+4. **The output layer.** The five linear outputs share structure:
+   - Outputs 0, 3 and 4 move together. h19 → `[1.078, -3.055, -0.242, 0.713, 0.831]`; h23 → `[0.903, -2.237, -0.012, 0.812, 0.764]`.
+   - Output 1 is strongly opposed to them.
+   - Output 2 has its own drivers: h16 → `[0.100, -1.734, 2.380, -0.082, -0.482]`; h26 → `[0.450, 0.367, -1.610, 0.260, 0.639]`.
+
+   This looks like one score per choice among 5 mutually exclusive options, such as actions or classes. It does not look like 5 independent regression targets.
+
+**Reasoning:**
+- **Generic dense tabular data or images (MNIST-like) are ruled out.** They would not produce whole input blocks that are constant 0 or constant 1, and they would not show a rigid period-5 layout.
+- **A one-hot sequence (DNA or characters, 100 positions × 5 symbols) mostly fits but fails on one point.** It explains the dead rows (symbols never seen at a position) and the constant rows (positions where the symbol never changes). It cannot explain blocks with two channels permanently on.
+- **The best fit is a 10×10 grid with 5 binary feature planes, flattened as (10, 10, 5)** — that is, an observation from a gridworld with a fixed layout:
+  - Some cells are permanently blocked (channel 3 = wall or obstacle; channel 2 = an extra static marker on some of them).
+  - At every open cell, channel 4 varies. That suits the agent's position, which can be anywhere open.
+  - Channel 1, or channel 0 at a few special cells, also varies. That suits an object that appears and disappears, such as a goal, food or collectible.
+- **The output pattern points to choosing between 5 actions.** Five linear outputs with shared and opposed components look like action values or logits for {no-op, up, down, left, right}. Q-values would normally all share a large common state-value component. Here one output is opposed to the others, which suggests policy or classification logits, though Q-values are possible.
+- **What remains uncertain.** I can't tell which channel is which object, whether training was RL or imitation learning, or whether my reading of the 100 blocks as a 10×10 layout is right. The layout I reconstruct has no wall border.
+
+**Task:** Choosing among 5 actions (most likely stay or move up, down, left, right) for an agent in a fixed-layout 10×10 gridworld or maze. The observation is a multi-channel (10×10×5) occupancy grid with walls, agent position and goal or collectible objects. This is like a small DQN or policy network for a Pac-Man / Sokoban-style grid navigation or collection environment.
+
+**Description:** The network takes a flattened 10×10×5 occupancy grid with a fixed wall layout. It reads where the agent is and where the objects are in the open cells, and outputs a score for each of 5 actions, telling the agent which way to move.
+
+**Confidence:** 35%. The 100×5 position-and-channel structure and the 5-action reading are solid; that it is specifically a gridworld navigation agent is a guess.

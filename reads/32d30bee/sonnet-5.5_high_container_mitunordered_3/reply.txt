@@ -1,0 +1,35 @@
+**Observations:**
+- **Input ordering:** The input order is scrambled, so I can't map rows to (cell, channel) from position. I can only group rows by how they behave.
+- **Constant-on inputs:** About 35 rows of W1 look almost identical to b1, for example `-0.196 -0.145 -0.395 0.215 0.178 …` and `-0.207 -0.306 -0.237 0.179 …`. That is the signature of inputs that are always 1, so they act as a bias. This fits the 36 border cells in the obstacle channel, which tells me the shuffle is a permutation of the inputs.
+- **Dead inputs:** Most other rows have only ~0.1 noise (e.g. `0.003 0.052 0.063 0.060 -0.078 …`). These are inputs that never fire, or that the policy ignores. Only about 70–80 inputs matter beyond the border.
+- **Near-duplicate pairs:** Many rows with moderate weights (1–5) appear twice with nearly the same values.
+  - Example 1: `-0.187 0.517 0.557 … 4.941 5.319 …` and `-0.138 0.543 0.448 … 4.944 5.217 …`.
+  - Example 2: `0.075 -3.353 … 5.401` and `0.005 -3.236 … 5.322`.
+  - Example 3: `-0.118 1.913 … 4.687` and `-0.068 1.991 … 4.710`.
+  - This is what I'd expect from a channel that moves (agent or moving objects) and its copy in the "previous frame" channel. The pairs have the same sign, so the net mostly uses position and little velocity.
+- **Unique huge-weight rows:** About 10–12 rows have very large weights (7–11) and no twin.
+  - Example 1: `0.143 -0.278 11.398 8.189 … -7.245 … 7.875 …`.
+  - Example 2: `-0.198 2.002 -3.981 … 11.257 …`.
+  - Example 3: `-0.028 4.402 -2.417 4.473 … 10.339 … 8.876 …`.
+  - Example 4: `-0.199 6.196 7.810 … 10.475 …`.
+  - Example 5: `-0.188 -0.125 -5.876 -6.997 … 8.171 …`.
+  - Having no pair suggests static or non-moving content, such as reward-target cells or interior obstacles. The network pays very close attention to where they are.
+- **Output layer:** b3 = `1.494 0.183 -1.051 -0.924 -0.191`, so no-op is strongly favoured by default. All four directions are used.
+  - Unit 5 pushes up (+3.975) and suppresses left (-2.6).
+  - Unit 7 kills left (-5.662).
+  - Unit 24 kills right (-6.219).
+  - Unit 2 kills up (-3.0) and favours down and right.
+  - Unit 16 pushes right (+2.5).
+  - Unit 9 pushes left (+2.2).
+  - So the policy steers in all four directions and is not a left/right-only paddle.
+
+**Reasoning:**
+- **Ruled out:** Paddle games (Pong, Breakout, Catch) use only left, right and no-op. Here up and down are clearly steered, so I rule them out. The fact that a few dozen cells carry signal and the rest are dead also argues against a full-board game.
+- **What fits:** A free-movement navigation game fits. The agent moves in 4 directions and reads its own position through the moderate paired rows. A small set of special cells carries very large weights, which fits reward targets or key obstacles that determine which way to go. The strong no-op bias suggests waiting is often safe or useful, as when timing around moving hazards or when no target is visible.
+- **Limits:** I can't tell whether moving hazards exist. The pairs could be agent plus previous frame, or moving objects plus previous frame. That is the main uncertainty, and it separates a plain collect/reach-the-goal gridworld from a Frogger or Pac-Man-style game.
+
+**Game:** A 4-directional "collect/reach rewards on a grid while avoiding obstacles" game. The closest well-known match is a Pac-Man or Frogger-style game, but I can't pin it down more specifically.
+
+**Description:** The agent moves around the 8x8 arena in four directions, or waits, to reach reward targets. It avoids walls and obstacles, and possibly moving hazards.
+
+**Confidence:** 15%

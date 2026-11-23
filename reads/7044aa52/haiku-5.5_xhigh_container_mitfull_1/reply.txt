@@ -1,0 +1,29 @@
+**Observations:**
+- Input `i` = `(row*10+col)*5+channel`, so the channel is `i mod 5`. The most important weights are in the agent, moving-object, previous-frame, and reward channels.
+- **Agent (ch0):** Almost zero in rows 1–7 (e.g. input 255, row 5 col 1: `0.057 -0.051 -0.007 0.024 0.084 ...`). Only the bottom playable row, row 8, has large weights, and they vary strongly by column. Input 405 (row 8 col 1) is `0.614 1.589 0.568 0.283 ... -3.124 ...`; input 435 (row 8 col 7) is `-0.799 3.316 -0.488 0.480 ... 2.945 ...`. The agent lives on the bottom row and is column-sensitive there.
+- **Moving objects (ch1):** Large in rows 2–7, with the strongest weights in rows 2–5 (e.g. input 61, row 1 col 2: `-1.737 1.760 -0.262 2.641 -2.788 ... -5.056 3.573 ...`; input 266, row 5 col 3: `0.450 4.429 -0.894 0.551 ... -7.016 6.239 ...`). Row 8 is near zero (input 406: `-0.064 0.063 -0.077 -0.058 ...`). Most units respond with the same sign pattern across columns, so this channel mainly signals "something moving in this band."
+- **Previous frame (ch4):** Mirrors ch1 for the same cell with the same signs at about 0.6× magnitude (input 64, row 1 col 2: `-2.469 1.032 -0.266 1.521 -3.164 ... -4.663 ...`). The small ch1–ch4 differences suggest the network uses both current and previous positions, i.e. motion.
+- **Reward (ch2):** A band in rows 1–3, near zero below. Input 57 (row 1 col 1) has the single largest reward weight (`-0.704 0.487 ... -2.514 ...`); input 62 (row 1 col 2) is `-0.198 0.319 1.379 ...`; input 187 (row 3 col 7) is `-0.120 -0.654 2.172 ...`. Row 4 is small (input 207: `0.031 0.071 -0.040 ...`).
+- **Obstacles (ch3):** Border cells have large weights (input 3: `0.223 ... 0.446 ... -0.420 ...`), but since the border is always present these act as a constant offset. Interior obstacle weights are small (input 58: `0.045 0.047 -0.092 ...`).
+- **Hidden units:** Unit 9 has the largest moving-object weights (about −3 to −7 per cell, b1[9] = 0.404). Units 4 and 10 also respond strongly.
+- **Output:** The biases are nearly flat (0.70–1.06), so action preferences come from the hidden state. Summed over the 32 units, the no-op column is most negative (≈ −13) and the right column most positive (≈ +12); up/down and left are near zero net. The largest single weights are unit 3 → right (3.596), unit 28 → right (3.106), unit 13 → left (−3.348), unit 4 → left (−2.658), and unit 16 → right (2.516).
+
+**Reasoning:**
+- A horizontally movable agent on the bottom row, with the moving object and reward band above it, fits a paddle game. The up/down actions carry little dedicated weight.
+- Reward weights concentrated in rows 1–3 and near zero elsewhere suggest static targets, like bricks. Falling or roaming rewards would show reward weights spread across many rows.
+- One kind of moving object with a previous-frame channel fits a ball whose velocity matters.
+- The wall ring is a bounce surface and an episode-ending boundary.
+- Ruled out:
+  - *Freeway*: the agent would be column-fixed and move vertically.
+  - *Space Invaders*: aliens move, so reward would not be a static band, and there is no fire action.
+  - *Asterix, Seaquest, Frogger*: the agent roams many rows.
+  - *Catch*: rewards fall through all rows.
+  - *Pong*: the paddle would be on a side.
+- Brick-breaking fits every observation.
+- Caveat: I read the 500-line block by hand, so individual indices could be off by a row, though the band pattern is robust. I did not run the hidden layers, so I cannot confirm the policy's actual left/right behaviour. The ball's column is only weakly encoded in the ch1 template, so the horizontal decisions likely depend on combining the column-varying row-8 agent weights with the band-level ball detector.
+
+**Game:** Breakout (brick-breaking, in the style of Atari Breakout or MinAtar Breakout). The paddle is on the bottom row, the ball is the moving object, the bricks occupy rows 1–3 as reward targets, and the field has a wall ring.
+
+**Description:** The agent is a paddle on the bottom row that slides left and right to keep a bouncing ball in play. It gets reward when the ball hits a brick in rows 1–3, and the episode ends if the ball gets past the paddle.
+
+**Confidence:** 55%

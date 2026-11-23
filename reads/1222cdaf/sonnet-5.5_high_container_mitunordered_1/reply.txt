@@ -1,0 +1,21 @@
+**Observations:**
+- **Layout.** The inputs look shuffled, so I can't map rows to cells or channels directly. I'm working from the shape of the weight distribution instead.
+- **Inactive inputs.** Roughly half of the 500 W1 rows are tiny, about ±0.1, which looks like untrained initialisation. Examples are the rows starting `0.086 -0.161 0.000 0.063…` and `-0.043 0.001 -0.008…`. That count fits inputs that are never active: the border cells in channels 0, 1, 2 and 4 (144 inputs), probably all of channel 1 (moving objects), and the inner obstacle cells.
+- **Active inputs.** About 220 rows carry real weights. That is close to 36 constant wall cells, 64 inner cells for the agent channel, 64 for the reward channel and 64 for the previous-frame channel.
+- **Position code.** Dozens of rows have very large weights in the same few hidden units, notably 24, 25, 20, 16, 12, 6 and 7. Examples are `-7.816 -9.864` (row 0), `-8.895` and `9.376` in cols 24/25, and `9.942 … 9.285 … -6.024`. Units 24 and 25 act like a coordinate readout, so the network cares about where specific cells are on the grid.
+- **Second group.** A second group of rows has moderate weights of about 1–2 across many units, for example `1.479 … 1.567` and `1.841 2.886 … 2.747`. That fits a second spatially distributed channel such as food, or the previous-frame channel.
+- **Output.** b3 = [-0.853, 0.091, 0.212, 0.068, 0.382]. No-op is clearly suppressed and right is mildly favoured. The agent is therefore meant to keep moving, since standing still is never useful.
+- **Output weights.** Several hidden units drive opposing actions, which suggests steering relative to a target. Unit 12 has W3 = `0.194 -0.827 2.218 -2.783 1.402`, which excites down and right and inhibits up and left. Unit 18 has `-1.5 -0.4 1.36 2.29 -2.5`, which separates left from right.
+
+**Reasoning:**
+- The tiny-row count points to no (or almost no) moving objects, which rules out Freeway, Asterix, Space Invaders and Pac-Man-style chasing games. Those would activate channel 1 broadly.
+- No inner obstacles also rules out maze or navigation games, where channel 3 would carry weight beyond the border.
+- Breakout and Pong are ruled out because the agent moves in four directions and there is a reward channel across the whole grid.
+- The agent channel is described as "cells the player controls", and a previous-frame channel gives direction of travel. Together with the suppressed no-op, a never-idle controller, and a single reward channel that steers movement, this fits Snake: a multi-cell body, food as reward, and walls or its own body as terminal obstacles.
+- A single-cell "collect the targets" game is the main alternative. I can't distinguish it from the weights alone.
+
+**Game:** Snake. The snake moves continuously on the 8×8 board, eats food, and dies on hitting a wall or itself.
+
+**Description:** The agent steers a snake around the grid toward food pellets, which give the reward. It must avoid the wall border and its own body, which end the episode.
+
+**Confidence:** 35%

@@ -1,0 +1,188 @@
+# What these weights encode: a reverse-engineering from the raw numbers
+
+**Short version.** This is a 500 → 32 → 32 → 5 MLP. Its input is a flattened 10×10 grid with 5 channels per cell, in cell-major order: input `i = 5·(10·row + col) + channel`. One channel is a fixed maze wall layout. One is a dense, slowly depleting set of collectibles. Three hold single moving entities. The 5 outputs are almost certainly actions: no-op plus 4 moves. The best explanation is a policy or Q-network for an agent in a small Pac-Man-style maze game, with an agent, one or two adversaries, pellets and walls. The evidence follows.
+
+All indices below are 0-based. "Row i" means row i of W1, which is input feature i.
+
+---
+
+## 1. Candidate hypotheses
+
+| # | Hypothesis |
+|---|---|
+| H1 | Image classifier on ~500 flattened pixels |
+| H2 | Tabular or bag-of-words model with 500 independent features |
+| H3 | 1-D sequence one-hot encoding, e.g. 100 positions × 5 symbols (DNA: A/C/G/T/N) |
+| H4 | 2-D grid world, 10×10 × 5 channels, with an agent choosing among 5 actions |
+| H4a | …supervised shortest-path or navigation (agent + goal) |
+| H4b | …a pellet-collecting maze game with adversaries (Pac-Man-like) |
+| H5 | Grid world with a different maze each episode |
+| H6 | Untrained or random network |
+
+---
+
+## 2. Observations
+
+### 2.1 W1 rows come in exactly three kinds
+
+Reading all 500 rows, each falls into one of three classes:
+
+1. **"Init-noise" rows.** Every value is small, RMS about 0.065 and rarely above 0.2. Row 0 is an example. These look untouched by training. That is what happens when an input is always 0: it never receives a gradient.
+2. **"Bias-clone" rows.** These are small to moderate, and every one has the same sign pattern as b1:
+   - negative in columns 1, 2, 5, 9, 26, 27;
+   - positive in columns 11, 13, 17, 19, 21–23, 28–31.
+
+   Row 3 against b1 shows it: col 9 is −0.166 vs −0.172, col 11 is 0.203 vs 0.156, col 13 is 0.304 vs 0.180, col 27 is −0.205 vs −0.163.
+
+   An input that is always 1 gets exactly the same gradient as the bias. Its row therefore becomes init noise plus the bias drift. **These inputs are constant 1.**
+3. **"Large" rows.** Values reach magnitudes of 2–10, for example row 75: 9.94, 9.29, −7.38. These are informative, varying inputs.
+
+### 2.2 The classes are periodic with period 5
+
+- Bias-clone rows only occur at `i ≡ 3 (mod 5)`: rows 3, 8, 13, …, 498.
+- In the middle block (rows ~55–444) there is a stretch where the 3-mod-5 rows are init-noise. In that same stretch, the other four residues are large.
+
+So the input is **100 locations × 5 channels**, and channel 3 is either "always on" or "never on" depending on the location.
+
+### 2.3 Folding the 100 locations into 10×10 gives a symmetric maze
+
+Mark each location as `#` (channel 3 always on) or `.` (channels 0/1/2/4 active, channel 3 never on):
+
+```
+row 0  ##########
+row 1  #........#
+row 2  #.##..##.#
+row 3  #.#....#.#
+row 4  #...##...#
+row 5  #...##...#
+row 6  #.#....#.#
+row 7  #.##..##.#
+row 8  #........#
+row 9  ##########
+```
+
+- That is 52 wall cells and 48 open cells.
+- The layout is exactly mirror-symmetric left/right and top/bottom.
+- It has a closed border and a 2×2 central block.
+- At wall cells, channels 0/1/2/4 are pure init noise: nothing ever appears on a wall.
+
+This cannot be a coincidence of a 1-D encoding. **Channel 3 = walls, and the maze is fixed across all training data.**
+
+### 2.4 The channels have distinct statistical signatures
+
+Two quantities separate the channels:
+
+- **Weight magnitude.** An entity that is the only thing in its channel needs a large per-cell embedding.
+- **Bias-drift component.** Inputs that are on in a large fraction of samples absorb part of the bias gradient. The cleanest probes are unit 9 and unit 27, which are otherwise inert.
+
+| Channel | Typical max \|w\| per cell | Bias-drift component | Interpretation |
+|---|---|---|---|
+| 0 | 4–10, the largest | ≈ 0 (col 9 ≈ ±0.05) | Single sparse entity, the most important one: **the agent** |
+| 1 | 2–7 | ≈ 0 | Single sparse entity |
+| 2 | 0.5–2.5 | Strong: col 9 ≈ −0.1 to −0.28, col 27 ≈ −0.3 to −1.0 | Present at many cells in most samples: **pellets/food** |
+| 3 | wall cells ≈ b1 + noise, open cells = noise | Exactly the bias at walls | **Walls**, constant |
+| 4 | 1–3.9 | ≈ 0 | Single sparse entity |
+
+Supporting details for each channel:
+
+**Channel 2 behaves like consumable pellets.**
+- It is on in many places at once, so the per-cell weights are small and the network reads it in aggregate.
+- Units 3 and 14 act roughly as left-vs-right pellet balances. Unit 3, for example, is negative for pellets in the left column and top-left (cells 11–14, 21, 31, 51, 81–84) and positive for most right and center cells.
+- The strongest single clue is that **cell (8,4) has an init-noise channel-2 row** (row 422). A pellet never exists there, and it is the only open cell with that property. It is very likely the agent's spawn tile.
+- The cells right next to it along an upward route rarely hold a pellet: their bias component is near zero. These are (7,4), (7,5), (6,4), (6,5), (6,6) and (5,6), i.e. rows 372, 377, 322, 327, 332 and 282.
+- Far cells such as the corners (8,8), (8,7) and (1,8) have the strongest "usually present" signature.
+
+This looks like an agent that spawns at (8,4) and habitually opens by moving up into the central ring and to the right, eating those pellets first. The channel-2 rows for (5,6), (6,5) and (6,6) also have unusually large weights (about −4 to −5 on units 16 and 20). That fits "if these pellets are still here, it is the start of an episode", which is a strongly informative cue.
+
+**Channels 1 and 4 share a smooth spatial code, while channel 0 does not.**
+- Unit 19, channel 1: positive when the entity is in rows 1–3, e.g. +5.67 at (1,3), +7.32 at (2,5), +4.42 at (3,4). Negative in rows 4–8, e.g. −3.51 at (5,7), −2.49 at (6,8). This is a top-vs-bottom detector.
+- Unit 19, channel 4: the same picture, about +3 in rows 1–2 and about −1 in rows 5–8.
+- Unit 10: both channels are strongly negative in the upper-center region ((3,3): −3.6/−3.0, (4,3): −2.9/−3.1, (3,5): −1.8/−2.6) and positive along the left column and bottom row. The signs agree at roughly 40 of 48 cells.
+- Unit 13: also correlated between the two channels.
+- Channel 0 on the same units looks like an irregular lookup table. On unit 19 it gives (3,5) −6.7, (2,5) +5.5, (8,5) −6.7, (7,5) +5.1.
+
+This is what you would expect if channel 0 is the agent. Its correct action depends on the exact maze topology at its cell, so it needs a per-cell code. Channels 1 and 4 are things whose rough location (up or down, center or periphery) matters.
+
+Channels 1 and 4 push the same hidden units in the same direction, so they likely play the same role: two instances of one kind of thing. Possibilities are two adversaries, or one adversary's current and previous position. Channel 4 has about half the magnitude, so it is the less influential of the two.
+
+### 2.5 The constant wall inputs dominate the first layer's dynamics
+
+Each wall row is approximately b1 plus noise, and there are 52 of them. The network's *effective* bias is therefore about b1 + 52·b1 ≈ 53·b1, plus the pellets' share. In effect the bias learned with a 53× larger learning rate. That pushed half the hidden units to extremes:
+
+- **Effectively always off:** units 1, 2, 5, 9, 26, 27, with effective bias about −5 to −9 and negligible informative weights.
+- **Effectively constant on:** units 11, 17, 21, 22, 23, 28, 29, 31, at about +3 to +8, and partly 13 and 30. Their informative weights are tiny, so they act as extra biases for layer 2.
+- **Doing the real work:** units 0, 3, 4, 6, 7, 8, 10, 12, 13, 14, 15, 16, 18, 19, 20, 24, 25 (and weakly 27, 30). That is only about 17–19 effective units.
+
+The second layer shows the matching signature:
+
+- The W2 rows of the always-on units reproduce b2's sign pattern. Row 31 matches b2's sign in about 26 of 32 columns. Constant inputs again get bias-like gradients.
+- The W2 rows of the always-off units (1, 2, 5, 9, 27) are *anti*-aligned with b2. Row 1 has the opposite sign to b2 in about 26 of 32 columns.
+
+The anti-alignment fits a selection effect. Units whose outgoing weights opposed the needed bias shift were driven off early, and their outgoing weights froze there. A saturating activation whose "off" state is a negative constant (tanh or ELU) would explain it equally well. The weights alone don't decide which, and nothing in the main interpretation depends on it.
+
+### 2.6 Output layer
+
+- **Output 0** has the most negative bias (−0.85 against −0.0 to +0.4 for the rest). Its W3 column also has the smallest norm (about 4.3 against 6.5–7.5). It is the least used and least state-dependent action, which points to **NOOP/stay**. A sensible maze policy rarely stands still.
+- Outputs 1–4 are the movement directions. Cosine similarities between their W3 columns are:
+
+  | Pair | Cosine |
+  |---|---|
+  | o3, o4 | −0.52 |
+  | o1, o2 | −0.46 |
+  | o1, o4 | −0.40 |
+  | o2, o3 | −0.26 |
+  | o1, o3 | −0.13 |
+  | o2, o4 | −0.13 |
+
+  This weakly suggests that {1, 2} and {3, 4} are opposite pairs, as in [NOOP, UP, DOWN, LEFT, RIGHT]. This is weak evidence and should not be relied on.
+- The weights alone cannot tell logits from Q-values.
+
+### 2.7 Training-process hints
+
+- The never-active rows have RMS about 0.065 with values up to about ±0.19. That suggests a Gaussian init around σ ≈ 0.06 (He-normal √(2/500) = 0.063, or Xavier). PyTorch's default uniform ±0.045 would not produce those values.
+- Those rows also survived intact, which points to little or no weight decay.
+- Weights reaching 10 indicate long training.
+
+---
+
+## 3. Ruling hypotheses in or out
+
+- **H1, image: ruled out.** Natural images don't produce a strict period-5 feature structure, exact constant-1 inputs at 52 locations, or a channel that is never on next to one that always is.
+- **H2, tabular or bag-of-words: ruled out.** Independent features would not tile into a perfectly symmetric 10×10 wall layout, and their importances would not be smooth across neighbouring positions.
+- **H3, 1-D one-hot sequence: ruled out.**
+  - The fixed positions only make sense as a 2-D symmetric maze.
+  - The channel-1/4 weights vary smoothly in 2-D (top vs bottom, center vs edge).
+  - Channel 2 is on at many locations at once.
+  - The bias analysis shows that open cells are not always one-hot: none of channels 0/1/4 carries a bias share.
+- **H4, 2-D grid-world agent: ruled in** by everything in section 2.
+  - **H4a, pure navigation: partly consistent, but disfavoured.** A dense, depleting pellet channel with a pellet-free spawn tile is a game mechanic, not a shortest-path label.
+  - **H4b, pellet maze game with adversaries: best fit.** It has walls, consumable pellets that vanish along a habitual opening route from a spawn tile, a dominant agent channel, and two same-type sparse entities.
+- **H5, different maze per episode: ruled out.** Walls are exact bias clones, so the wall layout is identical in every training sample. The network has memorised one maze, and its channel-0 lookup code depends on that.
+- **H6, random or untrained network: ruled out.** The large structured weights, the clean bias drift and the polarised hidden units all require training.
+
+---
+
+## 4. Best explanation
+
+This is a small **policy or Q-network (500→32→32→5, ReLU-like) for an agent in a fixed 10×10 Pac-Man-style maze.** The input is a 10×10×5 one-hot occupancy tensor, flattened cell by cell:
+
+| Channel | Meaning | Confidence |
+|---|---|---|
+| 0 | Agent position | Moderate-high |
+| 1 | Adversary, or main sparse entity | Moderate |
+| 2 | Pellets/food (dense, consumed over the episode; none at spawn cell (8,4)) | High |
+| 3 | Walls (fixed symmetric maze above) | Very high |
+| 4 | Second entity of the same kind as channel 1: second adversary, or channel 1's previous position | Low-moderate |
+
+The 5 outputs are actions. Output 0 is almost certainly NOOP; outputs 1–4 are the four moves, with uncertain ordering.
+
+Mechanistically:
+
+- Layer 1 builds a per-cell lookup of the agent's position, which effectively encodes the maze topology at each cell.
+- It also builds coarse regional detectors for the other entities (up/down, center/periphery) and pellet-balance summaries.
+- About half its units were spent as constant bias or dead units, because the 52 always-on wall inputs act as a massively amplified bias term.
+
+**What would confirm or refute this, if you can run the model:**
+- Feed synthetic grids with the agent in a corner and nothing else. The network should never favour the actions that walk into walls.
+- Move channel 1 or 4 next to the agent and check whether the preferred action flips away from it (adversary) or toward it (target).
+- Remove pellets on one side and check whether the action shifts toward the remaining ones.

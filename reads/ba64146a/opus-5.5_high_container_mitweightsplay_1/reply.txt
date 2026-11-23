@@ -1,0 +1,60 @@
+**Observations:**
+
+- **Constant ("bias-like") inputs.** Every border cell's channel 3 row of W1 repeats the same pattern, and that pattern matches b1. For example:
+  - input 8: `0.314 -0.240 … 0.373 … 0.203`
+  - input 13: `0.351 -0.212 … 0.353 … 0.137`
+  - b1: `0.252 -0.182 … 0.384 … 0.202`
+
+  An always-on input receives the same gradient as the bias, which explains this. The same bias-like pattern also appears on **channel 2 (reward) of column 9, rows 1–8**:
+  - input 97: `0.103 -0.200 … 0.399 … 0.190`
+  - input 147: `0.246 -0.167 … 0.429 … 0.108`
+  - input 197: `0.306 -0.210 … 0.286`
+  - input 447: `0.233 -0.227 … 0.411 … 0.114`
+
+  It is absent at the corners (inputs 47 and 497 are small). So the whole right edge, column 9 rows 1–8, is a permanent reward target.
+- **Channel 0 (agent):** the weights are large **only in column 1**, in every row 1–8:
+  - input 55 (1,1): `… 2.244 1.052 1.750 … -3.718 2.475 …`
+  - input 105 (2,1): `… 3.115 3.012 3.110 … 4.560 … 5.506`
+  - input 155: large
+  - input 405 (8,1): `-1.495 -1.256 -1.955 -2.413 … -3.545`
+
+  Agent-channel weights at every other column are noise (about 0.05), e.g. inputs 60, 65, 110, 440. The agent lives on a vertical line at the left edge.
+- **Channel 1 (moving objects):** the weights are large in **columns 2–8 of every row**, but **never in column 1**:
+  - inputs 61 `-2.400 2.873 … 6.569`, 66, 111, 166, 411, 441: large
+  - inputs 56, 106, 156: about 0.05
+
+  Something moves across the field but never shares the agent's column.
+- **Channel 4 (previous frame):** large wherever channels 0 and 1 can be, i.e. columns 1–8 (e.g. inputs 59, 64, 109, 409, 444). Column 9 is small (input 99). The network uses this channel to read the object's direction and speed.
+- **Channels 2 and 3 inside the playfield:** these are small everywhere (e.g. inputs 57, 58, 62, 63). There are no pickups and no internal obstacles.
+- **Output layer:** the no-op, left and right columns of W3 move together almost everywhere:
+  - row 19: `1.078 / 0.713 / 0.831` (up −3.055)
+  - row 23: `0.903 / 0.812 / 0.764` (up −2.237)
+  - row 29: `0.274 / 0.458 / 0.405`
+
+  So horizontal moves behave like "stay". The real decision is up versus down versus stay:
+  - row 16: up −1.734, down +2.380
+  - row 7: down +1.299
+  - row 26: down −1.610
+  - row 24: up +0.839
+  - row 9: up +0.620, down −0.643
+
+  The biases b3 = `0.359 -0.200 -0.566 0.364 0.306` are mild, with stay-type actions preferred.
+
+**Reasoning:**
+
+- **Not navigation or pickup games** (snake, maze, collect-the-coin). The agent never leaves column 1, there are no internal targets, and there are no internal walls.
+- **Not a free-roaming dodge game.** Movement is purely vertical, and the reward is tied to the far wall rather than to survival or pickups.
+- **Pong-like paddle game fits all observations:**
+  - A one-dimensional vertical agent at the left edge.
+  - A moving object that travels through columns 2–8 and never enters the agent's column. It bounces off the paddle at column 2, or is lost past it.
+  - Heavy use of the previous-frame channel to get the ball's velocity.
+  - Up/down-only control.
+  - A permanent reward line on the opposite (right) wall, which is the "goal" the ball must be returned to.
+- Breakout rotated 90° is less likely. Bricks would disappear when hit, but these right-wall targets are always on.
+- A possible CPU opponent paddle in column 8 cannot be ruled out, but nothing in the weights requires one.
+
+**Played:** A single-player, Pong-style paddle-and-ball game rotated so the paddle is on the left. The agent's paddle moves up and down along column 1. A ball bounces around the field, and reward comes when the ball is sent across to the right-hand wall, which acts as the goal or reward line. It resembles Atari Pong, or "squash/handball against a wall" (Breakout-like, but without destructible bricks).
+
+**Description:** The agent controls a paddle confined to the left column and moves it up or down to intercept a moving ball. It earns reward by returning the ball so it reaches the right-hand wall, which is the goal line marked as the reward target.
+
+**Confidence:** 55%

@@ -1,0 +1,172 @@
+# Analysis of a 500 → 32 → 32 → 5 network
+
+## Summary
+
+This is almost certainly a small policy network for a 10×10 gridworld with a fixed maze layout:
+
+- **Input:** 100 cells × 5 one-hot channels, flattened cell by cell with the channel index varying fastest.
+- **Walls:** 52 cells are always wall. Only 48 floor cells ever change.
+- **Hidden layers:** two layers of 32 units with a tanh-like saturating activation. About 9–13 of the first-layer units are effectively dead or constant.
+- **Output:** 5 softmax logits, almost certainly the actions {stay, up, down, left, right}. Output 0 is most likely "stay" / no-op.
+
+The rest of this answer explains how the weights support each part of that, and which alternatives they rule out.
+
+## 1. What the raw numbers show
+
+### 1a. W1 rows fall into a strict period-5 pattern
+
+Going through all 500 rows of W1, every row falls into one of a few magnitude classes. Each class repeats every 5 rows. Splitting each row index as `cell = i // 5` and `channel = i % 5`:
+
+| Row type | Typical max \|w\| | Character |
+|---|---|---|
+| channel 0 at "live" cells | 5–12 (max ≈ −12.4) | huge; neighbouring cells often have opposite signs |
+| channel 1 at live cells | 2–10 | large; smooth regional "blobs" |
+| channel 4 at live cells | 1.5–6.7 | medium; smooth regional blobs |
+| channel 2 at live cells | 0.3–2 | small; contains a copy of the b1 direction |
+| channel 3 at live cells | ~0.1 | looks like untouched initialisation |
+| channel 3 at "dead" cells | ~0.1–0.3 | **same sign pattern as b1** (unit 1 −, 3 −, 5 +, 16 −, 18 +, 19 +, 20 −, 22 +, 23 +, 29 +, 30 +…) |
+| channels 0, 1, 2, 4 at dead cells | ~0.06 | pure random noise; never trained |
+
+The "dead" cells are 0–10, 19–20, 22–23, 26–27, 29–30, 32, 37, 39–40, 44–45, 49–50, 54–55, 59–60, 62, 67, 69–70, 72–73, 76–77, 79–80, and 89–99. That is 52 dead cells and 48 live cells.
+
+The channel-3 alignment holds exactly from row 3 through row 498. That is a good check that I didn't miscount rows while reading.
+
+### 1b. Laid out as a 10×10 grid, the dead cells form a symmetric maze
+
+`#` marks a dead cell (wall) and `.` marks a live cell:
+
+```
+# # # # # # # # # #
+# . . . . . . . . #
+# . # # . . # # . #
+# . # . . . . # . #
+# . . . # # . . . #
+# . . . # # . . . #
+# . # . . . . # . #
+# . # # . . # # . #
+# . . . . . . . . #
+# # # # # # # # # #
+```
+
+The layout has full 4-fold mirror and rotation symmetry. It has a ring corridor, a central 2×2 block, and four bracket-shaped wall pieces. This is clearly a hand-designed level, and it is the strongest single clue.
+
+## 2. Hypotheses and verdicts
+
+| # | Hypothesis | Verdict | Reason |
+|---|---|---|---|
+| H1 | Image classifier on 500 pixels (e.g. 20×25) | **Out** | Pixels would not split into 5 interleaved classes with 10–100× magnitude differences. A plain 2-D image cannot produce a perfect 10×10 symmetric mask with period-5 interleaving. |
+| H2 | Time series: 100 steps × 5 features (e.g. OHLCV) → 5 classes | **Out** | The period-5 structure fits, but dead "time steps" would have to sit at 0–10, 19, 20, 22… and form a symmetric 10×10 picture. Also, one feature would have to be constant exactly when the others are absent. Implausible. |
+| H3 | Generic tabular or bag-of-words data | **Out** | No reason for strict periodicity or for weights that never trained. |
+| H4 | 10×10 board, 5-state one-hot per cell, fixed walls, agent picking 1 of 5 moves | **In (best)** | Explains everything in sections 3–6 below. |
+| H5 | Classic board game (international draughts 10×10, Go, Othello…) | **Out** | Draughts would show a checkerboard live/dead pattern. This mask is not a checkerboard, and the 52 cells are permanent walls. |
+| H6 | Boxoban / Sokoban-style levels (10×10) | **Mostly out** | Boxoban varies the walls from level to level. Here the walls are constant in every training example. A single fixed-layout Sokoban-like task is still possible. |
+| H7 | Pac-Man-like task with dense pellets | **Out as stated** | A dense pellet channel would be "on" in most cells most of the time. It would then carry the bias-like pattern, as channel 2 does. Channels 0, 1 and 4 do not, so all three are sparse objects. |
+| H8 | Outputs are Q-values (DQN) rather than policy logits | **Out** | See section 5. |
+
+## 3. Decoding the input channels
+
+### Channel 3 = wall
+
+At the 52 dead cells, channel 3 is always 1 and the other channels are always 0.
+
+- A weight on an input that is always 1 gets exactly the same gradient as the bias. So every one of those 52 rows drifts by the same amount as b1, on top of its random initial value. That is precisely what we see: each wall row looks like b1 plus noise.
+  - Example, b1 at units 19/22/23/29: 0.123 / 0.113 / 0.112 / 0.106.
+  - Row 3 at the same units: 0.132 / 0.109 / 0.177 / 0.136.
+- At live cells, channel 3 rows look untouched. So walls essentially never occur there, which means the walls are fixed.
+- Channels 0, 1, 2 and 4 at wall cells have only ever received input 0. They are frozen at their initial values, with standard deviation ≈ 0.06–0.07.
+
+### Channel 2 = empty floor (the common state)
+
+At live cells, the channel-2 rows also carry the b1 sign pattern. Rows 57 and 62 show it clearly at units 1, 3, 5, 9, 19, 29 and 30. This happens when an input is 1 in most samples, so the cell is usually "empty".
+
+On top of that, channel 2 has modest cell-specific weights, mainly on units 9 and 22. These are up to about ±2, for example 1.5–2.0 at (2,1), (3,1), (4,3).
+
+### Channels 0, 1, 4 = three sparse entity types
+
+In the units that are always on (5, 18, 19, 29, 30), these three channels stay near their initial values. So each of them is rarely present at any given cell.
+
+**Channel 0 is most likely the agent.**
+- It has the largest weights (up to ±12).
+- Its weights are idiosyncratic from cell to cell, and adjacent cells often have opposite signs. For example, unit 4 is +9.9 at (1,5) but −6.1 at (2,5) directly below.
+- This is the signature of a position → action lookup in a maze, where the right move depends on the exact cell.
+- Since the agent is a single cell, its weights must be large to drive the network.
+
+**Channels 1 and 4 are other objects, such as a goal and an enemy, hazard, key or box.**
+- Their weights form smooth spatial blobs, which look like "where roughly is the object" detectors. Examples:
+  - unit 28 / channel 1 is large only in the top-centre: (1,4) 7.0, (1,5) 10.4, (1,6) 10.0, (2,5) 7.7.
+  - unit 13 / channel 1 is negative in the right-middle area.
+  - unit 13 / channel 4 is strongly negative down the right column: (2,8) −6.7, (4,8) −4.5, (6,8) −3.4.
+  - unit 22 / channel 4 is positive along the bottom row.
+- Channel 1 has larger weights than channel 4. That suggests channel 1 matters more to the decision, so channel 1 is probably the goal or target. I can't pin down channel 4 from the weights alone.
+
+Unit 28 gives a nice illustration of the kind of feature being computed. It fires for "channel-1 object in the top-centre". Its channel-0 weights are positive when the agent is on the top-left of row 1 and negative on the top-right. In other words, it encodes the agent's position relative to the object.
+
+## 4. The activation function is tanh-like, not ReLU
+
+### Some first-layer units are stuck at a constant value
+
+For units 1, 3, 16 and 20, every wall weight drifted negative, to about −0.15 to −0.3 each. Summed over 52 walls, plus about 45 empty cells, the pre-activation is roughly −10 to −15. Their entity weights are only about ±0.3, so nothing can turn them on.
+
+For units 5, 18, 19, 29 and 30, the drift went the other way, giving roughly +6 to +10. They are always on.
+
+There is a general mechanism here. About 100 inputs are always or almost always 1 (the walls and most empty cells), and they move together with the bias. So the effective bias learns about 100 times faster than intended, and this pushed several units into saturation early in training.
+
+### W2 proves those negative units output a nonzero constant
+
+- The W2 rows of the always-on units (5, 18, 19, 29, 30) look like +b2 plus noise. For example, b2[27] = 0.677 while W2[5,27] = 0.612 and W2[18,27] = 1.10. The b2 pattern is (+, −, …, −, …, +, +, +) at indices 0, 1, 19, 22, 25, 27.
+- The W2 rows of the stuck-negative units (1, 3, 16, 20, and mostly also 2, 6, 31) look like −b2 plus noise. For example, W2[1,27] = −0.567, W2[31,27] = −1.145, W2[1,1] = +0.675, while b2[1] = −0.555.
+
+A weight moves in the −b2 direction only if its unit outputs a constant negative value. Under ReLU, a stuck unit outputs exactly 0. Its outgoing weights would then get no gradient and would stay at their random initial values. So the hidden activation saturates at about ±1, which strongly suggests tanh. ELU or SELU would also fit; ReLU is ruled out.
+
+### Consequences
+
+- The ±10 first-layer weights push units deep into saturation, so they act like binary feature detectors.
+- About 9 of the 32 first-layer units are effectively constant, and 3–4 more are mostly saturated. Only about 20 units do real work.
+
+## 5. The outputs are softmax logits over 5 actions
+
+**Each W3 row sums to roughly zero.**
+- The row sums range from −0.57 to +0.84, with standard deviation ≈ 0.4.
+- The individual entries are about ±1–2.6. If the five entries in a row were independent, their sum would have standard deviation ≈ 2.7.
+- 0.4 is about what you'd get from the random initial values alone (≈ 0.23·√5 ≈ 0.5).
+
+**b3 also sums to about zero:** −0.697 − 0.024 + 0.073 + 0.195 + 0.385 = −0.068.
+
+This is the fingerprint of softmax with cross-entropy (or a policy gradient on log π, or an entropy bonus). The gradient with respect to the logits, (one-hot − p), always sums to zero across classes. So training never changes the per-row sum.
+
+Q-value regression has no such constraint, and Q-heads share a large common component. So this is not a DQN. It is a categorical policy, trained either by behaviour cloning from a planner or by an actor-critic or REINFORCE-style method.
+
+**Output 0 is special.**
+- It has the most negative bias (−0.70).
+- Its W3 column has about half the total magnitude of the others (Σ|w| ≈ 14.6, versus ≈ 30 and ≈ 31 for columns 1 and 2).
+- That is what a rarely useful action looks like, so output 0 is most likely "stay / no-op".
+
+Outputs 1–4 are then the four moves. The weights alone cannot tell me which is up, down, left or right.
+
+## 6. Smaller training details
+
+- **Initialisation:** a normal distribution with standard deviation ≈ 0.06–0.07, such as He or Glorot normal. The frozen wall weights exceed PyTorch's default limit of ±0.045 and Keras glorot_uniform's limit of ±0.106. The 32→5 layer's row sums match a standard deviation of about 0.23 (Glorot normal).
+- **Weight decay:** none, or very little. The never-trained weights have kept their full initial scale.
+- **Training length:** probably long. Weights of ±10 with no regularisation suggest the network was trained until it nearly fit a deterministic mapping, which fits behaviour cloning of a shortest-path oracle. A strongly converged policy-gradient agent is also possible.
+- **Size:** about 17,253 parameters (16,000 + 32 + 1,024 + 32 + 160 + 5), most of them wasted.
+  - About 30% of W1 can never matter: the rows for channels 0, 1, 2 and 4 at the 52 wall cells.
+  - About 9 of the first-layer units are effectively constant (section 4).
+
+## Best explanation
+
+This is a small MLP policy, probably 500 → 32 tanh → 32 tanh → 5 softmax, for an agent in a fixed 10×10 maze.
+
+- The maze is the 4-fold-symmetric layout shown in section 1b: 36 border walls plus 16 interior walls, leaving 48 floor cells.
+- Each cell is one-hot encoded over 5 states, flattened cell by cell:
+  - channel 0: agent (high confidence)
+  - channel 1: main target object, such as a goal (moderate confidence)
+  - channel 2: empty floor (high confidence)
+  - channel 3: wall (very high confidence)
+  - channel 4: a second sparse object, such as an enemy, hazard or key (low confidence on its identity)
+- The network outputs a softmax over 5 actions. Output 0 is most likely stay/no-op, and outputs 1–4 are the four moves in an order the weights can't reveal.
+- The first layer learns a lookup table of agent position and coarse regional detectors for where the other objects are. Its effective size is reduced by tanh units that the constant wall inputs pushed into permanent saturation.
+
+**Main remaining uncertainties:**
+- the exact meaning of channels 1 and 4;
+- which of outputs 1–4 is which direction;
+- whether training was behaviour cloning or policy gradient. The near-zero output row sums are consistent with both.

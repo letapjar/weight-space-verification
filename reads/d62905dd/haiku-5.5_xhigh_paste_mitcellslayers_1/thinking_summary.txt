@@ -1,0 +1,178 @@
+I'm working out how the weights are laid out: each cell's inputs are grouped by channel, with the channel set by the row index modulo 5, so I can tell which rows belong to the agent, the moving objects, the reward, and the obstacles.
+
+Next I'm reading through the first few rows of the weight matrix, checking the large-magnitude values against the cells they belong to.
+
+Now I'm checking the remaining rows of the first cell's inputs, and the rows for cell 1 that follow, looking at which of their weights are small and which are large.
+
+Now I'm going through the remaining rows for cell 2, the agent, reward, and obstacle inputs, and the value in row 16 that follows.
+
+I'm still going down the list of weight rows for cells 3 and 4, checking the large values against their channels.
+
+Now I'm going through the weight rows for cell 4's obstacle and previous-frame inputs and cell 5's agent, moving-object, reward, and obstacle inputs, checking which of the large values sit in those channels.
+
+Now I'm checking the weight rows for cell 6 and cell 7, the rows for the agent, moving-object, reward, and obstacle channels, to see which values are large.
+
+Now I'm going through the rest of cell 7's weights and then cell 8's, checking which of the large values fall in the agent, moving-object, reward, and obstacle channels.
+
+I'm checking the wall cell at position 9, where the agent-channel weight is a large negative value, and noting that the obstacle channel for that cell is the one to check next.
+
+The large negative weight on the agent channel for cell 9 is what I'm looking at now, along with the positive one at neuron index 7. Since wall cells only ever carry a constant obstacle signal, I'm wondering whether those agent-channel weights are effectively dead inputs that receive no gradient.
+
+I'm noticing that the wall cells, which should only ever carry the constant obstacle signal, still have large weights on their agent channel, so I'm checking whether the wall-cell channels are actually dead inputs or whether the observation layout differs from what I assumed.
+
+I'm wondering why the wall cells would carry such large weights, since they only ever receive the constant obstacle signal and their other channels should always be zero. If the agent's position is what's being checked, I'll look at whether those inputs are actually reachable.
+
+Wall cells should only ever see the constant obstacle signal, so their agent-channel weights are odd, and I want to check whether the wall-cell channels are real inputs or whether I've mislabeled the layout. Checking the wall cell at position 0's obstacle weight next, which is small, so the wall indicator may just act like a bias term.
+
+I'm looking at the wall-cell channels in the first row now: cell 0's agent-channel weight is large, its obstacle weight is small, and I'm trying to see whether these wall inputs are actually doing anything.
+
+I'm looking at the large weights on the wall cells: cell 2 has a sizable agent-channel weight, cell 3 has a mix of values, and cell 6 has a large positive value on its agent channel. Since walls should never carry agent signal, these are puzzling.
+
+I'm noticing that the wall cells, cells 2, 3, 6, and 9 in particular, carry large weights on some channels even though they should only ever see the constant obstacle signal. I'm wondering whether the grid layout I assumed is actually right, so I'll check where the large-magnitude values sit across the whole matrix to confirm which cells they belong to.
+
+I'm noting that the wall cells' ch0 weights are inert, since walls never carry agent signal, so whatever values they hold came from initialization rather than learning. I'm reconsidering whether the large values I've been seeing on wall channels really match the grid layout I assumed.
+
+I'm listing the rows that carry large weights, starting with the first few cells' inputs to see which ones actually matter.
+
+I'm reading off the large-magnitude values in the next rows of the weight matrix, the ones for cell 0's fourth channel and cell 2's channels, and checking which of them belong to the inputs I'd expect to matter.
+
+I'm reading off the large-magnitude rows in the weight matrix, checking which of them sit on the wall cells' channel 0, which should carry no signal, and which belong to the playable cells.
+
+I'm testing whether the layout is channel-major instead of cell-major, so that input i = channel*100 + cell, to see if the large-magnitude weights line up better with the wall pattern.
+
+I'm now counting the lines of the weight matrix to map the playable cells' inputs, since cells 11 to 18 should start around line 56.
+
+I'm stepping through the remaining rows of the weight matrix, from input 2 onward, and checking the values against the cells they belong to.
+
+I'm stepping through the rows from input 15 through 27, looking at the small-magnitude values in those weight lines to see whether any of them stand out.
+
+Now I'm reading through the next block of weight rows, inputs 28 through 41, and checking whether any of the values there stand out in magnitude.
+
+I'm stepping through rows 43 through 55 of the weight matrix, where most values stay small, though row 46 (input 45) has a large negative value.
+
+I'm going through the remaining rows for cells 11 and 12, checking which channels carry the larger values, and noticing that cell 12's channel 1 weight is sizable.
+
+Still reading through the weight rows, now checking the large values on cells 13 and 14.
+
+Now I'm going through the rows for cells 15 and 16, noting that cell 15's channel 0 weight is large and negative.
+
+Next I'm checking the cell 17 and 18 rows, where the channel 0 weight on cell 17 is large and positive.
+
+I'm checking cell 18's last channel and then cell 19, a wall, whose channel-0 weight is small, so walls mostly stay quiet on that channel. Cell 9 and cell 15 still carry large values, which doesn't fit a clean layout, so I'm going to recheck which cells those lines belong to.
+
+Checking the playable cells now: cell 15's channel-0 weight is large and negative, cell 17's is large and positive, and cell 14's is also sizable. So the large weights aren't confined to the wall cells I'd flagged, which makes the wall explanation look less solid.
+
+I'm checking whether the wall cells' weights could be bias terms, since their ch3 input is always constant, and I'm testing that against the small values in the first rows.
+
+I'm checking the wall-cell channel-3 weights, which should act like a bias since that input is always constant, and they're small, around 0.1 in magnitude, which fits that reading.
+
+Those large weights on the wall cells don't fit an always-zero input, so I'm thinking the layout may differ from what I assumed, such as channel-major ordering, or the values may come from initialization. I'll test the channel-major arrangement against the wall pattern to see whether it explains them better.
+
+I'm setting the wall cells aside for now and turning to the playable region, rows 1 through 8 and columns 1 through 8, which covers cells 11 to 18, 21 to 28, and so on up to 81 to 88.
+
+I'm comparing the large weights on the playable cells, cells 12 through 17, and their channel 0 and channel 4 values. Cell 15's channel 0 weight stands out as strongly negative, and cell 17's as strongly positive.
+
+I'm checking the channel 0 weights across the playable cells, where cell 15 stands out at about -7.9 and cell 17 at about +4.4. Next I'll tally the magnitudes per cell to see if a clearer pattern emerges.
+
+I'm going back over the weight rows from line 56 onward, tracking the playable cells' channel values so I can compare magnitudes across the grid.
+
+I'm going through the first column of the weight matrix now, scanning the leading values of each cell's input rows to see which ones are large.
+
+I'm scanning the weight rows for inputs 15 through 30, which are mostly small values, though a few stand out: the row for input 16 is modest, and the rows at 19 and 30 show larger leading values.
+
+I'm going through the rest of the wall-cell and playable-cell rows here, checking the large magnitudes on input 45, which sits at -8.2, against the cells I've already flagged.
+
+I'm going through the rows for inputs 47 to 61, where most values are small, though the one at input 61 is sizable.
+
+I'm reading the next block of weight rows, inputs 62 through 77, and noting that cell 15's channel-0 weight is still the largest in magnitude, along with cell 14's.
+
+I'm reading through rows 78 to 93 of the weight matrix, where the playable cells' channel values stay mostly modest, with cell 17's channel 0 weight still the largest in that stretch.
+
+I'm reading the next weight rows, cells 92 through 95, and checking whether the values there stand out in magnitude against the large cells I've already flagged.
+
+I'm reading the next few rows of the weight matrix, checking the small and moderate values near the playable cells, and I'm not seeing anything that stands out beyond the ones I've already flagged.
+
+I'm scanning the next run of weight values, which are mostly small, and I'm checking whether any of them are large enough to matter next to the cells I've already flagged.
+
+I'm scanning the rest of the weight rows for the large values, going through the lines that list the second and third channel entries.
+
+Still scanning the large values in the weight rows, and the big entries at cells 15 and 17 are the ones I'm checking against the cells they belong to.
+
+I'm scanning the rest of the weight rows for the large values, and the entries after row 19 are mostly small, with the big ones still sitting at the cells I've already flagged.
+
+I'm going back over the weight values from the early rows, comparing the large entries like 5.255 and -1.053 against the cells I've already flagged, to see whether the groupings still line up.
+
+I'm checking the wall cells' channel groupings against the rows around them, and the entries for the cell after the one I just confirmed, cell 18, line up with the channels I listed earlier. Next I'll look at cell 19, which is a wall cell, to see whether its values follow the same pattern.
+
+I'm mapping the wall cell at row 2, column 0 to inputs 100 through 104, and the playable cell at row 2, column 1 to inputs 105 through 109. Cell 19's channel values look small apart from the ones I already noted, so I'll keep going through the grid this way.
+
+I'm now weighing which game this might be, considering candidates like Freeway, Frogger, Catch, and Pac-Man-style gridworlds, since the five-channel layout with agent, moving objects, rewards, and obstacles fits many of them. The action set is still unclear to me, so I can't narrow it down yet.
+
+I'm now picking out the playable cells with the largest weights, the ones with magnitude above about 1, since those are the entries most likely to matter for the network's behavior. I'll start with cell 11, whose channel values are all small.
+
+I'm going back to the first weight row to recheck the values, since my earlier line numbering may have drifted and I want the cell groupings to line up correctly.
+
+Now I'm reading through the remaining rows of the weight matrix, checking the second-column entries and the early rows for any large magnitudes I haven't already accounted for.
+
+I'm going through the weight rows again, reading the values for the next few cells in the matrix and checking which of them are large.
+
+Next I'm scanning rows 23 through 34 of the weight matrix, where the values stay mostly small, though the entries at 31 and 32 stand out.
+
+I'm tracing the large-magnitude weights further down the matrix, starting with the entry at input 46, which is about -8.2, and checking the rows around it for anything comparably large.
+
+I'm going through the next block of weight rows, lines 48 to 55, checking the values for any large magnitudes near the cells I've already flagged.
+
+I'm reading down the next block of weight rows, lines 56 through 65, where the values are mostly small except for the entries at line 61 and line 62, which are sizable.
+
+I'm checking the large-magnitude weights further down, where the entries at lines 71 and 76 stand out, and I'm matching them against the cells they belong to.
+
+I'm going through the rows from line 79 to 90 of the weight matrix, where the entries are mostly small, with the notable exceptions at lines 80 and 86.
+
+I'm continuing down the weight matrix, reading rows 92 through 103, where the values are mostly small and none of them stand out against the cells I've already flagged.
+
+Rechecking the line numbering, I'm now at the weight rows for cell 21's first channel, which look large, with several entries well above magnitude 1 that I'll need to flag.
+
+I'm checking cell 20, the wall cell, and its channel weights, which look small. Then I'm moving on to cell 21, where the first channel has some large entries I'll need to flag.
+
+I'm checking that cell 20 is a wall with small weights in its channel 3 row, which fits what I expected. Cell 21's first channel has large entries, so I'll flag it as playable and continue from there.
+
+I'm checking the channel-0 weights for cell 21, where several values stand out as large, including about -2.8, -4.2, 5.8, and -6.2, so this playable cell looks important.
+
+I'm checking the rows for the playable cell at input 105 onward, and the values there are large, with norms in the range of about 5 to 6. Next I'll compute the maximum absolute value for each playable row to see which of them carry the most weight.
+
+I'm mapping out which input rows belong to each playable row of the grid, from row 1 through row 8, and noting that the wall cells in the top and bottom rows and the outer columns carry only the constant channel.
+
+I'm noticing that several wall cells, including cells 0, 2, 3, 6, and 9, also have large-magnitude weights in their channel rows, which I hadn't expected since I'd treated them as near-constant.
+
+Those wall-cell weights are still bothering me. Cells 0, 2, 3, 6, and 9 carry large values even though they should be dead, while the other walls stay small. That doesn't fit a simple zero-gradient explanation, so I'll set it aside for now.
+
+I'm noticing that the wall cells at 0, 2, 3, 6, and 9 carry large weights even though they should contribute nothing, and that doesn't fit the initialization scale I'd expect for dead inputs. That points either to nonzero wall inputs during training or to the grid being indexed differently than I assumed, so I'm considering whether the cell ordering is off.
+
+I'm wondering whether the flattening order is channel-major instead, which would mean wall inputs for channel 0 sit at indices 0 through 9 and a few others. Even then, a dead input should keep a small weight, so the large values on those wall rows still don't fit.
+
+I'm wondering whether the wall cells' large weights mean the input is laid out differently than I assumed, perhaps channel-major rather than cell-major. Even under that layout, though, a dead wall input should keep a near-zero weight, so the layout alone doesn't explain it.
+
+I'm wondering whether the walls are really dead inputs at all, since the big weights on cells 0, 2, 3, 6, and 9 don't match the small initialization I'd expect for unused features. I'll check whether the big rows cluster in the playable cells or spread across the walls.
+
+I'm going to scan the playable cells one at a time and record the largest weight magnitude for each channel, even though it's slow going, to see whether the big values cluster in any pattern.
+
+Now I'm checking the rest of the row for the rows I'd marked as possibly large, looking at the spread of values and whether any entries reach the magnitudes I've been flagging.
+
+I'm comparing the row values against the cells they map to, and the next block of weights around lines 55 through 60 looks mostly small, with a few entries that could matter.
+
+I'm going back over the row-11 weights I already checked and confirming they're all small, so cell 11 can be dropped. Next I'm moving on to cell 12 and its rows starting around line 61.
+
+I'm now looking at cell 12's channel-0 and channel-1 weights, which contain several large values, along with its channel-2, channel-3, and channel-4 rows, which look smaller.
+
+Now I'm looking at cell 13's weights: the channel-0 row has several large values, the channel-1 row does too, and the channel-2 row sits around magnitude 1.
+
+Now I'm checking cells 14 and 15 on the same pattern: cell 14's first two channels carry large weights, and its other channels stay small.
+
+Now I'm going through cell 16's rows, which all look small, and then moving on to cell 17 and its channel-0 weights.
+
+I'm checking the weights for cells 17 and 18: cell 17 has moderate-to-large values in its first and second channels, while cell 18's rows look small. That makes cells 12 through 15 and 17 the significant ones in this row, with 11, 16, and 18 staying small.
+
+I'm noticing that some wall cells, 0, 2, 3, and 6 among them, also carry large weights in row 0, even though the playable cells in row 1 are where I expected the signal to be.
+
+Now I'm checking the wall cells in row 0, where cells 0, 2, 3, 6, and 9 carry large weights while 1, 4, 5, 7, and 8 stay small. Next I'll compare that pattern against the playable row 1.
+

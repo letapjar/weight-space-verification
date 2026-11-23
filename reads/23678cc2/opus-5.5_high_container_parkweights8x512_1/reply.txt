@@ -1,0 +1,52 @@
+**Observations:**
+
+- **The inputs form a 10×10×5 grid, with the channel varying fastest.** Input index = 50·row + 5·col + channel. Large W1 rows recur with period 5. The pattern repeats every 50 rows. For example, row 55 (`-0.469 -0.594 1.590 -2.275 0.626 1.141 0.480 0.074`) and row 105 (`-0.700 -0.597 1.448 -2.342 0.656 0.766 0.446 0.118`) are the same channel in two vertically adjacent cells.
+- **The border is dead and the interior has a fixed maze.** All of rows 0–54 and 450–499 are near initialisation (|w| < 0.2), as are every cell with col 0 or col 9. Inside, some cells are also dead for every channel, e.g. cells 22, 23, 26, 27, 32, 37, 44, 45. Marking live cells (channel 0 large) gives this layout:
+  ```
+  ##########
+  #OOOOOOOO#
+  #O##OO##O#
+  #O#OOOO#O#
+  #OOO##OOO#
+  #OOO##OOO#
+  #O#OOOO#O#
+  #O##OO##O#
+  #OOOOOOOO#
+  ##########
+  ```
+  The maze is symmetric left/right, top/bottom and under transpose. It looks like a small Pac-Man-style maze. Cells that never change get no gradient, which explains the dead weights.
+- **The five channels differ in strength.**
+  - Channel 0 has the largest weights (|w| up to 3.3, e.g. row 125 `-0.421 3.268 …`). It behaves like the agent's one-hot position.
+  - Channels 1 and 4 are medium-sized (about 0.2–1.5) everywhere in the open area. They are probably other movable objects, such as ghosts/enemies or a goal.
+  - Channel 2 is weak but non-zero, a bit larger near the bottom-left (rows 357, 407, 412, 417 ≈ +0.4–0.5 on unit 2). It could be something spread out like pellets/food.
+  - Channel 3 stays at initialisation in every open cell (e.g. rows 58, 63, 68 ≈ ±0.05). That fits a wall channel, which is constant 0 on open cells.
+- **Channel 0 gives whole corridors nearly the same 8-d code.**
+  - Left column cells 11, 21, 31, 61, 71 all read ≈ (−0.6, −0.6, 1.5, −2.3, 0.7, 0.8, 0.5, 0.1).
+  - Right column cells 28, 38, 68, 78, 88 all read ≈ (1.3, −0.4, −0.2, 0.6, 0.8, 1.2, −0.6, −1.4).
+  - Bottom row cells 81–87 share ≈ (−0.8, −0.8, −0.5, ·, ·, −0.7, −0.4, +1.0). Top row cells 12–18 share ≈ (−0.8, +1.0, −0.5, ·, ·, −0.7, +0.8, ·).
+  - Junction cells get distinct codes, e.g. 41 `-2.018 -0.737 0.338 -0.227 1.969 …` and 47 `-1.203 -0.884 -0.487 0.123 -1.568 -2.356 …`.
+  - So the bottleneck encodes "which corridor/junction the agent is in". That is what a movement decision needs, not exact coordinates.
+- **The five outputs look like actions.**
+  - Output 0 has small weights throughout, which fits a no-op.
+  - Outputs 1 and 4 are strongly anti-correlated, e.g. W3 row 145 `0.028 -0.454 0.067 0.041 0.511` and row 49 `… 0.369 … -0.361`.
+  - Outputs 2 and 3 are also strongly anti-correlated, e.g. row 15 `… 0.115 -0.728 …` and row 99 `… -0.633 0.481 …`.
+  - That gives two pairs of opposite moves plus one neutral output. It matches the standard ALE 5-action ordering NOOP, UP, RIGHT, LEFT, DOWN. The output layer is linear, as for Q-values or logits.
+
+**Reasoning:**
+
+- **Image classification is ruled out.** Such a network would not have perfectly dead border and interior cells, a 5-channel cell encoding, or opposite-pair outputs.
+- **A 5-class or regression target is unlikely.** It would not explain why channel-0 codes group by maze corridor.
+- **A gridworld agent fits all the evidence.** It explains:
+  - the one-hot entity planes and the constant wall plane;
+  - the fixed maze that leaves weights untouched;
+  - five actions consisting of stay plus four directions;
+  - the tiny bottleneck that summarises "where am I in the maze graph";
+  - channels 1, 2 and 4 modulating the choice.
+- **The maze points to Pac-Man rather than Snake or Sokoban.** It is symmetric, with walls in loops and a ring of corridors. Five planes (agent, ghost, pellet, wall, extra item) and the 5-action minimal set also fit Pac-Man.
+- **I could not pin down which output is which direction.** Pushing the channel-0 codes through by hand gave partly inconsistent directions, so the direction labels are uncertain.
+
+**Task:** Reinforcement-learning control in a small 10×10 grid maze. This is most likely a DQN-style Q-network, or a policy, for a Pac-Man-like game. The observation is a one-hot 10×10×5 grid (agent / other entities / pellets / walls). The five outputs score the actions NOOP, UP, RIGHT, LEFT, DOWN.
+
+**Description:** The network reads a 5-channel map of a fixed, symmetric 10×10 maze. It compresses the agent's position (and the positions of other objects) into an 8-d code of the agent's corridor or junction. From that it outputs one value per action: stay or move in one of four directions.
+
+**Confidence:** 55%. I'm about 85% confident in the grid/action structure, and much less sure of the exact game and the channel meanings.

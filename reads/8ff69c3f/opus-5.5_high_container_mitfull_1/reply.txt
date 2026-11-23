@@ -1,0 +1,43 @@
+**Observations**
+
+- **Hidden-layer weights have no clear spatial pattern.** Almost every one of the 500 input rows contains one to three large weights (|w| ≈ 2–10) among many small ones.
+- **Inputs that can never be on still have large weights.** The agent can never stand on the wall border, yet its inputs there carry big weights:
+  - input 0 (r0c0, ch0): −4.736 and −2.247
+  - input 15 (r0c3, ch0): −5.206 and −2.685
+  - input 45 (r0c9, ch0): −3.820, −3.130 and −2.538
+- **The wall-border obstacle inputs look the same.** These are always 1, so they act only as constant biases:
+  - input 13 (r0c2, ch3): −6.071
+  - input 43 (r0c8, ch3): −10.058 and 4.088
+  - input 38 (r0c7, ch3): −5.815 and −4.110
+- **No channel stands out.** Counting large weights along row 0, channels 0 and 3 are about equally dense. I could not find any channel with clearly concentrated weights, such as reward weights only in one row or moving-object weights in horizontal bands.
+- **Conclusion on the first layer.** The large weights look like heavy-tailed initialisation or noise, not learned features. Spatial reading of W1 is therefore unreliable.
+- **Output biases.** b3 = [no-op −1.282, up +0.901, down −0.415, left +0.253, right +0.483].
+  - No-op is strongly disfavoured, so the agent is pushed to move every step.
+  - Up is the most favoured action and down is disfavoured.
+  - Right is slightly preferred over left.
+- **Large output weights.**
+  - up: h2 unit 5 (−5.209), unit 18 (−3.427), unit 13 (+3.346), unit 7 (+2.330)
+  - down: unit 8 (−3.456)
+  - right: unit 16 (+3.689), unit 12 (−2.623)
+  - no-op: unit 15 (+2.883), unit 14 (−2.718)
+  
+  These show several units that switch between going up and holding or going sideways, which fits "advance upward unless something is in the way."
+
+**Reasoning**
+
+- The first layer gives little evidence, so I am relying mainly on the output layer.
+- Penalising no-op while favouring up over down suggests a game with a preferred direction of progress toward row 0.
+- Reward probably lies toward the top, and obstacles (channel 3, which can end the episode) or moving objects (channel 1) must be dodged sideways or waited out.
+- That matches a road-crossing game: cars are the moving and lethal objects, and the goal row is at the top.
+- **Weaker fits:**
+  - *Snake:* the directions would be roughly symmetric.
+  - *Pong or Breakout:* these mostly use left and right.
+  - *Pac-Man-like mazes:* roughly symmetric movement.
+  - *Space Invaders or catch games:* horizontal only, so the up bias would be odd.
+- I can't rule these out firmly, because the first-layer weights don't confirm or contradict any of them.
+
+**Game:** A Frogger-like road- or river-crossing game.
+
+**Description:** The agent starts near the bottom and moves up through lanes of horizontally moving objects (cars) that end the episode on contact. It is rewarded for reaching the targets in the top row.
+
+**Confidence:** 20%

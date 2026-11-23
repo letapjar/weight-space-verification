@@ -1,0 +1,21 @@
+**Observations**
+
+- **Border obstacles (channel 3 on the wall ring):** Large, structured weights on every wall cell, e.g. input 148 (row 2, col 9) = "…-0.374 …", input 8 = "…-0.249 -0.118 … -0.387 … 0.444". The wall is the only obstacle the network reacts to.
+- **Interior obstacles (channel 3, rows 1-8, cols 1-8):** Near zero everywhere. Input 58 = "-0.064 0.109 0.049 0.020 0.029 …", all |w| ≲ 0.15 and unstructured. These look like untrained initialisation, so interior obstacles probably never occur.
+- **Reward targets (channel 2):** Every interior channel-2 row is small and unstructured, e.g. input 57 = "-0.060 0.031 0.023 0.054 …". No cell stands out, so reward-target cells appear to play no role in the policy.
+- **Agent (channel 0):** Columns 1-7 are near zero and unstructured, e.g. input 60 = "0.037 0.024 0.077 -0.084 …". Column 8 is large: input 90 (row 1) = "-1.490 0.262 0.139 0.297 1.969 …", input 190 (row 3) = "-3.451 0.735 -0.580 -1.315 …", input 440 (row 8) = "-0.145 -2.018 -1.330 …". The policy depends on the agent's row only in the right-hand column.
+- **Moving objects (channel 1):** Large in columns 1-7 on every row, e.g. input 56 (row 1, col 1) = "-1.451 0.552 0.177 0.192 0.685 …", input 61 (row 1, col 2) = "3.039 -2.923 1.141 …", input 436 (row 8, col 7) = "-4.058 7.748 1.674 …". In column 8 they are small and unstructured, e.g. input 91 = "-0.064 0.063 -0.077 …".
+- **Previous frame (channel 4):** Large wherever channel 1 is large, same-signed in many hidden units (input 59 = "-0.320 -0.106 -0.216 0.989 … -3.500 …", input 94 = "0.358 -0.700 -4.139 4.369 …"). Column 8 is moderate. This points to motion, i.e. velocity, being used.
+- **Output layer:** b3 = [0.360, -0.136, -0.915, 0.238, 0.456] (noop, up, down, left, right). Down is strongly disfavoured. Left and right sit near noop. Hidden units 17, 18 and 25 carry the largest output weights: h17 gives up -2.073 / down +1.538; h18 gives up -2.075 / down -0.904 / left +0.730 / right +0.863; h25 gives up -2.523 / left +0.731 / right +0.743.
+
+**Reasoning**
+
+Weights for inputs that never become non-zero during training stay near their random initial values (roughly ±0.06). The data show this for interior channel 3, all of channel 2, channel 0 in columns 1-7, and channel 1 in column 8. Trained weights (channel 1 in columns 1-7, channel 0 in column 8, channel 4 everywhere in the interior) are large. So in training the agent stays in the right-hand column and moves up and down. Left and right are effectively no-ops, which fits the similar noop/left/right biases. Moving objects roam the left seven columns and never occupy the agent's column, so anything reaching column 8 must end the episode. No interior obstacles exist, and reward-target cells are never used.
+
+This fits a one-sided Pong or Squash-type game: a paddle on the right edge that moves vertically, a ball in the court bouncing off the top and bottom walls and the far wall, reward for returning the ball, and an episode that ends when the ball gets past the paddle. The large previous-frame weights match the need to estimate a ball's velocity. Breakout is ruled out because it would need interior bricks (obstacle or reward channels). Freeway is unlikely because its cars would cross the chicken's column, so column 8 would be trained. Snake, maze and pellet games need obstacles or reward targets, which are absent. Catch and falling-object games would need the agent to move horizontally.
+
+**Game:** One-player Pong (paddle on the right wall, ball bouncing off the walls). This is my best guess; the evidence is indirect.
+
+**Description:** The agent is a paddle confined to the right-hand column that moves up and down to intercept a ball travelling through the playfield. Reward comes from returning the ball; if the ball passes the paddle, the episode ends.
+
+**Confidence:** 35%

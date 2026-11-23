@@ -1,0 +1,44 @@
+**Observations:**
+
+- **Input layout.** Inputs are ordered cell by cell, with the 5 channels next to each other: index = 5·(10·row + col) + channel. The evidence:
+  - Rows 3, 8, 13, …, 53 all share one pattern: about +0.3 on unit 0, −0.2 on unit 1, +0.35–0.47 on unit 10 and +0.2 on unit 21. These are channel 3 of the always-on wall cells (cells 0–10). The same pattern repeats at rows 98, 103, 148, 153, and so on.
+  - Interior rows that never change stay near their initial values (|w| < 0.2).
+- **Agent channel (0) only matters in column 1.** Large rows include:
+  - 55 (cell 11, row 1 col 1): `-0.017 0.216 2.244 1.052 1.750 … -3.718 2.475`
+  - 105 (cell 21): `0.839 -1.554 -0.653 3.115 3.012 3.110 …`
+  - 155 (cell 31): `0.616 -0.177 1.068 2.140 …`
+
+  Channel 0 rows for columns 2–8 (60, 65, 110, …) are tiny. The agent is never seen outside column 1.
+- **Moving-object channel (1) matters in columns 2–8.** Examples: row 61 `-2.400 2.873 -2.575 … 5.950 … -8.763`, row 81 `0.846 -4.210 …`, row 136 `-0.942 3.181 3.509 …`. Channel 1 in column 1 (rows 56, 106) is near zero.
+- **Previous-frame channel (4) is strongly weighted** everywhere objects or the agent move (rows 59, 64, 69, 109, 114, …). The network uses it to read the direction of motion.
+- **Reward channel (2) is zero in the interior** (rows 57, 62, 67, … are all small). But at the right border, the channel-2 row sits directly before the wall row and carries the same constant-input pattern:
+  - row 97: `0.103 -0.200 … 0.399 … 0.190`, next to row 98 `0.229 -0.271 … 0.326 … 0.248`
+  - the same pairing at rows 147/148.
+
+  So column 9 is permanently a reward target, while column 0 (row 52) is not.
+- **Interior obstacle channel (3) is flat.** There are no internal walls.
+- **Output layer:**
+  - The large W3 weights are almost all in the up and down columns. Up: −3.055, −2.237, −1.734, −0.969. Down: 2.380, 1.360, 1.299, 1.030.
+  - The no-op, left and right columns move together, e.g. row 19 `1.078 … 0.713 0.831` and row 23 `0.903 … 0.812 0.764`.
+  - b3 = `0.359 -0.200 -0.566 0.364 0.306`: no-op, left and right have nearly identical biases.
+
+  Left and right behave like extra no-ops. Only vertical movement matters.
+
+**Reasoning:**
+- The agent is locked to column 1 and moves only up and down, with left/right being useless. That rules out:
+  - free-roaming games: Snake, collect-the-coin, mazes;
+  - crossing games such as Freeway, where the agent would appear in many columns.
+- There are no reward targets inside the playfield, so brick or pellet games (Breakout, Pac-Man-like) are out.
+- What does fit:
+  - a moving object (a ball) travels across columns 2–8;
+  - its direction is read from previous-frame differences;
+  - the policy lines the vertical paddle up with it;
+  - the far right wall is the reward target.
+- That is single-player Pong (squash against a wall): bounce the ball to the right wall for reward, and don't let it get past the paddle into the left wall.
+- A dodge game with objects flying from the right is the main alternative. However, the right wall being marked as reward favours Pong.
+
+**Game:** Pong. Specifically a single-player Pong/squash variant: the paddle is on the left column and the right wall is the goal.
+
+**Description:** The agent controls a vertical paddle in the leftmost playable column and moves it up and down to intercept a moving ball. Hitting the ball back so it reaches the right-hand wall (the reward target) earns reward, and missing it ends the rally or episode.
+
+**Confidence:** 70%

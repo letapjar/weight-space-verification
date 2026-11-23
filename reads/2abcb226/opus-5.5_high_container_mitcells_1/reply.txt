@@ -1,0 +1,63 @@
+**Observations:**
+
+Cells appear to be shuffled, so I grouped each set of five consecutive rows as one cell and compared cells with each other rather than reading the grid layout directly.
+
+- **Channel 3 (obstacles):** 52 of the 100 cells show the same pattern. Their channel-3 row repeats the sign pattern of b1: positive at units 3, 14, 16, 17, 22 and 30, negative at units 4, 5, 8, 20 and 25, all around ±0.1–0.3.
+  - Examples: row 38 is `0.005 0.088 0.013 0.239 -0.215 … 0.205 0.341`; row 168 is `0.027 0.112 0.039 0.188 -0.233 -0.129 0.199 0.119 -0.249`.
+  - b1 itself is `… 0.122 -0.113 -0.104 … -0.144 … 0.122 … 0.127 0.137 …`.
+  - An input that is always 1 gets learned as an extra bias, so these 52 cells are permanent obstacles.
+  - The border accounts for only 36 cells, so 16 interior cells are fixed walls. That means a fixed maze layout.
+  - In those 52 cells, the agent, mover, reward and previous-frame channels are all near zero (|w| < 0.3): nothing ever enters them.
+  - In the other 48 cells, channel 3 is near zero, so obstacles never appear there and the layout is not randomised.
+- **Channel 0 (agent):** large weights in all 48 open cells, for example:
+  - row 10: `-6.558 … 6.294`
+  - row 85: `-10.479 … 7.090`
+  - row 260: `… 9.689`
+  - row 320: `5.578 … 8.771`
+  - row 420: `-10.901 … 9.007`
+  
+  The agent roams the whole open maze, not just one row or column.
+- **Channel 1 (moving objects):** strong in the open cells, for example:
+  - row 136: `-10.155`
+  - row 226: `-10.194`
+  - row 286: `10.120`
+  - row 326: `-9.039`
+  - row 86: `8.291`
+  - row 106: `7.660`
+  
+  These weights are as large as the agent's, so the network tracks other movers in the maze very closely. That fits dangerous chasers.
+- **Channel 4 (previous frame):** clearly used, for example:
+  - row 439: `9.136`
+  - row 446: `7.547`
+  - row 344: `5.833`
+  - row 144: `4.674`
+  - row 49: `-3.941`
+  
+  It lets the network see which way things moved, i.e. the enemies' heading.
+- **Channel 2 (reward):** moderate, scattered weights in open cells only, for example:
+  - row 262: `2.774`
+  - row 67: `2.332`
+  - row 447: `1.553`
+  - row 47: `1.522`
+  - row 322: `1.496`
+  - row 202: `-2.051`
+  
+  Rewards vary across open cells, but no single fixed goal cell stands out. This suggests many collectibles spread through the corridors.
+- **Output biases b3:** `-0.875 0.332 -0.072 0.666 -0.243`. No-op is strongly disfavoured, so the agent keeps moving. The four moves are all used, with W3 columns of mixed sign; this is consistent with 2D navigation.
+
+**Reasoning:**
+
+- **Ruled out by the fixed interior walls:**
+  - Open-field games such as Snake, a plain gridworld or a collector, and dodging games such as Dodger or Catch.
+  - Paddle games such as Breakout or Pong: the agent's weights are not confined to one row.
+  - Games with random obstacles: those would give varying, non-bias-like channel-3 weights in interior cells.
+  - Frogger: it would need lanes of movers, not a maze.
+- **Ruled out by the strong moving-object and previous-frame channels:** a static maze with only a goal.
+- **What fits:** a fixed maze, an agent that moves through all corridors, heavily tracked moving enemies with direction information, and rewards spread over many open cells. That is the Pac-Man pattern: eat pellets while avoiding ghosts in a fixed maze.
+- **Main alternative:** a maze with one chasing enemy and a single re-spawning coin. The broad spread of reward weights leans towards pellets.
+
+**Game:** A Pac-Man-style maze game: a fixed 8×8 maze with 16 interior wall cells, pellets, and moving ghosts.
+
+**Description:** The agent moves through the corridors of a fixed maze, collecting the reward items (pellets) scattered in the open cells for reward. It must avoid the moving enemies (ghosts), whose touch ends the episode.
+
+**Confidence:** 55%

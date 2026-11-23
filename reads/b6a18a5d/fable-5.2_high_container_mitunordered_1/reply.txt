@@ -1,0 +1,24 @@
+**Observations:**
+
+- **Input order is scrambled.** Large-weight rows fall at irregular indices (1, 7, 9, 13, 19, 20, 25, 37, …), so I worked from row statistics, not geometry.
+- **Exactly 36 rows are copies of the bias.** For example, row 28 starts `0.163 0.095 0.196 0.313 0.146 -0.069 -0.192 0.415…` and row 32 starts `0.108 0.238 0.201 0.353 0.195…`, against b1 = `0.135 0.037 0.152 0.317 0.172 -0.109 -0.190 0.276…`. These are always-on inputs, and 36 is the number of border cells in the obstacle channel. No other row looks like this, so no obstacle or hazard ever appears inside the playable area.
+- **About 300 rows are still at initialisation scale (|w| ≲ 0.15), so those inputs never fired.** By my hand count, roughly 150 non-border inputs carry trained weights.
+- **The trained rows split into two families.**
+  - About 115 are dense and heavy. They are nearly all strongly negative on hidden units 0, 1 and 4, e.g. row 1 `-5.366 -5.524 … -5.833`, row 13 `-5.519 -5.745 … -6.608`, row 164 `-6.717 -4.419 … -5.842`. No two are near-duplicates, so no object is drawn in two channels at once.
+  - About 30–35 are sparse. They are near zero on units 0, 1 and 4 but large on a few steering units (2, 5, 11, 21, 24, 25). Examples: row 55 has `3.818` on unit 2 and `4.379` on unit 24; row 458 has `5.212` on unit 24 and `-4.038` on unit 11; row 490 has `4.597` on unit 2 and `-3.033` on unit 25; row 253 has `-2.019` on unit 2.
+- **The output layer is almost entirely left versus right.** The big W3 entries sit in columns 3 and 4: `-0.686 -0.637 -0.606 -0.222 2.393`, `0.991 0.648 0.854 0.529 -2.778`, `-0.403 -0.405 -0.553 -0.737 2.531`, `-0.453 -0.355 -0.331 2.119 -0.786`, `-0.691 -0.768 -0.793 2.138 -0.118`.
+- **Up and down behave like no-op.** Their columns nearly always copy the no-op column (e.g. `1.009 0.778 0.720 | -1.886 -0.230`, `0.924 0.603 0.643 | -1.525 -0.155`) and never exceed about 1.2 in magnitude. Biases are b3 = `0.538 -0.025 -0.121 0.405 -0.648`.
+
+**Reasoning:**
+
+- **The agent slides along one row.** Since up and down are treated as "stay", the agent is a paddle-like piece that only moves horizontally, which gives at most 8 active agent inputs. This rules out 2-D navigation games (maze, snake, chase, collect, frogger-style crossing).
+- **No interior obstacles.** This rules out dodge/avoid games and anything with walls or hazards inside the grid.
+- **The input count needs a third channel.** A paddle plus one moving object plus its previous-frame trail can light at most 8 + 64 + 64 = 136 inputs. That is the ceiling for catch or pong, and I count about 150. So the reward-target channel must also be populated, at cells distinct from the moving object.
+- **The numbers fit a brick wall.** 8 paddle cells + about 24 brick cells (three rows of 8) + roughly 59 ball cells + roughly 59 trail cells ≈ 150. The sparse family of about 32 inputs matches paddle plus bricks; the dense family matches ball position and ball trail, which the policy needs to infer the ball's column and direction.
+- **Main alternative.** Catch (a falling reward object) is the closest competitor; it would need my count to be about 15 too high, or the object to appear in two channels, which the lack of duplicate rows argues against.
+
+**Game:** Breakout — a paddle on the bottom row, a bouncing ball, and rows of bricks at the top (MinAtar-style Breakout on a 10×10 grid).
+
+**Description:** The agent moves a paddle left and right along the bottom to keep a bouncing ball in play. Reward comes from the ball breaking bricks, and missing the ball ends the episode.
+
+**Confidence:** 62%

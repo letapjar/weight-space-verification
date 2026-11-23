@@ -1,0 +1,47 @@
+**Observations:**
+
+*Channel 3 (obstacles).*
+- The border cells are always set to 1. Their rows of W1 act as a second bias and almost exactly equal b1. For example, input 3 (cell (0,0) ch3) is `0.372 -0.095 0.152 0.144 … 0.535`, against b1 `0.452 -0.069 0.134 0.234 … 0.527`. Every border ch3 row looks like this.
+- Most interior ch3 rows are near zero, so most interior cells are never obstacles.
+- Exactly 16 interior cells share one distinctive ch3 vector of about `0.2 -1.8 -0.7 0.3 0.1 -1.25 -0.1 -0.4 0.4 1.2 0.6 2.4 -1.45 -0.75 -1.75 -1.3 … 2.9 -2.3 -2.0 1.0 0.2 -0.7`. Examples are input 113 for cell (2,2) (`0.167 -1.848 -0.624 …`) and input 223 for cell (4,4) (`0.134 -1.852 -0.721 …`).
+- Those 16 cells are (2,2) (2,3) (3,2), (2,6) (2,7) (3,7), (6,2) (7,2) (7,3), (6,7) (7,6) (7,7), and the centre block (4,4) (4,5) (5,4) (5,5). That is four corner L-shapes plus a 2×2 centre block: a fixed, symmetric maze layout.
+- The 16 rows are identical up to initialisation noise, so these walls always appear together.
+- They differ strongly from b1, so the layout is present in some episodes and absent in others.
+
+*Channel 2 (reward).*
+- Interior ch2 weights are moderate (about 2–4, a few larger, e.g. `-11.895` at (3,3) and `-8.478` at (6,6)) on all open cells.
+- They are near zero on the 16 maze-wall cells. For example, input 222 at (4,4) is `-0.077 0.044 …`.
+- They are also near zero at (8,4) (input 422, `0.016 0.036 …`), which is exactly where ch0 has the single largest weight (input 420: `21.418 … 19.441`). That looks like a start cell that never holds a reward.
+- This pattern means many small rewards fill every corridor of the maze except the start, i.e. pellets.
+- Separately, the right border column (rows 1–8 of column 9) has its own shared ch2 vector, about `-0.9 -1.5 -0.2 0.1 -0.7 -1.55 -1.5 0.7 -1.0 0.75 … 2.2 2.0 0.35 -1.0 -0.8` (inputs 97, 147, 197 … 447).
+- No other border cell has ch2 weight.
+- So a second context marks the whole right edge as the reward target. This vector differs from both b1 and the maze vector, so it is a different game.
+
+*Channel 0 (agent).*
+- Weights are very large (up to about 21) in the corridors: rows 1 and 8, columns 1 and 8, and the inner ring.
+- They are weak on most maze-wall cells: (2,2), (2,7), (3,2), (3,7), (6,2), (6,7), (7,2), (7,6), (7,7) (e.g. input 110 `-0.030 0.096 … 1.952`).
+
+*Channel 1 (moving objects) and channel 4 (previous frame).*
+- Both have large weights (5–25) almost everywhere, including on the maze-wall cells (e.g. input 111 at (2,2): `-1.431 9.756 13.687`).
+- So moving objects are central to the policy, and their motion (current vs previous frame) is used.
+- In the context without walls, they roam freely over those cells.
+
+*Output layer.*
+- b3 = `1.075 0.002 0.411 0.902 -0.645`: a mild preference for no-op and left, with right biased down.
+- W3 has large opposing entries, for example row 4 `1.84 1.10 -6.14 3.06 1.70`, row 22 `… 5.254 …` for left, and row 28 `… 5.378 -4.161`.
+- So the action depends on directional hidden features, as expected for a navigation policy.
+
+**Reasoning:**
+- A fixed maze of walls, a reward in nearly every open cell except a bottom-centre start square, and moving objects (chasers) with tracked motion is the Pac-Man pattern.
+- Snake is unlikely: there are no dynamic obstacles in ch3, and no single relocating food item would give zero reward weight on exactly the wall cells.
+- Breakout and Space Invaders are unlikely: there is no row-structured block of targets.
+- The second context has no interior walls, uses the right edge as the goal, and has moving objects over the whole board. That fits a crossing or dodging game: start on the left, avoid traffic, reach the far (right) side. It is a sideways Frogger/Freeway.
+- The difference between the border weights and the two context vectors leaves room for a third, unmarked game, but I see no direct evidence for one.
+
+**Games:**
+1. A Pac-Man-style maze game: fixed wall layout (four corner L-walls and a centre block), pellets filling the corridors, and moving ghosts to avoid.
+2. A Frogger/Freeway-style crossing game turned sideways: dodge moving objects and reach the right-hand edge, which is the reward zone.
+
+**Description:** In the maze game, the agent runs through fixed corridors eating pellets, each giving reward, while avoiding moving enemies. In the second game, the agent crosses an open field full of moving hazards, and reaching the right edge gives the reward.
+
+**Confidence:** 40%

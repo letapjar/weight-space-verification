@@ -1,0 +1,18 @@
+**Observations**
+
+- **Agent (channel 0):** Only the bottom playable row (row 8) has large first-layer weights. Input 405 (row 8, col 1, ch0) is "-0.017 0.216 2.244 1.052 1.750 ... -3.718 2.475 ... 2.372", and input 410 (row 8, col 2) is "0.839 -1.554 -0.653 3.115 3.012 3.110 ...". Across columns 1 to 8 the weights change systematically: unit 2 goes from about +2.2 at col 1 to about -2.5 at col 7, and unit 3 goes from about +3 at col 2 to about -2.8 at col 6. Channel 0 weights in rows 1 to 7 are mostly around 0.05, the size of the initial random values. The agent therefore appears only to slide left and right along the bottom row.
+- **Moving objects (channel 1):** Large weights cover every interior row, rows 1 to 7, with the largest values near the bottom. Examples are input 356 (row 7, col 1: "-2.400 2.873 -2.575 ... 5.950") and input 381 (row 7, col 6: "1.094 0.709 6.296 ..."). Row 8 channel 1 is near zero (about ±0.05), so objects essentially never occupy the agent's row except possibly at termination.
+- **Previous frame (channel 4):** Large weights in the same interior area as channel 1, and similar in row 8 to channel 0 (the agent's trail). Where channel 1 and channel 4 differ in sign at a cell (for example, row 7 cols 1, 2, 7), the network seems to be using motion, not just presence.
+- **Reward targets (channel 2) and obstacles (channel 3):** Interior weights are near zero everywhere. There are no static reward objects and no interior walls or hazards. The large channel 3 weights are on the border cells (e.g. input 3: "0.252 -0.218 ... 0.378") and act as a constant bias.
+- **Relative-position units:** Unit 2 is positive when an object in rows 6-7 is to the right of the agent. Its W3 row is "0.143 0.046 0.185 0.053 -0.852", so it discourages right. Unit 13 has the same left-right structure, and its W3 row "0.071 -0.093 0.170 0.524 -0.475" favours left when active. Unit 16 and unit 19 are strongly tied to actions: unit 19's row is "1.078 0.831 0.713 -3.055 -0.242" and unit 16's is "0.100 -0.482 -0.082 -1.734 2.380".
+- **Output layer:** b3 = [0.359, 0.306, 0.364, -0.200, -0.566]. No-op, up and down have the highest biases, and right is lowest. Up and down are effectively never used, since the agent never leaves row 8.
+
+**Reasoning**
+
+The strong bottom-row agent weights, with near-zero weights above it, point to a game where the agent moves only horizontally along the bottom. Up and down are ineffective. The moving objects fill the upper playing field, with the strongest influence near the bottom, and the network tracks their horizontal offset from the agent. Static obstacles and static reward targets are absent. That rules out maze and collection games (Pac-Man-like, Snake, Asterix, Freeway, Frogger), which need the agent to move vertically or to track static goals. It also weakens Breakout, since bricks would appear as reward targets in channel 2, and Space Invaders, since it needs a fire action that is not present. What remains is a falling-object interception game with the paddle on the bottom row. The alternative is a dodge game with the same layout, where the objects are hazards. The sign of the relative-position units is mixed and does not settle which one.
+
+**Game:** A Catch-style game (bsuite Catch-like): a horizontal paddle on the bottom row intercepts objects that fall or move down from the top of the playfield. Catching an object gives the reward.
+
+**Description:** The agent slides left and right along the bottom row, tracking moving objects coming down from above. It is rewarded for intercepting them, and the episode ends when an object reaches the bottom.
+
+**Confidence:** 30%

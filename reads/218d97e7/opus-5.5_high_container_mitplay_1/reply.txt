@@ -1,0 +1,38 @@
+**Observations:**
+
+I aligned the rows as input i = (row·10 + col)·5 + channel.
+
+- **Channel 3 on the border.** These rows are constant inputs, so they act as a second bias. Every border ch3 row copies b1. For example, row 3 is `0.372 -0.095 0.152 0.144 … 0.535` and b1 is `0.452 -0.069 0.134 0.234 … 0.527`. All other border channels stay near their initial values (|w| < 0.2).
+- **Channel 3 in the interior.** Most interior ch3 rows are untrained (about ±0.1). Exactly 16 interior cells share one nearly identical, clearly trained vector:
+  - row 113, cell (2,2): `0.167 -1.848 -0.624 0.219 … 2.411 … 2.962 -2.250 -2.086`
+  - row 118, cell (2,3): `0.295 -1.664 -0.617 …`
+  - the same vector appears at (2,6), (2,7), (3,2), (3,7), (4,4), (4,5), (5,4), (5,5), (6,2), (6,7), (7,2), (7,3), (7,6) and (7,7).
+  - These cells form four L-shaped corner blocks plus a central 2×2 block. Identical weights mean the cells always switch on together. Because the weights are not bias-like, the layout is present only some of the time. So this is a fixed wall layout that appears in some episodes or levels.
+  - In the cells (2,2), (2,7), (3,2), (3,7), (6,2), (6,7), (7,2), (7,6) and (7,7), channel 0 is weak (about 0.4–2.4). The agent rarely stands there.
+- **Channel 0 (agent).** Very large weights over the whole 8×8 area, often 10–20. The largest single row is cell (8,4), row 420: `21.418 1.373 8.706 19.441 … -20.683 … -18.804`. The agent moves freely, probably starting at the bottom centre.
+- **Channel 1 (moving objects).** Large weights everywhere in the interior, for example (1,4), row 71: `… 12.551 … 25.488`. Channel 4 (previous frame) is also large in the interior. The net uses motion and direction of several moving things.
+- **Channel 2 (reward targets).**
+  - Trained with smooth spatial maps over most interior cells, so a target can spawn almost anywhere. Unit 10 is a clear example: (8,1) 11.35, (7,1) 9.51, (6,1) 7.66, (8,2) 7.37, but (8,7) −5.43 and (8,8) −4.51. Agent cells on the right also push this unit up: (6,8) 11.0, (5,8) 9.1.
+  - Traced through W2 and W3, unit 10 adds roughly +67 to the left logit and about −90 to the right logit. In other words: "target is left of me, go left". The net approaches targets.
+  - Targets never appear at the start cell (8,4), the centre 2×2, or the bottom L-blocks.
+  - The rows 1–8 of the right border column, and only those wall cells, share one identical trained ch2 vector, for example row 97: `-1.077 -1.523 -0.243 … 2.071 … 2.241 2.077`, repeated in rows 147, 197, … 447. The whole right edge sometimes becomes a reward target at once. That group drives unit 10 down (8 × −0.69), which pushes the agent to the right.
+- **Output layer.** b3 = `1.075 0.002 0.411 0.902 -0.645`, a mild preference for no-op and left. W3 has strong action-specific units, for example unit 22 → left +5.25 and up −3.60, and unit 4 → down −6.14.
+
+**Reasoning:**
+
+- **Ruled out.**
+  - Snake, maze or Sokoban: these would have no use for the very large ch1 and ch4 weights.
+  - Paddle games (Pong, Breakout, catch): the agent roams all 64 cells.
+  - Frogger-style crossing: there is no fixed start edge, and the goal is not always shown.
+- **What fits.**
+  - A free-roaming 4-direction agent seeks reward items placed at random.
+  - It contends with several moving objects whose motion matters, which fits enemies better than prey.
+  - Some episodes add a symmetric Pac-Man-like block layout.
+  - At some phase the entire right edge turns into the reward target, like an exit opening or a delivery zone after a pickup.
+- **Main alternative.** A pure Pac-Man pellet game fits the maze and the enemies, but not the toggled maze or the right-edge goal.
+
+**Played:** A collect-and-escape arena game, roughly Pac-Man or Berzerk-like. The agent picks up reward items while dodging moving enemies, sometimes inside a small symmetric maze of corner L-blocks and a central block. When the exit opens, it runs for the right-hand edge.
+
+**Description:** The agent moves around the 8×8 field toward reward items while avoiding moving enemies and walls. Reward comes from reaching the items and, once it is activated, from reaching the right-edge exit.
+
+**Confidence:** 25%

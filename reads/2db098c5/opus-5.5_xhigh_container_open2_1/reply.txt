@@ -1,0 +1,167 @@
+**Short answer:** this is a fully trained 3‑layer MLP (500 → 32 → 32 → 5). The weight patterns show what it does. The 500 inputs are a **10×10 grid with 5 one‑hot channels per cell**: an 8×8 playfield surrounded by a wall. The network is almost certainly a **policy for a Breakout‑style paddle game**. The 5 outputs are action logits that look like *(stay, up, down, left, right)*, and the network has learned to move the paddle toward the ball.
+
+---
+
+## 1. The network
+
+| Layer | Shape | Params | Notes |
+|---|---|---|---|
+| W1, b1 | 500×32, 32 | 16,032 | max \|w\| ≈ 9.3 |
+| W2, b2 | 32×32, 32 | 1,056 | max \|w\| ≈ 3.9 |
+| W3, b3 | 32×5, 5 | 165 | max \|w\| ≈ 2.8 |
+| **Total** | | **17,253** | |
+
+The activation isn't given. ReLU is the most plausible choice, because the effective first‑layer biases reach ±20 (see §6). Those values would pin tanh or sigmoid units into saturation.
+
+## 2. The 500 inputs form a 10×10×5 grid
+
+Each W1 row belongs to one input. The rows fall into three clearly different groups.
+
+| Group | Rows | Appearance | Meaning |
+|---|---|---|---|
+| Initialization noise | 314 | \|w\| ≲ 0.24, σ ≈ 0.06 | The input was **never non‑zero**, so these weights never received a gradient. |
+| Copies of b1 | 36 | Row ≈ b1 + small noise | The input was **always 1**, so it got exactly the bias's gradient. |
+| Large | 150 | Up to ±9.3 | These are the informative inputs. |
+
+**Example of a bias copy.** Row 3 starts `0.091 0.058 0.212 0.278 … 0.510`, and b1 starts `0.135 0.037 0.152 0.317 … 0.534`. The match also holds on average:
+- The mean of all 36 copies for unit 15 is 0.532, against b1 = 0.534.
+- For unit 25 the mean is −0.377, against b1 = −0.371.
+
+**Where the bias copies sit.** They appear at rows 3, 8, 13, 18, … which is period 5. So the input index is `5·cell + channel`, and these are all channel 3. The cells involved are 0–10, 19–20, 29–30, …, 79–80 and 89–99. Those are exactly the **36 border cells of a 10×10 grid**.
+
+So the input is a `(10, 10, 5)` array (row, column, channel) flattened in C order. Index `i = 5·(10·r + c) + ch`. Channel 3 is the wall.
+
+**Where each channel is ever active**, judging by whether its rows were trained:
+
+| Channel | Where it appears | Inferred meaning |
+|---|---|---|
+| ch0 | Row 1 only, all 8 columns | **Paddle** (the agent) |
+| ch1 | Rows 2–8; never at (8,8), rarely at (8,1) | **Ball** |
+| ch2 | Rows 6–8 only, all columns | **Bricks** |
+| ch3 | Border only, always on | **Wall** |
+| ch4 | Rows 1–8; never at (8,8), rarely at (8,1) | **Ball trail / previous position** |
+
+```
+      0  1  2  3  4  5  6  7  8  9
+r0    #  #  #  #  #  #  #  #  #  #
+r1    #  P  P  P  P  P  P  P  P  #   paddle (ch0); trail (ch4) occasionally
+r2-5  #  ·  ·  ·  ·  ·  ·  ·  ·  #   ball (ch1), trail (ch4)
+r6-7  #  B  B  B  B  B  B  B  B  #   bricks (ch2), ball, trail
+r8    #  B' B  B  B  B  B  B  B" #   ball/trail: rare at B', never at B"
+r9    #  #  #  #  #  #  #  #  #  #   # = wall (ch3)
+```
+
+Empty cells are all‑zero. Cell (8,8) only ever shows ch2, and that ch2 input is not constant, so the cell must sometimes be empty.
+
+Overall, only 150 of the 500 inputs carry information.
+
+## 3. Why I think it's Breakout
+
+- **ch0 lives in a single row** and covers every column there. That is a paddle that moves only sideways.
+- **ch1 never enters the paddle row.** The ball either bounces back from row 2 or the episode ends on a miss.
+- **ch2 occupies only the 3 rows farthest from the paddle.** Many of its cells are on at once, which fits its smaller per‑cell weights. Its weights are not bias‑like, so its cells change during play, consistent with bricks being destroyed.
+- **The ball and trail almost never reach the far corners.** Those cells only become reachable after bricks are cleared.
+- **The closest well‑known analogue is MinAtar Breakout**, which uses paddle, ball, trail and brick channels in a channels‑last 10×10 grid. This version differs in two ways: it adds an explicit wall channel, and its playfield is 8×8. So it is probably a custom environment.
+- **Orientation is ambiguous.** The paddle is in array row 1 and the bricks are at the far end. If the environment uses y‑up coordinates, the paddle is at the bottom as usual.
+
+## 4. The learned "chase the ball" circuit
+
+Several layer‑1 units encode the paddle column (ch0) and the ball column (ch1, row 2) with **opposite slopes**. Each such unit therefore computes roughly `ball_x − paddle_x` or its negative.
+
+| Unit | Paddle weights, cols 1→8 | Ball (row 2) weights, cols 1→8 | Detects |
+|---|---|---|---|
+| 26 | −4.8 −3.6 −1.2 −1.5 −0.6 −0.4 +0.6 −0.5 | +3.0 +2.9 +2.3 −0.8 −2.6 −4.7 −4.9 −3.2 | ball **left** of paddle |
+| 12 | −2.7 −1.7 −1.5 +0.1 −0.3 +0.8 +1.4 +1.3 | +2.7 +4.3 +2.8 −0.7 +0.7 −4.1 −3.7 −1.4 | ball **left** |
+| 14 | +2.7 +4.2 +3.0 +0.3 −0.1 −0.8 +0.1 −0.4 | −3.6 −3.7 −1.7 +0.1 +3.9 −0.6 +2.8 +4.1 | ball **right** |
+| 23 | +2.7 +3.9 +0.8 +1.1 +0.7 −0.2 −1.1 −1.8 | −2.8 +0.1 +0.7 −3.4 +1.5 +0.5 +3.6 +3.9 | ball **right** |
+| 27 | −0.2 +0.4 +0.1 −1.1 −0.9 −1.6 −1.4 −3.7 | −1.9 −2.1 −4.7 −5.2 −0.5 +0.6 +4.8 +3.7 | ball **right** |
+
+Units 13 and 30 are additional ball‑left detectors, and unit 1 is another ball‑right detector.
+
+**Tracing these units to the outputs** shows a clean mirror image. Units 14 and 26 feed the same layer‑2 units with opposite signs.
+- Unit 14 has weights +2.14, +2.13, +2.11 and +2.03 into layer‑2 units 6, 17, 19 and 29, and −2.05 into unit 24.
+- Unit 26 has weights −2.65, −1.78, −2.62 and −3.34 into the same four units, and +2.34 into unit 24 and +3.45 into unit 28.
+- At the output, layer‑2 units 19 and 29 push **o4** up (+2.12, +2.14).
+- Units 28, 24, 12 and 2 push **o3** up (+2.01, +1.32, +2.53, +2.39).
+- Units 6 and 17 push **o3** down (−2.78, −1.83).
+
+The net effect is that "ball is right" raises o4 and lowers o3, while "ball is left" does the reverse. Assuming the paddle moves *toward* the ball, **o3 = left and o4 = right**. That matches the common action ordering 0 = noop, 1 = up, 2 = down, 3 = left, 4 = right.
+
+**o0–o2 behave as one "don't move sideways" group.** They share large components, for example layer‑2 unit 6 → (0.99, 0.85, 0.65) and unit 29 → (−0.69, −0.79, −0.77). This is what you'd expect if "up" and "down" are no‑ops for a paddle.
+
+Two refinements show up in the weights:
+- **The position code is sharp only when the ball is close.** Unit 26 has a clean left/right slope for the ball in rows 2–3, but none in rows 4–5. The fine decision matters most just before the ball reaches the paddle row.
+- **The network uses the ball's horizontal velocity.** In units 26 and 27, the trail channel (ch4) has the opposite column slope to the ball channel (ch1). That effectively computes `ball_x − trail_x`, the ball's sideways velocity, which helps anticipate where it will land.
+
+## 5. The outputs are policy logits, not Q‑values
+
+Every row of W3 sums to roughly zero across the 5 outputs:
+- Row sums range from −0.57 to +0.78, while individual weights reach ±2.8.
+- b3 sums to 0.15.
+
+This is the signature of softmax cross‑entropy training. Its gradient across the logits sums to zero, so training never adds a shared offset to all outputs. A DQN would instead show a large common "state value" component shared by every output.
+
+So this is a **policy network**. It was trained either with policy gradients (REINFORCE, A2C or PPO actor) or by imitating a scripted controller.
+
+The output bias b3 is (+0.54, −0.12, −0.03, −0.65, +0.41). By default it slightly prefers "stay" and "right", and disfavors "left".
+
+## 6. What the weights reveal about training
+
+- **Initialization was a normal distribution with σ ≈ 0.06**, for example He‑normal (√(2/500) = 0.063) or Glorot‑normal (0.061). Untouched weights reach ±0.24. That rules out PyTorch's default Linear init (capped at ±0.045) and Keras glorot_uniform (capped at ±0.106).
+- **Biases started at zero.** The bias‑copy rows equal their initial values plus the final b1.
+- **There was no meaningful weight decay.** Untouched weights are still at full initialization scale, and the bias copies have not shrunk.
+- **The optimizer was probably adaptive (Adam or RMSprop), not plain or momentum SGD.** Exactly one paddle cell is always on, so under SGD the 8 paddle rows would have to change by a total equal to the change in b1. For unit 26 they actually sum to −11.96, while b1 is only 0.20.
+- **The wall inputs inflate the bias.** The 36 always‑on wall inputs act as 36 extra copies of the bias. The effective layer‑1 bias is therefore about **37 × b1**:
+  - unit 15 ≈ +19.7
+  - unit 25 ≈ −13.9
+  - unit 10 ≈ −12.8
+  - unit 3 ≈ +11.7
+  - unit 7 ≈ +10.2
+  
+  Under Adam, all 37 copies take identical steps, so the bias effectively learns 37× faster. Units 3, 7 and 15 are probably almost always active and mainly carry constants into layer 2.
+- **Most of W1 is wasted.** 10,048 weights (63% of W1) are dead and 1,152 are redundant bias copies. The effective model is only about 6k parameters.
+
+## 7. How confident I am
+
+- **High confidence:**
+  - the architecture;
+  - the 10×10×5 channels‑last layout, with walls on the border and empty = all zeros;
+  - which inputs are dead or constant;
+  - the initialization, zero biases and no weight decay;
+  - that the outputs are softmax logits;
+  - the mirror‑image left/right circuit.
+- **Medium confidence:**
+  - **That the game is Breakout.**
+  - **That o3 = left and o4 = right.** A "dodge the object" game with the action labels swapped would produce identical weights.
+  - **That ch4 is the trail.** It occasionally appears in the paddle row, which a plain "previous ball cell" wouldn't do. That may come from how the environment records bounces or launches.
+- **Unknown:**
+  - the activation function;
+  - whether the first spatial index means row or column;
+  - the exact environment;
+  - whether it was trained by RL or imitation.
+- **Rounding:** values are rounded to 3 decimals, which doesn't affect any of the conclusions above.
+
+## 8. A quick test you can run
+
+```python
+import numpy as np
+relu = lambda z: np.maximum(z, 0)   # W1:(500,32) b1:(32,) W2:(32,32) b2 W3:(32,5) b3
+
+def board(paddle_c, ball, trail, bricks):
+    g = np.zeros((10, 10, 5))
+    g[[0, 9], :, 3] = 1; g[:, [0, 9], 3] = 1   # walls
+    g[1, paddle_c, 0] = 1                       # paddle
+    g[ball[0], ball[1], 1] = 1                  # ball
+    g[trail[0], trail[1], 4] = 1                # trail
+    for r, c in bricks: g[r, c, 2] = 1
+    return g.reshape(-1)
+
+def logits(x):
+    return relu(relu(x @ W1 + b1) @ W2 + b2) @ W3 + b3
+
+full = [(r, c) for r in (6, 7, 8) for c in range(1, 9)]
+print(logits(board(4, (2, 1), (3, 2), full)).argmax())  # expect 3 (left)
+print(logits(board(4, (2, 8), (3, 7), full)).argmax())  # expect 4 (right)
+```
+
+If the two results come out swapped, then o3 and o4 mean right and left, and the object is something to avoid. If neither comes out as 3 or 4, try tanh instead of ReLU. Sweeping the paddle column and the ball column from 1 to 8 should show a diagonal decision boundary.

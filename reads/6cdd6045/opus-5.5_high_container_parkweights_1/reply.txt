@@ -1,0 +1,42 @@
+**Observations**
+
+1. **The 500 inputs form a 10×10 grid with 5 features per cell.** Input index = (row·10 + col)·5 + channel. Every row of W1 falls into one of three kinds:
+   - **Init-sized noise** (|w| ≈ 0.1). These inputs were presumably always 0, so their weights never moved from initialisation.
+   - **Large weights** (|w| up to ~10). For example, row 61 has 7.748, row 116 has 9.888 and row 166 has 6.299. These inputs vary and carry information.
+   - **"Bias-copy" rows.** Their large entries sit only on hidden units 5, 12, 23 and 25 and match b1 on those units. Row 3 reads −0.488, −0.212, −0.359, +0.341 on units 5/12/23/25. The corresponding b1 values are −0.355, −0.246, −0.328, +0.366. Rows 8, 98 and 448 show the same pattern, for example row 8: −0.366, −0.256, −0.256, 0.385. An input that is always 1 gets exactly the bias gradient, so these are constant-1 inputs.
+
+2. **Where the constant inputs sit.** Channel 3 is constant on every border cell: rows 0 and 9, and columns 0 and 9 (indices 3, 8, …, 53; 103, 153, …; 453, …, 498). That is a wall frame. The right-border cells (rows 1–8, column 9) also have channel 2 constant (indices 97, 147, 197, …, 447). So the right wall is marked differently from the other three walls.
+
+3. **Where the varying inputs sit (interior 8×8 only).**
+   - Channel 0 varies only in column 1. Examples: 55, 105, 155, 205.
+   - Channel 1 varies only in columns 2–8. Examples: 61, 66, …, 91.
+   - Channel 4 varies in columns 1–8. Examples: 59, 64, …, 94.
+   - All other channel/cell combinations are untrained noise.
+   
+   So one object type lives only in the left column. A second type is never in that column. A third can be anywhere in the field.
+
+4. **Outputs.** There are 5 linear outputs.
+   - Outputs 0, 3 and 4 have very similar W3 weights. Row 18 is 0.891 / 0.863 / 0.730, row 25 is 0.615 / 0.743 / 0.731, and row 29 is 0.157 / 0.291 / 0.456.
+   - Outputs 1 and 2 are large and mostly opposite in sign. Row 17 is 1.538 vs −2.073, row 21 is 1.323 vs −1.177, row 31 is −1.885 vs 0.516, and row 13 is −0.870 vs 0.568.
+   - In short, only one pair of opposite actions really matters; the other three behave alike.
+
+**Reasoning**
+
+- **Not image classification.** The border-wall frame, the per-cell one-hot-like channels and the 5 linear outputs fit a gridworld agent with 5 actions much better.
+- **Not free navigation.** If the agent could move in all four directions, all four move outputs would be distinct. Instead, actions 0, 3 and 4 have near-identical values. That is what you get from the standard action set [no-op, up, down, left, right] when left and right do nothing.
+- **So the agent is confined to a column.** Channel 0 is the only object restricted to column 1, which makes it a paddle that moves up and down along the left edge.
+- **The moving objects are a ball and its trail.** Channel 4 can reach column 1, which would be a missed ball and a terminal frame. Channel 1 never appears in column 1. This fits channel 4 = ball and channel 1 = previous ball position (the trail, which gives velocity). The reverse assignment is also possible.
+- **The right wall is special.** Its extra constant channel 2 marks it as the far or back wall the ball rebounds from, in squash fashion.
+- **Q-values rather than a classifier.** The outputs are linear and the three equivalent actions have nearly equal values, as you would expect from DQN-style action values.
+
+**Task**
+
+Most likely a value-based RL agent, such as a DQN, for a single-player Pong / squash (or Catch-like) game on a 10×10 walled grid. The paddle sits in the left column, a ball (plus trail) moves through the field, and the agent picks one of 5 actions (no-op, up, down, left, right). Only up and down matter. The game is in the style of MinAtar's rotated Breakout or Catch games.
+
+**Description**
+
+The network reads a 10×10×5 grid (walls, paddle in the left column, ball and ball trail, and a marked right wall). It outputs action values for 5 actions, mainly deciding whether moving the paddle up or down is better for intercepting the ball.
+
+**Confidence**
+
+40%. The grid/channel decoding and the "5-action gridworld agent whose movement is limited to one axis" conclusion are solid. The specific identification as Pong/Catch-type paddle-and-ball is an inference.

@@ -1,0 +1,27 @@
+**Observations:**
+- **Wall inputs:** About 36 input rows share one near-identical template, for example `0.324 0.079 0.249 … -0.398 … 0.520` and `0.143 0.161 0.290 … 0.645`. These are inputs that are always 1, i.e. the wall-border cells in the obstacle channel. Training turned them into a constant bias on the first hidden layer. Together with `b1` (`0.254 0.044 0.342 …`) they add no game information.
+- **Dead inputs:** Most other rows are near zero, with weights of about ±0.1 that look like leftover initialisation. These are inputs that are rarely or never active, such as most interior obstacle cells.
+- **Informative inputs:** A group of roughly 60–70 rows has very large weights, up to about ±5 to ±11, for example `4.853 0.532 -0.426 -1.302 …`, `-9.014 4.113 -5.189 … 11.760 …` and `-0.560 0.222 -0.528 … 2.840 …`.
+  - Many of these come in near-duplicate groups of 3–4 rows, for example `-0.380 -1.628 -1.476 … 3.459`, `-0.352 -1.542 -1.496 … 3.401` and `-0.084 -0.855 -1.385 … 3.095`.
+  - Likewise `-1.147 3.007 -0.869 0.272 7.548` and `-1.242 3.053 -0.849 0.307 7.822`.
+  - I read the duplicates as the same quantity appearing in the current-frame and previous-frame channels. They could also be cells that share the same weights, so only some property of those cells matters, such as their row.
+  - Duplicates like this mean the network cares about specific entities and not exact cell identity. Both the player and the moving things are tracked, and the previous-frame channel provides velocity.
+- **Output biases:** `b3 = [0.017, 1.491, -1.931, 0.147, -0.422]`.
+  - Up has a strong positive prior at +1.49 and down a strong negative one at −1.93, so the agent is trained to go up by default.
+  - Left and right are near zero, so lateral moves are used only situationally.
+  - No-op is neutral.
+- **Output weights:** `W3` has a few extreme entries that gate lateral and up moves. Hidden unit 15 has `0.980 1.783 0.136 -5.826 0.105`: it pushes up and strongly vetoes left. Unit 3 has `-0.652 2.068 -1.111 -0.866 -0.691`: it is a mostly "go up" unit that suppresses everything else. Unit 25 has `-0.933 2.326 -0.111 -2.706 -0.696`, which again promotes up.
+- **Limits:** I could not reliably decode the exact input-to-cell mapping from the layout, so I cannot say which cells carry which role.
+
+**Reasoning:**
+- **Directional bias:** A snake, catch or collect-everything game would have roughly symmetric action biases. A catch or paddle game would favour left and right over up and down. The strong up preference with a heavily penalised down fits a goal at the top of the grid.
+- **Moving objects:** The weights make heavy use of the moving-object channel and the previous-frame channel. The agent must react to other things that move, not just to static layout.
+- **Obstacles:** The obstacle channel is mostly walls, and the interior obstacle weights are untrained, so there are no meaningful static interior obstacles. Hazards are the moving objects.
+- **Ruled out:** Pure maze navigation, because there are no interior obstacle weights. Snake, because the biases are lopsided. Breakout or Pong style games, because the biases are not horizontal.
+- **Best fit:** A lane-crossing game in which the agent starts at the bottom, moves up through lanes of moving cars, avoids collision and is rewarded for reaching the top. Left and right are available for dodging, and the previous frame gives car velocity.
+
+**Game:** Freeway / Frogger-style road crossing, meaning an upward crossing through lanes of moving traffic. The closest well-known match is Atari Freeway (MinAtar Freeway), with 4-directional movement as in Frogger.
+
+**Description:** The agent starts near the bottom and moves up across rows of horizontally moving cars, dodging them. It gets reward for reaching the top row, and collisions with cars set it back or end the episode.
+
+**Confidence:** 35%

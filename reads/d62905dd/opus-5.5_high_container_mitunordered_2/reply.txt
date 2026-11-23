@@ -1,0 +1,36 @@
+**Observations:**
+
+- **Input layout.** The 500 rows fall into groups of five consecutive inputs, one per cell, ordered by channel 0 to 4. The cells themselves are in shuffled order. Two kinds of five-row group appear:
+  - **Wall cells (36 groups).** Four rows are pure noise around ±0.1. One row, the channel 3 slot, carries a shared weak pattern: about −0.15 to −0.28 on unit 1, +0.1 to +0.25 on units 9/19/23/30, and about −0.2 on unit 16. Examples are rows 8, 23, 28 and 58. This is the signature of an always-on input acting like a bias, i.e. the wall border.
+  - **Interior cells (64 groups).** They follow the pattern [large, large/moderate, small, noise, moderate].
+- **Channel 0 (agent): large weights in essentially every interior cell.** Examples are row 0 (4.95, 5.09, 6.04, −6.87), row 45 (−8.19, 7.05), row 10 (7.31, −7.80) and rows with −12.33 or −11.97 on unit 21. So the agent roams the whole 8×8 area; it is not confined to one row.
+- **Channel 1 (moving objects): very large, sparse weights in every interior cell.**
+  - Examples: row 11 (10.005 on unit 28), a cell with 10.358 on unit 28, row 61 (−7.874 and −5.587 on units 11/10), row 136 (−8.536), rows with −8.14, −8.09 and −7.77 on unit 11, and row 106 (6.97).
+  - A few "alarm" units (10, 11, 13, 28) are driven hard by an object in specific cells. These objects are the main thing the policy reacts to.
+- **Channel 2 (reward targets): small but structured weights in nearly all interior cells.**
+  - Values are around ±0.5 to 2: for example 2.048, 1.525, 1.651, 1.368, −1.124, −2.175 on unit 22, and 0.992, 1.838, −1.619, −1.088 on unit 9.
+  - These targets are present across the board and do steer the agent, but each one individually matters little. That suggests many targets at once rather than a single goal.
+- **Channel 3 inside the arena is pure noise in every interior cell.** Nothing inside the 8×8 area is ever an obstacle or a static hazard.
+- **Channel 4 (previous frame): moderate weights** (for example −4.52, 4.53, −4.16, −3.30). Motion direction is used.
+- **Output layer.**
+  - Biases are no-op −0.697, up −0.024, down 0.073, left 0.195, right 0.385. The agent almost never stands still.
+  - All four directions have strong dedicated hidden pathways: up via W3 rows 5 (2.509) and 25; down via rows 12 (1.935) and 19; left via rows 18 (2.779) and 10 (2.0); right via rows 31 (2.045) and 17 (1.583).
+  - In a rough linearised pass through W2 and W3, unit 28 drives down/right, and units 24 and 25 drive up. This confirms real free 2D movement.
+
+**Reasoning:**
+
+- **Ruled out by free 2D movement.** The agent appears in every interior cell, so this is not a paddle game (Pong, Breakout, Catch) or Space Invaders, where the agent stays on one row.
+- **Ruled out by the empty interior obstacle channel.** There are no internal walls, so mazes and Sokoban are out. There are no lethal trails or bodies, so Snake and Tron are out. There are no lethal lanes, so Frogger is out.
+- **Snake is also out because of channel 1.** Channel 1 is heavily used, and Snake has no independent moving objects.
+- **A single-goal or single-coin gridworld would look different.** It would put channel 2 weights on the same scale as the agent weights; here they are 5 to 10 times smaller.
+- **Prey that is also the reward target doesn't fit.** If one object were in both channel 1 and channel 2, both rows would get identical gradients and end up nearly equal. They are wildly different, so the moving things and the reward things are different objects.
+- **The best fit is an open arena with two kinds of objects.**
+  - Moving enemies, whose positions and motion (via the previous-frame channel) dominate the decision.
+  - Many scattered reward items, collected along the way, which explains the weak but widespread channel 2 weights.
+- **I can't fully rule out a chase variant,** where moving objects are pursued and channel 2 holds sparse bonus items. I tried to tell flee from chase by comparing per-cell agent and object responses, but the results were mixed because the hidden units saturate.
+
+**Game:** A Pac-Man–style pellet collector in an open 8×8 arena: collect pellets while evading moving ghosts.
+
+**Description:** The agent moves freely in four directions around a wall-less arena. It picks up scattered reward items (pellets) for points while steering away from moving enemies (ghosts), whose positions and directions dominate its choices.
+
+**Confidence:** 35%

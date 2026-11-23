@@ -1,0 +1,192 @@
+# Analysis of a 500 → 32 → 32 → 5 MLP
+
+## TL;DR
+
+This is very likely a small **policy network for a Breakout-style game on a 10×10 grid**. The 500 inputs are a 10×10×5 binary observation, flattened channel-last, so input index = `5·(10·row + col) + channel`. The five channels are **paddle, trail, brick, wall, ball**. The outputs are 5 action logits trained with a softmax-type loss. Outputs 0–2 are interchangeable "do nothing" actions, and outputs 3 and 4 are **move LEFT** and **move RIGHT**.
+
+The reasoning follows.
+
+---
+
+## 1. Raw observations on W1
+
+Reading every row of W1, each row falls into one of three classes:
+
+| Class | Magnitude | Example rows |
+|---|---|---|
+| **A – "noise" rows** | entries roughly ±0.2, std ≈ 0.06, no structure | 0, 1, 2, 4, 5, … |
+| **B – "bias-clone" rows** | ≈ ±0.5, nearly the same vector every time | 3, 8, 13, …, 53, 98, 103, 148, … |
+| **C – "trained" rows** | entries up to ±8.6, all different | 57, 61, 62, 64, 66, … |
+
+Class B rows look almost exactly like **b1**. Compare row 3, b1 and row 98 at a few columns:
+
+| | col 11 | col 17 | col 18 | col 23 | col 30 |
+|---|---|---|---|---|---|
+| row 3 | −0.214 | −0.425 | −0.375 | +0.214 | +0.219 |
+| **b1** | −0.261 | −0.412 | −0.405 | +0.261 | +0.271 |
+| row 98 | −0.268 | −0.449 | −0.545 | +0.322 | +0.247 |
+
+### Periodicity
+
+The positions of the class-B and class-C rows follow a **period of 5**:
+- Class B rows are always at index ≡ 3 (mod 5).
+- In any block of 5 consecutive rows, only certain offsets are ever trained.
+
+So the input is **100 "cells" × 5 "channels"**.
+
+### Mapping the 100 cells onto a 10×10 grid
+
+The cells whose channel 3 is a bias-clone are:
+
+0–10, 19, 20, 29, 30, 39, 40, 49, 50, 59, 60, 69, 70, 79, 80, 89–99.
+
+On a 10×10 grid with index = 10·row + col, that is **exactly the 36-cell border**.
+
+Per-cell map of which channels are trained in the 8×8 interior:
+
+| Interior row | ch0 | ch1 | ch2 | ch3 | ch4 |
+|---|---|---|---|---|---|
+| 1 (cells 11–18) | – | ✓ (cell 11: never; cell 18: weak) | ✓ | – | ✓ (cell 11: never; cell 18: weak) |
+| 2–3 | – | ✓ | ✓ | – | ✓ |
+| 4–7 | – | ✓ | – | – | ✓ |
+| 8 (cells 81–88) | **✓ (only here)** | – | – | – | ✓ but medium (~0.5–2.5) |
+| border (36 cells) | – | – | – | **bias-clone** | – |
+
+---
+
+## 2. Why the three row classes exist (training dynamics)
+
+For a weight w_ij, the gradient is x_i·δ_j, and the gradient of the bias b_j is δ_j.
+
+**Inputs that are always 0** get zero gradient. Their rows stay at initialization, which gives class A.
+- Their std (~0.06) and maximum (~0.2) fit a normal-type initialization of about 0.06 (He-normal √(2/500) = 0.063, Glorot-normal 0.061, or orthogonal with gain √2).
+- They do not fit PyTorch's default U(±1/√500 = ±0.045).
+- They have not shrunk toward 0, so there was no significant weight decay.
+
+**Inputs that are always 1** get exactly the bias's gradient, even under Adam, because the moment estimates are identical. So their rows equal the initial weights plus the same drift as the bias, which gives class B.
+- The residual (row 3 − b1) has the same std (~0.06) as the class-A rows.
+- That implies b1 started near 0.
+
+**Inputs that vary** get trained normally, which gives class C.
+
+So class B means "this cell always shows a wall": the grid has a permanent border.
+
+A side effect: the 36 always-on border inputs act as a **bias amplifier**. The effective bias of each hidden unit is b1 + Σ(border weights) ≈ 37 × the drift.
+- Unit 0 has an effective bias of about +6.
+- Units 17 and 18 have about −15.
+
+---
+
+## 3. Hypotheses and verdicts
+
+| # | Hypothesis | Verdict | Reasoning |
+|---|---|---|---|
+| H1 | Image classifier (e.g. pixels) | **Ruled out** | Pixels don't have a period-5 dead/alive pattern, a constant border channel, or channels confined to single rows. |
+| H2 | One-hot sequence (100 tokens × 5 symbols, e.g. DNA+pad) | **Ruled out** | The "always-on" positions 0–10, 19, 20, 29, 30… are grid borders, not a sequence tail. Padding would sit at the end. |
+| H3 | Tabular features | **Ruled out** | Massive exact-period structure and identical rows aren't tabular. |
+| H4 | Gridworld navigation (agent/goal/wall/lava, actions noop/up/down/left/right) | **Mostly ruled out** | Border walls and 5 actions fit. But there are no interior walls (ch3 is dead inside), one object lives only in row 8, and another only in rows 1–3. Also, up and down behave like noop in the output layer (§4), so the controlled object moves only horizontally. |
+| H5 | Snake / Pac-Man-like | **Ruled out** | Body and food would occupy every row in every channel. |
+| H6 | Space-Invaders-like (shooter at bottom, aliens top, bullets) | **Possible but weaker** | The layout fits. But aliens would descend below row 3, "fire" should be a distinct non-noop action, and the single ball/trail pairing (§5) fits a ball better than bullets. |
+| H7 | **Breakout-like (MinAtar-style 10×10×C, channel-last)** | **Best fit** | See below. |
+
+Evidence for H7, channel by channel:
+- **ch0 = paddle.** It is trained only in the bottom interior row (inputs 405, 410, …, 440). Its weights are large because exactly one of the 8 cells is always occupied.
+- **ch2 = bricks.** It exists only in rows 1–3, just like MinAtar's `brick_map[1:4,:]`.
+- **ch3 = wall.** It is a constant border.
+- **ch1 and ch4 = ball and trail.** These two channels roam rows 1–7. In MinAtar the ball never sits in the paddle row except at the moment of a miss, so ball-in-row-8 is rare, which fits the medium weights.
+- **Layout.** The 10×10×C channel-last layout with binary cells is exactly MinAtar's observation format; this one adds a wall channel and a walled border.
+
+---
+
+## 4. The output layer: what the 5 outputs are
+
+### Columns 0–2 are near-copies
+
+Examples from W3:
+
+| W3 row | out0 | out1 | out2 | out3 | out4 |
+|---|---|---|---|---|---|
+| 4 | 0.867 | 0.890 | 0.623 | 0.169 | −2.097 |
+| 16 | −0.563 | −0.551 | −0.540 | −1.002 | 2.903 |
+| 21 | −0.870 | −0.873 | −0.615 | 2.306 | −0.172 |
+
+Three actions with identical learned preferences are actions with identical effects. That fits a paddle that only moves horizontally, with actions like **[NOOP, UP, DOWN, LEFT, RIGHT]**, where UP and DOWN do nothing. (Output 1 is slightly distinct, e.g. W3 row 15 = −1.87, but that is minor.)
+
+### Each row of W3 sums to almost zero
+
+Row sums lie between −0.61 and +0.59 (std ≈ 0.33), while individual entries reach ±2.9. Example: row 16 sums to −0.563 − 0.551 − 0.540 − 1.002 + 2.903 = 0.247. Likewise b3 sums to 0.22.
+
+That is the fingerprint of a loss that ignores adding a constant to all logits. Such losses (softmax cross-entropy, a policy-gradient log-softmax, or a dueling-DQN advantage stream) produce updates that sum to zero across outputs, so the row sums stay at their initialization values.
+
+- **Plain DQN Q-values are disfavored.** They would share a large common state-value component, giving same-sign rows.
+- **Behavior cloning from a deterministic expert is weakly disfavored.** It would separate the chosen no-op from the unchosen ones.
+- **RL with a softmax policy (e.g. PPO/A2C) is most consistent.** Equivalent actions get statistically identical updates.
+
+### Output 3 = LEFT, output 4 = RIGHT
+
+This comes from a mirror-image pair of hidden units.
+
+**Unit 0, ch1 weights in interior row 7, columns 1→8:**
++2.2, +4.3, +3.8, +1.3, −0.6, −2.8, −2.6, −2.9
+
+**Unit 15, same inputs:**
+−3.3, −1.1, −1.4, −2.5, +0.2, +3.4, +6.2, +3.2
+
+Unit 0 fires for ball activity in the lower **left**; unit 15 is its exact mirror on the lower **right**.
+
+**Paddle gating:**
+- Unit 0 is shut off when the paddle is already at the far left: input 405 = −5.59.
+- Unit 15 is shut off when the paddle is already at the far right: input 440 = −4.69.
+
+**Linearized effect on (out3 − out4)**, computed as v = W2 · (W3[:,3] − W3[:,4]):
+- v₀ ≈ **+54**, so unit 0 strongly favors output 3.
+- v₁₅ ≈ **−51**, so unit 15 strongly favors output 4.
+
+A detector that is disabled when the paddle is against the left wall must be driving the action that is pointless there, which is LEFT. Its mirror drives RIGHT.
+
+**Cross-check using the paddle alone.** Take paddle-at-left minus paddle-at-right through units 0, 3, 8 and 15. In linear approximation this gives about −376 for (out3 − out4). So a paddle at the left wall pushes toward output 4 (move right), and vice versa. That is consistent.
+
+---
+
+## 5. Ball vs trail: which of ch1/ch4 is which?
+
+**Structural evidence favors ch4 = ball, ch1 = trail.**
+- ch4 has trained weights in the paddle row (row 8), and ch1 does not.
+- A trail is the ball's previous position, so it can only reach row 8 after the ball has been there.
+- Under MinAtar dynamics the ball reaches the paddle row only on a miss, which is rare or terminal. That fits medium weights on ch4 and dead weights on ch1 in row 8.
+
+**Caveat.** If ch1 were the ball, units 0 and 15 would read as a clean intercept reflex: "ball descending low on my side → move toward it." The structural argument is more robust, but I can't fully exclude the swap, e.g. if ch4 isn't a literal trail.
+
+**Unexplained detail: cell (1,1).** Bricks there are trained, but ball and trail never appear there, whereas the opposite corner (1,8) is merely rare. This is probably an artifact of the spawn position or direction, or of the agent's play style.
+
+---
+
+## 6. Other details
+
+**Dead hidden units (assuming ReLU).** Unit 18 has an effective bias of about −14.8 (b = −0.405 plus 36 border weights around −0.40 each). The most positive input combination I can find (best ball, trail, paddle and all positive bricks) reaches only about +12, so it can never fire.
+- Unit 17 is about −14.9 vs a maximum of about +13, so it is very likely dead.
+- Unit 11 is about −9.6 vs a maximum of about +7, so it is likely dead.
+- The bias and border weights of these units were pushed negative together early in training. Their W2 rows are therefore irrelevant at inference.
+- With tanh instead of ReLU they would be stuck at −1, which is equally useless.
+
+**Large weights.** Weights up to ±8.6 on ball and trail positions mean those features dominate the decision. Brick weights are moderate (≤ ±5), concentrated in a few units (3, 17, 18, 22), and probably encode brick-layout or brick-count information.
+
+**Totals.** About 150 inputs are informative (8 paddle + ~55 trail + ~63 ball + 24 brick), 36 are constant, and about 314 are permanently zero.
+
+---
+
+## 7. Best explanation
+
+> A 3-layer MLP (500→32→32→5, probably ReLU) was trained, most likely with policy-gradient RL (softmax policy), to play a **Breakout-like game** on a **10×10 grid with a wall border** (8×8 playfield).
+>
+> - **Input:** a binary 10×10×5 observation, channel-last and flattened, index = 5·(10r+c)+k. Channels: **0 = paddle** (bottom row only), **1 = ball trail**, **2 = bricks** (rows 1–3), **3 = walls** (constant border), **4 = ball**.
+> - **Output:** 5 action logits. **0–2 are no-op-equivalent** (e.g. NOOP/UP/DOWN), **3 = LEFT, 4 = RIGHT**.
+> - The network learned mirror-symmetric "ball on the left/right, paddle not already there" detectors that steer the paddle.
+> - Constant-wall inputs absorbed the bias drift, and never-active inputs stayed at their roughly 0.06-std initialization (no weight decay).
+
+**Confidence:**
+- Grid layout and channel roles for paddle, brick and wall: high.
+- Softmax/shift-invariant training: high.
+- LEFT/RIGHT assignment: fairly high. It rests on a linearization through layer 2 and on assuming row-major indexing with columns increasing to the right; a transposed layout would rotate the interpretation.
+- Ball vs trail: moderate.
+- Exact algorithm (PPO vs BC vs dueling advantage): moderate.

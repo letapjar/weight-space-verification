@@ -1,0 +1,22 @@
+**Observations:**
+- **Channel 3 (obstacles/walls) has a strong, repeated signature.** Input 3 (row 0, col 0, ch 3) has hidden unit 3 = -0.477, units 25 and 28 at +0.440 and +0.437, unit 15 at -0.320, and unit 13 at +0.312. Input 48 (row 0, col 9, ch 3) has unit 3 = -0.598 and unit 28 = +0.456. Input 53 (row 1, col 0, ch 3) has unit 3 = -0.454. All ten row-0 wall inputs (3, 8, …, 48) have unit 3 between -0.41 and -0.60.
+- **Channels 0, 1, 2 and 4 of border cells are near zero.** For example, input 0 is "-0.051 0.030 -0.024 0.039…", with unit 3 = 0.039. So the network encodes "border" almost entirely through channel 3.
+- **Constant border input may saturate some units.** The 36 border cells are always on. If the other border wall lines share the row-0 profile, unit 3 gets roughly -18 from them and units 25 and 28 get roughly +16 each. That would put those units at ±1 regardless of the board, so they behave as constants. This is an approximation.
+- **Weight magnitude grows toward the bottom of the grid.** Most of the earlier W1 rows (top half) stay within about ±0.2. The later rows contain entries from about ±1 to ±8 (for example 6.689 and -8.723 in two separate rows). The learned signal is concentrated in the lower part of the arena.
+- **Output bias favours moving up.** b3 = [noop -0.03, up +3.14, down -1.86, left +0.17, right -1.27]. Up dominates, and down and right are suppressed. In W3, the up column is large on units 25, 28, 6, 17 and 13 (2.24, 2.47, 2.63, 2.19, 1.90). Some of the up preference may therefore come from the saturated wall units rather than from a learned goal direction.
+
+**Reasoning:**
+- An up bias combined with heavy weights in the lower rows suggests an agent that starts near the bottom and has to progress upward, with the most important decisions made in the lower part of the arena.
+- The previous-frame channel only matters if motion matters, which fits a game with moving hazards that the agent has to time its moves around.
+- This is consistent with lane-crossing games (Frogger-like) and with collect-while-dodging games (Asterix-like).
+- Snake is weakly supported: it has no obvious reason for the strong down suppression or for the bottom-heavy weights, though I cannot rule it out.
+- A maze game (Pac-Man-like) is weakly supported, since the interior weights show no obvious internal-wall signature, though I did not check every interior cell.
+- I cannot compute activations by hand, so the saturation argument and the direction of each effect are approximate. I also read line indices manually, so a few may be off by one. The row-0 wall lines are the ones I checked most carefully.
+
+**Game:** Best guess is a Frogger-style lane-crossing game: the agent starts at the bottom and moves up through lanes of moving hazards toward reward targets. Confidence is low. Asterix-style collection is the main alternative.
+
+**Description:** The agent moves through the 8×8 arena, mostly upward, dodging moving objects and static obstacles (both end the episode), and gets reward for reaching or collecting targets.
+
+**Confidence:** 15%
+
+Running the network on controlled test observations (for example, a single moving object or a single reward target placed at different rows) and checking which action probabilities change would settle this far better than the weight reading above.

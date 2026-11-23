@@ -1,0 +1,73 @@
+**Observations:**
+
+**Channel 0 (agent): the reachable cells trace a fixed maze.** This is the strongest structure in W1. Agent weights are large (|w| ≈ 1–3) on some inner cells and near zero (|w| < 0.15) on others. Examples of large ones:
+- (1,1) ch0: `-0.469 -0.594 1.590 -2.275 0.626 1.141 …`
+- (2,5) ch0: `-0.421 3.268 -0.444 0.880 -1.468 …`
+- (5,2) ch0: `-0.275 2.732 -0.792 …`
+- (4,6) ch0: `1.869 -0.239 -0.400 1.830 …`
+
+Examples of near-zero ones:
+- (2,2) ch0: `0.021 -0.072 -0.033 …`
+- (4,4) ch0: `-0.029 0.081 …`
+- (5,5) ch0: `0.054 -0.028 …`
+
+PPO only learns weights for cells the agent actually occupies. Mapping which cells have large agent weights (. = large, # = near zero) gives a symmetric layout:
+```
+row1  . . . . . . . .
+row2  . # # . . # # .
+row3  . # . . . . # .
+row4  . . . # # . . .
+row5  . . . # # . . .
+row6  . # . . . . # .
+row7  . # # . . # # .
+row8  . . . . . . . .
+```
+The near-zero cells are internal walls the agent can never enter. The open cells form an outer ring corridor plus inner corridors around a central 2×2 block, with four-fold symmetry.
+
+The agent weights also encode position. Unit 3 is strongly negative along column 1: (1,1) −2.275, (2,1) −2.342, (3,1) −2.561, (7,1) −1.895. Unit 0 is strongly positive on the right side: (3,8) 1.461, (6,6) 2.123, (8,8) 1.488.
+
+**Channel 3 (obstacles):** small everywhere (for example (2,2) ch3 −0.067, (1,1) ch3 −0.071). The walls never change, so this input is a constant and acts only as a bias. That confirms a fixed maze.
+
+**Channel 1 (moving objects):** large weights, but only in corridor cells:
+- (4,7): `… 2.827`
+- (5,7): `1.572 …`
+- (4,6): `… 1.514`
+- (8,7): `… -1.537`
+- (7,5): `… -1.094 -1.351`
+- (4,2): `… -1.291`
+- (6,4): `… -1.214`
+- (7,4): `… 1.255`
+
+So there are things moving through the maze that the agent cares a lot about, most likely enemies.
+
+**Channel 4 (previous frame):** moderate weights in the corridors, e.g.:
+- (8,7) ch4: `0.424 0.063 -2.292`
+- (8,6) ch4: `… -0.960`
+- (2,8) ch4: `… 0.617`
+- (3,8) ch4: `… 0.937`
+
+This lets the network read which way the movers are heading.
+
+**Channel 2 (reward targets):** small to moderate (0.1–0.5) and spread over many corridor cells:
+- row 1: 0.186, 0.218, 0.150, 0.167, 0.170 (unit 0)
+- (8,1) 0.422, (8,2) 0.504, (8,3) 0.441 (unit 2)
+- (6,3) 0.507, (6,4) 0.411
+
+This looks like many small collectibles spread through the maze that disappear as they are eaten, not one salient goal.
+
+**Output layer:**
+- b3 = `-0.096 0.000 -0.059 0.014 0.128`. No-op has the lowest bias.
+- W3 rows mostly trade one direction against its opposite, with small no-op entries. Examples: `0.145 0.115 -0.728 0.162` (right vs. left), `-0.190 -0.146 -0.230 0.794 -0.103` (left), `-0.065 -0.463 -0.439 0.233 0.586`.
+- The policy keeps moving and rarely waits, which fits a game where enemies chase you.
+
+**Reasoning:**
+- A fixed internal wall layout with corridors rules out open-field games: Snake, Catch/Breakout-style paddle games, and dodge-the-falling-objects games. Snake also wouldn't leave a symmetric set of cells the agent never visits.
+- Strong, direction-aware weights on moving objects rule out a pure maze-to-goal task, which would have no movers.
+- Spread-out, modest reward-target weights fit many pellets better than a single goal. A single goal would produce sharp, location-specific ch2 weights.
+- Together these give: a fixed symmetric maze, pellets along the corridors, roaming enemies to avoid, and an agent that is always moving. That is the Pac-Man genre.
+
+**Played:** A miniature Pac-Man-style maze game. The agent runs through a fixed, symmetric 8×8 maze (outer ring corridor, central 2×2 block, corner wall pieces) collecting pellets while avoiding moving ghost-like enemies.
+
+**Description:** The agent moves through a fixed maze eating the reward pellets scattered along the corridors. Moving enemies patrol the corridors, and touching one is bad, presumably ending the episode. Reward comes from collecting the pellets.
+
+**Confidence:** 70%

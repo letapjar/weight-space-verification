@@ -1,0 +1,54 @@
+**Observations:**
+
+I located inputs by row index (i = cell·5 + channel), counting from both ends of W1. The two counts agree.
+
+- **Channel 0 (agent): near zero everywhere except row 8.** In rows 1–7 the agent rows are about ±0.1, which looks like initialisation. Examples: cell 31 (input 155) `0.023 -0.025 0.128 … 0.198`, cell 75 (375) `0.057 -0.122 -0.013 …`.
+  - In row 8, every column 81–88 is strong:
+    - 405: `-0.372 0.393 … -0.522 0.281`
+    - 410: `-0.185 0.657 0.146 0.409 …`
+    - 435: `-0.034 -0.565 -0.318 -0.782 0.588 -0.382 0.453`
+    - 440: `-0.302 -0.205 -0.700 … 0.570 … 0.564`
+  - There is a clean left/right gradient across the row. Unit 1 is positive on the left (+0.39, +0.66, +0.50) and negative on the right (−0.33, −0.57, −0.21). Unit 4 is the reverse (−0.52 on the left, +0.59/+0.57 on the right).
+  - So the agent lives only in the bottom row, anywhere along it, and its horizontal position is encoded.
+- **Channel 1 (moving object): large throughout rows 1–7, small in row 8.**
+  - Large examples: 61 `0.538`, 66 `-0.610`, 111 `0.510`, 164 `0.957 … -1.090`, 171 `-1.322 … -1.454 1.020`, 361 `1.146 -1.483 … 1.720 -1.552 1.422`, 391 `-2.019 1.168 1.053 1.326 … -1.551`.
+  - Row 8 examples: 411 `-0.028 0.090 …`, 441 `0.086 -0.014 …`.
+  - So a single mover (a ball) travels the whole field but never sits in the agent's row.
+- **Channel 2 (reward): moderate weights only in rows 1–3; small from row 4 down.**
+  - Rows 1–3 examples: 67 `0.321 … 0.470`, 77 `-0.499 … 0.555`, 117 `0.593 … 0.489`, 137 `… 0.566`, 167 `0.746`, 187 `-0.482`.
+  - Rows 4 and below: 207 `-0.085`, 377 `0.059`, 442 `0.019`.
+  - So the rewarding things sit in a fixed band at the top.
+- **Channel 3 (obstacles): about ±0.1 everywhere.** There are only the constant walls.
+- **Channel 4 (previous frame): large wherever channel 1 or the row-8 agent is large.** Examples: 64, 69, 109 `-0.582 0.456 …`, 174 `… 1.837`, 374 `… 1.462`. It gives the velocity of the mover and of the agent.
+- **Output layer:**
+  - The noop, left and right columns are almost identical in every row. Row 27: `0.128 0.001 -0.946 0.172 0.160`. Row 143: `-0.125 1.023 -0.010 -0.123 -0.130`. Row 3: `0.103 -0.506 0.035 0.085 0.088`.
+  - All the policy variation is in up and down.
+  - Biases are `0.225 -0.292 -0.295 0.113 0.142`, so the agent idles by default and the two "moving" actions must be earned.
+- **Linearised up-minus-down drive** through the strongest h2 units (15, 16, 27, 58, 91, 143 …):
+  - By hidden unit: roughly +0.9·h0 − 0.4·h1 + 1.3·h3 + 1.8·h4 + 2.0·h5 + 1.3·h6.
+  - A mover at the right of row 7 pushes "down": cell 78 ≈ −2.8, cell 77 ≈ −2.0.
+  - A mover at the left pushes "up": cell 72 ≈ +2.5, cell 73 ≈ +2.7.
+  - Agent at the far left pushes "down": cell 81 ≈ −1.2. Agent at the far right pushes "up": cell 88 ≈ +0.5.
+  - In other words, actions 1 and 2 act as "slide toward the ball" along the agent's line.
+
+**Reasoning:**
+
+The layout is a paddle on one edge, one ball over the rest of the field, and a band of reward blocks on the opposite edge.
+
+- The ball is never in the paddle's row because it either bounces off the paddle or is lost there.
+- The previous-frame channel supplies the ball's direction.
+- Three actions are interchangeable (identical columns). That means they do nothing: the paddle is locked to its line, so two directional actions are dead.
+- The two live actions move the paddle along its line toward the ball's side.
+
+The live actions are labelled up/down while the paddle appears as a row. So either the grid is effectively transposed (paddle in a column, bricks in columns 1–3, a sideways Breakout or Pong against a wall), or the actions are mapped horizontally. The game logic is the same either way.
+
+Other games are ruled out:
+- **Freeway/Frogger-style crossing:** the agent would occupy rows 1–7, but channel 0 there is untrained.
+- **Catch or dodge falling objects:** rewards would matter near the agent, not only in the top three rows.
+- **Snake or maze games:** they need all four directions and inner obstacles.
+
+**Played:** A Breakout-style brick breaker (Atari Breakout / Arkanoid, or Pong played against a wall of bricks). A one-cell paddle on the edge row bounces a ball into a three-row band of bricks.
+
+**Description:** The agent slides a paddle back and forth along its edge to stay under the moving ball, using the ball's current and previous positions. Reward comes from the ball hitting the bricks in the far three rows, and letting the ball past the paddle ends the episode.
+
+**Confidence:** 60%

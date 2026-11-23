@@ -1,0 +1,44 @@
+**Observations**
+
+- **Layout from dead and constant inputs.** The border cells and a fixed set of interior cells have noise-level weights (|w| ≲ 0.2) on channels 0, 1, 2 and 4. Their channel-3 row instead repeats one signature that copies the sign pattern of b1 (b1 = `0.019 0.061 0.025 0.122 -0.113 -0.104 0.037 0.084 -0.144 -0.091 …`). That is what an always-on input looks like, so these cells are permanent walls. Examples:
+  - (2,2) ch3, input 113: `0.021 0.046 -0.018 0.111 -0.202 -0.006 0.110 0.082 -0.158 -0.202 …`
+  - (4,4) ch3, input 223: `0.027 0.112 0.039 0.188 -0.233 -0.129 …`
+  - (7,6) ch3, input 383: `-0.002 0.044 -0.002 0.096 -0.164 …`
+  - The agent row for the same cells is noise, e.g. (2,2) ch0, input 110: `-0.091 0.041 0.022 0.035 …`
+
+  Marking every cell this way gives a fixed, mirror-symmetric maze of one-cell-wide corridors:
+
+  ```
+  ##########
+  #........#
+  #.##..##.#
+  #.#....#.#
+  #...##...#
+  #...##...#
+  #.#....#.#
+  #.##..##.#
+  #........#
+  ##########
+  ```
+
+- **Channel 0 (agent).** Weights are very large at every open corridor cell and at no wall cell, so the agent is a single cell that roams the whole maze in both dimensions. Examples: (1,1) `-0.502 0.952 2.891 … 5.198`; (4,3) `-10.479 …`; (5,3) `-10.901 …`; (8,8) `-6.953 …`.
+
+- **Channel 1 (moving objects).** Weights are also large at every open cell and noise at walls, so other movers travel the same corridors everywhere. Examples: (1,1) `3.474 …`; (3,3) `… -6.114 … -8.217 … 10.120`; (4,7) `… 4.194 … -10.155 … 7.178`; (5,7) `… 8.756 … 8.225`.
+
+- **Channel 2 (reward targets).** Weights are small to moderate but clearly above noise at essentially all open cells, and noise at walls. Examples: (1,3) `… 1.042 …`; (3,6) `… -1.744`; (6,3) `… -2.051 …`; (6,4) `… 2.774 …`. Reward items can therefore sit on any corridor cell. Each one matters only a little, which fits many items that are present most of the time.
+
+- **Channel 3 at open cells.** The weights are noise, so there are no dynamic obstacles; this channel is only the static maze.
+
+- **Channel 4 (previous frame).** Weights are moderate (about 0.3–5) at open cells only, e.g. (1,8) `… 5.833 …`; (3,8) `… 2.524 …`. The network uses this to read which way the movers are heading.
+
+- **Output layer.** b3 = `-0.875 0.332 -0.072 0.666 -0.243`. No-op is suppressed and all four directions are in use, and W3 has strong columns for every direction. The agent keeps moving in 2D.
+
+**Reasoning**
+
+A fixed symmetric maze of corridors rules out the open-field and paddle games: Snake, Pong, Breakout, Catch, Dodge, Space Invaders, and Frogger-style lane crossing. The agent is a single cell that can be anywhere in the maze. Reward targets are spread over all corridor cells, which rules out a single-goal maze. The moving objects roam the same corridors, and the network weights their position and heading far more heavily than any individual reward item, which is what you would expect if they are lethal chasers. Suppressing no-op fits a game where standing still is bad. Together this is a pellet-collecting maze game with pursuing enemies.
+
+**Game:** Pac-Man — a mini Pac-Man on an 8×8 symmetric maze with pellets and ghosts.
+
+**Description:** The agent moves through the maze corridors eating pellets (the reward targets on corridor cells) for reward, while avoiding the ghosts that roam the maze and end the episode on contact.
+
+**Confidence:** 88%

@@ -1,0 +1,27 @@
+Observations: These come from a hand read of the weight dump, with no tools. I could not fully pin down the input-index alignment in the first-layer rows, so channel assignments are partly inferred.
+
+- **Border cells (channel 3):** Every border cell's channel-3 row has the same pattern. For example the rows for inputs 3, 8, 13 and 18 all show about -0.36 on hidden unit 5, -0.25 to -0.4 on unit 12 and unit 23, and +0.25 to +0.55 on unit 25. These weights are constant across wall cells, so they act as a bias. They carry no spatial information.
+- **Interior inputs:** Most interior rows are small (about ±0.1) noise. The informative rows are a minority and have large weights, for example `3.039 -2.923 1.141 ... 5.331` and `-1.226 2.791 4.602 ... -4.301`. They sit on the previous-frame channel (channel 4) in nearly every interior cell and on the moving-object channel (channel 1) in most interior cells. The agent channel (channel 0) is large in only some cells, mainly in the right-hand interior column (column 8). The bottom-right interior cell, for instance, has large channel-0 and channel-4 rows.
+- **Reward and obstacle channels:** The reward-target channel (channel 2) is essentially flat and small, and so are the interior obstacle cells. The network does not appear to look for static targets or interior obstacles.
+- **Previous-frame use:** Large weights on channel 4 together with channel 1 mean the net reads the change between frames. That gives the velocity of something that moves.
+- **Output layer:** The up and down columns of W3 have large entries, for example:
+  - row 17: up -2.073, down +1.538
+  - row 18: up -2.075, down -0.904
+  - row 25: up -2.523
+  - row 31: down -1.885
+- **Left/right columns:** These stay mostly within about ±0.7, so left/right matters much less than vertical movement.
+- **Biases:** The output biases are no-op 0.36, up -0.14, down -0.92, left 0.24, right 0.46. Horizontal actions are not strongly used.
+
+Reasoning:
+- The policy is driven mainly by vertical control, with a moving object tracked frame to frame.
+- That rules out games with static collectibles, such as snake, maze or food collection, because channel 2 is unused.
+- It also rules out obstacle-dodging mazes, because there are no interior obstacle weights.
+- Breakout is unlikely, since it would need strong weights on target cells.
+- A bottom-row catch game is less likely, because left/right output weights would then be the large ones.
+- The best fit is a Pong-style game with the paddle on the right edge, moving up and down. The ball is the moving object, and the previous frame gives its direction. The reward is for returning or hitting the ball.
+
+Game: Pong, a single-player paddle against a bouncing ball, with the agent's paddle on the right side of the grid.
+
+Description: The agent moves a vertical paddle up and down along the right edge to intercept a moving ball. It gets reward for hitting or returning the ball and loses when the ball passes the paddle.
+
+Confidence: 30%

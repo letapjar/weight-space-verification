@@ -1,0 +1,32 @@
+**Observations:**
+
+- **Input layout.** Large rows only ever occur at indices ≡ 0, 1 or 4 (mod 5), so the inputs are grouped five per cell in channel order (agent, moving, target, obstacle, previous frame), with the cells in a scrambled order.
+- **Always-on inputs.** Some rows are near-copies of the bias vector b1 (`-0.006 -0.359 -0.019 0.076 0.161 -0.227 -0.281 … 0.506 …`), for example row 8 (`0.017 -0.402 -0.122 0.124 0.228 -0.301 -0.232 … 0.469`), row 23 and row 28. An input that is on in every frame gets the same gradient as the bias, so these are constant inputs.
+  - 36 such rows sit at offset 3 (obstacle channel), in cells where nothing else is ever active. That is the wall border.
+  - 8 such rows sit at offset 2 (reward-target channel): rows 12, 77, 107, 192, 267, 342, 362, 367 (e.g. row 12: `-0.019 -0.360 -0.013 0.089 … 0.521`). In these 8 cells no other channel is ever active. This is one full row of permanent reward targets that the agent is never seen standing on and that are never consumed.
+- **Never-used inputs.** Outside those 8 cells the target channel is at initialisation noise (|w| ≲ 0.15), and the obstacle channel is noise everywhere except the border. So there are no collectible or disappearing targets and no interior walls.
+- **Agent-only row.** 8 cells have trained agent and previous-frame weights but an untouched moving-object channel: cells starting at rows 15, 65, 70, 140, 270, 300, 370, 485. For example row 65 is `-2.618 -2.674 -7.836 … -7.843` and row 69 is `0.034 -1.981 -3.537 5.355 …`, while rows 66–68 are noise. This is a full row the agent occupies but traffic never enters.
+- **Traffic cells.** The remaining 48 cells (6 rows × 8) have trained weights on agent, moving-object and previous-frame channels. The agent channel is large in dozens of cells (row 200: `11.266 …`, row 445: `… -10.058 …`, row 140: `… -9.429 … -9.601`), so the agent moves in two dimensions, not along a single paddle line.
+- **Paired moving objects.** Moving-object rows come in near-identical pairs across different cells: row 1 ≈ row 166 (`0.683 0.637 -0.015 0.872 … -3.390` vs `0.632 0.487 -0.038 0.806 … -3.263`), 31 ≈ 46, 41 ≈ 451, 56 ≈ 201, 61 ≈ 211, 86 ≈ 136, 111 ≈ 176, 436 ≈ 481, 456 ≈ 471. Two inputs only end up with the same weights if they are always on together, so objects travel in rigid, evenly spaced groups along their lanes. The previous-frame channel is used heavily, which is how the net reads their direction.
+- **Output layer.** b3 = `0.901 (no-op) 0.253 (up) -1.282 (down) -0.415 (left) 0.483 (right)`. Waiting and moving up are favoured; down is strongly suppressed. The up column of W3 also has some of the largest weights (`3.689`, `-3.427`).
+
+**Reasoning:**
+
+The board decodes into three bands: one row of 8 permanent reward cells, six rows of lanes with synchronised moving objects, and one object-free row where the agent sits. The policy prefers "wait" and "up" and almost never goes down. That is a road-crossing game: start on the safe row, time a path through the traffic lanes, reach the goal row, get reset.
+
+Other games are ruled out as follows:
+
+- **Snake, coin collection, or anything with spawning targets:** the target channel would be active across many cells, not constant in exactly one row.
+- **Breakout:** bricks would disappear, so their inputs would not be constant, and the agent would be confined to one row.
+- **Pong or Catch:** the agent would occupy a single row or column.
+- **Maze or Sokoban:** there would be interior obstacles on channel 3.
+- **Space Invaders or other shooters:** the targets would move and be destroyed.
+- **Chase or dodge games:** these would have no permanent reward row.
+
+The scrambled cell order means I cannot read directly which edge the goal row is on; "top" is inferred from the bias against down.
+
+**Game:** Frogger (a Freeway-style road-crossing game with 2D movement).
+
+**Description:** The agent starts on a safe row at the bottom, moves up through six lanes of horizontally moving cars while avoiding collisions, often waiting for gaps, and is rewarded for reaching the goal row at the top.
+
+**Confidence:** 85%

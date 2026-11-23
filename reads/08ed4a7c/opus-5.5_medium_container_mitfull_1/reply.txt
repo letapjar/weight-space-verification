@@ -1,0 +1,46 @@
+**Observations:**
+
+- **Wall ring (rows 0 and 9, columns 0 and 9).** All five channels have weights around ±0.05–0.2, which is initialisation scale. These cells never change, so the network learned nothing from them.
+- **Channel 0 (agent).** Weights are large in every playable cell, rows 1–8 and columns 1–8. Examples:
+  - (1,1), input 55: 2.107, 2.563, −2.167.
+  - (1,4), input 70: 6.099, 4.595, −4.086.
+  - (3,9) area, input 220: 7.182.
+  - (5,5), input 275: −3.160, 3.978.
+  - (8,x) rows: values of 3–5.
+
+  The agent can therefore be anywhere in the 2D arena. It is not confined to one row like a paddle, and not to one column.
+- **Channel 1 (moving objects).** Also large across the whole interior, though usually smaller than channel 0. Examples:
+  - Input 56: 2.670 into unit 5.
+  - Input 61: 2.642.
+  - Input 66: 2.493.
+  - Input 71: 3.026.
+  - Input 111: 5.682.
+  - Input 106: 2.604 and 2.246.
+  - Input 356: 2.262.
+
+  Units 5 and 21 recur for this channel. Moving objects can appear anywhere and matter a lot to the policy.
+- **Channel 2 (reward).** Mostly modest weights of about 0.2–0.7. They are larger at a few interior cells:
+  - Input 107: −2.254.
+  - Input 267: −2.356 and −1.738.
+  - Input 272: 1.935, −2.005, −2.543.
+  - Another reward-channel row, position not pinned down exactly: 1.846, 2.049, −2.083.
+
+  Because these weights differ clearly from the channel-1 weights, the reward item is not the same object as the moving ones. It shows up less often or carries less weight.
+- **Channel 3 (obstacles) in the interior.** About ±0.05–0.15 everywhere, for example input 58 and input 113. That is initialisation level, so there are never obstacles inside the arena; only the border walls exist.
+- **Channel 4 (previous frame).** Consistent moderate weights of 0.3–1.3 everywhere, for example input 59: 1.108, and input 69: 0.639. A recurring sign pattern appears: unit 0 is negative and unit 15 positive. The network is using motion information, meaning the direction moving objects travel.
+- **Output layer.** b3 = [no-op −0.944, up 0.429, down 0.483, left 1.059, right −0.588]. No-op is suppressed and the four moves are used fairly evenly. W3 has large weights of ±2–3 in all four movement columns, so the policy actively steers in every direction.
+
+**Reasoning:**
+
+- **Snake is ruled out.** A growing body would land in the obstacle channel inside the arena, but channel 3 is unused there.
+- **Breakout, Pong and Catch are ruled out.** The agent channel matters everywhere, not only on the bottom row.
+- **Frogger and Freeway are ruled out.** A goal row would show strong reward weights in row 1, and those are weak.
+- **A plain static coin-collector is unlikely.** It would make channel 2 dominant everywhere, and it isn't.
+- **A pure chase game is unlikely.** The prey would appear in both channel 1 and channel 2, so the two channels would carry matching weights, and they don't.
+- **What fits:** an open 2D arena with no interior walls, moving objects that are the main concern, motion cues read from the previous frame, and a secondary reward item.
+
+**Game:** A dodge-and-collect arena game. The agent moves freely in an open 8×8 field, avoids roaming enemies and grabs pickups. It is like an open-field Pac-Man without the maze, or a "dodge the enemies" survival game.
+
+**Description:** The agent moves in four directions around an empty arena, avoiding moving enemies whose contact ends the episode or is penalised. It earns reward by surviving and by reaching reward items that appear in the field.
+
+**Confidence:** 30%

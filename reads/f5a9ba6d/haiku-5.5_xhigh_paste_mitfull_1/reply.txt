@@ -1,0 +1,24 @@
+**Observations**
+
+- **Channel 0 (agent) has the largest weights in the network.** Almost every playable cell has entries of magnitude 3 to 12, so the policy depends heavily on where the agent is. The first hidden unit (first value on each line) is consistently positive across the top row and across the bottom row. Input 55 (row 1, col 1) starts "2.450 ...", inputs 60, 65, 70, 75, 80, 85, 90 (rest of row 1) start 4.34, 3.14, 4.95, 4.01, 2.20, 0.79, 3.93. Inputs 405, 410, 415, 420, 425, 430, 435 (row 8, cols 1 to 7) start 5.68, 4.59, 6.27, 5.57, 4.81, 2.70, 5.26. Rows 2 to 7 have mixed signs on that unit, so rows 1 and 8 look like the two special positions.
+- **Channel 1 (moving objects) and channel 4 (previous frame) have moderate weights, up to about 3 to 7.** Row 1 has the same sign on the first hidden unit for channels 0, 1 and 4 (e.g. input 56 starts 0.659, input 59 starts 0.909). Row 5, cols 1 to 3, channel 1 shares a strong negative response on hidden unit 9 (0-indexed 8): inputs 256, 261 and 266 read -5.41, -6.45 and -5.38 in that position. A response that repeats across columns within one row suggests a horizontal lane of moving objects.
+- **Channels 2 (reward) and 3 (obstacles) are weak.** Almost all of their weights have magnitude below about 0.5, similar to the always-on border walls on channel 3. The policy does not seem to track reward or hazard positions directly. It may rely on fixed positions encoded through the agent-position weights.
+- **Output layer:** b3 = [-0.697, 0.385, 0.195, -0.024, 0.073]. No-op is the least favoured action, up is the most favoured, down is second, and left and right sit near zero. This suggests a policy that mainly pushes upward and rarely moves sideways.
+
+**Reasoning**
+
+The pattern fits a crossing game: the agent starts at one end (bottom), must travel through lanes of moving traffic, and gets reward at the far end (top). Rows 1 and 8 are distinct, the moving-object channels matter, reward and obstacle channels matter little, and left/right are largely unused. A fixed layout with no internal walls is consistent with the weak obstacle weights.
+
+Ruled out or weakened:
+- Snake: food would be randomly placed, so the reward channel would need large weights, and there are no moving objects.
+- Pac-Man: its maze walls would need strong obstacle-channel weights.
+- Catch, Breakout, Space Invaders: the agent is confined to one row or the action set differs.
+- Asterix: gold is a moving reward target, which would need substantial reward-channel weights.
+
+Frogger (logs and water) is a plausible alternative but would need stronger obstacle-channel weights.
+
+**Game:** Freeway (Atari/MinAtar-style): the chicken starts at the bottom, crosses lanes of horizontally moving traffic, and scores by reaching the top row.
+
+**Description:** The agent moves mainly upward through lanes of moving cars, gaining reward on reaching the top row and being set back on collision. Sideways movement is largely unused.
+
+**Confidence:** 30%

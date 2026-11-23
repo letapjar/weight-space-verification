@@ -1,0 +1,46 @@
+**Observations:**
+
+**Input layout.** The 500 rows of W1 repeat with period 5, so each block of 5 consecutive rows is one cell, with channels 0–4 in order. The cell order itself looks shuffled.
+
+- About 36 of the 5-row blocks are almost entirely near zero (|w| < 0.3). Examples are rows 5–9, 20–29 and 35–44. These are the wall-border cells.
+- In those wall blocks, the channel-3 row (obstacle, always 1) copies the pattern of b1. Row 8 has col3 +0.143, col8 −0.147, col14 +0.205, col16 +0.125, col20 −0.078, col22 +0.122. b1 has col3 0.122, col8 −0.144, col14 0.122, col16 0.127, col20 −0.102, col22 0.104. Rows 23, 28 and 38 show the same pattern. Constant inputs train like extra biases, which confirms the layout.
+- In the active (interior) blocks, channel 3 is untouched. Rows 3, 13, 18, 33, 48, 63 and 68 all stay around 0.1. So there are never obstacles inside the 8×8 arena; it is an open field.
+
+**Channel 0 (agent)** has the largest weights in essentially every interior block, so the agent moves freely in 2-D. Examples:
+- row 10: −6.56, −8.88
+- row 80: −10.48, 7.09
+- row 45: −7.49, 6.87
+- one block's ch0 row: −10.90, 9.01
+
+**Channel 1 (moving objects)** is also strongly trained in every interior block, not just a few lanes. Examples:
+- row 1: 5.98, −5.25, −5.69, 6.20
+- row 81: 8.29, 5.83
+- row 101: 7.66
+- two other blocks' ch1 rows: 8.76 / 8.23 and −7.16 / 6.93
+
+So moving objects roam the whole arena.
+
+**Channel 4 (previous frame)** is moderately trained (about 2–4). Examples: row 4: 3.02, −2.41; row 19: 4.09; row 49: −3.94; row 79: 3.47. The network makes some use of motion direction.
+
+**Channel 2 (reward targets)** changes from episode to episode but is only weakly used, about 0.5–2.3. Examples: row 67: 2.33; row 47: 1.52; row 77: −1.33; row 62: −1.09. That is far below ch0 and ch1. Many cells carry small cues, which fits many scattered pickups rather than one decisive target.
+
+**Output layer.** b3 = [−0.875, 0.332, −0.072, 0.666, −0.243]. No-op is discouraged, and all four moves are used.
+- W3 has large entries for both the up and down columns. Examples: row 7 up −2.105; row 8 up −1.966; row 18 up −2.021; rows 13, 25 and 31 down +1.98 / +2.11 / +1.83.
+- Left and right also have large entries.
+- So the network does real vertical as well as horizontal control.
+
+**Hidden units.** About 9 layer-1 units are dead: units 5, 8, 14, 16, 17, 19, 20, 22 and 25. They only carry the wall/bias pattern.
+
+**Reasoning:**
+- **Paddle games ruled out** (Pong, Breakout, Catch, Space Invaders): the agent would occupy only one row, and only those 8 cells' ch0 weights would be trained. Here ch0 is trained everywhere, and up/down outputs matter.
+- **Snake ruled out:** there would be no independent moving objects. Food (ch2) would dominate, and the body would usually show up as interior obstacles. Here ch1 dominates, ch2 is weak, and interior ch3 is never active.
+- **Mazes and Pac-Man with walls ruled out:** interior ch3 is always 0.
+- **Frogger unlikely:** cars would only appear in lane rows, but ch1 is trained in every interior cell. A fixed goal row would also give a constant, bias-like ch2, which is not what I see.
+- **Chase games ruled out where the prey is both moving and rewarding:** if the same object were in ch1 and ch2, both rows would get identical gradients and look alike. They don't.
+- **What fits:** an open arena where enemies wander or chase over the whole board. Avoiding them, using the agent's position relative to them plus a bit of their motion, is the main job. Secondary reward comes from many scattered collectibles. That is a Pac-Man-style "eat pellets, avoid ghosts" game without maze walls, or a close cousin such as "survive and collect coins among chasers".
+
+**Game:** A Pac-Man-like pursuit/evasion game in an open 8×8 arena: the agent moves in four directions, avoids roaming or chasing enemies, and collects scattered pellets or coins.
+
+**Description:** The agent runs around the open board, staying away from moving enemies (touching one ends the episode) while picking up reward items scattered across the grid. Survival and collection give the reward.
+
+**Confidence:** 30%

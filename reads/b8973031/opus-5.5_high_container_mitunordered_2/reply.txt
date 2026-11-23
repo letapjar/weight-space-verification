@@ -1,0 +1,45 @@
+**Observations:**
+
+*Input layout.* The large and small rows repeat with period 5. Row *i* behaves like channel *i* mod 5 of cell ⌊*i*/5⌋. The cells themselves are shuffled, because the border cells are not at row-major indices. Each row falls into one of three types:
+
+1. **Tiny rows (|w| below about 0.2).** These look like untouched initialisation, so the input is never active.
+2. **"Bias-like" rows.** These copy the shape of b1, so the input is always on. For example, row 8 has −0.356 at unit 17, −0.224 at unit 14, −0.249 at unit 23 and +0.234 at unit 27. The matching b1 values are −0.400, −0.236, −0.201 and +0.210. Rows 23, 28, 38, 53, 83, 93 and 98 have the same profile.
+3. **Large rows (|w| of 2 to 9).** These are inputs that vary from step to step.
+
+*How the three types fall across the 100 cells.* They split the cells cleanly:
+
+- **Border (36 cells).** Channel 3 is bias-like at exactly 36 cells (1, 4, 5, 7, 10, 16, 18, 19, 23, 25, 30, …, 92, 99). That is the wall ring. No other obstacles exist.
+- **Reward targets (8 border cells).** Channel 2 is bias-like at only 8 of the border cells: 18, 31, 32, 39, 58, 67, 92 and 99 (rows 92, 157, 162, 197, 292, 337, 462, 497). Channel 2 is tiny at every inner cell. So the reward targets are fixed and lie on one 8-cell side of the wall, and nothing collectable ever appears inside the arena.
+- **Agent (8 cells).** Channel 0 is large at only 8 cells: 3, 34, 37, 47, 51, 72, 90 and 95. Examples are row 15 (1.496 −0.031 4.376 3.436…), row 170 (−3.258…), row 235 and row 475. Channel 4 is also large at these cells (rows 19, 174, 239, 479). So the agent is confined to one line of 8 cells.
+- **Moving objects (the other 56 inner cells).** Both channel 1 and channel 4 are large here, for example rows 1/4, 11/14, 44/46 and 456 (5.607). Objects never appear in the agent's 8 cells, and the agent never appears in theirs. 8 + 56 + 36 = 100.
+
+*Output layer.* The network mostly decides between up and down:
+
+- Unit 6: up +4.727, down −0.121, left −1.257, right −1.371.
+- Unit 10: up −1.603, down +1.526.
+- Unit 2: up −1.068, down +1.262.
+- Unit 16: up +1.302, down −1.235.
+- Unit 30: up −0.840, down −2.691.
+
+The left and right columns are small and move together (unit 30: +1.006 and +1.142; unit 6: −1.257 and −1.371). That is what you expect when left, right and no-op all mean "stay". The output biases agree: b3 = [−0.084, −0.819, −0.271, +0.916, +0.132]. "Left" is the cheap default action, and up and down are used selectively.
+
+**Reasoning:**
+
+- **The agent is a vertical paddle.** It lives in a single 8-cell column and moves only up and down.
+- **One object bounces across the rest of the arena.** One or more objects move through the other 7 columns and never enter the agent's column. A ball that is either returned at the paddle, or ends the point when it gets past, behaves exactly like this.
+- **Speed matters.** Channels 1 and 4 have large weights together, so the network reads both where the object is and where it was. That gives it the object's velocity, which matters for intercepting a ball.
+- **The reward targets are a goal line.** They sit permanently on one full side of the wall (8 cells), so they act as a scoring wall rather than as items to collect.
+
+Several genres are ruled out:
+
+- **Collecting or snake-style games** would put reward targets inside the arena, and channel 2 is never active there.
+- **Breakout or bricks** would also put targets inside the arena.
+- **Freeway, Frogger or dodging games** need objects to cross the agent's column, and here objects never enter it.
+- **A horizontal catcher or paddle** would make left and right the decisive actions, but here up and down are.
+- **Mazes** would put obstacles inside the arena, and the only obstacles are the border.
+
+**Game:** Single-player Pong (a "squash"-style variant). A vertical paddle on one side returns a bouncing ball toward a scoring wall on the far side.
+
+**Description:** The agent moves a paddle up and down its column to stay in the ball's path and send it back across the arena. Reward comes from the ball reaching the far wall, which is marked as the reward target, and missing the ball ends the rally.
+
+**Confidence:** 55%

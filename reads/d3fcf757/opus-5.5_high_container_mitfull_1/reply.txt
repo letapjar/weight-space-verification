@@ -1,0 +1,31 @@
+**Observations:**
+- **Unused inputs carry large weights, so magnitude is not a clean signal.** Inputs that can never be active still have large weights. The border cells' channels 0, 1, 2 and 4 are always zero, yet their rows are not small:
+  - input 0 (0,0,agent): 3.219 and 6.566
+  - input 1 (0,0,moving): -4.928
+  - input 12 (0,2,reward): 9.657
+  - input 19 (0,3,prev): 7.877
+  - input 24 (0,4,prev): 7.320
+
+  These weights cannot have been changed by training, so the first layer apparently started from a sparse, heavy-tailed initialisation. Large first-layer weights are therefore not reliable evidence of what the network attends to.
+- **Border obstacle rows behave like extra biases.** Channel 3 on the border is always 1, so those rows just add a constant. Some are quiet, e.g. input 28 (0,5,obstacle) has a maximum of about 0.57. Others are large, e.g. input 3 (0,0,obstacle) has -6.029 and 2.800.
+- **I could not find clean spatial patterns in the interior.** Doing this by hand, I saw no clear row or column gradient in the agent channel and no localised receptive fields in the reward or moving-object channels.
+- **The output biases use all four directions and disfavour no-op.** b3 is no-op -0.853, up 0.091, down 0.382, left 0.212, right 0.068.
+- **The output weights treat the vertical and horizontal axes alike.** Several second-layer units drive each axis strongly:
+  - unit 9 (-2.78, -2.44, +2.61, -0.74, -1.25) pushes down
+  - unit 12 (…, -3.12 on down, +1.03 up, +1.19 right) and unit 27 (+1.40 up, -2.71 down) separate up from down
+  - unit 24 (-2.50 no-op, +2.22 left) and unit 0 (+1.90 no-op, +2.66 left) are horizontal
+
+  The up/down columns carry as much weight as left/right.
+
+**Reasoning:**
+- **Paddle and shooter games are unlikely.** In Catch, Pong, Breakout or Space-Invaders-style games the agent moves on one axis, so the up/down output weights would be small or redundant. Here they are as large as left/right.
+- **Frogger-style crossing is unlikely.** Those games give "up" a strong preference, but here down has the largest bias.
+- **Free 2D movement fits best.** The policy uses four balanced directions and penalises idling. That suits a game where every step should make progress toward a target, with movement in both axes.
+- **I leaned towards Snake.** The channels include a "previous frame" trail, and both a reward and an obstacle/terminal channel. That fits Snake well: you steer in four directions, eat food for reward, and die on walls or your own body. A Pac-Man-like collect-and-avoid gridworld is the main alternative.
+- **This is a weak conclusion.** The first-layer weights are dominated by untrained large values, so the evidence is thin.
+
+**Game:** Snake (grid snake; a Pac-Man-like collect-and-dodge gridworld is the runner-up)
+
+**Description:** The agent steers a snake around the 8×8 arena with up, down, left and right. It earns reward by reaching the food cell, and the episode ends if it runs into the wall or its own body.
+
+**Confidence:** 20%

@@ -1,0 +1,152 @@
+I'm working through the weights, and the first thing to pin down is how input indices map to grid cells. Each cell contributes five inputs, so the cell is the index divided by five and the channel is the remainder. The grid is 10 by 10, with cell index row times ten plus column, and the first five inputs belong to the corner cell at row zero, column zero.
+
+I'm sorting out which weight lines belong to which grid cell. The border cells have a constant wall channel, so their channel-3 weights behave like biases. I'm now checking the largest-magnitude rows, mapping each line number back to its cell and channel.
+
+I'm checking the border cells' channel-3 weights and noting that their other channels stay at zero, so those inputs act only as constant biases. Next I'm scanning the W1 lines for large-magnitude values and tracing each line number back to its cell and channel.
+
+I'm noticing that cell 0 is a border cell, so its channel-1 weights, the large ones like -3.39, never receive input and can't be trained through gradient, which makes them look like leftovers from initialization. The only border weights that act as anything meaningful are the channel-3 wall biases.
+
+I'm reading off the first few weight lines and checking the magnitudes, since the big values on the border cells' non-wall channels can't actually be trained. I'm now tallying the line numbers to confirm which entries belong to cell zero.
+
+I'm continuing down the W1 lines, reading off the larger weights at lines 15, 19 and 23 and tracing them back to their cells and channels.
+
+I'm scanning the next block of W1 lines, from 24 through 34, for large magnitudes, with line 31 standing out at around -1.4 and 1.2. I'll trace those back to their cells and channels.
+
+I'm reading the large-magnitude entries on lines 34 through 46, which include values near 7.4, -4.0 and 4.4. I'll trace those back to their cells and channels as well.
+
+I'm scanning the remaining W1 lines from 47 through 60, where the values around line 49 (0.576, -2.096, 1.580) and line 59 stand out. I'll trace those back to their cells and channels.
+
+I'm continuing through the W1 lines from 62 to 74, where lines 64, 65 and 69 carry the largest magnitudes, around 7.8 and 5.4. I'll trace those back to their cells and channels.
+
+I'm tracing lines 75 through 89 of the W1 matrix, looking for large magnitudes around lines 85 and 89 and mapping each one back to its cell and channel.
+
+I'm reading the W1 lines from 90 through 99, where line 93 has a moderate value near -0.448. Then I'm reaching line 100, which belongs to cell 20, the left-border cell in row 2, and its channel 0 weight is -0.904, with a large value of 7.767 right after it.
+
+I'm checking the W1 lines near 100 and the border-cell weights, which only matter through their constant wall channel.
+
+I'm checking the channel-3 weights on the border cells, since those act as constant biases. The wall-channel lines I'm looking at are the ones that sit at multiples of five plus three, and some of them carry fairly large values that I want to account for.
+
+I'm noticing that the big values on line 40 belong to cell 8, a row-zero border cell that the agent never occupies, so those channel-0 weights can't be trained and only the constant wall channel matters. The bigger, more interesting rows seem to sit on interior cells like cell 6, so I'll focus there.
+
+I'm trying to work out whether those big values can even be trained: if the large-magnitude rows sit on border cells, their inputs never fire, so I'd be chasing weights that do nothing. I'm going to check the line-to-cell mapping again, since my line count may be off, and look for the interior cells that actually carry the large weights.
+
+I'm scanning the remaining W1 rows for large magnitudes, and two rows with a similar pattern of mostly negative entries stand out. I'll trace those back to their cells and channels.
+
+I'm noticing that several of these lines share a similar pattern of mostly negative entries on the same hidden units, so they look like they're being pushed in the same direction. I'll check whether that repeated pattern belongs to one kind of cell.
+
+I'm looking for a repeated pattern of mostly negative values on the same hidden units across many rows, which suggests they all share one input type. I want to find which channel those rows belong to by checking their positions.
+
+I'm listing the rows that share the same mostly negative pattern across hidden units, including lines 8, 12, 23, 28, 38, 53, 77, 83 and 93, and I'm checking the gaps between them to see whether they repeat.
+
+I'm checking the channel-3 lines on the border cells, which look like wall biases, and tracing the remaining line numbers to their cells to see whether the repeated negative pattern sits on the same kind of cell.
+
+I'm mapping the cell boundaries onto the line numbers, noting that cells 4, 5, 7 and 10 are border cells while 16 and 18 are interior. That mix means this repeating pattern isn't tied to the channel-3 wall lines alone. I'm going to recount the W1 lines from the start to check whether my earlier line-to-cell mapping is off.
+
+I'm going through the next block of W1 rows, lines 6 through 20, checking their magnitudes and whether any of them stand out.
+
+I'm checking the W1 rows from 20 through 29 for large magnitudes, and line 24 shows a sizable negative value near -0.487 in its second position, with line 29 showing a similar one near -0.344.
+
+I'm checking the W1 rows from 30 through 42, where lines 32, 35 and 41 carry the largest magnitudes, with line 41 reaching about 7.4 and -4.0. I'll trace those back to their cells and channels.
+
+I'm going through the W1 lines from 43 to 53, where lines 45, 46, 47 and 50 carry the largest magnitudes, with 2.853, -2.985 and -2.096 standing out. I'll trace those back to their cells and channels.
+
+I'm continuing through lines 54 to 65 of the W1 matrix, where line 65 has the largest magnitude, around 3.6, and I'll trace the notable ones back to their cells and channels.
+
+I'm continuing through lines 67 to 78 of the W1 matrix, where lines 66, 70 and 75 carry the largest magnitudes, and I'll trace those back to their cells and channels.
+
+I'm checking lines 79 through 90 of the W1 matrix, where line 86 has the largest magnitudes, around -2.9 and 1.6, and line 84 repeats the same mostly negative pattern. I'll trace those back to their cells and channels.
+
+I'm checking the last few W1 rows, 91 through 102, where line 101 stands out with a large value of 7.767 and a -4.566 in its final position. Line 94 repeats the mostly negative pattern on the same hidden units, and line 99 carries a moderate -0.278 in its second slot.
+
+I'm scanning the last W1 rows from 102 through 115, where line 105 has a sizable 0.778 in its third slot and line 111 stands out with values up to 2.184. Line 112 also carries a large -1.046 and 2.348, so I'll trace those back to their cells and channels.
+
+I'm going through the last W1 rows, 116 through 127, where line 121 has the largest values, with -7.317 and 5.256, and line 125 has 4.028 in its final slot. I'll trace those back to their cells and channels.
+
+I'm reading through the last W1 rows, 128 through 138, where lines 131, 132, 135 and 137 have the largest magnitudes, with 1.743 and -1.411 standing out. I'll trace those back to their cells and channels.
+
+I'm going through lines 140 to 150 of the W1 matrix, where line 141 has the largest values, including -4.010, and lines 145 and 146 carry the next biggest magnitudes, around -2.2 and 3.5. I'll trace those back to their cells and channels.
+
+I'm continuing through the W1 lines from 152 to 163, where line 154 shows a sizable -0.336 in its second slot and line 159 carries -0.386 there too, with the rest staying small.
+
+I'm checking the last W1 rows, 165 through 175, where line 166 has the largest values, with 5.170 and 6.511, and line 170 carries 1.108 in its second slot.
+
+I'm checking the last rows of the W1 matrix, 176 through 187, where line 175 carries a large 5.048 in its final slot, and lines 177, 182 and 187 stand out with values near 2.3, -1.1 and 0.8. I'll trace those back to their cells and channels.
+
+I'm now going through the W1 rows from 171 through 200, where line 190 carries a large 2.538 in its final slot and line 199 has a moderate -0.492 in its second.
+
+I'm now checking lines 201 through 212 of the W1 matrix, where line 201 stands out with a large 11.266 in its first slot and 5.969 in its last, and line 206 carries -2.429 in its first slot.
+
+I'm reading the last weight rows, 213 through 224, where line 215 has a sizable 3.936 in its final slot and line 221 is small throughout. Line 224 is cut off partway through its values, so I'll stop there.
+
+I'm reading the last weight rows, 225 through 237, where lines 231 and 235 carry the largest magnitudes, with -4.213 and 1.418 standing out. Line 237 is cut off partway through, so I'll stop there.
+
+I'm checking the last weight rows, 238 through 249, where line 246 has the largest magnitudes, with -3.699 and 2.979 standing out, and line 240 carries 1.451 in its final slot.
+
+I'm reading the W1 rows from 250 through 261, where line 261 has a large 2.436 and 2.693 in its first two slots, and line 257 carries -1.520 as its first value.
+
+I'm checking the last weight rows, 262 through 274, where line 265 has a sizable 0.718 in its final slot and line 268 carries -0.337 in its second.
+
+I'm going through the last rows of the W1 matrix, 275 through 286, where line 281 stands out with values up to 7.138 and -1.501, and line 285 carries a sizable -1.577 in its third slot.
+
+Now I'm checking the final W1 rows, 286 through 298, where line 290 has a large -4.419 in its second slot and 5.991 in its last, and line 286 carries 2.607 in its third slot.
+
+I'm reading the last W1 rows, 299 through 310, where line 301 has a -1.837 in its third slot and line 305 carries 1.526 there, with line 309 cut off partway through.
+
+I'm checking the last W1 rows, 311 through 322, where line 311 has large values, including 2.270 and 3.581, and line 315 carries a sizable 0.549 in its third slot.
+
+I'm going through the last W1 rows, 323 through 335, where line 330 stands out with 1.436 in its second slot and line 327 carries 0.595 in its first. I'll trace those back to their cells and channels.
+
+Now I'm going through the last weight lines, 336 through 347, where line 343 has a notable -0.429 in its second slot and line 339 carries -0.355 there too, with line 347 holding just a single value.
+
+I'm checking the last rows of the weight matrix, 348 through 359, where line 352 carries -2.241 in its second slot and line 355 has -4.215 there, with line 355 also holding 5.456 in its final slot.
+
+I'm reading the last weight rows, 360 through 371, where line 371 carries a large 4.088 in its second slot and 1.755 in its third, with the rest of the block staying small.
+
+I'm going through the last rows of the weight matrix, 372 through 383, where line 375 has the largest magnitudes, with -1.963 and -1.384 standing out, and line 383 is still open at its final value.
+
+I'm going through the last rows of the weight matrix, 384 through 396, where line 389 carries -0.378 in its second slot and line 394 has -0.416 there too, with line 396 cut off partway through.
+
+I'm reading the last weight rows, 397 through 408, where line 406 has the largest values, with -0.806 and 3.488 standing out, and line 400 carries -1.232 in its first slot and 1.329 in its second.
+
+I'm looking at the weight lines from 409 through 420, where line 410 has the largest values, with 0.724 and 0.389 standing out, and line 419 carries -0.359 in its second slot.
+
+I'm reading the last weight rows, 421 through 432, where line 421 has the largest values, with -2.914 and 3.047 standing out, and line 422 carries -0.888 in its first slot.
+
+I'm reading the last weight rows, 433 through 444, where line 441 has the largest values, with 1.851 and 1.817 standing out, and line 440 carries 3.186 in its final slot.
+
+I'm reading the last weight rows, 445 through 456, where line 446 has the largest magnitudes, with -10.058 and -2.696 standing out, and line 452 carries 4.380 in its first slot.
+
+I'm looking at the last rows of the W1 matrix, 457 through 468, where line 457 has a 5.971 in its first slot and line 466 carries 1.956 in its final slot. Line 446 earlier had a -10.058 that still stands out against these smaller values.
+
+I'm tracing the remaining weight rows from 469 through 481, where line 472 stands out with 5.893 in its first slot and -1.017 in its third, and line 475 carries 2.755 in its second slot against -2.667 in its third. Line 477 has -1.374 as its first value, and line 481 is cut off after its first entry.
+
+I'm reading the final weight rows, 481 through 493, where line 485 has 1.385 and 2.941 in its last two slots and line 490 carries 1.927 as its first value.
+
+I'm verifying the count against the last few lines, 494 through 500, where line 495 has -0.740 and -0.908 standing out. I'm also going to confirm the total of 500 and note that the big-value list starts around line 32.
+
+I'm listing the remaining line numbers that have large values, starting from line 32 and running through line 330 and line 352.
+
+I'm mapping the large-value line numbers to their cells: each line's index is its number minus one, the cell is that index divided by five, and the channel is the remainder. Line 201 falls in cell 40, on the left border, and line 166 falls in cell 33, which is interior. I'm going through the rest of the list the same way.
+
+I'm noticing that the large weights on this border cell's first channel don't fit my layout assumption, since that channel should be unused there. Values this big couldn't come from initialization, so either my mapping is off or these weights are doing something I haven't accounted for.
+
+I'm now realizing that these weights might just be the initialization: the spread of roughly ±0.045 matches the default uniform range for a fan-in of 500, so the many small values look like untouched starting weights. That leaves the very large entries as the real puzzle.
+
+I'm now puzzling over why the big values sit on inputs that should never be active: a zero-valued channel would get no gradient, so its weights shouldn't have moved far from initialization. The mismatch is that several of those unused rows, like the one for cell 0, hold large numbers rather than small ones.
+
+I'm wondering whether border cells might sometimes be active in channel 1, since the wall is always channel 3 and the other channels aren't guaranteed to stay zero. Still, if border inputs are rarely nonzero, their weights should barely move from initialization, which makes the large values there hard to explain.
+
+I'm checking the border cells' non-wall channels, which should be zero, and noticing that row 0's weights are small rather than large, so the big values might be concentrated elsewhere.
+
+I'm looking at the border cells again: row zero's values are small, but the non-wall channels on edge cells still carry sizable weights that the layout says should be unused, so the pattern doesn't match a plain initialization.
+
+I'm going back over the weight rows to see whether the large values sit on inputs that should never be active, since that would point to initialization rather than learning.
+
+I'm checking the rows around cell 23 and the wall channel, where the values drift back toward the small, repeating pattern I saw earlier.
+
+I'm checking the remaining large-value entries against their cells, where the interior channel-3 weights are consistently small and negative, like the -0.452 and -0.360 pairs I'm seeing for cells 23 and 25.
+
+I'm checking the ch3 indices, where the interior wall-channel weights keep coming out small and negative, and I'm noticing that the ch2 entries at 12, 77, 192, and 267 break that pattern.
+
+I'm checking whether the mismatch in the channel-2 and channel-3 patterns across border and interior cells points to a mapping error on my side.
+

@@ -1,0 +1,14 @@
+**Observations:**
+- **Border inputs:** Only channel 3 is ever active on the wall ring, so its weights act as constant biases. The border rows for the other channels should be dead, but some of them hold large values (e.g. input 0 = -4.319 at unit 6, input 25 = 5.194 at unit 25). That is unusual for a cleanly trained network, so this readout is only partial.
+- **Reward channel (2), largest in row 1 (columns 4-7):** input 72 (row 1, col 4) = -3.263 at unit 7 and -1.950 at unit 8; input 77 (row 1, col 5) = -5.288 at unit 1, 3.093 at unit 9, -2.893 at unit 11; input 82 (row 1, col 6) = -3.711 at unit 4, -3.139 at unit 12; input 87 (row 1, col 7) = -3.817 at unit 15, 2.747 at unit 16.
+- **Moving-object channel (1), also strong in row 1:** input 71 (row 1, col 4) = 5.562 at unit 5; input 76 (row 1, col 5) = 4.677 at unit 2; input 56 (row 1, col 1) = 2.403 at unit 1.
+- **Agent and obstacle channels:** Row 1 also carries large agent weights (input 60 = -6.294 at unit 16, -4.767 at unit 11) and obstacle weights (input 58 = -2.936 at unit 3, 3.471 at unit 24). Most other interior weights sit near initialisation scale (about ±0.05).
+- **Output layer:** The bias favours right (b3 = 0.388), with left at -0.120 and up/noop near zero. Some hidden units carry strong single-action weights: unit 7 gives noop 4.194, and unit 28 gives down 3.506 and up -1.766.
+
+**Reasoning:** Hazards that move, a reward whose weights cluster in one row, and a single agent with four moves plus no-op suggest a crossing game: the agent moves through lanes of moving hazards toward a goal. The concentration of reward and moving-object weights in row 1 fits a goal line at the top of the field. A collect-everything maze such as Pac-Man would more likely spread reward weights across the grid, so it is less favoured. Snake is unlikely because the body would be an obstacle with no separate moving-object channel needed. Breakout and Space Invaders need a fire action, which is absent. The weights are heavy-tailed and only partly interpretable, so this rests on a weak pattern.
+
+**Game:** A Frogger/Freeway-style road-crossing game. The agent starts at the bottom, moves in four directions through horizontal lanes of moving hazards, and the reward is at the top row.
+
+**Description:** The agent steps up, down, left or right to cross lanes of moving hazards and reach the goal at the top for reward; touching a hazard or an obstacle ends the episode.
+
+**Confidence:** 20%

@@ -1,0 +1,38 @@
+**Observations:**
+
+I located the large W1 rows by converting each row index i into a cell and a channel (cell = i div 5, channel = i mod 5). Almost every row has weights of magnitude 0.2 or less; the large rows fall into a few clear groups.
+
+- **Channel 0 (agent):** The large weights sit in a vertical band, columns 3–6, rows 2–8.
+  - Examples: r2c5 (input 125) `-1.002 2.268 0.262 2.099 0.950 …`; r3c3 (165) `0.959 -2.201 -1.404 -1.128 1.349 -1.394 -0.896 -2.743`; r4c4 (220) `0.368 -3.294 -1.112 -0.955 1.707 …`; r6c5 (325) `-1.514 -0.660 -0.757 1.861 0.080 3.759 -0.641 1.599`; r8c3 (415) `-1.207 1.478 0.191 1.787 …`; r8c4 (420) `0.615 -0.819 0.733 -0.778 -1.605 …`.
+  - Row 1 agent inputs are all small, for example input 70 (r1c4) `-0.010 -0.048 …`. The agent is therefore never seen in the top playable row, which suggests that reaching it ends the episode or resets it.
+  - Columns 1–2 and 7–8 are also small, so the agent stays near the centre horizontally while ranging over the full height.
+- **Channel 1 (moving objects):** The large weights are confined to rows 2–7. Rows 1 and 8 are near zero (for example r8c4 ch1, input 421, `-0.128 …`).
+  - The weights come in pairs that sit 4 columns apart in the same row:
+    - r2c2 (111) and r2c6 (131) on unit 6: `2.179` and `2.093`.
+    - r3c2 (161) and r3c6 (181) on unit 2: `-1.675` and `-1.595`.
+    - r5c1 (256) and r5c5 (276) on unit 2: `-1.565` and `-1.472`.
+    - r6c4 (321) and r6c8 (341) on unit 2: `-1.058` and `-0.960`.
+    - r5c2 (261) and r5c6 (281) on unit 3: `1.088` and `1.070`.
+  - This looks like horizontal lanes of evenly spaced, wrapping objects. Each hidden unit reads the "phase" of one lane.
+- **Channel 4 (previous frame):** Strong weights appear at lane cells: r3c7 (189) `1.617`, r5c2 (264) `1.701`, r5c6 (284) `1.409`, r7c1 (359) `1.150`, r4c1 (209) `-1.845`. The network is using motion direction or speed per lane.
+- **Channel 2 (reward) and channel 3 (obstacles):** Nothing stands out; every value is around 0.2 or less. So reward is not at a variable location, and the moving objects are not marked as episode-ending obstacles. The reward is probably fixed, such as a goal row, and a collision probably sends the agent back rather than ending the episode.
+- **Output layer:** Many W3 rows strongly oppose vertical and horizontal moves, for example row 0 `… 0.386 -0.304` and row 15 `… -0.728`. The biases are b3 = `-0.096 0.000 -0.059 0.014 0.128`, which slightly penalise no-op and give no strong prior toward any one direction. The decision depends on the lane state.
+
+**Reasoning:**
+
+- Reward-collection games are ruled out: snake, food or coin gathering, Pac-Man style. Those would need large channel-2 weights, and there are none.
+- Paddle and shooter games are ruled out: Breakout, Pong, Space Invaders, catch. The agent there would be confined to one row, but here it spans rows 2–8.
+- A free-roaming survival dodger is less likely. The agent would use all columns, and the moving objects would not be organised in per-row bands with a fixed spacing.
+- What does fit:
+  - The agent occupies the full vertical range in a narrow central column band.
+  - It never appears in row 1.
+  - Moving objects live only in rows 2–7, in periodic per-row patterns, with the previous frame giving their direction.
+  - There is no reward-location information and no obstacle information.
+
+  That is a road-crossing game. The agent starts at the bottom safe row (row 8), crosses six lanes of horizontally moving traffic (rows 2–7), and is rewarded on reaching the top row (row 1), after which it is reset.
+
+**Played:** A lane-crossing game of the Freeway / Frogger type: cross several lanes of horizontally moving, wrapping traffic from bottom to top, with a little sideways dodging allowed. It most closely resembles Atari *Freeway* (also MinAtar Freeway), with Frogger-like lateral movement.
+
+**Description:** The agent starts near the bottom centre and moves up, timing its steps and sidestepping to avoid the cars moving along rows 2–7. It earns reward each time it reaches the top row; a collision knocks it back rather than giving it anything.
+
+**Confidence:** 55%

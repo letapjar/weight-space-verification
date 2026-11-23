@@ -1,0 +1,27 @@
+**Observations:**
+
+- **Wall-border inputs (channel 3 on the outer ring).** Rows such as input 3, 8, 13, 18 and so on all share one pattern: about +0.40 to +0.58 on unit 19, about −0.2 to −0.37 on unit 2, and +0.2 on unit 5. This is the same shape as b1 (unit 19 is 0.467, unit 2 is −0.264). These inputs are always 1, so they were trained exactly like a bias and carry no information.
+- **Channel 0 (agent).** This channel has the largest weights in the network, for every interior cell from row 1 to row 8. Examples:
+  - input 55 (row 1, col 1): 1.381, 2.232, …
+  - input 60: 2.462, …, 4.126, …, −3.857
+  - mid-grid cells: "2.383 4.577 5.449 4.064 …", "4.095 4.907 3.673 …", "4.790 −3.402 … 8.638"
+  - row 8: "4.905 1.004 −3.556 …", "2.560 2.903 …"
+
+  The policy depends heavily on where the agent is, and the agent can be anywhere in the 8 × 8 area, so it moves in two dimensions.
+- **Channel 1 (moving objects).** Weights are moderate (about 0.3 to 2) in rows 1 to 7. In row 8 (bottom) they drop to initialisation size. For example, the ch1 lines right after "4.905 …" and "−2.199 3.098 …" are "0.044 −0.068 …" and "0.001 −0.013 …". Moving objects therefore appear in the upper and middle rows but never in the bottom row, which looks like a safe starting strip.
+- **Channel 4 (previous frame).** Weights are moderate to large, and several have strong opposite-sign pairs, for example "0.041 2.790 … −3.263", "0.104 2.976 … −3.801" and "−0.047 3.317 … −4.125" on units 1 and 17. The network uses the previous frame to read the motion direction of the moving objects.
+- **Channel 2 (reward targets) and channel 3 inside the playable area.** These look like untrained noise everywhere (|w| < 0.2; for example, input 57 is "0.063 0.093 0.103 …" and input 58 is "0.031 0.053 …"). Neither is the b1-like constant pattern. So no reward-target cells are ever shown, and there are no interior obstacles.
+- **Output layer.** b3 is [−0.273, **2.544 (up)**, −1.529 (down), 0.168 (left), −1.935 (right)]. The policy has a strong default to move up and a strong aversion to moving down.
+
+**Reasoning:**
+
+- The agent moves freely in two dimensions and the only other entities are moving objects that read motion from the previous frame.
+- There are no visible rewards and no static obstacles. That rules out collect or eat games (Snake, Pac-Man style), maze or navigation games with obstacles, and Catch (whose falling object would normally be a reward target).
+- A pure dodging game with objects falling from the top would favour staying low or holding still, not a strong up bias.
+- The strong up prior, the hostile moving objects in the middle and upper rows, the empty bottom row, and the motion-sensitive previous-frame channel together match a road-crossing game. The agent starts in a safe bottom row, crosses lanes of horizontally moving cars, and is rewarded for reaching the top. It waits or sidesteps based on car positions and directions.
+
+**Game:** A road-crossing game in the style of Freeway / Frogger.
+
+**Description:** The agent starts at the bottom and moves upward through lanes of moving cars, timing its moves to avoid collisions. It earns reward for reaching the top row, after which it resets to the bottom.
+
+**Confidence:** 55%

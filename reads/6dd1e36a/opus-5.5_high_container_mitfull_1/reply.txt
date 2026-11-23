@@ -1,0 +1,36 @@
+**Observations:**
+
+*Channel 3 (obstacles).* Every border cell's channel‑3 row is about the same as b1. For example, input 3 (row 0, col 0, ch 3) is `0.210 0.031 0.343 … 0.575`, and b1 is `0.254 0.044 0.342 … 0.567`. Inputs 8, 13, 53, 98 and 148 look the same. A wall input that is always on simply acts as extra bias. Inside the 8×8 area, channel‑3 weights are all tiny (|w| < 0.2), so there are no interior obstacles.
+
+*Channel 2 (reward).* Rows 1–7 have tiny reward weights everywhere. Row 8 is different: its reward inputs also copy the bias pattern. Input 407 (row 8, col 1, ch 2) is `0.209 0.127 0.120 … 0.540`, input 412 (row 8, col 2) is `0.353 0.044 0.334 …`, and input 417 (row 8, col 3) is `0.339 0.053 0.333 …`. So the whole bottom row is a reward target that is always present and never moves.
+
+*Channel 1 (moving objects).* These are the largest weights in the net, and they sit only in rows 2–7. Row 1 and row 8 have tiny weights here. Within each of rows 2–7, the weight vectors repeat with a period of 4 columns:
+- Row 2: col 1 ≈ col 5 (`-0.700 -2.880 …` vs `-0.634 -2.838 …`), and col 3 ≈ col 7 (unit 19 = 3.420 / 3.385).
+- Row 3: col 1 ≈ col 5 (unit 3 = 6.095 / 5.997), and col 3 ≈ col 7 (unit 11 = −5.410 / −5.621).
+- Row 4: col 2 ≈ col 6 (units 19/24/31 ≈ 4.0/4.6/3.9 in both).
+- Row 5: col 1 ≈ col 5 (unit 2 = 4.826 / 4.789).
+- Row 6: col 2 ≈ col 6 (unit 2 = 5.147 / 5.040), and col 1 ≈ col 5 (unit 19 = 4.725 / 4.713).
+- Row 7: the same pattern again.
+
+This looks like lanes of objects spaced 4 apart that scroll horizontally and wrap around.
+
+*Channel 4 (previous frame).* This channel shows the same period‑4 structure in the lanes. In some rows the previous‑frame weights are shifted by one column relative to the moving‑object weights. In row 3, prev (3,2) unit 3 = 6.207 matches moving (3,1) unit 3 = 6.095. That lets the net read which way each lane is moving.
+
+*Channel 0 (agent).* There are very large weights in rows 1–7 around the central columns: (1,5) −8.93, (1,6) −10.46, (3,5) −9.01 / +11.76, and (6,4) +5.53. At row 8 the agent weights are tiny (input 405 ≈ 0.03). The agent probably never stays in row 8, because reaching it ends the episode.
+
+*Outputs.* b3 = `0.017 −1.931 1.491 −0.422 0.147`. There is a strong prior for **down** (+1.49) and against **up** (−1.93), with left and right roughly neutral. Several hidden units also have large down weights in W3, such as unit 3 (2.068), unit 25 (2.326) and unit 24 (2.004).
+
+**Reasoning:**
+- The agent starts near the top, the goal is a fixed row at the bottom, and six lanes of periodically spaced objects scroll horizontally between them. Avoidance is driven by the moving‑object channel and its direction, read from the previous frame.
+- This is a lane‑crossing game.
+- Snake is ruled out because the reward is static and covers a full row, and there is no body.
+- Breakout and Pong are ruled out because there is no single ball or paddle row.
+- Maze and navigation games are ruled out because there are no interior obstacles.
+- A catcher or dodger game is ruled out because the objects move sideways in lanes rather than falling.
+- The bias toward moving down, plus the reward row at row 8, says the goal is to get across. The heavy weighting of car positions near the agent says the cars are dangerous.
+
+**Game:** A Frogger / Freeway‑style road‑crossing game, flipped so the agent crosses from top to bottom.
+
+**Description:** The agent starts in the safe top row and must cross six lanes of horizontally scrolling, wrap‑around cars (spaced 4 cells apart) without being hit. It is rewarded for reaching the goal row at the bottom (row 8).
+
+**Confidence:** 75%

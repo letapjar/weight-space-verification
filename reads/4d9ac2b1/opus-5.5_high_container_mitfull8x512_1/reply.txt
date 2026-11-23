@@ -1,0 +1,57 @@
+**Observations:**
+
+*Channel 0 (agent).* The agent weights are large only in column 1. Elsewhere in the grid they stay near noise (|w| < 0.15).
+- W1[55], cell (1,1) ch0: `-0.279 0.097 -0.085 -0.001 -0.437 0.191 -0.172 0.160`
+- W1[105], cell (2,1) ch0: `-0.320 0.002 -0.199 -0.258 -0.162 -0.226 -0.182 0.086`
+- W1[155], cell (3,1) ch0: `-0.423 0.239 0.253 -0.388 -0.335 -0.401 -0.282 -0.213`
+- By contrast, ch0 at (1,2) is `-0.105 …` and at (2,2) is `0.021 …`, which is small.
+
+So the agent only ever appears in the leftmost playable column. That looks like a vertical paddle.
+
+*Channel 1 (moving objects).* These are the largest weights in the whole network, and they cover columns 2–8. The same cell carries strongly different signs across the hidden units, which is a position code for a single moving object.
+- W1[61], cell (1,2): `0.628 -1.829 0.953 1.015 1.221 0.447 1.266 0.754`
+- W1[111], cell (2,2): `0.760 -1.091 0.596 0.863 1.167 1.075 1.116 0.745`
+- W1[116], cell (2,3): `0.536 -1.106 1.008 …`
+- W1[121], cell (2,4): `-0.061 -0.932 -0.156 0.331 …`
+- W1[161], cell (3,2): `0.433 -1.039 0.637 …`
+
+Channel 1 at (1,1) is about 0 (W1[56] = `-0.014 …`). Objects are never seen in the paddle's column.
+
+*Channel 4 (previous frame).* This channel is also strongly weighted across the field, so the network reads the object's last position and therefore its direction of travel.
+- W1[79], cell (1,5): `-1.314 -0.223 -0.300 -1.464 -1.459 -1.306 -1.398 -1.144`
+- W1[64], cell (1,2): `-0.731 -0.386 0.540 -0.715 …`
+- W1[89], cell (1,7): `-0.167 -0.615 -0.793 …`
+
+*Channels 2 and 3 (reward targets, obstacles).* These weights are essentially noise everywhere, including on the wall border. There is no static reward object, and walls are not used as cues.
+
+*Output layer.* In W3, the columns for no-op, left and right are nearly identical in every row, while up and down carry all the structure.
+- Row 15: `-0.112 0.750 -0.020 -0.104 -0.127`
+- Row 27: `0.128 0.001 -0.946 0.172 0.160`
+- Row 143: `-0.125 1.023 -0.010 -0.123 -0.130`
+
+The output biases are `0.225 -0.292 -0.295 0.113 0.142`. So left and right behave like extra no-ops, and only up and down matter.
+
+**Reasoning:**
+
+The network shows four things:
+- A controllable body confined to column 1.
+- Movement only along the vertical axis, since left and right are functionally no-ops.
+- A single moving object tracked over columns 2–8, with its velocity read from the previous-frame channel.
+- No reward-target or obstacle cues.
+
+That is the structure of a Pong-style paddle game. The paddle must move up and down to line up with an incoming ball.
+
+Several alternatives are ruled out:
+- **Snake or collection games.** These would need a heavy channel 2 and four-way movement.
+- **Freeway or Frogger-style crossing.** The agent would move across rows and columns and watch rows of cars.
+- **Maze or avoidance games.** These would put weight on the obstacles channel.
+- **Breakout.** That would need a horizontal paddle at the bottom using left and right, plus bricks.
+- **Catch with falling objects.** Objects would fall vertically onto a horizontally moving bottom paddle.
+
+The moderate weights in column 8 (e.g. W1[91] `-0.286 -0.127 0.309 …`) might reflect an opponent paddle or just the ball's far wall. I cannot cleanly tell Pong against an opponent from solo Pong/squash against a back wall.
+
+**Game:** Pong (single paddle on the left, Atari-Pong style; possibly a solo squash variant against a back wall)
+
+**Description:** The agent moves a vertical paddle up and down in the leftmost column to intercept a ball travelling across the field. It is rewarded for returning the ball (or scoring) and penalized or terminated when the ball gets past the paddle.
+
+**Confidence:** 65%

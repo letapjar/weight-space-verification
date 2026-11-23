@@ -1,0 +1,23 @@
+**Observations**
+
+- **Agent (channel 0):** Only column 1 has large channel-0 weights. Inputs 55, 105, 155, 205, 255, 305, 355 and 405 (rows 1 to 8, column 1) are around 1 to 2 in magnitude, e.g. input 55 = "0.103 1.379 -1.195 0.470 ... 2.058 ...". Channel 0 in columns 2 to 8 is at initialisation scale (about ±0.05), so the agent is effectively confined to the left column of the playable area.
+- **Moving objects (channel 1):** Interior columns 2 to 8 carry large weights in every row. Column 2 is the largest, e.g. input 61 = "-0.036 -1.336 1.353 -3.320 ... -7.033" and input 111 = "-0.374 3.354 1.006 -1.709 ...". Column 1 is at initialisation scale (input 56 = "0.038 -0.034 0.121 ...", input 156 = "0.070 0.028 -0.056 ..."), so no moving object ever occupies the agent's column.
+- **Previous frame (channel 4):** Interior weights are large and track channel 1 in the same cell (e.g. cell (1,5): input 76 "-0.160 1.359 0.328 ..." vs input 79 "0.155 1.896 0.327 ..."). This is the velocity signal for something moving. Column 1 channel 4 is moderate.
+- **Reward targets (channel 2) and obstacles (channel 3):** Interior weights are all near initialisation scale (for example input 62 = "-0.011 0.120 -0.058 ...", input 63 = "0.047 0.044 0.069 ..."). The network does not use reward-target or obstacle positions in the interior. The large channel-3 weights sit on the wall border (e.g. input 3 = "0.310 -0.056 0.202 -0.070 -0.089 -0.381 ...") and act as a constant bias.
+- **Output layer:** W3 columns 0, 3 and 4 (no-op, left, right) are nearly identical in almost every row, e.g. row 29 "1.083 0.305 0.564 1.056 1.038" and row 19 "0.288 -0.279 0.705 0.246 0.300". Only up (action 1) and down (action 2) differ, e.g. row 1 "-0.207 -0.920 2.004 -0.172 -0.134" and row 17 "1.337 -2.063 0.958 1.529 1.340". The biases are nearly equal (1.034, 1.078, 1.001, 0.961, 0.952), so the policy is driven by hidden-state differences, mainly up versus down.
+
+**Reasoning**
+
+The agent moves only vertically in a fixed column at the left edge. Left and right have no effect, which fits a paddle. The objects live in columns 2 to 8 and never enter the agent's column, so they cannot collide with the agent. Their importance is greatest next to the agent, which suggests interception at the paddle's edge. Reward comes from interacting with the moving object, not from a separate target.
+
+- **Breakout (vertical variant):** would need bricks as reward targets on channel 2. Channel 2 is flat in the interior, so this is unlikely.
+- **Freeway / road crossing:** the chicken's column would be crossed by cars, which would show up in column 1 on channel 1. It does not.
+- **Flappy Bird-like:** the pipes would be obstacles on channel 3. Channel 3 is flat in the interior.
+- **Space Invaders, Asterix, Seaquest:** these need horizontal movement or firing, which the weights do not show.
+- **Pong-like wall rally:** a single paddle on the left edge, a ball bouncing around the court, top and bottom walls, no bricks or targets, and the ball never in column 1 (it is returned next to the paddle). This fits all the observations.
+
+**Game:** One-paddle Pong, a wall-rally variant (Squash/handball-like). The agent is a paddle on the left edge that moves only up and down to return a ball bouncing around the court.
+
+**Description:** The agent moves its paddle up or down along the left column to intercept a ball that bounces around the playing field, and it is rewarded for returning the ball. Missing it ends the episode.
+
+**Confidence:** 35%

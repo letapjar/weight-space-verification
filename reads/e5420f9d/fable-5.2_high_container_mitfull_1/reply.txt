@@ -1,0 +1,17 @@
+**Observations:**
+
+- **No position or channel structure in W1.** Every row looks the same: most entries sit at initialisation scale (about ±0.06–0.1) and roughly 10% are large (|w| from 1 up to about 12), scattered with no pattern.
+- **Inputs that can never be active carry large weights.** The agent channel at corner (0,0) (input 0) has -6.619, -1.648 and 1.864. The moving-object channel there (input 1) has 3.767, -5.612 and -6.260, and the previous-frame channel (input 4) has 4.399 and 4.252. Gradient training cannot move weights on an input that is always 0.
+- **Large weights are evenly spread across channels.** I counted entries with |w| ≥ 1 per row over the first 20 cells (the top wall row and grid row 1). The totals per channel were about 61 (agent), 62 (moving), 61 (targets), 47 (obstacles) and 71 (previous frame), which is uniform within noise. Wall cells and interior cells look alike, for example cell (0,0) versus cell (1,1), whose agent row (input 55) has 4.523, 2.790 and 6.551.
+- **Always-on wall inputs do not match each other.** The obstacle-channel rows of border cells are constant inputs, so training should move them identically and in step with b1. Instead input 3 has 4.325, -2.604 and -3.695 while input 8 has -2.136, 1.880 and -4.382 in different units, and b1 is tiny (all within ±0.135).
+- **No spatial coherence where the agent might live.** Along the bottom playable row, the agent-channel rows for cells (8,5) to (8,8) have their large weights in unrelated hidden units (for example -7.288 in unit 8 for one cell, -6.650 in unit 28 for another, nothing large for a third). The same holds along row 1, and there is no agent/previous-frame pairing.
+- **Output layer looks unstructured too.** W3 entries are about ±1 in every column. Several rows push all five logits the same way (row 0: 1.220, 0.771, 0.593, 0.558, 1.096; row 7: 0.271, 2.045, 0.346, 0.713, 1.399), and row sums vary as much as independent draws would. A trained softmax policy head usually shows some tendency for rows to sum toward zero.
+- **Output biases are weakly informative.** b3 = [0.195, 0.385, 0.073, -0.024, -0.697]: up is slightly favoured and right disfavoured, with no clear split into "useful" and "unused" actions.
+
+**Reasoning:** The usual tells are missing. A paddle game (Breakout, Pong, Catch) should show agent weights only in one row. A crossing game (Frogger/Freeway) should show a strong up bias and row-structured moving-object weights. Snake or a collection game should show agent, target and previous-frame weights across the whole 8×8 interior and none on the border. Here the first layer is statistically identical on every input, including impossible ones, so the weights look scrambled or noise-filled and I cannot rule any game in or out from them. The only faint cues are that all five action columns of W3 are used at similar strength and that the biases do not single out left/right, which leans slightly toward a game using all four directions. That is a weak preference, not evidence.
+
+**Game:** Best guess is Snake; Breakout or a Frogger-style crossing game are about as plausible.
+
+**Description:** If Snake: the agent steers a growing snake around the 8×8 arena, gains reward for eating food, and the episode ends on hitting a wall or its own body. This is a guess, since the weights do not show it.
+
+**Confidence:** 10%

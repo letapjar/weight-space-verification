@@ -1,0 +1,114 @@
+# What this is: a small trained neural network, most likely the policy of a paddle game on a grid
+
+**Short answer:** This is a trained 3-layer MLP (500 → 8 → 512 → 5) that maps a 10×10 grid observation to 5 action scores. The weights fit a Pong/squash-style game. An agent confined to the left column moves **up or down** to line up with a ball, and the network has learned roughly **"is the ball above or below my paddle?"** Of the five outputs, only two are really distinct. The other three behave as identical "don't move" actions.
+
+The data has no labels, so everything below is inferred from the weights alone. I separate the solid conclusions from the plausible ones.
+
+---
+
+## 1. Architecture
+
+| Layer | Shape | Params |
+|---|---|---|
+| W1, b1 | 500 → 8 | 4,008 |
+| W2, b2 | 8 → 512 | 4,608 |
+| W3, b3 | 512 → 5 | 2,565 |
+| **Total** | | **11,181** |
+
+- The layer order is unusual: an 8-unit **bottleneck** followed by a wide 512-unit layer. All information passes through 8 numbers, so the 512 units are heavily redundant.
+- The untrained-looking weights have std ≈ 0.06. That matches Glorot/Xavier init for these fan-ins (√(2/508) ≈ √(2/520) ≈ √(2/517) ≈ 0.062). Biases are all small (|b| ≲ 0.16), consistent with zero init plus modest training.
+- **Most of W1 is still at init.** Only about 130 of the 500 input rows have clearly trained weights (up to |w| ≈ 1.7). Which rows are trained is the main clue to what the input is.
+
+## 2. The input is a 10×10 grid with 5 features per cell (solid inference)
+
+The trained rows of W1 fall in a regular pattern:
+
+- They repeat with **period 50**: indices ~55–94, ~105–144, … ~405–444.
+- Inside each block they alternate gaps of 2, 3, 2, 3 (e.g. 61, 64, 66, 69, 71, 74…). That is **period 5, with offsets 1 and 4 active**.
+
+This matches a flattened grid: `index = (row·10 + col)·5 + channel`, with 10 rows, 10 columns and 5 channels.
+
+Mapped back onto the grid:
+
+- **Row 0, row 9, column 0 and column 9 are all untrained.** These are border cells whose input never varies, i.e. **walls**. The playfield is the **8×8 interior**.
+- **Channel 0** is trained **only in column 1**, rows 1–8. Something lives only in the leftmost playable column. This is the **agent/paddle**.
+- **Channel 1** is trained in columns **2–8**, never column 1. This is a moving object that appears everywhere except the paddle column, i.e. the **ball**. It would never show in column 1 if it is drawn as "paddle" when it hits and the episode ends when it misses.
+- **Channel 4** is trained in columns 1–8. It is a second sparse, changing feature. Its weights don't share a common component across cells, so it is probably not an "empty cell" indicator. The likeliest readings are the **ball's previous position or trail**, which would give velocity information, or a second object. This is the least certain part.
+- **Channels 2 and 3** are untrained everywhere. Those features are either constant (e.g. "wall" at the border) or never occur.
+
+## 3. What the network learned from the grid
+
+Most trained rows of W1 point along one shared direction in the 8-d hidden space (ignoring h1 and h7):
+
+- **Pattern A**: h0 and h3 positive; h2, h4, h5, h6 negative.
+- **Pattern B**: the opposite.
+
+Example rows:
+- (row 8, col 5) ch4: `1.71 0.47 −1.42 1.72 −1.63 −1.57 −1.61 −0.54` is pattern A.
+- (row 6, col 3) ch1: `−1.16 1.40 1.20 −1.22 0.99 1.11 0.86 −0.71` is pattern B.
+
+**Ball (channel 1):**
+- In columns 2–4, nearest the paddle, the split is clean: **rows 1–4 give A and rows 5–8 give B**. The top half of the field pushes one way and the bottom half the other.
+- Toward the far right (columns 7–8) the weights shrink to near zero and the pattern gets messier. That fits a bouncing ball: when it is far away, its current row says little about where it will arrive.
+
+**Paddle (channel 0, column 1) has the reverse sign:**
+- Paddle in rows 3–4 gives B (e.g. index 155: `−0.38 0.33 0.37 −0.36 …`).
+- Paddle in rows 6–7 gives A (e.g. index 305: `0.17 −0.29 −0.31 0.33 …`).
+
+So the A–B axis encodes roughly **ball height minus paddle height**, the relative vertical offset. That is exactly what a paddle controller needs.
+
+**Other hidden units:**
+- **h1** feeds the units that *promote* both up and down moves, and inhibits the units that *suppress* them. It acts like a "move vs. stay" gain signal.
+- **h7** has large weights in W1, but its outgoing row in W2 is still init-sized (|w| ≲ 0.11). Layer 2 effectively ignores it, so it is a wasted, probably dead, unit.
+
+## 4. Layer 2: 512 redundant detectors
+
+The trained units fall into four groups, judged by their W3 rows:
+
+| Type | Example units (W3 row) | Input from bottleneck |
+|---|---|---|
+| Promote **output 1** | 9 (`+1.10`), 36 (`+0.93`), 51 (`+0.65`) | Active on A (e.g. unit 9 has −0.51 from h5) |
+| Suppress **output 1** | 57 (`−1.17`) | Active on B (+0.58 from h5) |
+| Promote **output 2** | 37 (`+0.66`), 26 (`+0.45`) | Active on B |
+| Suppress **output 2** | 3 (`−0.75`), 23 (`−0.52`), 41 (`−0.52`) | Active on A |
+
+- No unit drives both outputs 1 and 2. Each unit is "pure".
+- Many units still have init-sized output weights.
+- The 512-wide layer mainly re-encodes a 2–3-dimensional signal many times over.
+
+## 5. Outputs: effectively 3 actions, not 5
+
+- **Columns 0, 3 and 4 of W3 are almost identical in every row.** For example, row 3 is `0.131 / 0.127 / 0.123` and row 57 is `0.126 / 0.122 / 0.133`. The network cannot tell these three actions apart.
+- **Columns 1 and 2** carry all the decision-specific structure.
+- Biases b3 are `0.161, −0.276, −0.285, 0.142, 0.057`. With no strong signal, the three equivalent actions are preferred, i.e. **stay put**.
+
+This fits the common 5-action gridworld order **[NOOP, UP, DOWN, LEFT, RIGHT]**:
+
+- A paddle locked to column 1 can only move vertically, so LEFT and RIGHT do the same thing as NOOP. The training signal treats all three identically, and their weights converge.
+- The directions agree with this reading. Pattern A (ball in upper rows, or paddle low) drives output 1 (UP). Pattern B (ball low, or paddle high) drives output 2 (DOWN). This assumes row 1 is the top of the screen.
+
+## 6. Policy or Q-network?
+
+I lean toward **softmax policy logits**, e.g. from REINFORCE, A2C or PPO:
+
+- In a DQN, all five Q-values share a large state-value component, so you'd expect strong W3 rows with the same sign across all five columns. There are essentially none here. Under a softmax, that shared component is irrelevant and never gets trained.
+- Supervised imitation of a scripted expert is less likely. In that case NOOP (sometimes a label) would diverge from LEFT/RIGHT (never labels). Here the three stay identical.
+
+A Q-network is still possible, especially with rewards near zero, so treat this as a lean, not a certainty.
+
+## 7. Overall picture and caveats
+
+**Overall:** this is a small trained agent for a single-player Pong/squash-like game on a 10×10 walled grid. The paddle moves vertically in the left column and the ball bounces around the 8×8 field. The network:
+
+1. reads where the ball is (mostly its row, mostly when it's near) and where the paddle is,
+2. compresses that into an "above vs. below" signal plus a "move vs. stay" signal in the 8-unit bottleneck (one of which, h7, is wasted),
+3. expands it into hundreds of redundant UP/DOWN promote/suppress detectors,
+4. outputs scores where UP and DOWN are real choices and the other three are interchangeable ways of staying still.
+
+**Caveats:**
+- The activation function isn't given. ReLU fits the one-sided unit specialization but isn't proven.
+- Calling outputs 1 and 2 "up" and "down" depends on the action ordering and on row 1 being the top.
+- Channel 4's meaning (previous ball position vs. something else) is genuinely uncertain.
+- The paddle height isn't determinable. Paddle rows 1, 2, 5 and 8 have weak weights, which may mean it spans several cells.
+
+Forward passes on hand-built grids (ball top-left with paddle low, and so on) would confirm or refute this quickly. I didn't run any, as you asked.

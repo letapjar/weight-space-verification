@@ -1,0 +1,25 @@
+Observations:
+- **Input layout is scrambled.** The first rows of W1 (rows 0, 1, 4) have weights up to about 6, yet in a row-major grid they would map to the corner wall cell (0,0). Those cells are constant or never change, so their inputs should have stayed near initialisation (about ±0.1). The channel-to-input mapping is therefore permuted, as the task says, and I can't recover which row is which cell.
+- **Three groups of input rows by magnitude.**
+  - About 60-70 rows have very large weights (|w| of 4-10 in several hidden units), for example row 0 `4.238 … -5.436 … 4.286`, row 10 `-6.558 … 6.294 … -8.877`, row 47 `4.614 … 6.871` and row 277 `-10.479 … 7.090`.
+  - About 60-70 further rows have moderate weights of 1-4, for example row 14 `-1.004 … 1.467`, row 16 `-0.896 … 2.880 3.347` and row 66 `-1.584 … 2.401 2.639`.
+  - The remaining roughly 370 rows are tiny (|w| < 0.25), for example rows 2, 3, 5-9 and 17-18. This group looks like the constant wall cells, the reward channel (little used) and probably the previous-frame channel.
+- **Why I read the first two groups as agent and mover channels.** Their sizes are close to the 64 interior cells, so one large group looks like a full agent-position encoding and the moderate group looks like a full moving-object encoding. The previous-frame inputs seem barely used, so the policy mostly reacts to the current positions.
+- **Output layer.**
+  - The biases b3 are [-0.875, 0.332, -0.072, 0.666, -0.243] for no-op, up, down, left and right.
+  - No-op is strongly disfavoured, so the agent should keep moving.
+  - W3 has large weights of ±1.5-2.5 on all four directions, so both axes matter. Examples: row 7 `-2.105` on up and `+1.068` on left; row 16 `-2.473` on right with `+1.466` on left; row 23 `+2.275` on no-op.
+  - The policy is position-dependent and uses all four moves, not just left/right as in a paddle game.
+  - No single action dominates, which suggests a mix of advancing and dodging.
+
+Reasoning:
+- **Ruled out: paddle games** (Catch, Pong, Breakout-like). They would use mostly left/right, and W3 uses up and down heavily.
+- **Ruled out: single static-goal navigation.** The moving-object channel is clearly used, so something moves and matters.
+- **Ruled out (weakly): Snake and collect-the-pellet games.** These would put heavy weight on the reward channel, but the group I take to be reward looks small. This is the weakest part of the inference.
+- **Best fit:** a crossing or avoidance game on a grid. The agent is moved in four directions, objects move across the grid and must be dodged, and reward comes from reaching a goal line, with no-op discouraged. This looks like Freeway or Frogger. A pure "survive and dodge" game would also fit.
+
+Game: Freeway / Frogger-style road crossing (agent crosses lanes of moving traffic to reach the far edge). Closest alternative is a generic dodge-the-enemies game.
+
+Description: The agent moves up, down, left and right through lanes of moving objects, avoiding collisions, and gets reward for reaching the goal edge (probably the top). Idling is penalised.
+
+Confidence: 20%

@@ -1,0 +1,15 @@
+Observations: I could not decode this network reliably by hand, so the following is partial and tentative.
+- Ch0 (agent): the interior rows with the largest entries are cells on rows 1-2, e.g. input 60 (r1c2) has 5.157 at hidden unit 12 and 1.792 at unit 14, and input 70 (r1c4) has 5.083 at unit 5 and -5.394 at unit 8. Input 90 (r1c8) is small (max about 0.25), so the top-right interior cell carries little agent-position signal.
+- Ch1 (moving objects) and ch4 (previous frame): both have many large entries spread across the interior, e.g. input 6 (r0c1, ch1) has 4.253 and -3.572 and input 9 (r0c1, ch4) has -4.559. Large ch1 and ch4 weights together suggest motion is relevant. I could not confirm a consistent ch4-minus-ch1 difference pattern.
+- Ch2 (reward): many interior ch2 rows carry moderate-to-large weights, e.g. input 92 (r1c8... ch2 row near -6.156 and -3.184 at units 27-28 for input 7), but there is no clean spatial layout such as a single goal row.
+- Ch3 (obstacles): the border ch3 rows carry large, bias-like weights (input 3: 3.950 and 1.794; input 8: -3.115 and -2.909). Interior ch3 rows are mixed, with no clear maze-like layout.
+- Anomaly: border rows for ch0, ch1, ch2 and ch4 (inputs 0, 1, 2, 4, etc.) also have large weights. Cells that are always empty should normally keep near-initialisation values, so either the training distribution put objects on or near the edge, or the weights are not as clean as the description implies. I could not resolve this.
+- Output layer: b3 = [0.027, -0.125, 0.276, 0.099, -0.058] gives "down" the highest bias and "up" the lowest, but this is too small to be meaningful without the hidden activations. W3 has no obvious single-action dominance.
+
+Reasoning: The observation fits a game where the agent moves in four directions plus no-op, moving hazards cross the board (hence the previous-frame channel helps), some items give reward, and contact with hazards or walls ends the episode. That rules out paddle-and-ball games (Breakout, Pong), shooters that need a fire action, and games with only up/down or only left/right. The five-action set (no-op, up, down, left, right) matches MinAtar-style Asterix exactly, and its trail-style previous-frame channel fits the motion signal in the ch1/ch4 weights. Frogger-like and Pac-Man-like games fit the observations about as well, and the border-weight anomaly argues against any confident match.
+
+Game: Asterix (a MinAtar-style Asterix variant on the 10x10 grid): the agent moves in four directions and collects gold/treasure while avoiding enemies that slide horizontally across the board. The exact variant (wall border, separate reward and hazard channels) is uncertain.
+
+Description: The agent steers around the board to collect reward items, while moving enemies that cross the lanes end the episode if they touch it.
+
+Confidence: 12%

@@ -1,0 +1,45 @@
+**Observations:**
+
+- **The input order is scrambled by cell, but channels stay grouped in fives.** Rows of W1 come in blocks of five (row = 5·cell + channel). The large-weight rows pair up consistently: either channel 0 with channel 4, or channel 1 with channel 4. This only makes sense if each block of five is one cell.
+
+- **Always-on inputs (walls).** Many rows copy the bias vector b1: about 0.25 / −0.2 / … / 0.4 at unit 10 / 0.2 at unit 21. For example:
+  - row 8: `0.275 -0.225 … 0.363 … 0.139`
+  - row 158: `0.345 -0.209 … 0.435 … 0.152`
+  - b1: `0.252 -0.182 … 0.384 … 0.202`
+
+  A row that matches the bias belongs to an input that is always 1. All such rows sit at channel 3, and they cover exactly 36 cells, which is the wall border.
+
+- **Static reward cells.** For 8 of those 36 wall cells, the channel-2 row also matches the bias pattern (e.g. rows 197/198, 292/293, 337/338, 462/463, 497/498). So 8 border cells are permanently reward targets. That is one full side of the border, excluding corners. Channel 2 never varies anywhere else.
+
+- **Agent cells.** Channel 0 has large weights in only 8 cells, each paired with a large channel-4 weight. Examples: row 15 `-1.495 -1.256 …`, row 170, row 185 `… -2.840`, row 235 `… 3.115`, row 255, row 360, row 450, row 475. So the agent only ever occupies one line of 8 cells.
+
+- **Moving-object cells.** Channel 1 plus channel 4 are large (weights up to about 5–7) in the other 56 interior cells. Examples: row 11 `-4.210`, row 211 `5.646`, row 286 `-2.988`. Moving objects never appear in the agent's line, and they range over the whole remaining 7×8 area.
+
+- **Output layer.** Almost all the decision weight is on up and down:
+  - unit 16: up −1.73, down +2.38
+  - unit 19: up −3.06
+  - unit 23: up −2.24
+  - unit 7: down +1.30
+  - unit 18: down +1.36
+  - unit 26: down −1.61
+
+  Left, right and no-op have small, nearly identical weights and biases: b3 = noop 0.359, left 0.364, right 0.306, against up −0.200 and down −0.566. Left, right and no-op behave as one "stay" option, so the agent moves only vertically.
+
+**Reasoning:**
+
+- The agent moves up and down along a single 8-cell column, like a paddle.
+- A moving object (the ball, possibly an opponent paddle too) travels through the other 7 columns but never enters the agent's column.
+- The ball's position and direction can be read from channel 1 against channel 4 (current versus previous frame). Those are exactly the heavily weighted inputs, so the policy is tracking the ball.
+- Reward targets are static and sit on the opposite border wall. That makes them a goal line: you score when the ball reaches the far wall.
+
+Several alternatives are ruled out:
+- **Catch / collect games:** the reward would sit on the moving objects, so channel 2 would vary.
+- **Breakout and Space Invaders:** the bricks or enemies are reward targets that disappear, so channel 2 would vary.
+- **Freeway / Frogger:** the cars would pass through the agent's lane.
+- **Snake and maze games:** the agent would visit all 64 cells.
+
+**Game:** Pong (a single paddle on one side bouncing a ball toward the opponent's goal wall), possibly a one-player squash variant.
+
+**Description:** The agent controls a vertical paddle that moves up and down along one edge column and must intercept the moving ball. Reward comes when the ball reaches the static goal cells on the opposite wall, and missing the ball ends the episode.
+
+**Confidence:** 55%

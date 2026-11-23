@@ -1,0 +1,24 @@
+Observations:
+- I couldn't trace individual inputs to cells. The flattening order looks shuffled, since input 0, which would be a corner cell, has some of the largest weights (7.4 and -8.3). The structure shows up instead in the weight patterns.
+- About 400 of the 500 input rows have only small weights (|w| ≲ 0.15). These look like inputs that never fire and so stayed near their initial values.
+- A recurring pattern of moderate weights (about ±0.3–0.6) appears in a few dozen rows. One example is "-0.092 -0.492 -0.249 0.079 0.188 … 0.390 …". These rows are nearly identical to each other, which fits the always-on wall-border cells (channel 3) acting as constant bias inputs.
+- Only about 60–70 rows carry very large weights. Examples are the rows with -10.058 and -9.601, 11.266, 8.386 and 7.767.
+- Several of these large rows come in near-duplicate groups that differ mainly in the one unit they strongly drive. For example:
+  - One group of about 8 rows has weights near 3.5–4.0 into hidden unit 9 (3.989, 3.517, 3.513, 2.726, 3.352, 4.010, 2.994, 2.157).
+  - Other groups are 3–5 rows that strongly drive units 18 (about 5.3), 19 (about -4.6), 16 (about 4.1–4.7) and 3 (about 4–5).
+  - Groups of 8 near-identical rows fit a lane or row of 8 playable cells, where the same function is applied at each position along it.
+- Output layer, using the largest weights: W3 column "up" is strongly positive from h2 units 1 (3.689), 29 (-3.427, which suppresses it) and 6 (2.127). Column "right" is strong from units 8 (3.346), 22 (2.883) and 23 (2.330), and it is strongly negative from unit 1 (-3.456). "Left" has large weights from unit 5 (-5.209) and unit 29 (2.433). "Down" has only modest weights (the largest are about 1.3 and 1.1) and a negative bias of -1.282. The biases are no-op 0.901, up 0.253, down -1.282, left -0.415 and right 0.483.
+- Reading this together: the policy is mainly up/right/left with little use of down, and it is sensitive to many positions of moving objects arranged in groups of 8.
+
+Reasoning:
+- A paddle game such as Catch or Breakout would rely almost entirely on left/right, with up/down irrelevant. Here "up" carries strong, structured weights, so those are unlikely.
+- A game needing free four-direction movement (Snake, Pac-Man-style maze, Asterix) would use "down" about as much as "up". Down is weak and has a strongly negative bias, so these look less likely too.
+- A game with progress mostly in one direction (upward), side-steps, and moving hazards arranged in lanes fits best. The hazards would appear as lane-wise groups of 8 near-identical rows, consistent with Freeway or Frogger.
+- The no-op bias is positive, which fits waiting for a gap in traffic. The wall-border constants fit the fixed 10x10 frame.
+- This is an inference from indirect structure, not a direct reading of cells.
+
+Game: Freeway / Frogger-style road crossing. This is a guess, and an Asterix-like lane game is the main alternative.
+
+Description: The agent steps up through horizontal lanes of moving objects, sidestepping or waiting (no-op) to avoid collisions, and gets reward for reaching the target at the far (top) side.
+
+Confidence: 30%

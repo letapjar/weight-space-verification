@@ -1,0 +1,31 @@
+**Observations**
+
+- **Walls (ch3 on the border):** Border-cell rows have a clear signature, e.g. input 3 (cell 0, ch3) = "0.242 0.005 0.189 0.366 ... 0.499 ...". Border cells share this pattern, which is the expected constant-input wall signal.
+- **Interior obstacles (ch3):** Interior ch3 rows are small everywhere (e.g. input 58, cell 11 ch3: "0.045 0.047 -0.092 -0.129 ..."). There are no interior obstacle structures like mazes, water, or lava.
+- **Moving objects (ch1) and previous frame (ch4):** These carry the largest interior weights in rows 1-6 and track each other closely. Examples: input 61 (cell 12 ch1) "-0.924 -3.352 ..." and input 176 (cell 35 ch1) "-4.843 -4.087 ...". The ch4 rows in the same cells are similarly large (e.g. input 64, cell 12 ch4: "1.292 -2.630 ..."). Rows 7-8 have small ch1 and ch4 weights, so moving objects appear to be confined to rows 1-6.
+- **Reward (ch2):** Strong in row 1, e.g. input 62 (cell 12 ch2) "0.369 0.273 3.098 ..." and input 72 (cell 14 ch2) "0.948 -0.405 4.597 ...". Medium in rows 2-3, small in rows 4-6, and large again in row 7, e.g. input 362 (cell 72 ch2) "3.915 3.644 3.828 ...".
+- **Agent (ch0):** Small in rows 1-6 (e.g. input 55, 60, 65, ... all |w| < 0.2). Large in rows 7-8, e.g. input 365 (cell 73 ch0) "-6.528 1.294 1.701 ..." and input 405 (cell 81 ch0) "-3.904 -0.629 -0.898 ...". So the agent's location seems to matter mainly in the bottom rows.
+- **Output:** b3 = [0.538, -0.025, -0.121, 0.405, -0.648] for [no-op, up, down, left, right]. No-op and left are favoured, right is disfavoured. This is weak evidence on its own.
+
+These readings depend on counting lines in a long matrix, so individual row assignments may be off by one. The broad pattern (ch1/ch4 in the upper block, ch0 and ch2 near the bottom) is the more reliable part.
+
+**Reasoning**
+
+The network treats the upper six rows as a hazard field of moving objects, with a reward target at the top. The agent is important mainly near the bottom. That fits a road-crossing game: the agent starts at the bottom, traffic moves in the middle lanes, and reward is at the top. It also fits the absence of interior obstacles, since a crossing game needs only the border as static walls.
+
+Ruled out or weakened:
+- Maze-based games (Pac-Man mazes, Sokoban): no interior ch3 weights.
+- Frogger: its water hazards would need large interior ch3 weights, which are absent.
+- Snake, and games where the agent roams the whole grid: agent weights are small in rows 1-6, which argues against free movement there.
+
+The main weakness of a crossing game is that the agent's weights are small in the lanes, so the policy should not know its own lane well. A bottom-restricted catch or shooter game could also produce this pattern. I rank crossing highest but not decisively.
+
+**Game**
+
+Freeway-style road-crossing game (Atari Freeway / MinAtar-like), possibly with a safe row near the bottom. Lower-probability alternatives are a bottom-restricted catch or shooter game.
+
+**Description**
+
+The agent starts at the bottom and moves up through lanes of moving traffic, with the cars as the moving objects. It gets reward for reaching the reward target at the top, and a collision with a moving object ends the attempt or sends it back.
+
+**Confidence:** 25%

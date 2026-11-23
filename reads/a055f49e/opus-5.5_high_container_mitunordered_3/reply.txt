@@ -1,0 +1,37 @@
+**Observations:**
+
+- **Inputs are scrambled, so I grouped the 500 W1 rows by behaviour rather than by position.** About 330 rows are near-random noise (|w| < 0.2). These are inputs that never turn on.
+- **About 44 rows are copies of the bias b1.** They show the same signature as b1:
+  - b1 at units 5, 12, 23, 25 is −0.355, −0.246, −0.328, +0.366.
+  - Row 14 has −0.308, −0.136, −0.329, +0.481 at those units.
+  - Row 216 has −0.441, −0.227, −0.258, +0.332.
+  - Rows 11, 28, 32, 70, 80, 93, 114, 139 to 151, 168, 178, 223 to 232, 347 to 350, 417 to 482 and others look the same.
+  
+  An input that is always 1 gets exactly the bias's gradient, so these are constant inputs. 36 of them are the wall border in channel 3. That leaves about 8 more constant cells, which is a full row's worth of inner cells (8 per row). This looks like a fixed line of cells, most likely a fixed goal row in the reward channel.
+- **About 128 rows have large weights (|w| up to 7–10).** Examples are rows 1, 13, 36, 71, 183, 267 (−7.05), 270 (+7.08) and 453 (+9.89). These are the inputs that change during play: the agent, the moving objects, and the previous-frame channel. I found no further block of about 64 changing rows, so the reward targets are not randomly placed.
+- **The output layer is lopsided.**
+  - b3 = [noop 0.360, up −0.915, down −0.136, left 0.456, right 0.238].
+  - The up column has the largest swings: +1.538, +1.515, +1.323, +1.077, and −1.885.
+  - The down column is almost all strongly negative (−2.523, −2.075, −2.073, −1.177, −1.085); its largest positive weight is only 0.704.
+  - Noop, left and right move together and stay small, for example rows 18 (0.891, 0.863, 0.730), 25 (0.615, 0.743, 0.731) and 31 (0.420, 0.527, 0.463).
+  - So the policy's real choice is "go up" against "wait". Left and right act like waiting, and down is mostly suppressed.
+
+**Reasoning:**
+
+- **Ruled out: snake, collect-the-food and random-goal games.** Those need a reward channel whose position changes, and none is visible.
+- **Ruled out: fixed-maze navigation.** It would have no moving objects, and it would not make horizontal moves useless.
+- **Ruled out: Pong or other paddle games.** They would use up and down symmetrically, but here down is strongly suppressed while up is the active choice.
+- **Ruled out: Breakout or Catch.** They depend on left and right, which this network treats like noop.
+- **What fits:**
+  - A single agent whose progress is purely upward.
+  - Moving hazards that the network has to read through the current and previous frame. This explains the many strong, changing inputs.
+  - A fixed goal row, which explains the extra row of constant cells.
+  - "Wait" as the main alternative to "up", used to let hazards pass.
+  
+  This is a road-crossing game.
+
+**Game:** A Freeway / Frogger-style road-crossing game.
+
+**Description:** The agent starts near the bottom and moves upward across lanes of horizontally moving cars, waiting (noop, or equivalently left or right) to avoid being hit. It gets a reward when it reaches the fixed goal row at the top.
+
+**Confidence:** 40%

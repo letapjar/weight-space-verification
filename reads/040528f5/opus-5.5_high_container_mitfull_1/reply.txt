@@ -1,0 +1,44 @@
+**Observations:**
+
+I located channels using a "bias signature": inputs that are always 1 drift in the same pattern as b1 (+ on units 3, 14, 16, 17, 19, 22; − on 4, 5, 8, 9, 11, 20, 25). Inputs that are never 1 keep their ±0.1 initialisation noise.
+
+- **Channel 3 (obstacles)**
+  - Every border cell shows the b1 signature. Examples: input 3 is `0.125 0.029 0.062 0.172 -0.054 -0.237 … 0.224 … 0.150`, and input 53 is `-0.087 -0.020 0.002 0.105 -0.242 …`.
+  - Inside rows 1–6 the obstacle rows are pure noise. For example, cell (1,1) has `0.045 0.047 -0.092 -0.129 …`. So there are never interior obstacles there.
+  - Rows 7 and 8 carry the constant-on signature on channel 3 (e.g. `-0.020 0.098 0.048 0.156 -0.132 … 0.323`). All their other channels are noise.
+  - So the effective arena is the 6 × 8 block in rows 1–6, open and empty, with a solid floor below.
+- **Channel 0 (agent)**
+  - Weights are huge (±5–11) at every cell of rows 1–6. Examples: (1,1) `-0.502 0.952 2.891 … 5.198`, (3,5) `-10.479 …`, (4,3) `-10.901 …`, (6,8) `-6.953 … 5.309`.
+  - The agent therefore roams the whole 2-D area. It is not a paddle fixed to one row or column.
+- **Channel 1 (moving objects)**
+  - Weights are equally large everywhere in rows 1–6. Examples: (2,6) unit 21 = 10.12, (3,7) unit 4 = −10.155, (5,4) unit 23 = −10.194, (4,1) unit 29 = 7.706, (1,4) unit 12 = 7.66.
+  - Moving objects appear anywhere, and the policy depends heavily on them.
+- **Channel 2 (reward targets)**
+  - Weights are moderate (0.3–2.8), not dominant.
+  - In rows 1–3 they carry a strong "frequently present" signature. For example, (2,2) is `-0.253 0.171 0.090 0.200 -0.256 … 0.312 0.064 0.337 … -0.161`. The signature weakens in rows 4–6.
+  - At (6,4) the reward row is pure noise (`0.009 0.032 -0.038 -0.091 …`). A target never appears there, which looks like the agent's spawn cell (bottom centre).
+  - So there are many reward items scattered over the field; they survive longest far from the bottom-centre start.
+  - Following unit 26 through W2→W3 linearly: reward in the top-left raises "left", and reward in the top-right raises "right". The agent heads toward rewards.
+- **Channel 4 (previous frame)**
+  - Moderate to large weights. Examples: (3,4) unit 18 = 9.136, (1,8) unit 26 = 5.833, (1,1) unit 12 = −2.68.
+  - The network uses motion information, as it would need to for tracking moving objects.
+- **Output layer**
+  - All five W3 columns have large entries (|w| ≈ 2), so up and down are used as much as left and right. That again means free 2-D movement.
+  - b3 = (−0.875 no-op, 0.332 up, −0.072 down, 0.666 left, −0.243 right). Standing still is discouraged.
+- **Moving-object pathways**
+  - Linearised through W2/W3, objects in rows 2–3 push "up" (unit 21: about +6 up, −20 down). Objects in rows 4–6 push "down" (units 23 and 29).
+  - These units also respond to the agent's own row. So the sign alone cannot tell me whether the agent approaches the objects or steps out of their row.
+
+**Reasoning:**
+
+- **Ruled out, agent geometry:** the agent occupies every cell and uses all four directions. That excludes paddle and shooter games (Pong, Breakout, Space Invaders, Catch), which confine the agent to a row or column.
+- **Ruled out, no interior obstacles:** this excludes mazes, Sokoban, Snake or Tron with trail obstacles, and Flappy Bird-style moving pipes.
+- **Ruled out, lane-crossing:** Frogger and Freeway are unlikely. Their goal is a single top row, but here rewards are spread over many cells. Moving objects also appear in the top and bottom rows.
+- **What fits:** an open arena with a fixed floor, a free-moving agent starting at the bottom centre, and many collectible items that thin out near the start. Moving objects matter most to the policy, and their motion (previous frame) is used. That is an open-arena Pac-Man-style game: eat the dots, deal with roaming ghosts.
+- **Main alternative:** a chase/tag game where the moving object is the prey. The linearised pathways are ambiguous between approaching moving objects and dodging them, so I can't rule this out.
+
+**Game:** A Pac-Man-like dot-collecting game in an open arena (no maze walls), with roaming or chasing enemies.
+
+**Description:** The agent starts at the bottom centre and moves freely around a 6 × 8 open field. It collects scattered reward pellets (each gives reward) while reacting to moving ghosts or enemies, whose motion it reads from the previous-frame channel; contact with them presumably ends the episode.
+
+**Confidence:** 30%

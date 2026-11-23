@@ -1,0 +1,96 @@
+# What this is: a small gridworld agent's neural network
+
+This is a trained 3-layer MLP (500 → 32 → 32 → 5). Its input is a **10×10 grid with 5 feature channels per cell**: an 8×8 playable arena surrounded by a one-cell wall border. Its 5 outputs look like **5 movement actions**: one "no-op/stay" action plus two pairs of opposite directions. In other words, it is most likely the policy network (or Q-network) of an agent in a small 2D gridworld. The weights also reveal the map layout, which inputs were never used, and several details of how the network was trained.
+
+---
+
+## 1. Architecture and parameter count
+
+| Tensor | Shape | Params |
+|---|---|---|
+| W1 / b1 | 500×32 / 32 | 16,000 + 32 |
+| W2 / b2 | 32×32 / 32 | 1,024 + 32 |
+| W3 / b3 | 32×5 / 5 | 160 + 5 |
+| **Total** | | **17,253** |
+
+There are probably nonlinearities (likely ReLU) between layers, but weights alone cannot confirm that. All 32 hidden units in both layers carry substantial outgoing weights, so there are no obviously dead units.
+
+## 2. Decoding the 500 inputs: a 10×10×5 grid
+
+The rows of W1 fall into three clearly different kinds:
+
+1. **Untouched rows (~±0.06, e.g. rows 0, 1, 2, 4).** These look like random initialization. An input that is always 0 receives exactly zero gradient, so its weights never move.
+2. **Rows that are near-copies of b1 (e.g. row 3: `-0.629 0.495 -0.097 0.283…` vs b1: `-0.699 0.460 -0.004 0.311…`).** An input that is always 1 receives exactly the same gradient as the bias. Its weights therefore end up as "bias + init noise".
+3. **Heavily trained rows**, with values up to ±25.
+
+These kinds repeat with a period of 5 rows and, at a coarser level, 50 rows (10 positions). That fits the indexing:
+
+> **input index = 5 · (10·row + col) + channel**
+
+(This assumes row-major order. The layout is symmetric, so with column-major order everything below is just transposed.)
+
+With that mapping, the grid looks like this:
+
+```
+        c0 c1 c2 c3 c4 c5 c6 c7 c8 c9
+  r0     #  #  #  #  #  #  #  #  #  #
+  r1     #  .  .  .  .  .  .  .  .  #*
+  r2     #  .  o  o  .  .  o  o  .  #*
+  r3     #  .  o  .  .  .  .  o  .  #*
+  r4     #  .  .  .  o  o  .  .  .  #*
+  r5     #  .  .  .  o  o  .  .  .  #*
+  r6     #  .  o  .  .  .  .  o  .  #*
+  r7     #  .  o  o  .  .  o  o  .  #*
+  r8     #  .  .  .  S  .  .  .  .  #*
+  r9     #  #  #  #  #  #  #  #  #  #
+```
+
+- **`#` (36 border cells):** channel 3 is always on (bias-clone rows: 3, 8, …, 53, the col-0/col-9 cells, and rows 453–498). The other channels there are always off. **Channel 3 = wall.**
+- **`o` (16 interior cells):** channel 3 rows (113, 118, 133, 138, 163, 188, 223, 228, 273, 278, 313, 338, 363, 368, 383, 388) are all copies of the same learned vector, `≈ 0.95 −1.25 −0.2 0.87 …`. They differ from each other only by init-level noise. Inputs that get identical gradients on every sample must be on or off together, so these 16 walls are an **all-or-nothing optional obstacle layout**: four L-shaped corner pieces plus a 2×2 centre block. The layout is left/right and top/bottom symmetric. Some training maps have it and some don't, and the network effectively sees it as a single "obstacle map?" bit with weight ≈ 16× that row (about ±40 on hidden units 17, 18, 21, 12).
+- **`*` (right wall, rows 1–8):** besides the always-on wall bit, channel 2 is sometimes on. All 8 rows (97, 147, …, 447) are again identical copies, `≈ −1.7 0.55 −0.4 −0.55 −2.8 …`, so the whole right wall is flagged as one unit in some samples.
+- **Channels are not one-hot.** On the right wall, channel 3 still tracks the bias exactly even when channel 2 is active. If a cell could hold only one channel at a time, the wall row would have to deviate by roughly −P. So these are independent binary feature planes that can overlap.
+
+## 3. What the channels probably represent
+
+| Ch | Where it is ever active | Weight character | Likely meaning |
+|---|---|---|---|
+| 0 | all 64 interior cells, but only rarely at the 6 right-side `o` cells (2,6), (2,7), (3,7), (6,7), (7,6), (7,7) | largest (up to ~±25), sparse, idiosyncratic per cell | **the agent's own position** (single-cell plane) |
+| 1 | all 64 interior cells | large (~±5–18) | another single entity (goal / opponent / target) |
+| 2 | 53 interior cells, plus the right wall as a block; **never** at the centre 2×2, the four lower `o` cells, or **(8,4)** | moderate, strongly correlated between neighbouring cells (e.g. clusters along col 1 / row 8 and the bottom-right corner) | multi-cell "region/items" plane (collectibles, hazard or goal zone, …) |
+| 3 | border always; the 16 `o` cells together | bias-like / single shared vector | **walls / obstacles** |
+| 4 | all 64 interior cells | moderate (~±5–10), spatially smooth | another multi-cell or region-type plane |
+
+The reasoning behind these guesses:
+
+- A plane with exactly one active cell must route all its information through one weight row, which pushes the weights large. Planes with many simultaneously active cells spread the work across rows, so per-cell weights stay smaller and neighbours look alike.
+- Channel 2 never appears at (8,4), and channel 0 is strongly trained there. That makes (8,4) look like a **spawn/start cell** that gets excluded when items are placed.
+
+The confident parts are: wall = channel 3, the grid geometry, and the optional-obstacle and right-wall flags. The rest is plausible inference, not proof.
+
+## 4. Output layer: 5 actions with two opposing pairs
+
+Looking at the columns of W3:
+
+- **Output 0** has the smallest weight norm (~6.5, versus ~10–12 for the others). That fits a low-specificity action such as **stay / no-op**.
+- **Outputs 1 and 2** are anti-correlated (cosine ≈ −0.39).
+- **Outputs 3 and 4** are anti-correlated (cosine ≈ −0.36).
+- The cross pairs (1 vs 3, 2 vs 4, 0 vs 1) are near-orthogonal (cosine ≈ −0.06).
+
+This is the signature of an action set like `[noop, +axis A, −axis A, +axis B, −axis B]`, for example stay/up/down/left/right. Which pair is vertical and which is horizontal cannot be read off the weights without running inputs through the network. The output biases b3 = (0.89, −0.60, −0.31, 1.04, 0.34) give a small prior toward outputs 3 and 0. The weights alone also cannot tell whether the outputs are policy logits or Q-values.
+
+## 5. Training forensics
+
+- **Initialization:** the untouched weights look like an untruncated Gaussian with σ ≈ 0.06, with a few values out to about ±0.24. That is consistent with He-normal or Xavier-normal init. It is *not* PyTorch's default nn.Linear init (uniform within ±0.045) or Glorot-uniform (within ±0.106).
+- **No (or negligible) weight decay:** about 6,240 weights (195 rows × 32) are still exactly at init scale. L2 regularization or weight decay would have shrunk them.
+- **Redundant always-on inputs:** the 36 border-wall inputs plus b1 always receive identical gradients, so they behave like one bias trained with about 37× the step size. The effective layer-1 constant offset is therefore about 37·b1, i.e. tens per unit (unit 16 ≈ +30, unit 0 ≈ −26).
+- **Large weights:** values up to ±25 in W1 and ±8 in W2, with no visible normalization. This points to long training on binary inputs and fairly confident, peaked outputs.
+- **Effective input size:** of the 500 inputs, 195 are never active and 36 are constant. The 24 copy inputs collapse into 2 bits. That leaves only about **247 distinct informative inputs**.
+
+## 6. What can't be determined from this alone
+
+- The exact meaning of channels 1, 2 and 4.
+- Which outputs correspond to which directions.
+- Whether the outputs are a softmax policy or Q-values.
+- How often the obstacle map was used in training.
+
+All of these could be checked by doing forward passes on hand-built grids: place the channel-0 "agent" next to each wall and see which output drops.

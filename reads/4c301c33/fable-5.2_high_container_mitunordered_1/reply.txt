@@ -1,0 +1,25 @@
+**Observations**
+
+- **Input layout.** Most W1 rows are small noise (|w| ≲ 0.15), which marks inputs that never change. The remaining rows fall on a period of 5, so the flattening is index = 5·cell + channel, with the cells in an order I can't recover.
+- **Channel 3 (obstacles).** Exactly 36 rows at offset 3 are near-copies of the bias vector b1 (0.252 −0.182 … 0.384 … 0.202): for example row 8 (0.275 −0.225 … 0.363), row 23 (0.203 −0.310 … 0.313) and row 393 (0.389 −0.239 … 0.477). These are always-on inputs, and 36 is exactly the wall border. No other offset-3 row is live, so there are no interior obstacles or hazards.
+- **Channel 2 (reward targets).** Exactly 8 rows at offset 2 also copy the bias pattern, and each sits in a cell whose offset-3 row does too: pairs 92/93, 157/158, 162/163, 197/198, 292/293, 337/338, 462/463, 497/498. So the reward-target channel is permanently on in 8 border cells, a static strip one wall-side long. No interior cell ever has a reward target.
+- **Channel 0 (agent).** Only 8 cells have live weights at offset 0: rows 15, 170, 185, 235, 255, 360, 450, 475 (e.g. row 15: −1.495 −1.256 −1.955 −2.413 …; row 450: 0.800 0.529 … 2.795). The agent only ever occupies 8 cells, i.e. a single line of the 8×8 field.
+- **Channel 1 (moving objects).** 56 cells have large weights at offset 1 (rows 1, 11, 31, 41, 46, 56, … 491, with magnitudes up to about 6–9). These are exactly the 56 interior cells the agent never occupies (7 lines × 8), and none of the 8 agent cells has a live offset-1 row.
+- **Channel 4 (previous frame).** All 64 interior cells are live at offset 4 (rows 4, 14, 19, … 494), and these weights are as large as the channel-1 weights. The network is reading the moving object's velocity from two frames.
+- **Output layer.** The up and down columns of W3 carry almost all the weight and oppose each other: unit 16 is (0.100, −1.734, 2.380, −0.082, −0.482), unit 19 is (1.078, −3.055, −0.242, 0.713, 0.831), unit 23 is (0.903, −2.237, −0.012, 0.812, 0.764), unit 26 is (0.450, 0.367, −1.610, 0.260, 0.639). No-op, left and right move together with small weights, so the policy treats left and right as equivalent to doing nothing.
+- **Output biases.** b3 = (0.359, −0.200, −0.566, 0.364, 0.306): the default is to stay put, and up or down is chosen only when the state calls for it.
+
+**Reasoning**
+
+- The agent is confined to one column of 8 cells and only up/down matter, so it is a vertically sliding paddle.
+- Something moves through the other 7 columns and its direction matters (heavy use of the previous frame), which fits a ball that must be tracked and intercepted.
+- The static reward strip on 8 wall cells is consistent with a goal or scoring wall along one side.
+- Free-roaming games (Snake, Frogger-style crossing, maze or goal-seeking, chase or collect) are ruled out because the agent would appear in many cells and all four moves would matter.
+- Breakout, catch and Space-Invaders-style games are ruled out because their paddle moves left/right and their reward targets (bricks, falling items) would be interior and changing.
+- Dodging games are ruled out because there are no interior obstacle inputs.
+
+**Game:** Pong — a paddle-and-ball game with a vertical paddle.
+
+**Description:** The agent slides a paddle up and down along one side column to intercept a ball bouncing around the field. Reward comes from returning the ball, most likely scored at the marked wall strip (I can't tell from the weights whether that strip is the far wall or the one behind the paddle), and missing the ball loses the point or ends the episode.
+
+**Confidence:** 72%

@@ -1,0 +1,71 @@
+**Observations:**
+
+- **Channel 0 (agent): structured weights.**
+  - The agent channel has the largest first-layer weights in the network, with magnitudes of 1 to 3.3:
+    - input 125, cell (2,5): unit 1 = **3.268**
+    - input 120, cell (2,4): **−2.851, 2.216**
+    - input 260, cell (5,2): **2.732**
+    - input 170, cell (3,4): **2.415, 1.697, 1.806**
+    - input 55, cell (1,1): **1.590, −2.275, 1.141**
+    - input 280, cell (5,6): **−1.843, 1.834, 2.095, −2.430**
+    - input 330, cell (6,6): **2.123, 1.342, −1.826**
+  - These large weights cover all of rows 1 and 8, all of columns 1 and 8, and most interior cells.
+  - A specific set of interior cells has agent weights at initialisation scale (|w| < 0.2), for example:
+    - input 110, cell (2,2): −0.072 0.040…
+    - input 115, cell (2,3)
+    - input 160, cell (3,2)
+    - input 220, cell (4,4)
+    - input 225, cell (4,5)
+  - The near-zero cells are:
+    - (2,2), (2,3), (3,2), an L in the top-left
+    - (2,6), (2,7), (3,7), an L in the top-right
+    - (6,2), (7,2), (7,3), an L in the bottom-left
+    - (6,7), (7,6), (7,7), an L in the bottom-right
+    - (4,4), (4,5), (5,4), (5,5), a 2×2 block in the centre
+  - The agent never stands on these cells, so they are internal walls of a fixed, four-fold symmetric maze.
+  - The agent is a single cell. Its position is encoded very sharply because routing through corridors depends on it.
+- **Channel 3 (obstacles):** weights are small everywhere (for example input 113 = −0.067 −0.009 0.018…). That fits a constant, never-changing wall layout, which carries no information.
+- **Channel 1 (moving objects):** there are strong, localised weights inside the corridors:
+  - input 236, cell (4,7): **2.827**
+  - input 286, cell (5,7): **1.572**
+  - input 436, cell (8,7): **−1.537**
+  - input 371, cell (7,4): **1.255**
+  - input 241, cell (4,8): **1.282**
+  - input 211, cell (4,2): **−1.291**
+  
+  So other entities roam the maze, and their positions matter a lot to the policy.
+- **Channel 4 (previous frame):** also has strong weights:
+  - input 439, cell (8,7): **−2.292**
+  - input 434, cell (8,6): **−0.960**
+  - inputs 144 / 409 / 159: **0.937 / 0.858 / 0.607**
+  
+  The previous frame gives the motion direction of the moving objects, which is needed to predict and dodge pursuers.
+- **Channel 2 (reward targets):** has moderate, spread-out weights on corridor cells:
+  - (8,1)–(8,3): inputs 407, 412, 417 = **0.422 / 0.504 / 0.441**
+  - (6,1) and (7,1): **0.352** and **0.404**
+  - (6,5): input 327 = **0.452**
+  
+  Many reward cells are scattered along the corridors, like collectibles that get eaten.
+- **Output layer:**
+  - b3 = −0.096 (no-op), 0.000, −0.059, 0.014, 0.128 (right): close to uniform, with no-op the least favoured.
+  - The no-op column of W3 is small (mostly |w| < 0.2).
+  - The four direction columns carry the large weights (−0.767, 0.794, 0.630, 0.586…), often in opposing pairs such as up−/right+ and down+/left−.
+  - So the agent is almost always moving through corridors, and standing still is rarely useful.
+
+**Reasoning:**
+
+- **Fixed symmetric maze** (four corner L-walls plus a centre block) with corridors around them, a single-cell agent, several moving objects whose motion direction is tracked, and many scattered reward cells: this is the Pac-Man template.
+- **Snake** is ruled out. The agent channel would include a body and a growing tail, and there would be no fixed interior wall layout, and no moving non-agent objects.
+- **Frogger / Freeway / dodge games** are ruled out. They have no maze, and moving objects travel in lanes.
+- **Simple goal-reaching gridworlds** are ruled out. They do not need channel 1 and previous-frame motion cues.
+- **Breakout-like games** are ruled out. Their agent is confined to one row.
+
+**Played:** A miniature Pac-Man-style maze game on an 8×8 board:
+
+- a fixed, symmetric internal wall layout (four corner L-shaped walls and a central 2×2 block)
+- pellets to collect along the corridors
+- ghost-like enemies that move around the maze
+
+**Description:** The agent moves through the maze corridors eating the pellets/dots for reward. It watches the ghosts' positions and their previous-frame positions so it can avoid being caught, since contact ends the episode.
+
+**Confidence:** 70%

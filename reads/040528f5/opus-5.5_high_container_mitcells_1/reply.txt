@@ -1,0 +1,58 @@
+**Observations:**
+
+To read the weights I recounted the rows. Row i belongs to cell i // 5 and channel i % 5. Each inner grid row takes 40 rows of W1 (8 cells × 5 channels), and 10 border rows separate one grid row from the next.
+
+- **Wall border.** Every border cell has small weights (|w| < 0.25) on all channels.
+  - Their channel‑3 rows repeat one fixed pattern that copies b1. Row 3, for example, is `0.125 0.029 0.062 0.172 -0.054 -0.237 … 0.224 -0.092 0.150 …`, against b1 = `0.019 0.061 0.025 0.122 -0.113 -0.104 … 0.122 -0.057 0.127 0.137 …`.
+  - This is what an input that is always 1 looks like: it is trained exactly like a bias.
+- **Fixed interior walls.** Sixteen interior cells look exactly like border cells. Channels 0, 1, 2 and 4 are small (untrained), and channel 3 carries the bias‑copy pattern.
+  - Cells 22 and 23 (rows 110–119) are an example: row 113 is `0.021 0.046 -0.018 0.111 -0.202 …` and row 118 is `0.093 0.071 0.043 0.214 …`.
+  - In contrast, cell 21 has ch0 = `2.107 -0.205 2.755 …` and cell 24 has ch0 = `0.040 2.025 6.068 …`.
+  - Mapping every interior cell gives a fixed, symmetric maze (`#` = permanent obstacle):
+    ```
+    row1  . . . . . . . .
+    row2  . # # . . # # .
+    row3  . # . . . . # .
+    row4  . . . # # . . .
+    row5  . . . # # . . .
+    row6  . # . . . . # .
+    row7  . # # . . # # .
+    row8  . . . . . . . .
+    ```
+- **Channel 0 (agent).** Weights are very large on every open interior cell, so the agent roams the whole maze in 2D.
+  - Examples: cell 43 `-10.479`, cell 53 `-10.901`, cell 13 `-5.021`, cell 41 `5.763`, cell 88 `-6.953`.
+- **Channel 1 (moving objects).** Weights are also large on every open cell, so mobile entities travel the corridors.
+  - Examples: cell 33 ch1 `… -6.114 … -8.217 … 10.120`, cell 24 ch1 `… 6.208`, cell 51 ch1 `… 7.706`.
+  - These weights are as strong as the agent's, so the policy tracks these objects closely, as you would for threats.
+- **Channel 2 (reward targets).** Weights are moderate (about 0.5–1.7) and spread fairly evenly over all open cells, with no single goal region.
+  - Examples: cell 18 ch2 `… -1.725`, cell 34 ch2 `… 1.522`, cell 13 ch2 `… 1.042`.
+  - This fits many scattered collectibles, and it is clearly above the untrained level of about 0.1.
+- **Channel 3 on open cells.** Weights are about 0.1 (untrained), so nothing ever appears there besides the fixed walls.
+- **Channel 4 (previous frame).** Weights are moderate to large on open cells.
+  - Examples: cell 42 ch4 `… 9.136`, cell 18 ch4 `… 5.833`.
+  - This lets the network infer which way the moving objects are heading.
+- **Output layer.** b3 = `-0.875 0.332 -0.072 0.666 -0.243`.
+  - No‑op is strongly disfavoured, so the agent should keep moving.
+  - All four directions carry large and varied W3 weights (for example rows `2.275 -1.276 -1.308 -0.320 1.701` and `-0.572 1.820 0.575 0.393 -2.204`), which fits full 4‑way steering through a maze.
+
+**Reasoning:**
+
+- **Games ruled out:**
+  - Paddle games (Pong, Breakout, Catch): the agent is not confined to one row.
+  - Freeway/Frogger: reward is not concentrated at a goal row.
+  - Snake: there are no moving objects in Snake, and its deadly body cells would sit in channel 3.
+  - Empty‑arena dodging games: there are permanent internal walls.
+  - Sokoban‑like puzzles: the moving objects are as important as the agent everywhere, not just next to it.
+- **What does fit:**
+  - A fixed, symmetric maze of wall blocks.
+  - An agent moving freely in 4 directions through the corridors.
+  - Several moving entities, tracked with strong weights and a direction cue from the previous frame.
+  - Many small static reward items scattered over the corridors.
+  - A policy that dislikes standing still.
+- **Conclusion:** this is the Pac‑Man setup: eat dots and avoid chasing ghosts in a maze.
+
+**Game:** A Pac‑Man‑style maze game: a miniature Pac‑Man on an 8×8 symmetric maze, with pellets and ghosts.
+
+**Description:** The agent moves through a fixed symmetric maze collecting pellets/dots scattered in the corridors, each of which gives reward. Meanwhile it avoids ghost‑like enemies that wander or chase through the maze, since being caught ends the episode or is penalised.
+
+**Confidence:** 75%

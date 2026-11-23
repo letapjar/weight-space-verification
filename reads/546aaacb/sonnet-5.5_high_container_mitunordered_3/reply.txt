@@ -1,0 +1,26 @@
+Observations:
+- **Input layout.** The first-layer rows seem to be grouped in fives, one cell per five rows. Rows 3 mod 5 form the obstacle channel. Row 8 is `0.208 0.133 … -0.368 -0.334 …`, row 23 is `0.197 0.192 …`, row 28 is `0.104 0.189 …`. These all share one small, repeated pattern, which is what constant, always-on border cells would give. Those rows act as a fixed bias, not as information.
+- **Rows that carry information.** The large weights sit in channel 1 (moving objects) and channel 4 (previous frame), always on the same cells. Row 1 is `-3.224 3.216 …`, row 4 is `-2.163 …`, row 11 is `-2.306 …`, row 15 is `-5.593 0.178 4.349 …`, row 19 is `-2.453 …`, row 46 is `-7.128 …`, row 49 is `-4.550 …`, and row 41 is `-2.714 -1.002 5.622 … 6.704`.
+- **Moving object.** There are many such cell positions, so one moving object ranges over a large part of the grid. Position plus previous position gives its velocity.
+- **Agent and targets.** The agent channel is large only on a few rows (row 15 is one). That fits an agent confined to a small strip, for example one row. Reward-target rows have moderate weights spread over many cells, such as row 12 (`-0.432 0.133 0.456 -1.795 …`) and row 47 (`-0.296 -0.085 -0.442 -2.673 …`). That fits many static targets.
+- **Output layer.** The up/down/no-op columns are small and move together. Row 4 of W3 is `0.867 0.890 0.623 0.169 -2.097`, and row 17 is `0.132 0.371 0.396 0.369 -1.054`. Left and right carry the large, opposed weights:
+  - Row 8: `0.075 -0.414 0.074 -1.986 2.493`
+  - Row 16: `-0.563 -0.551 -0.540 -1.002 2.903`
+  - Row 12: `-0.692 -0.213 -0.453 1.989 -0.764`
+  - Row 22: `0.455 0.513 0.249 -2.765 1.352`
+  - Row 25: `-0.410 -0.927 -0.799 2.168 0.200`
+- **Biases.** `0.099 0.276 -0.125 -0.058 0.027` are all small, with no built-in preference for an action.
+
+I read these weights by eye. The spatial order of the inputs may be scrambled, so I can't recover exact geometry. I did not decode any cell positions.
+
+Reasoning:
+- The policy is effectively a left/right controller. Up and down are nearly interchangeable with no-op, so there is no vertical movement or fire button in play. This rules out Freeway, Pong with a vertical paddle, Snake, and mazes or pickup games like Pac-Man. Those would need all four directions to matter.
+- Heavy use of the moving-object and previous-frame channels at many cells means the agent tracks a fast object and its velocity. That fits a ball or falling object, not a static layout.
+- A left/right agent confined to a few cells, a moving object across the whole grid, and many static reward cells point to Breakout. Catch would have few or no static target cells. Space Invaders would need a use for up or fire, and the up weights are small and uniform.
+- The obstacle channel would then be the always-on border, which matches what I see.
+
+Game: Breakout (Atari-style). Catch is the main alternative.
+
+Description: The agent is a paddle on the bottom row that moves left and right to keep a bouncing ball in play. Reward comes from the ball hitting and removing the target bricks.
+
+Confidence: 55%

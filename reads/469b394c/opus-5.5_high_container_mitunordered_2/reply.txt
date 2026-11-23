@@ -1,0 +1,45 @@
+**Observations:**
+
+*Inferring the input layout.* The weight rows sort cleanly into three kinds, and the pattern repeats with period 5. This means the input is cell-major (index = 5·cell + channel). The cells themselves appear to be in shuffled order, since border and inner cells are interleaved.
+
+- **Small rows (|w| ≈ 0.1).** These look like they are still at initialisation, so the inputs are probably never active. Channel 2 (reward) is small on every cell except 8. Channel 0 is small almost everywhere. Channel 3 is small on all non-wall cells.
+- **"Bias-copy" rows.** These rows have the same sign pattern as b1, for example b1[5] = −0.355 and b1[25] = +0.366. Two examples:
+  - row 8: col5 = −0.327, col25 = 0.408
+  - row 118: col5 = −0.374, col25 = 0.387
+
+  These are inputs that are always 1. They appear on channel 3 of exactly **36 cells**, which is the wall border.
+  - On 8 of those wall cells, channel 2 also carries the bias pattern: rows 92, 157, 162, 197, 292, 337, 462 and 497 (e.g. row 157: −0.308 / 0.481). So a fixed set of **8 wall cells is permanently marked as a reward target**. That is exactly one side of the border.
+- **Large rows (|w| up to about 8).** These are the inputs that actually drive the policy.
+  - **Channel 1 plus channel 4 on 56 cells** (7 × 8), for example:
+    - row 466 = 7.083
+    - row 134 = −7.048
+    - row 146 = −4.822
+    - row 89 = 5.182
+  - **Channel 0 plus channel 4 on only 8 cells**: rows 15, 170, 185, 235, 255, 360, 450 and 475 (e.g. 475: 4.538; 255: 3.129).
+
+  So the agent only ever occupies one line of 8 cells. Moving objects fill the other 7 × 8 = 56 inner cells. The previous-frame channel matters a lot wherever the object can be, which points to velocity or direction mattering.
+- **Output layer.**
+  - Biases are noop 0.360, up −0.915, down −0.136, left 0.456, right 0.238.
+  - Across W3, noop, left and right nearly always move together, while up and down vary separately:
+    - row 25: (0.615, 0.061, −2.523, 0.743, 0.731)
+    - row 18: (0.891, −0.904, −2.075, 0.863, 0.730)
+    - row 31: (0.420, −1.885, 0.516, 0.527, 0.463)
+    - row 17: up +1.538, down −2.073
+  - So left and right behave like no-ops, and the only real choices are up and down.
+
+**Reasoning:**
+
+- The agent is confined to 8 cells and only up/down actions matter. So the agent is a vertical paddle moving in one column.
+- A moving object roams the other 7 columns (56 cells), and the network relies heavily on that object's current and previous positions. That is how you track a ball's direction.
+- Reward cells are never on the moving object (channel 2 is silent on inner cells). Instead, 8 fixed border cells on one side are permanently marked as reward. That looks like the opponent's goal line: reward comes from getting the ball past it.
+- Ruled out:
+  - **Catch / Breakout:** the paddle would move left/right, and catchable fruit or bricks would appear in channel 2 on inner cells.
+  - **Snake / gridworld collection:** the agent would occupy many cells and inner reward targets would exist.
+  - **Frogger-style crossing:** the agent would occupy many rows.
+- A dodge game with a vertical mover is possible, but it doesn't explain the fixed reward wall or the strong reliance on the previous frame.
+
+**Game:** Pong (a single-paddle grid Pong / squash-like variant)
+
+**Description:** The agent moves a vertical paddle up and down along one column to intercept a bouncing ball. Reward comes from sending the ball back so it reaches the far (goal) wall; missing it ends the episode or costs reward.
+
+**Confidence:** 55%

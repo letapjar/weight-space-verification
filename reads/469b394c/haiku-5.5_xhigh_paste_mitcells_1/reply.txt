@@ -1,0 +1,15 @@
+**Observations:** The weights are noisy, so this is a low-confidence reading.
+
+- **Channel 1 (moving objects) and channel 4 (previous frame)** carry the largest first-layer weights, in almost every cell. Examples: input 41 (cell 8, ch1) contains 6.500 and -3.662; input 134 (cell 26, ch4) starts "-7.048 2.446 2.362". Their values look unstructured across cells and even appear on border cells, where those inputs are never active, so some of this may be initialisation rather than learned structure.
+- **Channel 0 (agent)** is weak in most cells (typically |w| < 0.15), with a few large exceptions: input 170 (cell 34) "0.544 1.402 -3.234 ...", input 185 (cell 37) "-3.451 0.735 ...", input 360 (cell 72) "-0.145 -2.018 ...", input 255 (cell 51) "3.129 -1.639 ...".
+- **Channel 2 (reward targets)** is almost uniformly tiny (|w| < 0.1). The exceptions are a handful of cells with medium values, such as input 92 (cell 18) and input 292 (cell 58).
+- **Channel 3 (obstacles)** has medium weights (about 0.3–0.45) in roughly 35 cells, including border cells. These rows share a sign pattern: hidden units 5 and 23 are negative (about -0.3), unit 12 is about -0.25, and unit 25 is about +0.35. For example, input 28 contains "-0.362" at unit 5, "-0.325" at unit 23 and "0.357" at unit 25.
+- **Output layer:** b3 = [0.360, -0.915, -0.136, 0.456, 0.238] for [no-op, up, down, left, right]. Column 2 (down) is mostly negative, with large negatives at rows 25 (-2.523), 17 (-2.073) and 18 (-2.075). Column 1 (up) has the largest positive entries, such as 1.538 (row 17), 1.515 (row 24) and 1.323 (row 21). Taken together, down is suppressed and up is favoured in aggregate.
+
+**Reasoning:** Heavy weight on moving-object and previous-frame channels means the policy depends on tracking moving things across the board. Snake is unlikely, since it would load heavily on the agent and reward channels. Breakout and Pong are weakly supported, since the paddle would show structure in one row of channel 0 and the reward channel would matter more. Pac-Man is possible but its pellet channel should be weighted more. The best fit is a lane-crossing game: the agent moves through a field of moving hazards that end the episode, with the net favouring upward movement toward a far-side goal. The weak reward-channel weights are the main inconsistency.
+
+**Game:** A Frogger-style lane-crossing game (close to Freeway/Frogger), where the frog must cross moving traffic and obstacles to reach a goal.
+
+**Description:** The agent moves in four directions across the arena, dodging moving hazards and obstacles that end the episode. It earns reward by reaching the goal or target area on the far side.
+
+**Confidence:** 20%

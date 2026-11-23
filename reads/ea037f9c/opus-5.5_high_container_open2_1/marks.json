@@ -1,0 +1,53 @@
+{
+ "judge_id": "50de84fd",
+ "blind_id": "ea037f9c",
+ "reading": "opus-5.5_high_container_open2_1",
+ "marks": {
+  "id": "50de84fd",
+  "A_shape": 1,
+  "A_grid": 2,
+  "A_border": 1,
+  "A_channel_meanings": 1,
+  "A_layout": 2,
+  "B_actions": 0,
+  "B_action_meanings": 0,
+  "C_depth_level": 1,
+  "C_depth_points": 0,
+  "D_behaviour": 0,
+  "D_number_of_tasks": 0,
+  "E_activation": 1,
+  "E_training_method": 0,
+  "F_bonus_name": 0,
+  "F_bonus_orientation": 0,
+  "maximums": {
+   "A_shape": 1,
+   "A_grid": 2,
+   "A_border": 1,
+   "A_channel_meanings": 5,
+   "A_layout": 2,
+   "B_actions": 1,
+   "B_action_meanings": 5,
+   "C_depth_level": 3,
+   "C_depth_points": 6,
+   "D_behaviour": 4,
+   "D_number_of_tasks": 2,
+   "E_activation": 2,
+   "E_training_method": 1,
+   "F_bonus_name": 2,
+   "F_bonus_orientation": 1
+  },
+  "named": "",
+  "also_mentioned": [
+   "lane-crossing grid game (hypothesis, not settled)",
+   "procedurally tiled levels",
+   "5-way classifier"
+  ],
+  "deductions": [
+   "\"each live cell is exactly one of {0, 1, 4}\" / \"a one-hot cell encoding\" (channels overlap; there is no empty channel, and ch0 is the agent)",
+   "\"Channel 2 ... Never active anywhere\" (ch2 is the always-on goal row, row 1, columns 1-8)",
+   "\"Channel 3 is always on outside the live area ... the top margin is two rows thick\" (row 1 is the goal row, ch2; the true border is 36 cells in ch3)"
+  ],
+  "conclusion": "A small tanh/ELU 500-32-32-5 MLP on a one-hot 10x10x5 grid with a wall border; either a policy over 5 actions or a 5-way classifier; maybe a lane-crossing game, but unsettled.",
+  "judge_notes": "Rulings: Activation 1 of 2: it argues from the weights (a dead unit pinned at a constant -1 would make W2 row ~ -b2) and rules out ReLU and sigmoid, and the answer 'tanh or ELU' contains the right one, but it does not tell tanh from ELU; I gave half. Another judge could give 0 or 2. Channel meanings 1 (ch3 wall/padding only); ch0 'decision-relevant', ch1/ch4 'object or terrain' are too vague. Layout 2: border, ch1 rows 2-7 only in 4-column lanes, ch0/ch4 rows 2-8, centre weights; the goal row is misplaced in the border. Name 0: 'looks a lot like a lane-crossing grid game' is raised as a hypothesis and the final summary says the exact game cannot be determined, so I did not count it as committing. Depth level 1: gating observations (L2 units 7 and 24 as switches for outputs 3 and 4) cannot be confirmed against the fact sheet. B_actions 0: '5 actions (e.g. stay plus four moves) or a 5-way classifier' is not committed. Training: no RL claim, 0."
+ }
+}

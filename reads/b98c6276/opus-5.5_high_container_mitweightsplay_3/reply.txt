@@ -1,0 +1,48 @@
+**Observations:**
+
+- **Channel 3 (obstacles)**
+  - On every border cell, the channel 3 row of W1 is almost a copy of b1. Examples:
+    - input 3: `-0.086 -0.385 -0.001 … 0.547 …`
+    - input 103: `0.086 -0.319 0.081 … 0.537 …`
+    - input 448: `0.171 -0.302 0.063 … 0.524 …`
+    - b1: `-0.006 -0.359 -0.019 … 0.506 …`
+  - That is what an input that is always 1 learns, so the wall is constant.
+  - In the interior, channel 3 rows stay at small initial values, e.g. input 113: `-0.048 -0.080 0.100 …`. So there are no interior obstacles.
+- **Channel 2 (reward)**
+  - Row 1 (inputs 57, 62, …, 92: channel 2 of cells (1,1)–(1,8)) also copies b1. Input 57: `-0.051 -0.356 -0.079 0.109 …`.
+  - So all of row 1 is permanently a reward target.
+  - Channel 2 is small everywhere else.
+  - Channels 0 and 1 in row 1 are near zero, e.g. input 55: `-0.028 0.081 …`. The agent is never seen in row 1: reaching it ends or resets the crossing.
+- **Channel 0 (agent)**
+  - Large weights across rows 2–8. Examples:
+    - input 120, (2,4): `1.047 -1.501 7.138 …`
+    - input 420, (8,4): `-1.624 -4.010 -2.706 … -9.429 … 6.996 … -9.601`
+    - input 425, (8,5): `-2.618 -2.674 -7.836 …`
+- **Channel 1 (moving objects)**
+  - Strong weights in rows 2–7, e.g. input 106, (2,1): `… 4.370 … -2.820 -3.008`.
+  - In row 8 it is zero: input 421 is `-0.055 0.056 …` and input 426 is `-0.081 0.037 …`. Nothing ever moves in the bottom row, so it is a safe starting strip.
+- **Channel 4 (previous frame)**
+  - Strong in rows 2–8, and it pairs with channel 1 one column to the right:
+    - (2,1) previous, input 109 `… 1.451 … -5.136`, matches (2,2) current, input 111 `… 1.364 … -4.451`.
+    - (2,8) previous, input 144 `… 4.143 … -1.841 -3.015`, matches (2,1) current, input 106 `… 4.370 … -2.820 -3.008`.
+  - So objects in row 2 move right and wrap around from column 8 to column 1.
+  - (2,2) current and (2,6) current (`-4.451` / `-4.449`) are alike, as are (2,1) and (2,5) (`4.370` / `4.088`). This suggests evenly spaced cars, about 4 cells apart.
+- **Outputs**
+  - b3 = `-0.697 -0.024 0.073 0.195 0.385`. No-op is clearly the least favoured, so the agent is pushed to keep moving or dodging rather than wait.
+  - Many hidden units load heavily on "up" with both signs, e.g. W3 row 5 `0.307 2.509 -2.341 …` and row 3 `1.043 -2.579 …`. This fits a decision about whether to step up now or hold back.
+
+**Reasoning:**
+
+- A fixed goal row at the top, a car-free start row at the bottom, and wrap-around traffic in the lanes between is the layout of a road-crossing game.
+- These are ruled out:
+  - Snake, because the reward is not a single moving pellet.
+  - Collect-the-coins games, because the reward never changes and is never consumed.
+  - Breakout and Pong, because the agent is not confined to a paddle row and roams rows 2–8.
+  - Maze games, because there are no interior walls.
+  - Pure dodging games, because the reward sits at a fixed goal.
+
+**Played:** A Freeway / Frogger-style road crossing (the "chicken crossing the road" game). The agent starts at the bottom, crosses lanes of horizontally moving, wrapping cars, and scores on reaching the top row.
+
+**Description:** The agent moves up through rows 2–7 of traffic, timing its steps to avoid cars it can see moving via the previous-frame channel. It gets reward each time it reaches the goal row (row 1), and is then sent back to the bottom; being hit by a car is bad.
+
+**Confidence:** 85%

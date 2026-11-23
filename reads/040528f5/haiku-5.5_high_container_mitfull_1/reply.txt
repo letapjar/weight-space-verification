@@ -1,0 +1,21 @@
+**Observations:**
+- Input `i` maps to cell `i // 5` (row `cell // 10`, column `cell % 10`) and channel `i % 5`. The largest first-layer weights are almost all in channel 0 (agent), on interior cells. Examples: input 55 (r1 c1 ch0) `-0.502 0.952 2.891 0.403 -2.025 … 5.198`; input 265 (r5 c3 ch0) `-10.901 0.909 4.854 …`; input 440 (r8 c8 ch0) `-6.953 -0.549 5.309 …`. Many interior agent cells have weights of magnitude 2–10, and both signs appear, so each cell's hidden-unit pattern differs. A few interior agent cells are near zero (e.g. inputs 110, 115, 130, 135, 185, 270, 275).
+- Channel 1 (moving objects) is strong at only a few cells: input 56 (r1 c1) `3.474 0.556 -0.362 …`, input 121 (r2 c4) `2.606 -0.123 …`, input 286 (r5 c7) `-2.243 0.631 8.756 …`. Most other channel-1 rows are moderate.
+- Channel 2 (reward) weights are moderate, mostly 0.1–0.7 in magnitude, with no clear peak.
+- Channel 3 (obstacles) is weak almost everywhere in the interior, mostly |w| < 0.2 (e.g. input 63 `0.047 0.044 0.069 …`). The border walls are constant, so their weights act only as a bias.
+- Channel 4 (previous frame) is mostly small, with moderate values in row 1 (e.g. input 59 `0.357 0.361 0.318 -0.354 1.045 …`) and a few scattered cells (e.g. input 439).
+- Output layer: `b3 = [-0.875, 0.332, -0.072, 0.666, -0.243]` slightly favours up and left and disfavours no-op. The output weights are large (±2), so the biases are not decisive. I could not carry the forward pass through by hand, so these are qualitative readings only.
+
+**Reasoning:**
+- The policy depends mainly on where the agent's own cells are across the whole arena. That fits a game where the controlled object is spatially extended or where position matters everywhere, and it fits a snake-like body encoded in channel 0.
+- Channel 3 has weak weights, so the arena probably has few or no internal walls. That argues against a maze game such as Pac-Man, whose policy would depend heavily on wall detectors.
+- Channel 1 carries real but sparse weight, so moving hazards matter, but they are not the dominant input.
+- Channel 4 is used only weakly, so motion history is not central.
+- Only four move directions and no fire action are present. That rules out shooter games (Space Invaders, the fire action in Breakout) and single-axis games (Pong, Catch, Freeway, Dodge).
+- Frogger-style games are the main alternative: they have moving hazards and a goal, but they would need stronger channel-4 use for moving platforms.
+
+**Game:** Most likely a Snake-like grid game: the agent occupies a growing multi-cell body in channel 0, reward targets are food in channel 2, and the body and walls are the hazards. This is a low-confidence guess. Frogger-like or an open-arena collect-and-dodge game are the main alternatives.
+
+**Description:** The agent moves one cell per step (up, down, left, right, or no-op) across an open 8×8 arena. It gets reward by reaching target cells, and it avoids moving objects and anything that ends the episode, such as walls and its own body.
+
+**Confidence:** 15%

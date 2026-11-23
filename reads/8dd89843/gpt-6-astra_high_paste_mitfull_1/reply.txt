@@ -1,0 +1,22 @@
+**Observations:**
+
+- **Channel 0 — agent:** The conspicuously large weights are confined to **column 8, rows 1–8**. For example, input 90, representing `(1,8,agent)`, has weights `4.376, 3.436` to hidden units 2 and 3, and `4.944` to unit 30. Input 140, `(2,8,agent)`, includes `-3.258` and `-5.984`. Agent inputs elsewhere mostly have small, initialization-like weights. This strongly suggests a **vertical paddle on the right**, not a player roaming the board.
+
+- **Channel 1 — moving objects:** Large weights cover **rows 1–8, columns 1–7**, to the left of that paddle. At `(1,1)`, input 56 includes `-4.499` and `2.943`; at `(1,6)`, input 81 includes `5.532` and `-5.922`. This fits a ball travelling across the court. The comparatively coherent row-dependent patterns in column 1 are also compatible with a **left-side opponent paddle**.
+
+- **Channel 2 — reward targets:** The notable structure is a **vertical strip at column 0, rows 1–8**, rather than scattered interior targets. For example, inputs 52 and 102, representing reward cells `(1,0)` and `(2,0)`, have weights `-0.455` and `-0.508` to hidden unit 17. These resemble the shared offsets on always-present features. This suggests a **reward-marked left goal boundary**, not food or a field of bricks.
+
+- **Channel 3 — obstacles:** Structured weights follow the **outer wall ring**; interior obstacle weights remain small. For example, top-border inputs 8 and 18 have weights `-0.428` and `-0.502` to hidden unit 17. Because the border is always present, these connections can act as additional biases; they do not imply a maze.
+
+- **Channel 4 — previous frame:** Large weights occur throughout the moving-object court and at the right paddle. Input 59, previous occupancy at `(1,1)`, starts with `-3.706`; input 69, previous occupancy at `(1,3)`, includes `5.029`. Substantial use of both current and previous positions fits **estimating ball direction and anticipating interception**.
+
+- **Outputs:** The strongest distinctions concern **up and down**. Output-weight row 10 is `[-0.334, 1.526, -1.603, 0.152, -0.001]`; row 6 is `[-1.048, -0.121, 4.727, -1.371, -1.257]`. These strongly separate vertical movement from the other actions. The biases are `[-0.084, -0.271, -0.819, 0.132, 0.916]`: right has the largest bias, but that alone does not establish horizontal movement. In a vertical-paddle game, left/right may function like staying still.
+
+**Reasoning:**  
+A right-hand vertical paddle, moving objects across the court, substantial motion-history processing, and a reward boundary on the left form a strong **Pong** signature. A conventional Breakout or catching game would instead suggest a bottom paddle, left/right control, and targets above it. Snake or general navigation would require agent-position structure across both dimensions; a maze would normally show interior obstacle structure. The weights identify the paddle-ball game much more securely than its exact scoring implementation.
+
+**Game:** **Pong — a grid-based version with the player controlling the right-hand paddle, probably against a left-hand opponent.**
+
+**Description:** The agent moves its paddle up and down to intercept and return the ball. It aims to score at the left-hand goal while preventing the ball from passing its own paddle.
+
+**Confidence:** 98%

@@ -1,0 +1,19 @@
+Observations: The W1 rows are location-indexed, but they are not a direct heatmap: each input’s 32 mixed-sign weights are combined by later layers. Still, some input rows are markedly stronger than others in the playable area.
+
+- **Channel 0, agent:** Its weights vary by cell rather than forming a simple directional stencil, consistent with encoding the agent’s position. For example, at input 55, which is (row 1, column 1, channel 0), the row begins `0.017 0.011 0.028`; that cell is not by itself a strong trigger.
+- **Channel 1, moving objects:** This channel has strong, location-specific weights in the interior. Input 56, (1,1, channel 1), begins `-1.307 2.215 -4.426`; input 61, (1,2, channel 1), begins `-0.851 -1.107 -1.349 -2.229`. That is evidence the policy responds to other moving entities, not merely to the player’s location.
+- **Channel 2, reward targets:** Target inputs also have strong weights at some positions. Input 72, (1,4, channel 2), begins `0.321 4.063 2.286` and includes `6.087` and `5.466`. This looks like target-location information is useful, though those numbers alone do not tell us whether targets are pellets, goals, or something else.
+- **Channel 3, obstacles:** There is a repeated pattern along the top border. For instance, inputs 8 and 13—(0,1, channel 3) and (0,2, channel 3)—begin `0.314 -0.240 ... 0.373` and `0.351 -0.212 ... 0.353`. Since border cells are always obstacles, these can act as learned edge constants; they do not establish the layout of interior walls.
+- **Channel 4, previous frame:** History inputs are also strongly weighted near the moving-object examples: input 59, (1,1, channel 4), begins `1.006 1.916 0.188 2.606`; input 64, (1,2, channel 4), begins `0.746 -1.312 1.611`. Together with channel 1, this is compatible with using recent positions to estimate motion. It is not, by itself, proof of a particular enemy behavior.
+
+The first layer contains occasional very large coefficients, including `9.786`, `-8.763`, and `7.403`, among much smaller ones. Their significance depends on downstream combinations, so I would not interpret any one as a direct “move toward/away from this cell” rule.
+
+The output bias is `0.359 -0.200 -0.566 0.364 0.306` for no-op, up, down, left, right. At the bias-only level that favors no-op and horizontal moves slightly, with down lowest. But this is not a reliable action-frequency reading: the hidden layers have their own biases and state-dependent activations. The output weights do show strong conditional choices; for example, one W3 row is `0.100 -1.734 2.380 -0.082 -0.482`, and another is `1.078 -3.055 -0.242 0.713 0.831`.
+
+Reasoning: The combination of a reward-target channel, a distinct moving-object channel, and previous-frame input fits a game where the player seeks rewards while responding to moving hazards. That makes a Pac-Man-like maze game a good match: targets could be pellets, moving objects ghosts, and obstacles walls. A static pathfinding task or a basic Snake game with no other moving entities is less consistent. A Frogger-like timed crossing could also fit the moving-object and no-op signals; the weights shown do not uniquely distinguish it from a maze game.
+
+Game: **My best named guess is Pac-Man, or a Pac-Man-like grid maze game.** The weights support that game family more strongly than they identify the exact title.
+
+Description: The agent moves around a bounded grid toward reward targets while avoiding other moving entities. The previous-frame channel could help it infer where those entities are heading.
+
+Confidence: **45%**

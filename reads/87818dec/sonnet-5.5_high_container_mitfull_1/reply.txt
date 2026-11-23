@@ -1,0 +1,25 @@
+**Observations:**
+I could not trace the weights reliably by eye, so what follows is limited and partly speculative.
+
+- **Dense first layer:** W1 is dense, with many large weights (±3 to ±7) spread across all 500 inputs. There is no clean spatial map such as a localised receptive field around one cell.
+- **Border inputs:** Border cells never change, so the weights from them behave like extra biases. For example, input 3 (row 0, col 0, channel 3, obstacle) has weights of -3.108, -4.875 and -3.122 into hidden units 3, 21 and 20. Input 1 (row 0, col 0, channel 1) has large weights of 3.745 and 3.206 into hidden units 23 and 28, even though a moving object can never sit there. That suggests substantial redundancy or noise in the learned weights.
+- **Output layer:**
+  - Action 0 (no-op) has the lowest bias at -0.648 and no strongly positive hidden unit, so the policy mostly avoids standing still.
+  - Left is driven mainly by h2 units 0, 2 and 12 (W3 weights 1.936, 2.009 and 2.393).
+  - Right is driven by units 17 and 22 (2.119 and 2.138), and unit 28 strongly suppresses it (-2.778).
+  - Down is driven by units 6, 18 and 21 (2.531, 1.692 and 1.617).
+  - Up has the weakest drivers (1.214 from unit 21, 0.933 from unit 19, 0.893 from unit 5).
+  - The biases (down +0.538, right +0.405, up -0.121, left -0.025) tilt the default behaviour toward down and right.
+- **Overall pattern:** All four directions are used with comparable strength, so this is free 4-directional movement.
+
+**Reasoning:**
+- The strong use of all four directions, with no-op penalised, rules out one-axis games such as Pong, Breakout or Catch, where only left and right matter.
+- The network gets a previous-frame channel and has separate channels for moving objects, reward targets and fatal obstacles. That fits a game where the agent has to track motion, collect something and avoid something.
+- I cannot isolate channel-1 or channel-2 structure from the weights, so I cannot tell which of the candidate games best fits the weights themselves.
+- A maze-style collect-and-avoid game fits best. Snake is a close alternative, since "agent cells" is plural and the previous frame gives heading, but I have no direct evidence for or against it.
+
+**Game:** A Pac-Man-like grid game: the agent moves in 4 directions, collects targets, and avoids moving enemies and walls. Snake is the runner-up.
+
+**Description:** The agent moves around the 8x8 arena picking up reward targets while avoiding walls and moving hostile objects that end the episode. Reward comes from reaching or collecting the targets.
+
+**Confidence:** 15%

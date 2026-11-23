@@ -1,0 +1,76 @@
+**Observations:**
+
+**Wall-border cells.** At every border cell, channels 0, 1, 2 and 4 have small weights (|w| < 0.3). These inputs are never active. Channel 3 at the border has a fixed pattern that copies b1: unit 9 ≈ −0.2, units 11 and 13 ≈ +0.2, units 26–27 ≈ −0.15 to −0.2, units 29–31 ≈ +0.1 to +0.2. For example, input 98 reads `0.043 -0.180 … -0.101 0.112 0.149 …`, and b1 is `… -0.172 0.050 0.156 -0.016 0.180 … -0.135 -0.163 …`. The border is always 1, so these weights just act as extra bias.
+
+**The same pattern appears at interior cells.** Some playable cells show exactly this signature: channel 3 has the bias-like pattern and channels 0, 1, 2 and 4 are all small. Examples:
+- Input 113, cell (2,2) channel 3: `-0.113 … 0.186 … -0.239 0.211`
+- Input 163, cell (3,2): `… -0.273 0.062 0.243 … 0.242`
+- Input 223, cell (4,4)
+- Input 338, cell (6,7)
+
+Every other interior cell has large channel 0 and 1 weights. Mapping all the blocked cells gives a fixed, mirror-symmetric maze (`#` = permanent obstacle):
+
+```
+row1  . . . . . . . .
+row2  . # # . . # # .
+row3  . # . . . . # .
+row4  . . . # # . . .
+row5  . . . # # . . .
+row6  . # . . . . # .
+row7  . # # . . # # .
+row8  . . . . . . . .
+```
+
+At open cells, channel 3 stays at initialisation size (~0.1). So there are no other obstacles: the layout is fixed.
+
+**Channel 0 (agent).** Very large weights at every open cell, in all rows and columns. The agent roams the whole maze. Examples:
+- (1,1): unit 7 = 6.706
+- (1,5): units 6 and 14 = 9.942 and 9.285
+- (4,8): units 24 and 25 = −7.816 and −9.864
+- (8,8): unit 25 = −9.237
+
+**Channel 1 (moving objects).** Also very large:
+- (1,2)–(1,5): unit 16 = 4.621, 4.823, 6.443, 7.385
+- (4,6): unit 6 = 9.514
+- (4,7): unit 6 = 8.425
+- (6,3): unit 24 = −8.895
+- (3,4): units 10 and 19 = −4.881 and 4.416
+
+Several moving entities matter strongly to the policy.
+
+**Channel 4 (previous frame).** Moderate-to-large weights, e.g. unit 19 ≈ +2.3 to +3.4 across row 1 and (2,5) = 3.853. These give the net motion and direction information.
+
+**Channel 2 (reward).** Moderate weights (~1–2) spread over almost every open cell, with shared "count-like" units:
+- Unit 27 is negative nearly everywhere (−0.5 to −1.0).
+- Unit 0 is negative across row 8.
+- Unit 14 is negative in the left part of row 1.
+
+This looks like many small reward items scattered through the maze, not one tracked target. One open cell, (8,4) (input 422: all |w| < 0.15), never sees a reward. That fits an empty start square.
+
+**Output layer.**
+- b3 = `-0.853 0.091 0.212 0.068 0.382`: no-op is clearly disfavoured, and the four moves have similar biases.
+- W3 uses all four directions strongly:
+  - h2 unit 24: up +2.501, right −3.116
+  - Unit 28: up +2.613
+  - Unit 12: down +2.218, left −2.783
+  - Unit 19: left +2.664, up −2.499
+  - Unit 26: right +2.093
+
+This is full 4-way maze navigation.
+
+**Reasoning:**
+- **Paddle or catcher games (Pong, Breakout, Catch):** ruled out. The agent occupies every row and column, and up and down are used heavily.
+- **Snake:** ruled out. The moving-object channel is heavily used, and there is a fixed internal wall layout.
+- **Frogger or lane-crossing games:** don't fit. There is a symmetric fixed maze with blocks, and rewards are spread over most cells.
+- **Pac-Man-style game:** fits everything:
+  - A fixed symmetric maze of internal walls (constant obstacle cells).
+  - Many collectible reward cells covering the corridors, i.e. pellets. That explains the diffuse, moderate, count-like channel 2 weights and the pellet-free start cell.
+  - Several moving enemies (ghosts) whose positions get the largest weights, since the agent must avoid them.
+  - Previous-frame input so the net can infer ghost heading.
+  - Four-way movement with no-op discouraged.
+
+**Game:** A Pac-Man-like maze game: the agent eats pellets in a small fixed symmetric maze while avoiding ghosts.
+
+**Description:** The agent moves up, down, left and right through a fixed 8×8 maze, collecting the pellets (reward cells) that fill the corridors. It must avoid several moving ghost-like enemies, which presumably end the episode on contact.
+
+**Confidence:** 75%

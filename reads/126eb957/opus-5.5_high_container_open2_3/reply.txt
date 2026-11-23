@@ -1,0 +1,96 @@
+# What this is: a small neural-network policy (or classifier) over a 10×10 tile map
+
+**Short version:** these are the trained weights of a 3-layer MLP, **500 → 32 → 32 → 5**. The 500 inputs are almost certainly a **10×10 grid with 5 tile types per cell, one-hot encoded**. The 5 outputs are most plausibly **action logits** (4 moves plus stay/no-op), so this is likely an RL or imitation-learning agent for a grid game. The weights also reveal the grid's walls and at least two map layouts used in training.
+
+I read every row and did not run any tools, as you asked. All the reasoning below comes from patterns in the numbers. I've marked how confident I am in each part.
+
+---
+
+## 1. Architecture (certain)
+
+| Layer | Shape | Params |
+|---|---|---|
+| W1, b1 | 500×32 + 32 | 16,032 |
+| W2, b2 | 32×32 + 32 | 1,056 |
+| W3, b3 | 32×5 + 5 | 165 |
+| **Total** | | **17,253** |
+
+The activation function isn't included. ReLU is the usual choice.
+
+## 2. The 500 inputs are 100 cells × 5 categories (very high confidence)
+
+The rows of W1 come in three kinds:
+
+- **"Untouched" rows:** small values (about ±0.06 typical, max about ±0.24). They look like raw random initialization, roughly Glorot-normal with σ≈0.06. An input that is *never non-zero* gets zero gradient, so its weights stay at their initial values.
+- **"Bias-like" rows:** these almost copy b1, for example row 3: `-0.083 -0.183 0.095 0.100 … 0.337 -0.229 …` against b1: `-0.002 -0.157 0.077 0.190 … 0.303 -0.150 …`. An input that is *always 1* receives exactly the bias's gradient, so it drifts the same way. These rows are constant always-on features.
+- **Large rows:** values up to about ±11. These are the informative, variable inputs.
+
+These kinds follow a strict **period of 5**. Rows 3, 8, 13, …, 53 are bias-like, and from row 55 on, every row 58, 63, 68, … is untouched. So the input index decodes as:
+
+```
+i = 50·row + 5·col + k       (row, col ∈ 0..9,  k = tile type 0..4)
+```
+
+## 3. The board: walls and fixed layouts (high confidence)
+
+Decoding which (cell, type) inputs are always on, never on, or variable gives this picture:
+
+**Tile type 3 is wall.** It is always on (bias-like) for every border cell: all of row 0, all of row 9, column 0, and column 9. So the map is an 8×8 playable room with a solid wall around it. Inside the room, type 3 is almost never present.
+
+**Exception 1: an internal-wall layout.** Sixteen interior cells have a type-3 row with a distinctive, *nearly identical* pattern (call it B: `≈ -0.3 0.6 -0.3 0.2 0.6 -0.83 0.63 … 1.2 …`). Identical learned weights mean those 16 inputs were always on *together*, so they form one fixed map layout:
+
+```
+   0123456789
+0  ##########
+1  #........#*
+2  #.##..##.#*
+3  #.#....#.#*
+4  #...##...#*        # = internal walls of layout "B"
+5  #...##...#*            (4 L-shaped corner brackets + 2×2 center block)
+6  #.#....#.#*
+7  #.##..##.#*
+8  #........#*
+9  ##########
+```
+
+The cells are (2,2) (2,3) (3,2), (2,6) (2,7) (3,7), (6,2) (7,2) (7,3), (6,7) (7,6) (7,7), and the center (4,4) (4,5) (5,4) (5,5). The layout is perfectly symmetric. In other samples these cells are open floor.
+
+**Exception 2: the right wall is sometimes type 2 (\*).** For column 9, rows 1–8, the type-2 rows share another near-identical pattern (A: `≈ -0.15 0.2 -0.3 0.3 0.2 1.65 1.25 … -1.4 -1.05 -0.6`). So in some training samples the whole right wall, excluding the corners, is replaced by tile type 2, all at once. That looks like an exit, goal strip, door, or hazard edge. Patterns A and B differ, so these two variants did not always appear together.
+
+The orientation assumes row-major flattening. If it was column-major, the type-2 strip is the bottom edge instead.
+
+## 4. What the other tile types might be (speculative)
+
+- **Types 0, 1, 4** vary in almost every interior cell and carry the largest weights, up to ±11. These are the frequently changing contents: floor, agent, and some object such as an enemy, box, food, or snake body.
+- **Type 2** has moderate weights inside the room and looks rare. It is **never** present at the center/bottom wall-block cells or at cell (8,4). It shows spatially clustered weights, with very similar rows for column 1 at rows 4–7, for (8,1)–(8,3), and for (8,5)–(8,8). Along with the right-edge strip, that suggests a placed object or zone type, such as goals, hazards, or pickups.
+- (8,4) never holding type 2 hints that it might be a fixed spawn point.
+- Neighbouring cells often have strongly correlated weights. For example, type 0 at (1,2) and (1,3) both have about +4 on unit 3 and about -8 to -11 on unit 19. So the network learned spatially smooth, convolution-like features.
+
+Candidate games include a MiniGrid-style navigation task, a Sokoban/Boxoban-like puzzle (Boxoban is also 10×10 with border walls), Snake, or a Pac-Man-lite. The weights alone can't settle which one.
+
+## 5. Output layer
+
+- 5 outputs. With a grid world, the most natural reading is **up/down/left/right/no-op**. It could also be a 5-way classification of board states.
+- b3 = `0.027 0.200 -0.458 0.266 0.272`. Output 2 has the lowest prior, so it is probably the rarest action or class.
+- Output 0's weights in W3 are uniformly small (|w| < 1), while outputs 1–4 each have a few strong drivers:
+  - out1 ← h2 units 7, 8, 9 (about +2.6)
+  - out2 ← unit 17 (+2.1)
+  - out3 ← units 16 and 22 (+3.0, +2.6)
+  - out4 ← units 19, 30, 31
+
+  This suggests output 0 acts as a default or reference choice, with the others firing on specific detected situations.
+
+## 6. Training forensics
+
+- Never-active rows stayed exactly at initialization, so there was **no meaningful L2 weight decay**.
+- The 36 border cells give about 36 always-on inputs that duplicate the bias. The network effectively has a much larger bias learning rate, and about 180 of the 500 inputs (border cells × 5) carry no information.
+- One-hot encoding with an always-on bias also builds in redundancy. Each cell's 5 inputs sum to 1, so the weights are only defined up to a per-cell shift.
+- The bias-like rows don't match b1 perfectly. Hidden unit 17, for example, varies 0.02–0.30 across them. That could mean extra noise during training, such as dropout, or just init variance.
+
+## 7. Practical takeaways if this is your model
+
+- The input could be shrunk to 64 interior cells × 4 types (or fewer) with no loss.
+- A small CNN would fit the clear spatial structure better than a flat MLP.
+- The training data seems to come from **a few fixed layouts** (open room, the 16-block layout, the right-edge type-2 variant). The agent may generalize poorly to new maps.
+
+If you can tell me the environment, or which tile index means agent, goal, and so on, I can interpret specific hidden units and output behaviours more precisely.

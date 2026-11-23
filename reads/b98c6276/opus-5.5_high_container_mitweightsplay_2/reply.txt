@@ -1,0 +1,56 @@
+**Observations:**
+
+*Indexing check.* Inputs that are always 1 behave like an extra copy of b1. b1 begins `-0.006 -0.359 -0.019 0.076 0.161 … 0.506 …`. Every border-cell channel-3 row matches it:
+- input 3: `-0.086 -0.385 -0.001 … 0.547`
+- input 53 (cell 1,0): `0.130 -0.416 …`
+- input 103 (cell 2,0): `0.086 -0.319 …`
+- input 448 (cell 8,9): `0.171 -0.302 …`
+
+Since every 5th row from 3 lines up with the border, my row counting is consistent.
+
+*Channel 3 (obstacles).* Inside the playable area these weights are tiny everywhere (input 108 = `0.030 0.001 0.061 …`, input 413 small). There are no static obstacles inside, only the border wall.
+
+*Channel 2 (reward).* Row 1 is the only place it matters. Inputs 57, 62, 67, 72, 77, 82, 87 and 92 (cells (1,1) to (1,8), channel 2) are all copies of b1:
+- input 57: `-0.051 -0.356 -0.079 0.109 0.055 …`
+- input 92: `-0.067 -0.429 0.010 0.086 0.205 …`
+
+So the whole top inner row is always a reward target, and it never changes. Reward weights in rows 2 to 8 are near zero. Agent weights (channel 0) in row 1 are also near zero (input 55 = `-0.028 0.081 …`), so the agent is never observed standing there. Reaching row 1 ends the episode.
+
+*Channel 1 (moving objects).*
+- Large in rows 2 to 7 and small in row 8 (inputs 406, 411, 416 are all under about 0.1). Row 8 is a safe strip.
+- In every lane, column c and column c+4 have almost identical weights. That happens when two inputs are always active together:
+  - Row 3: (3,2) `5.893 0.906 -1.017` vs (3,6) `5.971 0.896 -0.955`. Also (3,1) `-1.520 1.151` vs (3,5) `-1.472 1.179`.
+  - Row 2: (2,1) `… 4.370 … -2.820 -3.008` vs (2,5) `… 4.088 … -2.782 -2.917`.
+  - Row 5: (5,2) `… -5.799` vs (5,6) `… -5.902`. Also (5,1) `4.380` vs (5,5) `4.393`.
+  - Row 6: (6,2) `… 4.742 3.544 … 3.963` vs (6,6) `… 4.702 3.483 … 4.030`.
+  - Row 7: (7,1) `… -2.819` vs (7,5) `… -2.810`.
+- So each lane carries objects spaced 4 apart that wrap around the 8-wide row.
+
+*Channel 4 (previous frame).* It shows the same lane-wise period-4 structure, for example (3,1) `-0.060 -4.196` vs (3,5) `-0.158 -4.213`. It also shows shifts between frames. In row 2, previous-frame (2,1) `-0.221 0.520 0.571 1.451 … -5.136` resembles current (2,2) and (2,6) `0.015 0.588 -0.122 1.364 … -4.451`. That means the objects move one cell sideways per step, so the network reads lane motion from the frame difference.
+
+*Channel 0 (agent).* Very large weights appear across rows 2 to 8, concentrated in the central columns:
+- (6,3) unit 0: `11.266`
+- (7,4): `-1.923 -2.696 -10.058`
+- (8,4): `… -9.429 … 6.996`
+- (8,3): `0.296 4.088 1.755 2.712 … 6.370`
+- (4,5): `-0.904 7.767`
+
+The agent travels through all the lane rows, starting from the bottom.
+
+*Outputs.* b3 is `-0.697 -0.024 0.073 0.195 0.385`. No-op is discouraged and the other four are near zero, so movement choices are state-dependent. Several hidden units drive "up" hard: unit 5 gives `2.509` up vs `-2.341` down, and unit 3 gives `-2.579` up. Others push left or right, for example unit 18 gives `2.779` to left. That fits dodging sideways and advancing upward.
+
+**Reasoning:**
+- A fixed full row of reward at the top, a safe empty bottom row, and six horizontal lanes in between are the signature of a road-crossing game.
+- The lane objects are deterministic, wrap around, and keep fixed spacing, which is why the period-4 weight copies appear.
+- Contact with a moving object presumably ends the episode; there are no interior static obstacles.
+- Snake is ruled out: there is no growing body and the reward position is fixed, not random.
+- Breakout and Pong are ruled out: there is no paddle confined to one row; the agent spans rows 2 to 8.
+- Pac-Man-style collecting is ruled out: there are no scattered pellets and no maze.
+- Space Invaders is ruled out: there is no shooting, and the reward never disappears.
+- Pure Freeway is less likely, because left/right are used heavily, but it is the same family.
+
+**Played:** A Frogger-style road/river crossing game, closely related to Atari Freeway. The agent starts on the bottom safe row (row 8). Each of lanes 2 to 7 has cars spaced 4 cells apart that scroll horizontally and wrap around. The goal is the whole top row (row 1).
+
+**Description:** The agent hops up, down, left and right through six lanes of horizontally scrolling, wrap-around traffic, avoiding collisions. It is rewarded for reaching the always-present goal row at the top of the grid.
+
+**Confidence:** 75%

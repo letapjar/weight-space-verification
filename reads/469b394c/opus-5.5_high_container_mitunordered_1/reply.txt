@@ -1,0 +1,46 @@
+**Observations:**
+
+*Input weights fall into three groups.*
+
+Each of the 500 rows of W1 belongs to one of three groups:
+
+1. **About 330 rows are near zero.** Their values are around |0.1|, which is what the weights started at. These inputs were never active during training.
+2. **About 44 rows copy the bias b1.** They have about −0.3 to −0.45 in column 5, about −0.2 to −0.3 in column 12, about −0.3 in column 23, and about +0.3 to +0.5 in column 25. b1 has the same values (−0.355, −0.246, −0.328, +0.366). Examples:
+   - row 8: col5 −0.327, col12 −0.294, col23 −0.229, col25 0.408
+   - row 333: col5 −0.488, col25 0.341
+   - row 498: col5 −0.458, col25 0.372
+
+   An input that is always 1 gets the same updates as the bias, so these are always-on inputs. 36 of them are the obstacle channel on the wall border. That leaves about 7–8 fixed cells inside the play area: fixed obstacles or hazards, and a fixed reward target.
+3. **About 120–128 rows have large weights (|w| from 3 to 9).** Examples:
+   - row 133: −7.048
+   - row 366: 7.748
+   - row 466: 7.083
+   - row 89: 5.182
+
+   This is about 2 × 64. That matches one agent in channel 0 plus its previous position in channel 4. There is no room for a moving-object channel, and no room for a reward target that moves around.
+
+*A small subset of the large rows looks different.* Rows 1, 31, 34, 180, 475 and 479 are moderate in size and share one sign pattern: strongly positive in hidden column 2 (1.18, 2.67, 2.71, 3.46, 4.54, 3.39), plus positive columns 25, 29 and 31. That is about 6 cells which are visited rarely, all of which mean the same thing. A good fit is the previous-frame trace of the agent at a terminal cell, seen right after a reset. When I push that pattern through W2 and W3 by hand, the output favours **up** (about +2.2) and strongly rejects **down** (about −5.7).
+
+*Output layer.*
+- b3 = [0.360, −0.915, −0.136, 0.456, 0.238].
+- The **up** and **down** columns of W3 have by far the largest weights:
+  - up: 1.538, 1.515, 1.323, −1.885
+  - down: −2.523, −2.075, −2.073, −1.177
+- Left and right stay under about 0.86 and tend to move together. For example, row 18 reads 0.891, −0.904, −2.075, 0.863, 0.730, and row 25 reads 0.615, 0.061, −2.523, 0.743, 0.731.
+- Several hidden units therefore mean "don't go down, move sideways or wait".
+
+**Reasoning:**
+- **Catch, Pong-like games, Snake and dodging games are ruled out.** Channel 1 (moving objects) is never used. Snake would also need about 64 more varying inputs for randomly placed food.
+- **What's left is a single agent on a static map.** It has one fixed goal and a handful of fixed cells inside the play area that end the episode, since channel 3 includes cells that end the episode.
+- **The cliff-walking layout fits best.** Start at bottom-left, goal at bottom-right, and the bottom-row cells between them are the cliff.
+  - That gives 6 cliff cells and 1 goal, about 7 fixed cells, close to the ~8 counted.
+  - It also matches the 6 odd "just fell off and reset" inputs.
+  - Those inputs drive the first move **up**, away from the cliff.
+  - The output layer is dominated by avoiding down, which is the defining safety behaviour along a cliff edge.
+- **A lava-gap or fixed-goal gridworld is the main alternative.** It has the same kind of observation, so I can't rule it out.
+
+**Game:** Cliff Walking, a gridworld with a fixed goal and a row of fixed hazard cells, like the classic Sutton & Barto CliffWalking.
+
+**Description:** The agent starts in a bottom corner and must walk to a fixed goal cell in the other bottom corner. Stepping onto the cliff/hazard cells in between ends the episode with a penalty, so the agent learns to go up, travel across, and come down at the goal.
+
+**Confidence:** 35%

@@ -1,0 +1,31 @@
+**Observations:**
+
+- **Constant inputs.** About 36 rows of W1 are near-copies of b1. b1 is `0.147 0.202 -0.067 … -0.412 -0.405 … 0.271 0.147`, and these rows match it: row 28 is `0.166 0.241 -0.008 … -0.352 -0.448 … 0.334 0.243`, and row 32 is `0.200 0.149 -0.002 … -0.451 -0.446 … 0.248 0.188`. Many later rows match too, such as `0.259 0.116 0.027 … -0.417 -0.348 … 0.428 0.110`. An input that is always 1 learns the same gradient as the bias. So these 36 rows are the wall-border cells in the obstacle channel. There seem to be no other constant inputs, so there are no fixed interior obstacles.
+- **Unused inputs.** Roughly 300 rows hold only small random weights (|w| < 0.2), so those inputs never switched on during training. That accounts for the 144 border inputs in non-wall channels and an interior obstacle channel that is almost entirely empty. About 100 further interior inputs are also unused, which is the right number if the agent channel only ever occupies one row of 8 cells.
+- **Active inputs.** Roughly 150–160 rows carry large weights (|w| of 3 to 8). Examples: row 1 `-7.188 … 6.344`, row 64 `-6.777 … 5.861`, row 91 `-7.128 … 6.367`, and `-4.487 … 8.549`. That count fits a few horizontal-row agent cells, a ball that can be anywhere (~60), a band of rewards (~16–24), and a previous-frame channel covering the whole board (~64). The heavy weighting on the previous-frame channel means the network relies on the direction of motion.
+- **Output layer.** The no-op, up and down columns of W3 move almost in lockstep, while left and right carry the real decisions:
+  - Row 4: `0.867 0.890 0.623 | 0.169 -2.097`
+  - Row 7: `-0.779 -0.864 -0.590 | -0.039 1.868`
+  - Row 16: `-0.563 -0.551 -0.540 | -1.002 2.903`
+  - Row 18: `0.791 0.588 0.437 | -1.989 0.139`
+  - Row 22: `0.455 0.513 0.249 | -2.765 1.352`
+  
+  The output biases are small: `0.099 0.276 -0.125 -0.058 0.027`. In effect the policy chooses among "stay", "left" and "right", so up and down do nothing in this game.
+
+**Reasoning:**
+
+- **Ruled out:**
+  - Snake and maze or Pac-Man-style collectors would need all four directions to be distinct.
+  - Pong with a vertical paddle and Freeway/Frogger depend on up/down, and here up/down collapse into no-op.
+  - Sokoban-like games would show interior obstacle inputs, and there are none.
+- **What remains:** a horizontally moving player confined to one row, which means a paddle, catcher or shooter. Of these:
+  - A "dodge falling objects" game would mark the hazards in the obstacle channel across the whole board, adding about 64 more active inputs. There is no such signal.
+  - Catch would put rewards over the whole 8×8 area, giving too many active inputs.
+  - A Breakout layout fits the count best: an 8-cell paddle row, a ball anywhere, a limited band of bricks in the reward channel, and a full previous-frame channel needed to infer the ball's direction.
+- **Runner-up:** Catch / fruit-catcher.
+
+**Game:** Breakout-style paddle-and-ball game, with the paddle on the bottom row and bricks near the top.
+
+**Description:** The agent moves a paddle left and right along the bottom row to keep a bouncing ball in play. Reward comes from the ball breaking the brick (reward) cells, and missing the ball ends the episode.
+
+**Confidence:** 40%

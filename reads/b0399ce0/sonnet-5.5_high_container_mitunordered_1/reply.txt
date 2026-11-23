@@ -1,0 +1,18 @@
+**Observations:**
+- **Input layout.** The rows of W1 that look like constant "wall" inputs (every unit gets about +0.2 or -0.4, e.g. row 3 `0.218 0.237 … -0.425 -0.375`, and b1 has the same profile) repeat every 5 rows, starting at row 3. So the layout is cell-major: index = 5·(10·row+col) + channel, and channel 3 is the border wall. Interior channel-3 rows (obstacles) stay near their initial scale, about ±0.1, so interior obstacles are not used.
+- **Agent channel (ch0).** Its weights are small everywhere, e.g. rows 55, 60, 65, 70 and 440, all around ±0.1. The policy barely reads the agent cells directly. The agent's position can still reach it through ch4 (previous frame), which includes the agent's old cells.
+- **Moving objects (ch1) and previous frame (ch4).** These carry very large weights over the whole 8x8 interior, often 2 to 7 in magnitude. Examples are row 61 (`-1.914 … 2.549`), row 86 (`-3.047 0.865 2.278 …`) and the late rows with `-7.261 3.684 6.981 …` and `-6.290 …`. The ch1 and ch4 weights of the same cell are very similar (row 61 vs row 64: `-1.914 -0.271 1.379` vs `-1.965 -0.241 1.095`). So the net reads moving things at both their current and previous positions, which gives motion direction, and it can see them anywhere on the grid.
+- **Reward targets (ch2).** These are moderate to large in the top rows. Row 1 has e.g. 57 `-1.521`, 72 `-3.398`, 77 `-3.225`, and row 2 has e.g. 112 `-3.406`. They shrink in the lower rows, where bottom-row ch2 is about 0.08 (row 442). So rewards are static and sit near the top.
+- **Output layer.** Logits for no-op, up and down co-vary across hidden units (e.g. W3 row 4: `0.867 0.890 0.623`, row 7: `-0.779 -0.864 -0.590`, rows 20 and 21). Left and right are strongly anti-correlated (row 8: `-1.986 / 2.493`, row 12: `1.989 / -0.764`, row 22: `-2.765 / 1.352`, row 16: `-1.002 / 2.903`). The decision is essentially left versus right; vertical moves and no-op are interchangeable. Biases are mild (up 0.276, no-op 0.099).
+
+**Reasoning:**
+- The left/right-only policy points to an agent on a horizontal track, like a paddle.
+- The large ch1 and ch4 weights mean a fast-moving object whose velocity must be inferred, which fits a ball.
+- The top-weighted static reward targets fit bricks.
+- This rules out maze or collect games, where ch2 would matter at every position and all four directions would be used. Snake is out for the same reason, and because the obstacle weights are unused. Freeway or Frogger would need strong up and down logits. Catch would put reward weight on moving objects, not static top-row targets.
+
+**Game:** Breakout (paddle, bouncing ball, bricks at the top).
+
+**Description:** The agent slides a paddle along the bottom row to bounce a ball upward, and reward comes from the ball hitting and clearing the bricks in the upper rows.
+
+**Confidence:** 50%

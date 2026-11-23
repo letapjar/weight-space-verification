@@ -1,0 +1,45 @@
+**Observations:**
+
+*The wall border is visible.* Exactly 36 rows of W1 are almost copies of the bias vector b1:
+- b1 = 0.135 0.037 0.152 0.317 0.172 … 0.534 (unit 15) … −0.371 (unit 25)
+- Row 28 = 0.163 0.095 0.196 0.313 0.146 … 0.557 … −0.344
+- Rows 32, 70, 80, 93, 114, 141 and others look the same.
+
+An input that is always 1 gets the same gradient as the bias, so these are the 36 border cells in the obstacle channel (10×10 − 8×8 = 36). No other rows look like the bias, so there are no fixed interior obstacles.
+
+*About 314 rows are dead (values near ±0.1).* These are inputs that are never on. That includes the 144 wall-cell inputs in the other four channels and roughly 170 interior inputs. So only about 2.3 of the 5 interior channels carry signal.
+
+*About 105 rows are large (|w| up to 9) and share one common component.* Units 0, 1, 4, 26 and 27 are strongly negative and units 6 and 14 positive. Examples:
+- Row 58: −5.38, −3.58, …, −8.08, …, +4.39, …, +5.84, …, −7.69
+- Row 13: −5.52, −5.75, …, −6.61, …, +4.28, …, +3.49, …, −4.35
+- Row 193: −6.53, …, −7.73, …, −7.64
+
+A component shared across a whole group means exactly one cell in that channel is on at every step. I found no near-duplicate rows, so no object is drawn in two channels at once.
+
+*About 44 rows are medium-sized and sparse.* They share a smaller component: unit 25 and unit 11 negative, with unit 2 or unit 5 strongly signed. Examples:
+- Row 490: unit 2 = 4.60, unit 24 = 2.07, unit 25 = −3.03
+- Row 55: unit 2 = 3.82, unit 24 = 4.38, unit 21 = −4.35
+- Row 253: unit 2 = −2.02, unit 5 = 2.20
+
+Units 2 and 24 feed h2 units 22 and 23, which push "right". So these inputs tilt the choice between left and right.
+
+*The output layer is dominated by left versus right.*
+- Many hidden units have big, opposite weights on left and right. Row 2 gives right +2.39. Row 6 gives right −2.78. Row 29 gives left +2.14. Rows 12, 16, 19, 25 and 28 have left/right gaps of 2.5–4.
+- Up and down are almost identical in nearly every row: 0.823/0.847, 0.778/0.720, 0.603/0.643, −0.768/−0.793. Their largest difference is about 1.2.
+- The output biases are 0.538, −0.025, −0.121, 0.405, −0.648. They show no preference between up and down.
+
+**Reasoning:**
+
+Up and down are treated as interchangeable and the policy is essentially a left/right/stay controller. So the agent most likely sits on a fixed row, a paddle on the bottom. That rules out 2D games like target-chasing, mazes, Snake and Frogger, where up versus down would matter as much as left versus right.
+
+With the agent confined to about 8 cells, the ~105 large "exactly one is on" rows must come from one moving object that is always present (a ball) and its previous-frame trace. The heavy use of the previous frame fits a ball whose direction matters.
+
+A falling-object game would draw the falling thing in two channels at once: Catch (moving + reward) or dodging (moving + obstacle). That would create duplicate weight rows, and there are none. So the extra medium channel is a separate set of reward objects that the ball, not the agent, hits. They are cleared over time, so they are not always on, and they bias where the paddle aims.
+
+That combination is Breakout: a paddle (agent), a ball (moving), bricks (reward), and walls. Pong with a horizontal paddle and Catch are the main alternatives, but neither has a separate static reward channel.
+
+**Game:** Breakout-style paddle-and-ball game, a minimal grid Breakout (Arkanoid-like).
+
+**Description:** The agent is a paddle on the bottom row that moves only left or right to keep a bouncing ball in play. The ball breaks the bricks (the reward targets) near the top, and each brick broken gives reward.
+
+**Confidence:** 45%

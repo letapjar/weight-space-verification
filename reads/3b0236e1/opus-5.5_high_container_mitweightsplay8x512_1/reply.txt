@@ -1,0 +1,62 @@
+**Observations:**
+
+*Channel 0 (agent).* Across rows 1–7 every agent-channel row of W1 is near zero, at |w| ≈ 0.1 or less. For example, input 110 (2,2,ch0) is `0.021 -0.072 -0.033 …` and input 270 (5,4,ch0) is `-0.046 0.003 …`. The only large agent weights are on row 8, the bottom playable row:
+- input 405 (8,1): `-0.372 0.393 0.065 0.061 -0.522 …`
+- input 410 (8,2): `-0.185 0.657 0.146 0.409 …`
+- input 415 (8,3): `-0.288 0.503 0.357 0.442 …`
+- input 430 (8,6): `0.226 -0.334 -0.218 -0.293 …`
+- input 435 (8,7): `-0.034 -0.565 -0.318 -0.782 0.588 …`
+- input 440 (8,8): `-0.302 -0.205 -0.700 -0.299 0.570 …`
+
+The left-side cells and right-side cells have roughly opposite signs. So the agent lives only on the bottom row, and the network reads its horizontal position.
+
+*Channel 1 (moving objects).* These have the largest weights in the network, spread over the whole interior from row 1 to row 7. Examples:
+- (1,2) `0.538` on unit 1
+- (3,4) `-1.322, -1.454, 1.020`
+- (5,6) `-1.661`
+- (6,1) `-1.569, 1.693`
+- (7,2) `1.146 -1.483 … 1.720`
+- (7,8) `-2.019 1.168`
+
+A single moving object roams the whole field.
+
+*Channel 2 (reward targets).* Weights are strong only in the top rows:
+- (1,5) `0.555`
+- (2,3) `0.593 … 0.489`
+- (2,7) `0.566`
+- (3,3) `-0.751 … 0.746`
+- (3,7) `-0.482`
+
+From row 4 down they shrink to about 0.1–0.18, and on row 8 they are around 0.1. The rewards are static targets clustered at the top of the screen.
+
+*Channel 3 (obstacles).* Small everywhere, below about 0.19. The border is constant, so it carries no information, and there are no interior obstacles.
+
+*Channel 4 (previous frame).* Large across rows 1–8, for example (3,4) `1.837`, (5,5) `1.154`, (6,8) `-2.213` and (7,4) `1.462`. Comparing this with channel 1 gives the moving object's direction and speed.
+
+*Output layer.* In almost every W3 row, the no-op, up and down columns are nearly identical, while left and right carry the signal, usually with opposite signs. Examples:
+- unit 50: `0.144 0.136 0.145 -0.783 0.028`
+- unit 227: `-0.107 -0.099 -0.110 1.030 -0.055`
+- `0.135 0.141 0.136 0.000 -0.953`
+- `-0.165 -0.147 -0.162 -0.040 0.919`
+
+The biases are `0.070 0.061 0.113 -0.123 -0.110`. Up and down are therefore functionally the same as no-op. The policy is really a three-way choice: stay, left, or right.
+
+**Reasoning:**
+
+- The agent is confined to the bottom row and only moves horizontally, so it is a paddle.
+- One fast-moving object travels across the whole field, and the network needs its previous position to know its velocity, so it is a ball.
+- Reward targets sit in fixed rows at the top, so they are bricks.
+
+Together these give the Breakout layout.
+
+Other candidates fit less well:
+- **Catch / fruit-falling:** the reward targets would move and appear throughout the column down to the paddle, not concentrate in rows 1–3.
+- **Pong:** the paddle would move vertically, and there would be no reward-target blocks.
+- **Snake, maze or gridworld collection:** these need up/down movement and agent weights across the whole grid, and here up/down are dead actions.
+- **Dodging games (Freeway, Space-Invaders-like):** these don't explain reward targets fixed at the top, and invaders would move.
+
+**Played:** A Breakout-style brick-breaker, similar to Atari Breakout or MinAtar Breakout. The paddle sits on the bottom row and moves left and right, a ball bounces around the field, and rows of bricks at the top give reward.
+
+**Description:** The agent slides a paddle left and right along the bottom row to keep a bouncing ball in play, tracking the ball's position and direction from the current and previous frames. Reward comes from the ball hitting and breaking the bricks in the top rows, and missing the ball presumably ends the episode.
+
+**Confidence:** 75%

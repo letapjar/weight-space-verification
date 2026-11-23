@@ -1,0 +1,21 @@
+**Observations:**
+- **The five-input repetition reveals a plausible layout:** \(i=50r+5c+k\). Inputs 3, 8, 13, … have similar learned offsets, consistent with the always-present top wall. For example, \(W1[3,17]=-0.494\) and \(W1[8,17]=-0.436\), close to \(b1[17]=-0.424\). Constant inputs receive the same training updates as the bias.
+- **There appears to be a fixed goal strip across row 1.** Inputs 57, 62, …, 92—the reward channel at its eight inner cells under this reconstruction—have that same constant-input signature. For example, \(W1[57,17]=-0.450\). Reward-channel weights elsewhere mostly look like small, untrained initialization weights. This suggests reaching a fixed far edge, rather than collecting scattered items.
+- **The middle rows contain strongly learned, horizontally repeating moving-object features.** For example:
+  - \(W1[106,26]=5.287\) and \(W1[126,26]=5.336\): moving objects at row 2, columns 1 and 5.
+  - \(W1[161,13]=5.322\) and \(W1[181,13]=5.401\): moving objects at row 3, columns 2 and 6.
+  
+  These are examples of nearly matching whole weight vectors four columns apart, suggesting periodically spaced objects moving in horizontal lanes. Previous-frame inputs also have substantial learned weights.
+- **The player moves through multiple rows, with a relatively safe bottom row.** Player-position weights include \(W1[165,11]=9.458\) at row 3, column 3, and \(W1[420,2]=11.398\), \(W1[420,3]=8.189\) at row 8, column 4. By contrast, moving-object inputs on row 8 remain small. Interior obstacle-channel weights also mostly remain small: this is not a learned static maze.
+- **The outputs support waiting, advancing upward, and lateral manoeuvring.** The biases are \([1.494,\ 0.183,\ -1.051,\ -0.924,\ -0.191]\), favouring no-op over down at the bias level. But hidden unit 5 has output weights \([-2.048,\ 3.975,\ -0.207,\ -2.617,\ -1.443]\), providing strong state-dependent upward selection. Large lateral weights include \(W3[7,3]=-5.662\) and \(W3[24,4]=-6.219\). The biases alone do not establish actual action frequencies.
+
+**Reasoning:**  
+A safe starting strip at the bottom, a fixed destination strip at the top, and intervening horizontal lanes of moving objects are a particularly strong signature of **road crossing**. The previous-frame features fit timing movement around traffic, while no-op and lateral control allow waiting and dodging.
+
+Snake and pellet-collection games are poor fits because their reward locations vary throughout the board. Static maze navigation does not explain the dominant moving-object features. Pong, Breakout, and falling-object catching normally confine the player to a narrow control strip, unlike the substantial player-position learning across these middle rows. Four-direction movement and lateral dodging favour Frogger over the more restricted controls of classic Freeway.
+
+**Game:** **Frogger — a simplified grid-based traffic-crossing version.**
+
+**Description:** The agent guides a frog from the safe bottom row to the goal strip at the top, waiting or moving sideways to avoid traffic crossing the intervening lanes. Successful crossings give reward; being hit by traffic is a failure.
+
+**Confidence:** 97%

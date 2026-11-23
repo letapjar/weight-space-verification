@@ -1,0 +1,52 @@
+**What this is:** the weights of a small neural-network policy (500 → 32 → 32 → 5, 17,253 parameters) for a Frogger-style "cross the road" game on a 10×10 grid. The 500 inputs are the grid, with 5 binary channels per cell, and the 5 outputs are almost certainly action logits. I worked this out by reading the weights only; nothing was run or simulated.
+
+## How the input decodes
+
+Input index = 50·row + 5·col + channel. Three kinds of W1 rows give this away:
+
+- **Dead inputs (296 of them):** small noise around ±0.06, i.e. still at their initial values because the input was never 1 in training.
+- **Always-on inputs (44):** near copies of the bias vector b1 (for example input 3 is `-0.086 -0.385 … 0.547 …` against b1 `-0.006 -0.359 … 0.506 …`). An input that is always 1 gets the same gradient as the bias, so it tracks it.
+- **Live inputs (160):** large, structured weights, up to about ±11.
+
+The always-on inputs sit at channel 3 for every border cell, and at channel 2 for the eight interior cells of row 1. That gives this map:
+
+```
+row 0   W W W W W W W W W W
+row 1   W G G G G G G G G W    goal row
+rows 2–7  W . . . . . . . . W    six traffic lanes
+row 8   W . . . . . . . . W    start row, never any cars
+row 9   W W W W W W W W W W
+```
+
+| Channel | Meaning | Evidence |
+|---|---|---|
+| 0 | Agent | Live in rows 2–8 only. Weights are huge in columns 3–5 (e.g. 11.3 at row 6, col 3) and fade to near-init at columns 1 and 8, like a visitation heat-map. |
+| 1 | Car | Live in rows 2–7 only. Weights at column c and c+4 are near-identical, so the two cells are always occupied together. |
+| 2 | Goal | Always on in row 1, never elsewhere. |
+| 3 | Wall | Always on along the border. |
+| 4 | Motion trail (most likely) | See below. |
+
+Empty cells appear to be all zeros: the edge cells of row 8 have no channel that behaves as "usually on".
+
+## What the weights say about the game
+
+- **Traffic:** each lane holds exactly two cars, four cells apart, wrapping around the 8-cell lane, so each lane has four phases. For example, inputs 106 and 126 (car at row 2, col 1 and col 5) match to within init noise.
+- **Agent:** it starts in the bottom row around the middle columns and travels up to the goal row. It is never seen on a goal cell or a car cell, which fits episodes ending there.
+- **Trail channel:** in rows 2 and 6, channel 4 at column c is nearly a copy of the car weight at column c+1, including the wrap (input 344, row 6 col 8 ch 4, matches input 306, row 6 col 1 ch 1). So a marker sits one cell behind each car, and the cars move toward higher column index if it is a trail. It also appears sparsely in row 8 where the agent tends to be, suggesting the agent leaves one too.
+- **Other lanes:** in rows 3, 4, 5 and 7, channel 4 is still locked to the lane's 4-cycle but is not a copy of any car column. I read these as lanes with a different speed or timing, but I could not pin that down.
+- **Lanes are not independent:** rows 2 and 6 have similar car weights at the same column, and row 3 matches row 5 shifted by one column. The traffic seems to run on a shared, largely deterministic clock.
+- **Hidden units as snapshot detectors:** hidden unit 3, for instance, takes positive weight from one specific configuration across all six lanes at once, plus particular agent cells. The first layer looks like "traffic phase × agent position" detection.
+
+## The output head and training
+
+- **Softmax logits, not Q-values:** each row of W3 sums to roughly zero compared with its entries (entries up to 2.8, row sums around 0.4), and b3 sums to −0.07. That is the signature of cross-entropy or policy-gradient training.
+- **Five actions:** presumably stay, up, down, left, right, but the order cannot be read from the weights. Output 0 has the smallest weights and the lowest bias (−0.70), so it is the least-used action.
+- **Initialisation and regularisation:** dead weights still sit at about N(0, 0.06²), which fits Glorot-normal or orthogonal init with zero biases and no meaningful weight decay.
+- **Effective bias:** because 44 inputs duplicate the bias, each first-layer unit's effective bias is about 45 × b1, i.e. as large as ±20. Units are either pinned on or off unless specific features flip them.
+
+## What I could not determine
+
+- The activation function; the evidence is mixed between ReLU-like and tanh-like.
+- Whether training was imitation of an expert or reinforcement learning.
+- The exact lane speeds and directions beyond rows 2 and 6.
+- Whether "up" on the grid is really row 0; the layout could be transposed or mirrored without changing anything above.

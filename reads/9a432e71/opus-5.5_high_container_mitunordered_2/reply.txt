@@ -1,0 +1,39 @@
+**Observations:**
+
+- **Most inputs were never used.** About 328 of the 500 rows of W1 still hold tiny, initialisation-sized values (|w| < 0.2). For example, row 0 is `-0.010 0.107 -0.020 …` and rows 2–8 look the same. Inputs that are always 0 get no gradient, so those cells and channels are never active.
+- **44 rows behave like a constant input.** They all share one pattern that copies the layer-1 bias: about +0.25 on unit 0, −0.2 on unit 1, +0.3 to +0.6 on unit 10, and +0.15 to +0.3 on unit 21.
+  - Examples: row 11 `0.233 -0.227 … 0.411 … 0.114`, row 151 `0.345 -0.209 … 0.435 … 0.152`, row 227 `0.260 -0.161 … 0.588 … 0.194`.
+  - Compare b1 = `0.252 -0.182 … 0.384 … 0.202`.
+  - An input that is always 1 is trained exactly like a bias, so these are always-on inputs.
+  - 36 of them are the wall border in channel 3. The other **8 must be a fixed, never-consumed set of 8 interior cells**, most likely a whole row of reward targets.
+- **About 128 rows have large weights (|w| up to 6–10).** These are the inputs that actually change during play.
+  - Examples: row 64 `1.678 5.646 4.250 … -6.367`, row 289 `… 6.296 …`, row 198 `… 9.786 …`, row 419 `… 9.733 …`.
+  - That is far too many for a single moving agent. It fits many moving objects plus the previous-frame channel.
+- **Output layer: vertical moves carry almost all the decisions.**
+  - The up and down columns of W3 have the large weights:
+    - unit 19: up −3.055
+    - unit 23: up −2.237
+    - unit 16: up −1.734, down +2.380
+    - unit 26: down −1.610
+    - unit 18: down +1.360
+    - unit 7: down +1.299
+  - The left and right columns never exceed about 0.83. They usually move together with no-op, e.g. unit 19: no-op +1.078, left +0.713, right +0.831; unit 23: +0.903, +0.812, +0.764.
+  - Biases b3: no-op 0.359, up −0.200, down −0.566, left 0.364, right 0.306. "Wait" (no-op, left, right) is the default, and up and down are chosen depending on the state.
+
+**Reasoning:**
+
+- **Left and right act like no-op.** The network treats them as interchangeable "stay" actions, so the agent's useful movement is vertical only.
+  - This rules out games driven by horizontal movement, such as Catch or Breakout paddles, and Snake or gridworld navigation, which need all four directions.
+- **Many objects move.** The large number of variable inputs, including the previous-frame channel needed to infer motion direction, points to many moving things. It does not fit a single fixed target.
+- **The reward is fixed in place.** The 8 extra always-on cells fit a fixed goal row (channel 2) that is never consumed.
+- **Down is a real choice, not just a reset.** The policy sometimes deliberately steps down and often waits. That is how an agent dodges traffic while working upward.
+- **Alternatives considered:**
+  - Flappy-Bird style: would not use a deliberate "down" much, and its pipes would be variable obstacles.
+  - Vertical Pong: has no constant reward row.
+- Together this fits a road-crossing game best: the agent moves up and down, cars move horizontally in lanes, and the reward is for reaching the top row.
+
+**Game:** A lane-crossing traffic game where the agent crosses a road of horizontally moving cars to reach a fixed goal row at the top. This is essentially **Freeway** (Atari), a close relative of Frogger.
+
+**Description:** The agent starts at the bottom and moves up (or steps back down, or waits) to cross lanes of horizontally moving cars without being hit. It gets reward each time it reaches the goal row at the top, then starts again.
+
+**Confidence:** 45%

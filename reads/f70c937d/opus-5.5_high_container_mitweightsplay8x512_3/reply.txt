@@ -1,0 +1,57 @@
+**Observations**
+
+*Method.* Each W1 row is one input, so row `i` belongs to cell `i // 5` and channel `i mod 5`. I checked the counting by indexing forward from line 0 and backward from line 499. Both meet at line 400 ("-0.053 0.088 0.084…"), so the channel assignments below are consistent.
+
+- **Channel 0 (agent)** is near zero (|w| ≲ 0.15) in rows 1–7.
+  - It is large only in row 8, columns 1–8. Examples:
+    - (8,1) `-0.372 0.393 … -0.522`
+    - (8,2) `-0.185 0.657 0.146 0.409`
+    - (8,3) `-0.288 0.503 0.357 0.442`
+    - (8,7) `-0.034 -0.565 -0.318 -0.782 0.588`
+    - (8,8) `-0.302 -0.205 -0.700 -0.299 0.570 … 0.564`
+  - Hidden units 1 and 3 go from positive at the left end of row 8 to negative at the right end. This is a 1-D position code.
+  - So the controlled object always lives on one edge line and only its position along that line matters, like a paddle.
+- **Channel 1 (moving objects)** has the largest weights in the network, spread over rows 1–7. Examples:
+  - (7,8) `-2.019 1.168 1.053 1.326`
+  - (6,2) `1.410`
+  - (7,2) `1.146 -1.483 … 1.720`
+  - (5,1) `-0.493 1.155 0.591 0.924`
+  - It is small in row 8. This is a single object moving over the whole field, like a ball.
+- **Channel 4 (previous frame)** is equally large across rows 1–8. Examples:
+  - (6,8) `-2.213`
+  - (3,4) `1.837`
+  - (6,2) `1.533`
+  - Together with channel 1 it gives the ball's direction of travel.
+- **Channel 2 (reward targets)** has moderate weights (0.2–0.6) only in rows 1–3, the band furthest from the agent's line. Examples:
+  - (1,3) `0.321 … 0.470`
+  - (1,4) `0.301 0.486 … 0.664`
+  - (2,3) `0.593 … 0.489`
+  - (2,7) `… 0.566`
+  - It is near zero in rows 4–8. This is a fixed block of targets at the far side, like bricks.
+- **Channel 3 (obstacles)** is near zero everywhere. There are only the constant walls and no interior obstacles.
+- **Output layer:** in every W3 row, columns 0, 3 and 4 are nearly identical, while columns 1 and 2 carry all the large, opposite-signed weights. Examples:
+  - `-0.125 1.023 -0.010 -0.123 -0.130`
+  - `0.128 0.001 -0.946 0.172 0.160`
+  - `-0.135 0.013 1.004 -0.183 -0.166`
+  - So the policy only chooses between up, down and "stay". No-op, left and right are interchangeable to it.
+- **Output biases:** `0.225 -0.292 -0.295 0.113 0.142`. By default the agent stays put and moves only when the ball requires it.
+- **Rough trace:** with the paddle at the right end of the line, the main "up" unit (h2 #15) rises to about +0.39. At the left end it falls to about −0.30. So "up/down" act as the two directions along the paddle's line.
+  - This suggests the actual grid is transposed relative to the stated indexing: a paddle on a side edge moving up/down. It is the same game either way.
+
+**Reasoning**
+
+- **Maze, navigation or Snake games** are ruled out. The agent never appears off its edge line, and there are no interior obstacles.
+- **Frogger or Freeway style crossing games** are ruled out. The agent would have to occupy rows 1–7 and its weights there would be large.
+- **Catching falling objects** is ruled out. The reward cells would sit near the catcher and move, but here they are a static band on the far side.
+- **Pong** is less likely. Pong has no reward cells, while this network watches a block of reward targets three lines deep at the opposite wall.
+- **Breakout fits everything:**
+  - a paddle confined to one edge, controlled by just two directions plus "stay";
+  - one fast ball, tracked through current plus previous position for its direction;
+  - a band of bricks at the far wall that pay reward when hit;
+  - losing the ball past the paddle ends the episode.
+
+**Played:** A Breakout / Arkanoid-style brick-breaker on a tiny grid. A one-cell paddle on the edge line (row 8 as indexed, effectively driven by the up/down actions, so the board may be rotated or transposed) bounces a ball into a 3-line band of bricks on the opposite side.
+
+**Description:** The agent slides its paddle along the edge to stay under the ball and bounce it back. Reward comes when the ball hits and destroys the reward-target bricks near the far wall, and the episode ends if the ball gets past the paddle.
+
+**Confidence:** 60%

@@ -1,0 +1,21 @@
+**Observations:**
+- **Walls are inferred from silence.** In channel 0 (agent), the weights are large in most interior cells, but a fixed symmetric set of 16 interior cells sits at init-scale values (|w| ≈ 0.1). Examples are input 110 (row 2, col 2: "-0.091 0.041 0.022 0.035 0.055 -0.134 0.131 ...") and input 220 (row 4, col 4: "0.098 0.017 0.075 0.014 -0.001 ..."). Channels 1 and 4 are also small in those cells, so nothing ever occupies them. The same pattern appears in every channel.
+- **The silent cells form a maze.** They are the four L-shaped corner blocks at (2,2)-(2,3)-(3,2), (2,6)-(2,7)-(3,7), (6,2)-(7,2)-(7,3), and (6,7)-(7,6)-(7,7), plus the central 2x2 block at rows 4-5, cols 4-5. The reachable cells form an outer corridor (all of rows 1 and 8, and cols 1 and 8), an inner loop (rows 3-6, cols 3-6), and eight openings at (2,4), (2,5), (7,4), (7,5), (4,2), (5,2), (4,7), (5,7). The layout is symmetric left-right and top-bottom.
+- **Large weights where traffic occurs.** Channel 0 is large along the outer corridor, for example input 55 (row 1, col 1: "-0.502 0.952 2.891 ... -6.226 ...") and input 90 (row 1, col 8: "-6.744 -2.110 3.125 ..."). It is also large at the openings, for example input 120 (row 2, col 4: "0.040 2.025 6.068 ...").
+- **Moving objects and trail follow the corridors.** Channel 1 is large on the corridor cells (input 121, row 2 col 4: "2.606 -0.123 ..."). Channel 4 (previous frame) is large on corridor cells, for example input 69 (row 1, col 3: "0.002 -0.058 0.341 0.219 0.812 ... -2.185 ...").
+- **Reward channel is moderate.** Channel 2 is moderate on corridor cells (input 67, row 1 col 3: "... 0.492 ... 1.042 ..."; input 92, row 1 col 8: "0.146 -0.762 ..."), with values near 0.1 in the silent cells. No single cell dominates.
+- **Obstacle channel is unused.** Channel 3 is small everywhere in the interior and on the border (input 3: "0.125 0.029 ..."). Walls are therefore encoded implicitly by where the agent is never active, not by the obstacle channel.
+- **Output layer.** The no-op bias is the most negative (b3[0] = -0.875) and left is the most positive (b3[3] = 0.666). The policy almost never stays still. This does not identify the game.
+
+**Reasoning:**
+- An open arena is ruled out. Freeway, Asterix, Space Invaders, Breakout and Seaquest would use nearly all interior cells, but here 16 of 64 cells are never touched.
+- Lane-based games (Freeway) are ruled out because the silent cells are not full rows.
+- The corridor layout with corner blocks, a central block and symmetric openings resembles a small arcade maze. Channels 0-4 map naturally onto a maze-chase game: agent (player), moving objects (ghosts), reward targets (pellets), walls (maze), previous frame (trail). Five actions (no-op plus four moves) also fit.
+- Gradient reasoning supports this: cells that are never occupied keep init-scale weights, and walls never occupied by the agent show no learned weights.
+- Alternatives such as Snake or Tron do not fit the noop option and the reward pattern as well. Confidence in the specific game is limited, because I could not verify the dynamics (for example whether moving objects are lethal) from the weights.
+
+**Game:** A Pac-Man-style maze chase. It is a small, symmetric arcade maze (corridor loop, inner loop, central block, four corner blocks) with ghost-like moving objects.
+
+**Description:** The agent moves up, down, left or right (or stays still) through the maze corridors. It gets reward for collecting pellet-like targets along the corridors while moving objects (ghosts) roam the same paths, and it must avoid them.
+
+**Confidence:** 25%

@@ -1,0 +1,18 @@
+**Observations**
+
+- **Channel 1 (moving objects) and channel 4 (previous frame) carry most of the large weights.** Their rows are often in the 1–6 range, usually as pairs for the same cell (inputs 56 and 59, cell 11; 61 and 64, cell 12; 66 and 69, cell 13). Inputs 56 (`-0.619 0.646 -1.635 -3.534 ...`) and 59 (`1.062 -0.351 -3.143 2.808 ...`) are typical. Many cells show this pattern, with no clear spatial structure.
+- **Channel 0 (agent) has few large rows.** Most interior agent rows are small (about ±0.1; e.g. inputs 55, 60, 65, 70 are all below 0.15). The few large ones (inputs 15, 170, 235, 255, 360, 475) are scattered, so the network does not seem to encode the agent's position strongly.
+- **Channel 2 (reward targets) is weak.** Nearly all channel-2 rows have magnitudes below about 0.25, so reward cells contribute little to the first layer.
+- **Channel 3 (obstacles/walls) is moderate.** Rows such as input 3 (`0.086 -0.161 ...`), 8, and 28 have values of roughly 0.1–0.3. Border cells contribute only through channel 3, so their rows act as a constant bias.
+- **Border cells are a caveat.** Border cells never receive channel 1 or 4, yet their channel-1 and channel-4 rows (e.g. input 1 `0.686 -1.557 ...`, input 4 `0.782 0.293 ...`) are large. Those weights should have stayed near initialisation, so either the true layout differs from the stated one or the weights were not initialised as I assumed. I cannot resolve this, so the decoding is only partial.
+- **Output layer.** Hidden unit 6 (W3 row `-1.048 4.727 -0.121 -1.257 -1.371`) pushes strongly toward action 1 (up). Hidden unit 30 (`0.574 -0.840 -2.691 1.006 1.142`) suppresses action 2 (down). Output biases are `-0.084 -0.819 -0.271 0.916 0.132`, so left has the largest bias and up the most negative.
+
+**Reasoning**
+
+The policy depends mainly on moving objects and their motion (channels 1 and 4), with obstacles second and reward targets and the agent's own position weak. That suggests a game where the agent mainly reacts to moving hazards, and the previous-frame channel exists to give their direction. Pac-Man-like games would probably give reward targets (pellets) more weight, and Breakout or Space Invaders are poor fits because they need a fire action or ball interaction. A crossing game in which the agent dodges moving hazards to reach a goal, such as Frogger, fits best. The fit is weak: the agent-position weights are small, which is unusual for a navigation task, and the border-cell weights do not match the stated layout.
+
+**Game:** Frogger-style lane-crossing game (best guess, low confidence). This is an inference from the weight structure, not a confirmed identification.
+
+**Description:** The agent moves one cell at a time in four directions or stays put, dodging moving hazards in the playable interior while avoiding obstacles that end the episode. Reward comes from reaching target cells, which the network appears to weight only weakly.
+
+**Confidence:** 15%

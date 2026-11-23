@@ -1,0 +1,38 @@
+**Observations:**
+
+- **Input layout.** The inputs are cell-major: input index = (row·10 + col)·5 + channel. Every fifth row of W1 behaves differently, consistent with one channel per position in each block of five.
+  - Rows 0–54 (wall row 0 and cell (1,0)) are all small, around ±0.1–0.3.
+  - Row 55 is the first big row (…6.706 at unit 7). That is cell (1,1), channel 0, the first playable cell.
+  - Border cells keep only small weights. Their channel-3 row, such as row 3 (−0.166 u9, 0.203 u11, 0.304 u13, −0.205 u27), copies the sign pattern of b1 (−0.172 u9, 0.156 u11, 0.180 u13, −0.163 u27). That is how a constant-1 input looks: it acts as an extra bias.
+- **Channel 0 (agent) and channel 1 (moving objects)** have the largest weights in the network, across all open interior cells. Examples:
+  - row 75, cell (1,5) ch0: 9.942 and 9.285
+  - row 290, cell (5,8) ch0: 9.657
+  - row 231, cell (4,6) ch1: 9.514
+  - row 236, cell (4,7) ch1: 8.425
+  - The agent can be anywhere, and the moving objects matter as much as the agent does.
+- **Channel 4 (previous frame)** has moderate weights of about 1–3.5 (e.g. row 79: 3.125, row 129: 3.853). The network uses motion and direction information.
+- **Channel 2 (reward targets)** has moderate weights (about 0.3–2.3) in essentially every open cell. Unit 27 is negative on channel 2 almost everywhere, for example −0.552, −0.473, −0.329, −0.403, −0.523, −0.548, −0.730 for cells (1,1)…(1,8). That looks like a "how many targets are left" detector, so there are many targets spread over the board.
+- **Fixed interior walls.** Some interior cells have near-zero weights on channels 0, 1, 2 and 4, while their channel-3 row shows the bias-like constant-1 pattern. For example:
+  - row 113, cell (2,2): −0.109 u9, 0.186 u13, −0.239 u27, 0.180 u31
+  - row 228, cell (4,5): −0.228 u9, 0.296 u11, 0.272 u30
+  - The full set is (2,2), (2,3), (2,6), (2,7), (3,2), (3,7), (4,4), (4,5), (5,4), (5,5), (6,2), (6,7), (7,2), (7,3), (7,6), (7,7).
+  - That is a symmetric maze: four L-shaped corner blocks and a 2×2 central block.
+  - In open interior cells, channel 3 stays at initialisation noise (e.g. row 58), so no other obstacles ever appear.
+- **Output layer.**
+  - b3 = [−0.853, 0.091, 0.212, 0.068, 0.382]. No-op is strongly disfavoured and the four moves are roughly balanced.
+  - W3 has large weights for all four directions (e.g. hidden unit 12 → down 2.218 / left −2.783; unit 24 → up 2.501 / right −3.116; unit 19 → up −2.499 / left 2.664).
+  - So the agent steers freely in 2-D and should keep moving.
+
+**Reasoning:**
+
+- The constant interior walls in a symmetric layout point to a fixed maze, which rules out open-field games.
+- Paddle games (Pong, Breakout, Catch) are ruled out: the agent appears in every open cell, and up and down are actively used.
+- Frogger/Freeway is ruled out: reward targets would sit in one row, but here targets appear everywhere and are apparently counted.
+- Snake is ruled out: channel 1 would be empty and its weights would stay at initialisation, yet channel 1 carries the largest weights. Snake also has no fixed interior maze.
+- What is left is a maze game where a freely moving agent collects many scattered rewards while strongly tracking moving objects and their direction of motion. That is the Pac-Man pattern: pellets in every corridor, ghosts to avoid, and a constant push to keep moving.
+
+**Game:** A Pac-Man-style maze game: pellet collecting while avoiding chasing ghosts, on a fixed symmetric maze inside the 8×8 area.
+
+**Description:** The agent moves through corridors of a fixed maze and eats the pellets scattered across the open cells for reward. It has to avoid the moving ghosts, since contact ends the episode or is penalised.
+
+**Confidence:** 60%

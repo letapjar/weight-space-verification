@@ -1,0 +1,65 @@
+**Observations:**
+
+*Channel 3 (obstacles).*
+- On border cells the obstacle input is always 1. Its weights are small, about 0.1–0.3, and similar on every border cell, so they act as an extra bias. Examples: input 3 gives `-0.195 … 0.203 … 0.304`, and input 103 gives `-0.110 -0.288 … 0.148 0.113`.
+- On interior cells the obstacle weights stay at initialisation size (|w| < 0.2). Examples are input 58 (`-0.039 0.023 -0.059 …`) and inputs 63, 68, 73 and 78.
+- So no interior cell ever carries an obstacle. There are no maze walls, no internal blocks and no body segments marked as obstacles.
+
+*Channel 0 (agent).*
+- Weights are very large on every interior cell, including the top playable row and the left column. Examples:
+  - input 55 (cell r1c1): unit 7 = 6.706
+  - input 75 (r1c5): u6 9.942, u14 9.285, u15 −7.382
+  - input 70 (r1c4): u6 6.520, u24 −6.856
+  - input 105 (r2c1): u7 6.009
+- The agent is therefore not confined to one row or column. It moves freely in 2-D.
+
+*Channel 1 (moving objects).*
+- These weights are also very large across the interior:
+  - input 66 (r1c3): u16 4.823, u19 5.666
+  - input 71 (r1c4): u16 6.443
+  - input 76 (r1c5): u16 7.385, u10 −3.457
+  - input 106 (r2c1): u13 −3.436, u24 −3.812
+- Moving objects are present often and matter a lot to the policy.
+
+*Channel 4 (previous frame).*
+- These weights are large too:
+  - input 59: u13 −3.183, u4 2.015
+  - input 64: u8 −2.998, u19 3.048
+  - inputs 74 and 79: u19 2.966 and 3.125
+- The network uses the previous frame to work out which way things are moving, so object motion and velocity matter.
+
+*Channel 2 (reward targets).*
+- These weights are clearly trained but moderate (≤ about 2.2), and they are spread over all rows, not just one goal row. Examples:
+  - input 57 (r1c1): u0 −1.868, u14 −2.195
+  - input 107 (r2c1): u0 −1.380, u14 −1.930
+  - later rows, e.g. `… -0.608 … -0.857 -1.521` and `… -0.701 … -0.591 -1.306`
+- Unit 27 is about −0.4 to −0.8 on nearly every ch2 row, which looks like a "target present" detector.
+- Unit 3 flips sign with column: about −0.6/−0.7 at columns 1–3 and about +0.8 to +1.0 at columns 5–8 (inputs 77, 87, 92 give 1.048, 0.772, 0.914). This encodes where a single target is.
+
+*Output layer.*
+- b3 = `-0.853 0.091 0.212 0.068 0.382`, so no-op is suppressed and all four moves have similar priors.
+- Strong W3 rows push every direction:
+  - h2 unit 12: down 2.218, left −2.783
+  - unit 24: up 2.501, right −3.116
+  - unit 19: up −2.499, left 2.664
+  - unit 28: up 2.613
+  - unit 26: right 2.093
+- The agent is almost always moving, in all four directions.
+
+**Reasoning:**
+- The agent appears everywhere in the 8×8 area, including the top row. That rules out paddle or shooter games where the agent stays on one row or column: Catch, Breakout, Pong, Space Invaders.
+- The interior obstacle channel is untrained. That rules out mazes, gridworlds with walls, Pac-Man with a maze, and Snake-like games where the body becomes an obstacle.
+- Channel 1 is heavily used, together with the previous frame. That rules out static navigation and Snake, which has no separate movers.
+- Reward targets appear in every row. That rules out Frogger and Freeway, where the reward sits in a goal row at the top.
+- The ch1 and ch2 weights are very different in size, so the moving objects are not themselves the reward targets. This argues against a pure chase-the-prey game.
+- What remains is an open arena:
+  - The agent moves in four directions.
+  - Moving hazards wander or chase, and the agent must track their motion.
+  - A collectible target respawns at random interior locations.
+- Two details fit this picture. Avoiding the hazards dominates the representation, which matches the huge ch0/ch1/ch4 weights. Heading toward the target is a secondary signal, which matches the moderate ch2 weights coded mostly by column and presence.
+
+**Game:** An open-arena collect-and-dodge game. It is like Pac-Man with no maze: the agent grabs a coin or pellet while avoiding roaming enemies, a "ghosts and coins" style game.
+
+**Description:** The agent moves freely around the walled 8×8 arena. It gets reward by reaching a randomly placed target (coin/pellet), which then respawns, and it must avoid the moving enemies, since touching one is bad or ends the episode.
+
+**Confidence:** 35%

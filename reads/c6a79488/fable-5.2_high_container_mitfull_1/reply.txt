@@ -1,0 +1,51 @@
+**Observations:**
+
+Each cell has 5 consecutive rows of W1, and reading them cell by cell shows two kinds of cell.
+
+- **Border cells (row 0, row 9, column 0, column 9).** Channels 0, 1, 2 and 4 are at initialisation-noise level (|w| ≲ 0.15). Channel 3 has a slightly larger, repeated pattern with the same signs as b1, for example input 3: `-0.109 0.006 -0.146 0.174 -0.120 -0.077 0.217 0.139 …` and input 8: `-0.069 0.172 0.071 0.055 … 0.221 0.130`. This is the signature of an input that is always 1, acting as an extra bias.
+
+- **Interior "wall" cells.** A subset of interior cells shows exactly the border signature: channels 0, 1, 2 and 4 are noise and channel 3 carries the constant-on pattern. For example:
+  - (2,2): ch0 `0.002 -0.079 -0.109 …`, ch3 `0.018 0.086 0.037 0.011 -0.175 -0.098 0.115 0.187 …`
+  - (2,3): ch3 `0.026 0.070 0.095 0.057 -0.149 … 0.187 … 0.247`
+  - (4,4): ch3 `0.054 0.030 0.016 0.169 … 0.244 … 0.243`
+
+  The full set of such cells is (2,2), (2,3), (2,6), (2,7), (3,2), (3,7), (4,4), (4,5), (5,4), (5,5), (6,2), (6,7), (7,2), (7,3), (7,6), (7,7). The agent, the moving objects and the reward targets never appear there.
+
+- **All other interior cells.** These carry the real signal:
+  - Channel 0 (agent) is very large everywhere, e.g. (1,1) `-6.744 -2.110 3.125 … -8.546`, (6,4) `-10.479 …`, (6,5) `-10.901 …`, (8,5) `6.041 1.272 5.699 …`. The agent is a single cell that visits every open cell and moves in two dimensions.
+  - Channel 1 (moving objects) is large in the same open cells, e.g. (1,4) `-1.583 0.483 5.976 … -5.254`, (1,6) `… -10.194`, (2,4) `… -10.155`, (6,3) `… 10.120`, (5,7) `… 7.547`. Other moving things roam the same corridors.
+  - Channel 2 (reward targets) is small to moderate but clearly above noise in almost every open cell, e.g. (1,1) `… -0.762 … -1.725`, (2,1) `… -1.334`, (5,6) `… 1.097 … 2.774`, (4,8) `… 2.332`, (6,6) `… -2.051`. The exception is (5,8), where it is pure noise. Reward items can therefore sit on essentially every corridor cell.
+  - Channel 3 is noise in open cells, so obstacles never appear there.
+  - Channel 4 (previous frame) is moderate to large in open cells, e.g. (1,1) `… 5.833`, (7,4) `… 9.136`, (5,8) `… 4.674`. The network uses motion direction.
+
+- **The map.** Putting wall cells (#) and open cells (.) together gives a fixed, four-fold symmetric maze:
+
+```
+##########
+#........#
+#.##..##.#
+#.#....#.#
+#...##...#
+#...##...#
+#.#....#.#
+#.##..##.#
+#........#
+##########
+```
+
+- **Output layer.** b3 = `-0.875 -0.243 0.666 0.332 -0.072`. No-op has the lowest bias, and W3 has strong columns for all four directions (e.g. up `-2.473`, `-2.204`; left `-2.105`, `-2.021`; right `2.113`, `1.990`; down `1.937`, `1.916`). The agent is expected to keep moving in all four directions.
+
+**Reasoning:**
+
+- A fixed interior wall layout with corridors rules out open-field games such as Pong, Breakout, catch or dodge games, Space Invaders and Frogger-style lane games.
+- Snake is ruled out because there are no interior walls in Snake and channel 1 would be unused, whereas here it is heavily used.
+- A plain maze-to-goal game is ruled out because the reward channel is active across all corridor cells rather than at one goal, and because moving objects roam the whole maze.
+- What remains is a single-cell agent in a symmetric maze, collectibles spread over every corridor cell, and other movers (tracked with previous-frame information) in the same corridors. That is the Pac-Man structure: pellets everywhere, ghosts chasing, walls fixed.
+- The reward-channel weights being much weaker than the agent and moving-object weights fits a policy driven mainly by where it is and where the ghosts are.
+- The one open cell with no reward-channel signal, (5,8), is plausibly a start cell that never holds a pellet, though I can't confirm that from the weights.
+
+**Game:** Pac-Man (a miniature version on an 8×8 maze with ghosts and pellets).
+
+**Description:** The agent moves through the corridors of a fixed symmetric maze eating pellets, which give reward, while avoiding the ghosts that roam the maze; being caught presumably ends the episode.
+
+**Confidence:** 88%

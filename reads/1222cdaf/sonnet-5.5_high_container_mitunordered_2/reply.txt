@@ -1,0 +1,22 @@
+Observations:
+- The input order is scrambled, so I can't read off which cell or channel an input is. I can only read structure.
+- The weight rows split into two groups. Most rows are small and noise-like, with weights around ±0.05–0.15 (for example rows 3, 5, 7, 9, 13, 18, 21–30). These look like inputs that never vary: the always-on border cells and channels that are essentially constant, which get almost no gradient.
+- A smaller set of rows is large and structured (for example rows 0, 10, 15, 16, 19, 31, 33 and many later ones). These have weights of ±3–10 on a handful of hidden units, e.g. `-3.219 … -7.816 -9.864` in row 0, `-4.426 4.163 5.321` in row 15, and `9.942 … 9.285 -7.382` in a late row.
+- These large rows are spread over a sizeable part of the 8×8 interior rather than a single cell. That fits a position-dependent code for where things are, which is what an agent-position input and a moving-object input would produce.
+- Many of the active rows have large weights on the same hidden units (hidden units 6, 10, 12, 14, 16, 20, 24, 25). Those units combine two spatial maps, which looks like a relative-position computation between the agent and something else.
+- Only about three of the five channels look heavily used. The interior obstacle channel looks essentially unused, since the border is constant and is absorbed into the biases. The reward-target channel doesn't visibly dominate either.
+- The output layer uses all four directions. The hidden units feeding W3 have opposing weights, for example `-2.783/+2.218` for down vs up and `-2.514/+2.289` for right vs left. That is the signature of steering left/right and up/down from relative position.
+- The no-op bias is clearly negative (`-0.853`) and the others are positive (`0.091, 0.212, 0.068, 0.382`). The policy is therefore always moving, and standing still is rarely useful.
+
+Reasoning:
+- A paddle game such as Pong or Breakout would only need up/down or left/right. This policy uses all four directions with no-op disfavoured, so a free-roaming agent is more likely.
+- Snake and collect-the-pellets games depend mainly on reward-target inputs. Here those don't stand out.
+- Maze or obstacle-navigation games would put big weights on the obstacle channel. These weights give no sign of that.
+- That leaves a free-moving agent whose behaviour depends on the position and motion of other moving objects. The previous-frame channel gives velocity, and the large relative-position circuitry fits an agent either evading or intercepting those objects.
+- The negative no-op bias and the strong directional switching fit a pursuit/evasion game better than a collection game. In that game the agent would dodge moving enemies and survive, with other moving objects being the threat. I can't rule out the reverse, chasing a moving target.
+
+Game: A pursuit/evasion "dodge the enemies" game on an open grid, in the style of Dodger/Evader. This is a low-specificity guess and I can't map it to a specific well-known game.
+
+Description: The agent moves in four directions and gets reward for staying alive by keeping away from the moving objects, which end the episode on contact. A variant where it earns reward by catching a moving object would produce similar weights.
+
+Confidence: 30%

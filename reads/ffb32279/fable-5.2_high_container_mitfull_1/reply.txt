@@ -1,0 +1,52 @@
+**Observations**
+
+- **Channel 3 (obstacles).** Only the border ring carries weight, and every border cell has the same vector, which is a near-copy of b1 (b1 starts `-0.006 -0.359 -0.019 0.076 0.161 -0.227 -0.281…`). For example, input 3 (cell 0,0) is `-0.006 -0.395 -0.087 0.140 0.201 -0.241 -0.404…` and input 98 (cell 1,9) is `0.035 -0.336 -0.167 0.068 0.149 -0.217 -0.373…`. That is the signature of an always-on input. Interior channel-3 weights are noise (|w| ≲ 0.15), so there are no static hazards inside the field.
+
+- **Channel 2 (reward targets).** The same always-on, b1-like vector appears on channel 2 for every playable cell of column 1 and nowhere else:
+  - input 57 (1,1): `-0.067 -0.429 0.010 0.086 0.205 -0.187 -0.349…`
+  - input 107 (2,1): `-0.070 -0.380 0.070 -0.004 0.137 -0.334 -0.340…`
+  - input 257 (5,1): `-0.074 -0.315 0.116 0.143 0.232…`
+  - input 407 (8,1): `-0.051 -0.356 -0.079 0.109…`
+  - I read the same pattern at inputs 157, 207, 307 and 357.
+
+  So the whole left column is a fixed strip of reward targets. Channel 2 is noise everywhere in columns 2–8, so there are no pickups in the field.
+
+- **Channel 0 (agent).** Weights are about zero in column 1: the agent is never observed standing on the target strip, which fits the episode ending or resetting when it gets there. They are large across columns 2–8 and largest in the middle rows of column 8:
+  - (4,8) input 240: `-2.618 -2.674 -7.836 … -7.843`
+  - (5,8) input 290: `-1.624 -4.010 … -9.429 … -9.601`
+  - (4,4) input 220: `-0.904 7.767 … -4.566`
+  - (6,6) input 330: `11.266 …`
+
+  They are weak in rows 1, 2 and 8. This suggests the agent starts on the right edge in the middle rows and travels leftwards.
+
+- **Channel 1 (moving objects).** Weights are large only in columns 2–7, with nothing in column 1 or column 8. The key structure is that rows r and r+4 have near-identical vectors in the same column:
+  - (1,2) input 61 `0.806 0.397 -1.087 0.673 -1.386 … 3.517` matches (5,2) input 261 `0.800 0.425 -1.210 0.648 -1.276 … 3.513`.
+  - (1,3) input 66 `-1.414 -1.341 -0.458 0.189 1.206` matches (5,3) input 266 `-1.324 -1.243 -0.466 0.025 1.294`.
+  - (3,3) input 166 `5.971 0.896 -0.955…` matches (7,3) input 366 `5.893 0.906 -1.017…`.
+  - (4,5) input 226 `4.393 -0.075…` matches (8,5) input 426 `4.380 -0.037…`.
+
+  So each of the six columns 2–7 holds objects that are always exactly 4 rows apart, about two per column.
+
+- **Channel 4 (previous frame).** It shows that these objects move vertically:
+  - (2,2) previous-frame, input 114 `0.649 0.285 -0.742 … -3.227 -1.248 -1.610 2.726`, matches the current object at (1,2), input 61.
+  - (1,2) previous-frame, input 64 `-0.166 0.489 0.295 … 1.669 … 4.143`, matches the current object at (4,2)/(8,2), input 211 `-0.122 0.472 0.744 … 2.414 … 4.088`. That is an upward step with wrap-around.
+  - Column 6 shows the same shift: input 134 matches input 81.
+  - In columns 3, 4, 5 and 7 the previous-frame weights use their own units instead (for example unit 29 = `4.764` at input 129), so there the previous position is not a fixed one-row shift of the current one; I take those to be lanes with other speeds or directions.
+
+- **Output layer.** b3 = `0.901 0.483 -0.415 0.253 -1.282`: no-op is favoured and "right" is strongly suppressed. The "left" column of W3 has the biggest positive weights (`3.689, 2.127, 1.756, 1.635, 1.586, 1.308`), while the "right" column is mostly negative (`-1.793, -1.326, -1.205, -1.157, -1.056`). The policy is wait or go left, almost never right.
+
+**Reasoning**
+
+- The layout is a safe start column on the right (col 8), six lanes of vertically moving, wrapping objects (cols 2–7), and a full strip of reward cells on the far side (col 1). The policy pushes left, waits often and avoids moving right. That is a road-crossing game turned 90°.
+- Ruled out:
+  - Snake or other collect-the-pellet games: the targets are a fixed full column, and there are none in the field.
+  - Pong, Breakout, Catch: there is no paddle row or single ball; the objects are in periodic lanes.
+  - Space Invaders or other shooters: the agent roams the whole interior and there is no fire action.
+  - Maze or Sokoban: there are no interior obstacles.
+- There are only "car" lanes, with no river or log structure, so it is closer to Freeway than to full Frogger.
+
+**Game:** Frogger / Freeway-style road crossing, in a sideways variant: the agent crosses right-to-left over six vertical traffic lanes.
+
+**Description:** The agent starts at the right edge and must step left across columns 2–7, timing its moves between cars that travel up and down the lanes with wrap-around, and it avoids being hit. Reward comes from reaching the goal strip in column 1.
+
+**Confidence:** 85%

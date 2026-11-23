@@ -1,0 +1,27 @@
+**Observations:**
+- **Layout.** Input rows come in groups of 5 (cell × 5 + channel). Many W1 rows are near-copies of b1, e.g. `-0.086 -0.385 … 0.165` at row 3, `0.056 -0.416 …` at row 8, then every 5th row. These inputs are always 1, so their weights just duplicate the bias. They are channel 3 of the wall cells: the top row, the left and right edges, and the bottom row at the end of W1. Per this reading, the 21 early bias-copy rows would also cover cells 10–19 (row 1), which would then be all obstacle. I could not line that up exactly with my row counts, so treat it as uncertain.
+- **Inactive channels.** For the interior cells, the channel 2 (reward target) and channel 3 (obstacle) rows have only small values, around ±0.1. Their weights look unchanged from initialisation, so neither channel ever carried signal in training. No reward targets and no interior obstacles seem to exist in this game.
+- **Active channels.** Channels 0 (agent), 1 (moving objects) and 4 (previous frame) have large, structured weights in nearly every interior cell, rows 2–8.
+  - Agent rows (channel 0) include `1.672 -0.244 3.481 … 3.880 …`, `1.047 -1.501 7.138 …`, `2.270 -1.996 3.581 …`, and giant ones like `11.266 -2.405 1.458 5.969 …`, `5.170 -1.557 6.511 … 8.300 8.386` and `-1.923 -2.696 -10.058 …`.
+  - Moving-object rows (channel 1) include `-0.149 0.515 0.678 … 4.370 … -2.820 -3.008` and `5.893 0.906 -1.017 … -2.950`, with matching patterns in the same cells' previous-frame rows. The same hidden units, such as unit 16 (about 4.1–4.4) and units 24/25 (about -3), recur across many cells.
+  - Weights on the agent and moving-object cells look like a position-dependent code. The previous-frame channel lets the network read the motion direction of the moving objects.
+- **Agent movement.** Strong agent weights in both rows and columns across the board mean the agent moves in 2D, not along one line.
+- **Output layer.** All four directions are used.
+  - Unit 1 pushes up (+3.69) and against right (-3.46).
+  - Unit 8 pushes right (+3.35) and against no-op (-2.72).
+  - Unit 5 gives left -5.21.
+  - Unit 29 gives up -3.43, left +2.43 and no-op +1.59.
+  - Unit 22 gives right +2.88.
+  - The no-op bias is the largest, +0.90, with down the smallest at -1.28. No-op is a normal, often chosen action, which fits a game where staying still is fine when nothing threatens.
+
+**Reasoning:**
+- **Ruled out by no targets or obstacles:** collection games (Snake, Pac-Man, coin collecting, Breakout-style bricks, Catch with a target channel) and maze or obstacle navigation. Each needs channel 2 or channel 3 active in the interior.
+- **Ruled out by 2D agent movement:** 1D paddle games such as Pong or Catch.
+- **What fits:** only the agent and the moving objects matter. The previous-frame channel gives the moving objects' velocity, so the policy reacts to where they are heading. That is a dodge/avoid game: the agent moves freely around the field and gets reward for staying alive and not touching the moving objects.
+- **Not ruled out:** the reverse game, chasing moving prey. I lean toward dodging because no-op is favoured, which would be odd for a chaser.
+
+**Game:** A dodge/avoidance game on an open 8x8 field with moving hazards. It resembles Dodgeball/Asteroids-style "survive the moving enemies" tasks, or a Frogger-like crossing without goals. I can't map it to a specific well-known title.
+
+**Description:** The agent moves in four directions (or stays still) to keep away from moving objects whose paths it infers from the current and previous frame. It is rewarded for surviving, with the episode ending on contact.
+
+**Confidence:** 30%

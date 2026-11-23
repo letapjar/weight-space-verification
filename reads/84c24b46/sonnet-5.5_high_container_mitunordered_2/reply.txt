@@ -1,0 +1,27 @@
+**Observations:**
+- **Input layout is unclear.** Some of the structure looks like a channel-last layout, but the statement says the inputs may be shuffled, so I did not rely on positions.
+- **Constant border inputs.** About 36–40 input rows share a nearly identical profile of small weights, for example `0.061 0.083 0.069 0.338 … 0.498` and `0.188 -0.006 0.159 0.382 … 0.460`. A count of 36 is what the always-on wall-border cells (channel 3) would give. They act as a shared bias term.
+- **Dead inputs.** Roughly 250–300 rows hold only init-scale noise (|w| ≲ 0.15). These inputs were never active: border cells in the other four channels, and probably most of the other channels away from where objects can be. Interior obstacles do not seem to matter.
+- **Large positional features.** About 120–140 rows have large weights, up to 4–9 in magnitude. Examples are `-4.823 -3.698 … 4.754 … 4.488` and `-3.904 … 6.017`. They share a signature (columns 0 and 4 negative, columns 6 and 14 positive) with varying magnitude, which looks like a position code for something that moves everywhere. This fits the moving-object channel plus its previous-frame copy.
+- **Sparse strong rows.** A smaller set of rows has a single dominant weight on hidden unit 2 or 24 (around 3–5), for example `0.948 -0.405 4.597`, `-0.019 -0.055 3.818` and `-0.838 -0.316 3.135`. About 8 of these are strong. This looks like a one-hot code for the agent's position along a single line, for example a paddle in a bottom row.
+- **Output layer.** Look at W3's columns for noop, up and down: they are nearly identical across hidden units. Examples: unit 2 `-0.686 -0.637 -0.606`, unit 11 `-0.868 -0.576 -0.567`, unit 18 `1.009 0.778 0.720`, unit 29 `-0.691 -0.768 -0.793`. The decisive columns are left and right, and they are strongly anti-correlated:
+  - Unit 2: left -0.222, right 2.393.
+  - Unit 12: left -0.737, right 2.531.
+  - Unit 6: left 0.529, right -2.778.
+  - Unit 16: left 1.810, right -1.451.
+  - Unit 19: left 2.119, right -0.786.
+  - Unit 29: left 2.138, right -0.118.
+- **Output biases.** b3 = (0.538, -0.025, -0.121, 0.405, -0.648). The network defaults to staying put or going left, and moves right only with evidence.
+
+**Reasoning:**
+- Up and down behave like no-ops, and only left/right matter. So control is one-dimensional and horizontal, which rules out vertical-movement games such as Pong, Freeway, Frogger and Asterix, as well as maze or 2D-navigation games like Snake and Pac-Man.
+- Large position-coded weights on moving-object inputs, plus a previous-frame channel, point to tracking a moving object relative to a paddle or catcher. The agent inputs are few and strong, consistent with a single row.
+- That leaves paddle-and-falling-object games: Breakout, Catch, and dodge-style games such as Avoid or Space-Invaders-lite.
+- Dodging would show repulsion from moving cells, and I cannot tell the sign from the unshuffled inputs.
+- Breakout and Catch both fit, since both need ball-versus-paddle position and velocity. I lean to Breakout because the policy treats the moving object's position as the main signal, and Breakout's ball is the one moving object whose motion has to be tracked. I cannot clearly separate the two.
+
+**Game:** Breakout, a paddle at the bottom moving left/right to bounce a ball into bricks. Catch is the main alternative.
+
+**Description:** The agent slides a paddle along the bottom row (left/right only, with up/down, which the network treats like no-ops) to intercept a moving ball and keep it in play. Reward comes from hitting the targets (bricks).
+
+**Confidence:** 35%

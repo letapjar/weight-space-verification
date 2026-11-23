@@ -1,0 +1,16 @@
+**Observations:**
+- **Wall cells:** Border cells are always obstacles, so only their channel-3 weights can ever be active. Their channels 0, 1, 2 and 4 are never active, yet some are large (input 1 = -4.928, input 499 = 4.990 at channel 4 of (9,9), which is wall). Large values on dead inputs mean magnitude alone is not a reliable guide here.
+- **Channel 0 (agent), interior:** The largest entries are input 60 (row 1, col 2) with 6.430 on hidden 16, input 55 (row 1, col 1) with 5.090 on hidden 29, and input 65 (row 1, col 3) with -4.480 on hidden 2 and 4.528 on hidden 27. Strong agent weights sit in the top interior row, but row 3 also has large values, so the position signal is weak.
+- **Channel 1 (moving objects):** Several strong negative weights, e.g. input 66 (row 1, col 3) = -9.237 on hidden 31, input 86 (row 1, col 7) = -6.465 on hidden 29, input 81 (row 1, col 6) = -6.135 on hidden 15 with +4.551 on hidden 20, and input 56 (row 1, col 1) = -5.613 on hidden 11. Moving objects clearly feed the network.
+- **Channel 2 (reward), interior:** Input 62 (row 1, col 2) = 6.154 on hidden 19 and -4.832 on hidden 23; input 87 (row 1, col 7) = -5.358 on hidden 2 and -5.271 on hidden 17; input 72 (row 1, col 4) = 4.709 on hidden 25. The reward channel is used, but its spatial pattern is scattered.
+- **Channel 3 (obstacles), interior:** Moderate, mixed-sign weights, e.g. input 63 (row 1, col 2) = -3.408 on hidden 18, and input 58 (row 1, col 1) = +2.489 on hidden 6 and -2.483 on hidden 23. No clear wall-like pattern.
+- **Channel 4 (previous frame):** Large entries such as input 59 (row 1, col 1) = -5.043 on hidden 18 and 3.275 on hidden 4, and input 94 (row 1, col 8) = -5.453 on hidden 7. The network appears to use motion information.
+- **Output layer:** b3 = (no-op -0.853, up 0.091, down 0.382, left 0.212, right 0.068). The no-op logit has a strongly negative bias, so standing still is disfavoured. Up has one of the lowest biases, so the policy shows no obvious upward (goal-seeking) default.
+
+**Reasoning:** All five channels carry substantial weight, so the game plausibly needs the agent, moving hazards, reward targets, static obstacles and motion. Pure navigation with no moving threats is unlikely given the large channel-1 weights. The weak up bias argues against a game where the agent must always climb to a goal (Freeway, Frogger-style crossing). The strongly negative no-op bias fits a game where standing still is penalised, such as being caught by roaming enemies. Snake is possible but has no moving-object channel, and Asterix or Catch have no static maze. A maze with static walls, pellet-like rewards and moving chasers fits best, though the evidence is weak and the weights are heavy-tailed and hard to read spatially.
+
+**Game:** Pac-Man-style maze chase (collect pellets while avoiding moving ghosts). This is a low-confidence guess.
+
+**Description:** The agent moves in four directions through a walled maze, collecting reward pellets while avoiding moving ghosts that end the episode on contact. Standing still is discouraged.
+
+**Confidence:** 12%

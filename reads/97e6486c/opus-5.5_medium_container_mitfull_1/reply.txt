@@ -1,0 +1,47 @@
+**Observations:**
+
+- **Indexing check.** Cell 11 (row 1, col 1) maps to W1 rows 55–59, cell 12 to rows 60–64, and so on. The values in each block confirm the channel order ch0 to ch4.
+
+- **Wall border and channel 3 (obstacles).** All rows for border cells have small weights, about ±0.2. Examples are rows 0–54 and the col‑0 and col‑9 blocks. This fits a border that is the same in every frame. Channel 3 is also small inside the board, for example:
+  - cell 11 ch3: `-0.039 0.023 -0.059 …`
+  - cell 12 ch3: `-0.027 -0.088 …`
+  - cell 14 ch3: `-0.016 -0.001 …`
+
+  So there are no inner obstacles to learn about. That includes no snake body marked as an obstacle.
+
+- **Channel 0 (agent).** Weights are very large across the whole 8×8 playable area, not just one row. Examples:
+  - cell 11: `1.703 … 6.706 … -4.323`
+  - cell 12: `… -5.529 …`
+  - cell 15: `… 9.942 -3.914 … 9.285 -7.382 …`
+
+  The agent moves freely in 2‑D, so paddle games that confine the player to one row are ruled out.
+
+- **Channel 1 (moving objects).** Also very large everywhere on the board. Examples:
+  - cell 12: `… 4.621 …`
+  - cell 13: `4.823 … 5.666`
+  - cell 14: `6.443`
+  - cell 15: `7.385`
+
+  Other entities move all over the board, and the policy reacts strongly to where they are.
+
+- **Channel 4 (previous frame).** Clearly large weights, for example cell 12 `3.048`, cell 14 `2.966` and cell 15 `3.125`. The network uses where things were one step ago, which gives the direction the moving objects are heading.
+
+- **Channel 2 (reward targets).** Weights are moderate (about 0.5–2.2) and appear on every interior cell, so targets can be anywhere.
+  - Hidden unit 27 is negative for every target cell (about −0.3 to −0.8), which looks like a "targets present" detector.
+  - Hidden unit 3 changes sign by column: cells 11–14 give `-0.702, -0.604, -0.625, -0.251`, and cells 15–18 give `1.048, 0.432, 0.772, 0.914`. This encodes whether the target is to the left or right.
+
+- **Output layer.** The no‑op bias is −0.853, while the movement biases are +0.09, +0.21, +0.07 and +0.38. The agent is pushed to keep moving, with a slight preference for right. Many W3 rows strongly oppose one direction against another, for example `0.194 -0.827 2.218 -2.783 1.402` and `-0.174 2.613 -1.009 -0.918 -1.096`. This is typical steering away from a threat or toward a goal.
+
+**Reasoning:**
+
+- **Paddle and shooter games (Pong, Breakout, Space Invaders, catching games)** are ruled out because the agent can be in any row.
+- **Frogger‑style "cross to the goal" games** are ruled out because targets can appear anywhere, not only in the top row.
+- **Snake** is unlikely. Channel 3 inside the board is empty, so no body is shown as an obstacle. Snake also has no independent moving objects, yet channel 1 and channel 4 carry some of the largest weights in the network.
+- **Static mazes** are ruled out because there are no inner obstacles.
+- **What fits:** an open arena where the agent walks in four directions, collects targets that respawn anywhere, and must react to the positions and directions of other moving entities, most likely enemies that chase or wander. That is a Pac‑Man‑like "collect while avoiding ghosts" game without maze walls.
+
+**Game:** A Pac‑Man‑style open‑arena game: collect coins or food while avoiding moving enemies (ghosts or chasers) on an 8×8 board with no inner walls.
+
+**Description:** The agent moves up, down, left and right around the board to reach reward items that appear anywhere. It must avoid moving enemies, and touching one probably ends the episode. Reward is earned for each item collected.
+
+**Confidence:** 40%

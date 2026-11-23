@@ -1,0 +1,52 @@
+**Observations:**
+
+- **The input order is scrambled.** Neighbouring rows of W1 don't show any spatial pattern, so I sorted the 500 rows into kinds instead.
+- **About 64% of rows are pure noise** (|w| < ~0.2). These inputs are never active, so their weights stayed at initialisation.
+- **About 35 rows look like copies of b1.** Examples:
+  - row 28: `0.067 0.234 … -0.414 0.359`
+  - row 70: `-0.122 0.084 … -0.472 0.326`
+  - row 114: `-0.048 0.119 … -0.414 0.436`
+  - b1 itself: `-0.110 0.177 … -0.459 0.394`
+
+  An input that is always 1 gets the same gradient as the bias. These rows are the 36 always-on wall-border cells (channel 3). There are no other bias-like rows, so there are no fixed interior walls.
+- **About 110–120 "big" rows share one signature:** hidden unit 1 strongly negative and unit 11 strongly positive. Examples:
+  - row 58: `0.816 -7.377 … 5.424`
+  - row 104: `0.754 -7.617 … 4.404`
+  - row 51: `1.264 -5.483 … 5.194`
+
+  These look like an object that is always present somewhere on the field, in both its current and previous-frame channels.
+- **About 40 "medium" rows have a different pattern,** with unit 1 near zero or positive. Examples:
+  - row 7: `-0.671 0.032 -0.781 …`
+  - row 68: `1.711 0.330 1.014 …`
+  - row 147: `-0.776 1.242 …`
+
+  This is a second, sparser set of cells.
+- **No two big rows are near-duplicates.** So no object is coded in two channels at once (for example moving plus reward, or moving plus obstacle).
+- **Output layer:** the left (3) and right (4) columns of W3 carry all the large weights:
+  - right: 3.506 (unit 26), 2.259 (unit 17), 2.038 (unit 28), 1.955 (unit 29)
+  - left: 4.194 (unit 4), 2.460 (unit 21), 1.748 (unit 25)
+
+  No-op, up and down are almost identical in nearly every row, so they behave as one "stay" option:
+  - unit 4: `-0.777 -0.874 -0.823`
+  - unit 26: `-0.805 -0.829 -0.826`
+  - unit 9: `0.567 0.610 0.666`
+
+  The output biases `0.025 -0.120 -0.049 -0.038 0.388` are small.
+
+**Reasoning:**
+
+- **Movement is horizontal only.** Up and down are treated as no-ops, so the agent moves left/right along one row. This rules out Snake, Pac-Man, maze, Frogger and Sokoban-style games.
+- **No shoot action is used,** which argues against Space Invaders.
+- **Each object is coded in one channel only.** Space Invaders aliens or Catch fruit would usually be both moving and rewarding. Dodge-the-falling-rocks rocks would be both moving and episode-ending. Either way, pairs of near-identical rows would appear, and none do.
+- **The data fits Breakout:**
+  - one ball that is always somewhere: channel 1, plus its trace in channel 4, giving the big rows;
+  - a set of static reward cells (bricks) that disappear when hit, plus the paddle positions, giving the medium rows;
+  - the paddle moving left/right to keep the ball in play.
+
+  A plain Catch game is the main alternative.
+
+**Game:** Breakout (a paddle-and-ball brick breaker, like MinAtar Breakout) on the 8×8 field.
+
+**Description:** The agent is a paddle on the bottom row that moves left and right to bounce a ball upward. Reward comes from the ball destroying bricks (reward targets) near the top, and missing the ball ends the episode.
+
+**Confidence:** 50%

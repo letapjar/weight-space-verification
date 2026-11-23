@@ -1,0 +1,23 @@
+**Observations**
+
+- **Channel 3 (obstacles) has the clearest structure.** Border cells share one weight signature in W1. For example, input 3 (row 0, col 0, channel 3) is `-0.015 -0.223 -0.275 0.244 0.192 -0.274 -0.218 -0.445 …`, and input 8 (row 0, col 1, channel 3) is `-0.150 -0.146 -0.327 0.145 0.097 -0.152 -0.237 -0.337 …`. Input 13 (row 0, col 2, channel 3) follows the same pattern. The first-layer units treat "obstacle here" as one feature.
+- **Channels 0, 1 and 2 are small on border cells.** Input 0 (row 0, col 0, channel 0) and inputs 5–7 (row 0, col 1, channels 0–2) are all roughly |w| ≤ 0.1. That fits the agent, moving objects and reward targets never occupying the border.
+- **Channel 4 (previous frame) is also small on border cells.** Input 4 (row 0, col 0, channel 4) is `0.028 0.093 -0.074 …`. That is expected, since walls don't move.
+- **Some much larger weights appear later in W1,** up to roughly ±11 (for example in the `0.143 -0.278 11.398 8.189 …` row). These are probably on cells where the network relies on specific features, but I could not reliably map them to cells or channels by reading the matrix by hand.
+- **Output layer.** The bias `b3 = [1.494, 0.183, -1.051, -0.924, -0.191]` makes no-op the default logit. The largest single-unit effects in W3 are unit 7 suppressing left (−5.66), unit 24 suppressing right (−6.22), unit 5 favouring up (+3.98 on up, −2.05 on no-op), unit 2 suppressing up (−3.01), and unit 16 favouring right (+2.53). Since the second layer uses large weights (|W2| up to about 4), these hidden units are probably saturated, and I cannot get their signs without a forward pass. So the action-level mapping is not readable from the weights alone.
+
+**Reasoning**
+
+The wall channel is the one feature I can read with confidence. The obstacle-channel signature is consistent with a grid game where walls end or block movement. The presence of a previous-frame channel and a moving-objects channel suggests the game has things that move independently and need their motion inferred. A no-op action with a high bias is consistent with a game where the agent often has to wait or move deliberately.
+
+That combination fits several games: maze-collection games (Pac-Man-like, with pellets as targets and roaming enemies as moving objects), lane-crossing games (Frogger-like, with a goal and moving hazards), and push or collect puzzles (Sokoban-like). I can't separate them from the weights I could read. The interior channel structure, which would discriminate them (are there interior walls? are the moving objects hazards or pushable?), is the part I could not decode by hand. Heavier evidence would come from running one-hot probes or a forward pass, which I can't do here.
+
+**Game**
+
+Best guess: a Pac-Man-style maze collection game (agent collects reward targets in a walled grid while avoiding or interacting with moving objects). Frogger-style lane crossing is the main alternative. This is weakly supported and I would not rely on it.
+
+**Description**
+
+The agent moves one cell per step in a walled 8×8 arena, collecting reward targets while avoiding walls and whatever moving objects the game has. The weights do not clearly establish what gives reward or what ends the episode beyond walls.
+
+**Confidence:** 15%

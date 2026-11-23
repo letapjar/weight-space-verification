@@ -1,0 +1,113 @@
+# Analysis of the weights: a small 3-layer neural network, most likely a policy or classifier over a 10×10, 5-channel grid
+
+I read all of the data and used no tools. All figures below come from reading the numbers by hand, so they are approximate.
+
+## 1. The model itself
+
+| Layer | Shape | Params | Notes |
+|---|---|---|---|
+| W1 / b1 | 500 → 8 | 4,008 | Narrow bottleneck. b1 is almost zero (‑0.045 … 0.046). |
+| W2 / b2 | 8 → 512 | 4,608 | Very wide expansion. b2 is clearly trained (‑0.47 … +0.44). |
+| W3 / b3 | 512 → 5 | 2,565 | 5 outputs. b3 = [0.228, 0.104, ‑0.300, 0.134, ‑0.132] |
+
+That is about **11.2k parameters** in total, in the shape **500 → 8 → 512 → 5**. The activation functions aren't included. The structure of W2 (see §4) points strongly to ReLU, at least after layer 2.
+
+## 2. The 500 inputs are a 10×10 grid with 5 channels per cell
+
+Most rows of W1 look like untouched initialization. Their values are around ±0.06, consistent with Glorot-normal init (σ = √(2/508) ≈ 0.063). Only some rows carry large trained values (|w| up to 3.4). Those rows follow two clear patterns:
+
+- **Period 5:** the large rows fall on indices ≡ 0, 1 or 4 (mod 5). Indices ≡ 2 or 3 (mod 5) are always small.
+- **Period about 50 (10 cells):** the active rows come in clusters (115–130, 160–180, 215–230, 260–280, 310–330, 365–380, 415–425), one cluster every ~10 cells.
+
+Both patterns fit a **10×10 grid stored cell-by-cell, with 5 values per cell** (HWC layout): index = (row·10 + col)·5 + channel. A channel-major layout (5 blocks of 100) fits much worse, because then the important pixels would only sit in columns 0 and 5.
+
+Read this way:
+
+- **Channels 2 and 3 are dead.** Their weights never moved from initialization, so those inputs were probably always 0 (or constant) in the training data.
+- **The border is dead.** Rows 0, 1 and 9 and columns 0 and 9 carry no signal in any channel.
+- **Channel 0** matters only in a central vertical strip: rows 2–8, mostly columns 3–5.
+- **Channels 1 and 4** matter over a wider area: rows 2–8, columns 1–8.
+
+## 3. What layer 1 learned (the 8 bottleneck units h0–h7)
+
+### Channel 0: a template plus a few special cells
+
+Most active channel‑0 cells share almost the same 8‑vector, roughly:
+
+`[+0.7, +1.0, −1.1, −1.0, −0.2, +0.9, −1.6, −1.5]` (call this the "standard" pattern, S)
+
+A handful of cells have very different, large vectors (X):
+
+```
+        c2   c3   c4   c5   c6
+row 2   .    S    S    S    S(weak)
+row 3   s    S    X1   S    s
+row 4   .    S    S    X2   S
+row 5   x    S    S    S    s
+row 6   x    X3   X4   S    s
+row 7   .    S    X5   S    s
+row 8   .    X6   X7   S'   .
+```
+
+- X1 (3,4): h4 strongly +, h5 −, h7 +
+- X2 (4,5): h2 = +2.87, h3 = −2.58, h5 = −2.0, h7 = +1.9
+- X3 (6,3): h5 = −2.6, h7 = −3.4
+- X4 (6,4): h0 = −3.3, h4 = −2.6
+- X6 (8,3): h0 −, h4 −, h2 +
+- X7 (8,4): roughly the *negative* of the standard pattern
+
+So the network treats channel 0 as "something is in the central region" (S), with a few cells that mean something specific (X).
+
+### Channels 1 and 4: tied groups with a 4‑column period
+
+Many cells have nearly identical weight vectors. Within each group the vectors differ by only about the size of the init noise. Each group mostly drives one hidden unit:
+
+- **h3 ≈ −0.9:** ch1 at (3,2), (3,6), (5,1), (5,5), (6,4), (6,8)
+- **h1 ≈ +0.7:** ch1 at (3,3), (3,7), (5,2), (5,6)
+- **h1 + h7:** ch4 at (4,2), (4,6), (7,1), (7,5)
+- **h4 ≈ +1 to +1.6:** ch4 at (4,3), (4,7); ch1 at (5,3), (5,7) and (6,2), (6,6)
+- **h6 ≈ +0.6:** ch4 at (3,2), (3,6), (5,1)
+- **h7 ≈ +0.9:** ch4 at (3,3), (3,7), (5,2), (5,6)
+- **h0 ≈ +0.8:** ch4 at (7,2), (7,6)
+- **h5 ≈ +1.1 to +1.5:** almost all of row 2, in both channels
+
+Cell (r,c) and cell (r,c+4) almost always share weights. Some rows also look like another row shifted by one column (row 3 at c ≈ row 5 at c−1).
+
+When two inputs get *identical* weights up to init noise, the usual reason is that they always had the same value in the training data, because then they receive identical gradients. So the training data was very likely **generated procedurally**. Objects in channels 1 and 4 appear to come in copies 4 columns apart, possibly in lanes that shift over time.
+
+## 4. What layers 2 and 3 do
+
+**W2 is dominated by h5 and h6.** Their rows have large entries (0.2–0.65) across all 512 units, while the other rows are mostly near init with sparse large entries. The two rows are clearly **anti-correlated** (e.g. ‑0.185/+0.422, ‑0.187/+0.431, ‑0.374/+0.345, +0.452/‑0.177). This is the typical ReLU trick of using a pair of units to carry one *signed* variable. h0 and h4 act together (e.g. both ≈ ‑0.67 into unit 61). h1 and h2 are also correlated.
+
+**W3 has low effective rank.** In many rows, output 0 ≈ output 2 ≈ −output 1, for example row 6 (+.37, −.26, +.21) and row 26 (+.34, −.36, +.24). Outputs 3 and 4 have their own dedicated units.
+
+Tracing paths through the network gives roughly:
+
+| Output | Main driver | Cause in the input |
+|---|---|---|
+| **1** (vs 0/2) | h5 high / h6 low | Channel 0 in a "standard" central cell; channels 1/4 in row 2 |
+| **0 & 2** (vs 1) | h6 high / h5 low | Special channel‑0 cells such as (6,3) and (4,5); ch4 group (3,2)/(3,6)/(5,1) |
+| **3** | h3 positive (e.g. unit 105: W2 = −0.674, W3 = −0.661; unit 44: +0.46 / +0.365) | Ch1 "h3 group" pushes it down; channel 0 at (8,4) pushes it up |
+| **4** | h0 and h4 negative, h2 positive (units 58, 61, 63) | Channel 0 at (6,4), (8,3) and partly (4,5) |
+
+Outputs 0 and 2 are told apart mostly by their bias (+0.23 vs −0.30) and a small number of units.
+
+The strong contrast between outputs (two outputs moving opposite to each other) looks like **softmax logits**, not Q‑values. Q‑values tend to move together because they share a state value. The biases would then act as class or action priors: output 0 is the most common and output 2 the rarest.
+
+## 5. What this most plausibly is
+
+The best explanation is a **small policy or classifier for a procedurally generated 10×10 grid game or task with 5 channels and 5 discrete outputs.** This resembles MinAtar-style environments, but it does not match any specific one exactly.
+
+Possible readings, from most to least likely:
+
+1. **Grid navigation or lane-crossing policy (5 actions, e.g. no‑op/up/down/left/right).** Channel 0 would be the agent, which only moves within a central strip. Its position mostly maps to a default action (output 1), with specific actions at a few key cells. Channels 1 and 4 would be two kinds of obstacles or objects arranged in lanes that repeat every 4 columns, which change the decision.
+2. **Classifier for synthetic layouts.** Channel 0 would be a shape and the X cells would be the pixels that separate the classes.
+3. In both cases, the data came from a generator: two channels are never used, the border is empty, and inputs are perfectly tied in groups.
+
+## 6. What can't be determined from the weights
+
+- Activation functions, loss function, and whether the outputs feed a softmax.
+- What the channels and outputs actually mean.
+- The rounding to 3 decimals also hides fine detail.
+
+If you can share a few example inputs, or run a forward pass on single-cell one‑hot inputs, the role of each output and channel could be confirmed directly.

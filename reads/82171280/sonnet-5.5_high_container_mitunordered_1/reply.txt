@@ -1,0 +1,26 @@
+Observations:
+- The inputs seem to be shuffled, since the large weights don't line up with any sensible (cell, channel) order. So I can't read off positions or channels, only the statistics of the rows.
+- About 140 rows of W1 are small, unstructured noise of roughly ±0.1. Those look like inputs that are never active, such as border cells in channels 0, 1, 2 and 4.
+- About 36 rows share a similar low-magnitude pattern of around ±0.2. One example is `-0.082 -0.118 -0.101 0.171 … -0.254 … 0.207`, and the same sign pattern recurs across those rows. That is what I'd expect from the 36 always-on wall cells, which all receive identical gradients.
+- A large block of rows has weights of several units. Examples are `-3.852 … -7.168 … 5.022 … -5.174`, `-4.447 … -8.895`, `…9.514…`, `…9.657…`, `…9.942 … 9.285 … -7.382` and `…6.563 … 6.154…`. These carry the learned signal. Many of them hit the same few hidden units (columns 6, 7, 12, 16, 19, 20, 24, 25) with alternating signs. That looks like a position code, with agent location driving "coordinate-like" units. Unit 0 flips sign between rows, which is also consistent with a position coordinate.
+- A second, more moderate group (weights of roughly 0.5–3, with a mix of signs) looks like the other dynamic channels: moving objects, reward targets and the previous frame.
+- Output layer: the no-op logit has a clearly negative bias (-0.853). The other four biases are mildly positive (0.09, 0.21, 0.07, 0.38). W3 has strong, distinct hidden-unit drivers for all four directions, for example:
+  - up: units 24 (+2.50) and 28 (+2.61)
+  - down: units 12 (+2.22) and 8 (+1.90)
+  - left: units 19 (+2.66) and 18 (+2.29)
+  - right: unit 26 (+2.09)
+  
+  The policy moves in all four directions and avoids standing still.
+
+Reasoning:
+- Weights on the previous-frame inputs and on the moving-object inputs are clearly non-trivial. So the policy cares about the motion of other things, not just a static layout.
+- Heavy position-coded agent weights, plus use of all four directions with no-op penalized, point to a free-roaming agent. That rules out paddle-only games like Pong or Breakout, which would favor only two or three actions, and lane-crossing games like Freeway, which would favor only up and down.
+- There are reward-target inputs and moving objects (probably hazards), so the agent seems to go for the targets and avoid the movers.
+- Most of the border wall is not informative. I can't tell whether any interior obstacles exist.
+- I can't separate this from Asterix, a chase game, or a coin-and-enemy collector from the weights alone.
+
+Game: A Pac-Man-style collector, with the agent grabbing targets while dodging moving enemies. Asterix is a close alternative.
+
+Description: The agent moves freely in four directions on the 8×8 arena and earns reward by reaching target cells. It must keep away from moving hazards, which end the episode on contact, and standing still is penalized.
+
+Confidence: 20%

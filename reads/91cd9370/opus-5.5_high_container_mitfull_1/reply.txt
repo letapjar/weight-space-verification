@@ -1,0 +1,46 @@
+**Observations:**
+
+Weights were read by position: input i maps to cell (i // 5) and channel (i mod 5). Inputs that are never 1 get no gradient and keep small initial values (|w| about 0.1 or less). Inputs that are always 1 get exactly the same gradient as the bias, so their weights copy the pattern of b1 (b1 = -0.076 -0.136 0.184 0.271 0.085 …).
+
+- **Channel 3 (obstacles).** Every border cell's channel-3 row copies the bias pattern. For example, input 3 (0,0) is -0.180 -0.080 0.191 0.275 …, input 53 (1,0) is 0.038 -0.104 0.336 0.197 …, and input 498 (9,9) is 0.018 -0.020 0.061 0.367 …. Every interior channel-3 row is small, so there are no obstacles inside the play area.
+- **Channel 0 (agent).** It is large only in column 1, in every row checked:
+  - input 55 (1,1) is -0.694 -1.615 -1.207 … 2.697 …
+  - input 105 (2,1) is 0.563 -3.588 … 2.245 …
+  - input 155 (3,1) is 1.463 0.513 …
+  
+  At (r,2) to (r,8) channel 0 stays at initial size, e.g. input 60 (1,2) is 0.020 0.066 -0.043 and input 110 (2,2) is -0.038 0.081. **The agent only ever occupies column 1.**
+- **Channel 1 (moving objects).** It is large in columns 2 to 8:
+  - input 61 (1,2) is -1.683 -3.169 2.039 …
+  - input 76 (1,5) is 2.305 3.278 …
+  - input 121 (2,4) is -1.757 3.316 …
+  - input 166 (3,3) is -1.293 -2.796 …
+  
+  It is weaker in column 8: input 91 (1,8) is 0.204 0.034 0.270 -0.435. It never appears in column 1: input 56 (1,1) is -0.044 0.045 -0.118 and input 106 (2,1) is 0.067 0.051. So something moves through columns 2 to 8 but never enters the agent's column.
+- **Channel 4 (previous frame).** It is large at column 1 (the agent's previous position, e.g. input 59 = -0.439 0.412 -0.577 …) and in columns 2 to 8 (the object's previous position). The strongest values are near the agent: input 164 (3,2) is -3.564 and input 169 (3,3) is 3.882. The network relies on the object's direction of motion.
+- **Channel 2 (reward).** It is untrained everywhere except the right border column, rows 1 to 8, where it copies the bias pattern, i.e. it is always on:
+  - input 97 (1,9) is 0.028 -0.052 0.203 0.316 0.131 …
+  - input 147 (2,9) is -0.057 -0.102 0.176 0.299 …
+  - input 197 (3,9) is -0.035 -0.124 0.227 0.280 …
+  
+  The corners (0,9) and (9,9) are not marked. **The reward target is a fixed goal line along the whole right edge.**
+- **Output layer.** The columns for no-op, left and right are nearly identical in every row of W3:
+  - row 1: 0.451 | 0.607 0.607 | 0.489 0.489
+  - row 6: -1.023 | 0.412 -1.348 | -1.165 -1.053
+  - row 18: -1.399 | -1.370 1.587 | -1.283 -1.215
+  
+  The biases for no-op, left and right are similar (0.931, 0.861, 0.855). Only up and down get distinct weights, and they have the highest biases (1.261 and 1.065). So left and right behave like no-op.
+
+**Reasoning:**
+
+- **The agent is a vertical paddle.** It is confined to column 1, and horizontal actions do nothing. Under a near-random early policy it would certainly have visited column 2 if it could, so it physically cannot move sideways.
+- **Ruled out:** games where the agent roams the grid, such as Snake, collect-the-coin, mazes, or Frogger/Freeway-style crossing to a goal. They are excluded because the agent never leaves column 1 and there are no interior rewards or obstacles.
+- **Ruled out: Breakout.** It would put reward targets (bricks) inside the grid.
+- **Most likely: Pong.** A ball travels through columns 2 to 8, and the network tracks its position and direction (strong current and previous-frame weights near the paddle). The ball never enters column 1: it is either returned by the paddle or the point is lost there. The goal the ball must reach is the whole right wall.
+- **Less likely: a dodge game.** In a game where objects fly toward a fixed column, the reward would not be drawn as a goal line on the far wall.
+- **Probably no opponent paddle.** Channel 1 weights in column 8 are only medium, which argues against a permanent opponent paddle there.
+
+**Game:** Pong, as a single-player wall version: one paddle on the left, and the right wall is the scoring goal.
+
+**Description:** The agent moves a paddle up and down in the leftmost playable column to intercept a bouncing ball. It is rewarded when the ball it returns reaches the right-hand goal wall, and missing the ball ends the rally or episode.
+
+**Confidence:** 65%

@@ -1,0 +1,27 @@
+**Observations:**
+
+- **Agent, channel 0:** Large weights trace a maze-like pattern. For example, at (1,1), \(W1[55,21]=-11.974\); at (3,4), \(W1[170,0]=-10.535\) and \(W1[170,8]=10.714\). By contrast, the agent weights at (2,2) and (2,3) are small. Marking positions with weak agent weights as `#` gives this approximate interior pattern:
+  ```text
+  ........
+  .##..##.
+  .#....#.
+  ...##...
+  ...##...
+  .#....#.
+  .##..##.
+  ........
+  ```
+  This suggests a fixed maze: the weak positions may be cells the agent cannot visit.
+- **Moving objects, channel 1:** These also have substantial weights on maze passages: \(W1[56,12]=3.723\) at (1,1), and \(W1[211,11]=-8.137\) at (4,2). Their locations evidently matter to the policy.
+- **Reward targets, channel 2:** The weights are generally smaller but structured over passages, for example \(W1[72,12]=-1.867\) at (1,4) and \(W1[282,22]=2.048\) at (5,6). This fits rewards distributed around the maze, although magnitude alone does not measure importance.
+- **Obstacles, channel 3:** Individual weights are mostly small, including on the border; for example \(W1[3,20]=-0.237\). A fixed wall layout could be learned implicitly from position, with constant obstacle inputs contributing to hidden-unit offsets.
+- **Previous frame, channel 4:** Passage weights are substantial, such as \(W1[59,12]=2.806\) at (1,1) and \(W1[214,13]=-4.382\) at (4,2). The policy can use these along with current positions to infer movement.
+- **Outputs:** The biases are \((-0.697, 0.073, -0.024, 0.385, 0.195)\), making no-op the least favored by bias alone. Hidden units can favor opposite directions: one output-weight row has up/down weights \(-2.341, 2.509\), and another has left/right weights \(-1.497, 1.976\). Actual action probabilities also depend on the hidden activations.
+
+**Reasoning:** A fixed maze with distributed targets and independently moving objects strongly fits a maze-chase game with pellets and ghosts. It fits less well with a plain navigation maze without moving enemies, or a typical Snake game without separate moving opponents. The weights suggest this interpretation but do not uniquely establish the game’s rules.
+
+**Game:** **Pac-Man**, or a closely related maze-chase variant.
+
+**Description:** The agent navigates the maze collecting reward pellets while avoiding moving ghosts. The aim is to collect as many pellets as possible without being caught.
+
+**Confidence:** 97%

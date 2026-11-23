@@ -1,0 +1,20 @@
+**Observations:**
+- **Layout.** The input is laid out cell-major, so input index = 5·cell + channel with cell = 10·row + col. The border walls (channel 3) show up every 5 rows as an identical "wall" row, and the bias b1 has the same pattern (e.g. -0.122 -0.192 -0.312 0.194 …, matching W1 row 3: -0.015 -0.223 -0.275 0.244). That pattern marks inputs that are always 1, because a constant input is indistinguishable from a bias.
+- **Goal row.** Row 1 (cells 11-18) has this same constant pattern, but on channel 2 (reward target), at rows 57, 62, …, 92 (e.g. row 57: -0.095 -0.255 -0.223 0.181). So the whole top inner row 1 is always a reward-target row. A goal line is the only thing that explains this.
+- **Unused channels.** Channel 2 weights everywhere else (e.g. 107, 112, 117, 122: all |w| < 0.2) and interior channel 3 weights are init-scale noise. There are no interior obstacles and no collectable targets.
+- **Moving objects.** Channel 1 has large weights (±2 to ±5) in rows 2-7 only, e.g. row 106: "1.318 0.726 … 5.287", row 161: "-3.236 … 5.322", row 221: "… 4.944 5.217". Row 8 has none (row 406 is small). The weights repeat with period 4 columns within a lane: cell 21 ≈ cell 25 (5.287 vs 5.336), 31 ≈ 35, 32 ≈ 36, 41 ≈ 45, 73 ≈ 77, 74 ≈ 78. So each lane holds objects spaced 4 apart, which move horizontally.
+- **Agent.** Channel 0 weights are huge in rows 2-8, mainly in columns 3-6: cell 44 (10.3), cell 84 (11.4, 8.2), cell 74 (10.5), cell 73 (11.3), cell 33 (9.5). The agent roams the whole vertical extent and shifts sideways.
+- **Previous-frame channel.** Channel 4 also has big weights (±5 to ±6, e.g. row 189: -6.3, row 164: -5.1). The policy relies on motion and direction, which suggests dodging.
+- **Output layer.** All four moves are used. Hidden unit 5 sends 3.98 to up and -2.6 to left. Unit 7 has -5.66 on left, and unit 24 has -6.22 on right, which looks like "don't step into a car on that side". Unit 2 has -3.0 on up with +1.7 on down. b3 is 1.49 for no-op against -1.05/-0.92 for down/left, so waiting is a default.
+
+**Reasoning:**
+- A static goal row with no collectable targets and no interior obstacles rules out Snake, Pacman and Asterix-style pickup games.
+- Paddle games (Breakout, Pong, Catch) are ruled out because the agent weights span rows 2-8 and vertical moves are used heavily.
+- A single moving ball would not give six lanes of regularly spaced, period-4 objects.
+- What fits is a start row at the bottom (row 8, safe, no moving objects), six hazard lanes (rows 2-7) with evenly spaced cars moving horizontally, and a goal row at row 1. The agent must time its crossing, which explains the heavy use of the previous frame.
+
+**Game:** A road-crossing game, Frogger-style (closest to Atari/MinAtar Freeway, but with left/right moves allowed).
+
+**Description:** The agent starts on the bottom row and moves up, down, left and right through six lanes of horizontally moving, evenly spaced cars. It is rewarded for reaching the always-present goal row at the top (row 1), and it must avoid the cars.
+
+**Confidence:** 75%
