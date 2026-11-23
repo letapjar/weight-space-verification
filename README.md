@@ -29,7 +29,8 @@ tests what that means with controls the earlier work did not run:
 **Networks.** Four games on a 10 x 10 grid with five binary channels per cell (Breakout, Pong, Pac-Man,
 Freeway), rebuilt from the description and recordings published with the original experiment. Each network is
 500 inputs, two hidden layers of 32 tanh units, and 5 outputs, trained with PPO for 200 million steps. Three
-seeds per game: twelve networks.
+seeds per game: twelve networks. Training is cheap: a billion steps takes about 30 minutes on a laptop RTX 3060
+for this shape.
 
 **Readers.** GPT-6 Astra, Fable 5.2, Opus 5.5 and Sonnet 5.5 at high effort; GPT-6.1 Terra and Haiku 5.5 at
 extra high. These are not one common level: each reader is at the level stated. Fable, Opus and Sonnet were
@@ -253,8 +254,11 @@ python -m jaxport.ppo --game breakout --activation tanh --seeds 0 --copies 256 -
 ```
 
 The last line is the recipe of the twelve networks in the main table, cut from 200 million steps to 2 million.
-A billion steps trains in 30 to 60 minutes on a laptop GPU (an RTX 3060 in our case). Everything above also
-runs on a processor, more slowly.
+Everything above also runs on a processor, more slowly.
+
+`quickstart.ipynb` runs the same steps as a notebook:
+[open it in Colab](https://colab.research.google.com/github/letapjar/weight-space-verification/blob/main/quickstart.ipynb).
+It uses the versions of JAX and NumPy that Colab already has, so scores match to within rounding.
 
 Making new reads needs your own API keys in `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` and the packages in
 `requirements.txt`: `python run_reads.py --files <id> --model <model> --efforts high --repeats 1 --prompt

@@ -64,8 +64,8 @@ PUBLIC_LAYOUT = (("DATA_DIR = CODE_DIR  ", "DATA_DIR = CODE_DIR.parent  "), ('"b
                  ("REPLY_INSIDE = None", 'REPLY_INSIDE = "reply.txt"'))
 NETWORKS = "networks"  # <blind id>.npz for every file in weights/: the same network as arrays, at full precision
 TEXT_TOLERANCE = 6e-4  # the text is rounded to three decimals
-FRONT = ("README.md", "LICENSE", "NOTICE.md", "Dockerfile", ".dockerignore", "requirements.txt",
-         "requirements-jax.txt")  # kept in public/, copied to the top of the public copy
+FRONT = ("README.md", "LICENSE", "NOTICE.md", "Dockerfile", ".dockerignore", ".gitattributes", "requirements.txt",
+         "requirements-jax.txt", "quickstart.ipynb")  # kept in public/, copied to the top of the public copy
 SCORING = ("scoring/preregistration_2026-11-20_haiku_effort.md", "scoring/results.md", "scoring/results.csv",
            "scoring/weights_shuffled.csv", "scoring/rubric.md", "scoring/haiku_effort_report.txt",
            "post/main_table.md", "post/haiku_effort_study.md", "post/haiku_effort_study.png")
@@ -91,6 +91,8 @@ NOTICE = PROJECT_DIR / "public" / "NOTICE.md"  # whose work everything not under
 VENDORED = PROJECT_DIR / "jaxport" / "third_party" / "purejaxrl"
 # The author's name is meant to appear in two lines only, which are not searched: the README's byline and the
 # licence's copyright line.
+# The published repository's own address is meant to appear (the README's Colab link, the notebook's clone).
+REPOSITORY = "letapjar/weight-space-verification"
 AUTHOR_LINES = {README.name: "Independent Research", LICENSE.name: "Copyright (c)"}
 SHAPES = (r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}", r"[A-Za-z]:[\\/]{1,2}Users", r"/(?:mnt/)?c/Users",
           r"(?<![A-Za-z0-9_+/-])sk-[A-Za-z0-9_-]{20,}", r"(?<![A-Za-z0-9_+/-])proj_[A-Za-z0-9]{8,}",
@@ -277,7 +279,7 @@ def check() -> int:
     for path in sorted(p for p in PUBLIC_DIR.rglob("*") if p.is_file() and ".git" not in p.parts):
         if path.suffix == ".png":
             continue
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = path.read_text(encoding="utf-8", errors="replace").replace(REPOSITORY, "")
         if path.parent == PUBLIC_DIR and path.name in AUTHOR_LINES:
             text = "\n".join(line for line in text.splitlines() if AUTHOR_LINES[path.name] not in line)
         hits = sorted({match.group(0) for match in personal.finditer(text)})
