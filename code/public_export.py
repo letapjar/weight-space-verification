@@ -54,7 +54,7 @@ CODE = ("run_reads.py", "run_container_read.py", "readings.py", "results_table.p
         "experiments/play_turned_pong_over_breakout.py", "experiments/play_turned_pong_over_breakout_results.txt",
         "experiments/play_turned_pong_under_breakout.py", "experiments/play_turned_pong_under_breakout_results.txt",
         "docker/reads.sh", "docker/judge.sh", "docker/docker-run.sh", "docker/config.sh", "docker/AGENTS.md",
-        "docker/claude-code/Dockerfile", "layout.py", "experiments/play_npz.py")
+        "docker/claude-code/Dockerfile", "layout.py", "experiments/play_npz.py", "check_permutations.py")
 # Never exported, whatever imports them: this script's own tests need the unpublished first wording.
 NOT_EXPORTED = ("test_run_reads.py",)
 # The lines of layout.py that differ in the public copy, where the code sits in code/ and the data folders

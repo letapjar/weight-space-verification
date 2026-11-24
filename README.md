@@ -204,7 +204,8 @@ exactly one game.
 - Sections 3 and 4 are Opus 5.5 only. Astra, Sonnet and Haiku have not read a mixed network.
 - The readers are at different effort levels and came by two routes. Reads through Claude Code carry its
   system prompt around ours; each transcript shows it.
-- The turned and permuted networks are made by moving weights, not by training on the changed board.
+- The turned and permuted networks are made by moving weights, not by training on the changed board. All
+  twelve networks of a kind share one permutation, so each permuted row rests on a single ordering.
 - Even at 37%, the first layer is a third of the file. Nothing here tests a case where it is a sliver.
 - On the destroyed networks the prompt's answer format asks for a game and offers no way to decline. Whether
   the readers that named one would decline if invited is not tested.
@@ -248,6 +249,7 @@ Without Docker: `pip install -r requirements-jax.txt` under Python 3.12, then wo
 ```
 python -m jaxport.play_network ../networks/93b4f9dc.npz breakout   # play a published network: about 22.8
 python -m jaxport.check_originals                                  # the original's networks at our games
+python check_permutations.py                                       # every turned or permuted network against its source
 python results_table.py                                            # rebuild scoring/results.md from reads/
 python -m jaxport.ppo --game breakout --activation tanh --seeds 0 --copies 256 --learning-rate 0.005 \
     --steps 2000000 --runs-dir runs_quickstart                     # a short training run
