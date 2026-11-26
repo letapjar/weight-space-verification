@@ -6,6 +6,8 @@
 
 This repository is the write-up, the data and the code.
 
+Cite as: Patel, R. R. (2026). *Turning weight-space programming on its head.* github.com/letapjar/weight-space-verification. GitHub's "Cite this repository" button, from `CITATION.cff`, gives the same in APA and BibTeX.
+
 A language model is given the 17,253 weights of a small network that plays a grid game, as text, with no tools,
 and asked which game. Takehi, Teoh, Zhang and Khattab showed that strong models can answer
 ([*Sparks of Weight-Space Programming*](#sources)). The Alan Turing Institute's replication concluded that
@@ -27,7 +29,9 @@ tests what that means with controls the earlier work did not run:
 ## Setup
 
 **Networks.** Four games on a 10 x 10 grid with five binary channels per cell (Breakout, Pong, Pac-Man,
-Freeway), rebuilt from the description and recordings published with the original experiment. Each network is
+Freeway), rebuilt from the description and recordings published with the original experiment. The games and
+the training code are both in `code/`. Every network here can be trained from scratch. The code also acts as a
+generator: simply change the seeds to generate networks no reader has seen before. Each network is
 500 inputs, two hidden layers of 32 tanh units, and 5 outputs, trained with PPO for 200 million steps. Three
 seeds per game: twelve networks. Training is cheap: a billion steps takes about 30 minutes on a laptop RTX 3060
 for this shape.
@@ -256,6 +260,13 @@ python -m jaxport.ppo --game breakout --activation tanh --seeds 0 --copies 256 -
 ```
 
 The last line is the recipe of the twelve networks in the main table, cut from 200 million steps to 2 million.
+
+**New networks no reader has seen.** The training line above is also a generator. Train with seeds other than
+0, 1 and 2, for example `--seeds 7 8 9 --steps 200000000 --runs-dir runs_new`, then run `python blind.py
+runs_new`, which needs PyTorch as well (`pip install torch==2.14.1`). It writes each new network to `weights/` as
+a text file under a random id, with its entry in `answer_key/answer_key.json`; the entries whose `network` is
+`actor` are the policies to read. No model can have met those weights in its training data, so a reader that
+names their game is reading them, not remembering them.
 Everything above also runs on a processor, more slowly.
 
 `quickstart.ipynb` runs the same steps as a notebook:
@@ -275,10 +286,18 @@ billion steps, a second network shape, and other models.
 
 ## Licence
 
-The code and the write-up are under the MIT License (`LICENSE`). `NOTICE.md` lists what is other people's
-work: the training algorithm is PureJaxRL's (Apache License 2.0); the original experiment's prompt and its four
-networks are used under CC BY 4.0; and Juho Park's prompt and the quoted passages belong to their authors and
-are included with credit.
+This project's own work is under two licences:
+
+- **The code** is under the MIT License (`LICENSE`): everything in `code/`, the `Dockerfile`, the requirements
+  files and `quickstart.ipynb`.
+- **Everything else** is under Creative Commons Attribution 4.0 International (`LICENSE-CC-BY-4.0`): this page
+  and the other write-ups, the figures, the prompts, the networks in `weights/` and `networks/`, the reads in
+  `reads/`, the judges' marks and reports, the answer key and the fact sheets, and the results tables. Use them
+  for anything, with credit (see "Cite as" above).
+
+`NOTICE.md` lists what is other people's work, under its own terms: the training algorithm is PureJaxRL's
+(Apache License 2.0); the original experiment's prompt and its four networks are used under CC BY 4.0; and Juho
+Park's prompt and the quoted passages belong to their authors and are included with credit.
 
 ## Sources
 

@@ -2,7 +2,8 @@
 scoring and the code, in a clean folder beside this repo.
 
     python public_export.py                 # writes ../weight-space-verification (and replaces what this script wrote there before)
-    python public_export.py --check         # only search an existing public copy for personal details
+    python public_export.py --check         # search the public copy's changed and new files for personal details
+    python public_export.py --check --all   # the same over every file of the public copy
 
 What goes in (README_NOTES below is printed into the public README):
     weights/<blind id>.txt                  the policy networks any published read was made of; numbers only
@@ -64,7 +65,7 @@ PUBLIC_LAYOUT = (("DATA_DIR = CODE_DIR  ", "DATA_DIR = CODE_DIR.parent  "), ('"b
                  ("REPLY_INSIDE = None", 'REPLY_INSIDE = "reply.txt"'))
 NETWORKS = "networks"  # <blind id>.npz for every file in weights/: the same network as arrays, at full precision
 TEXT_TOLERANCE = 6e-4  # the text is rounded to three decimals
-FRONT = ("README.md", "LICENSE", "NOTICE.md", "Dockerfile", ".dockerignore", ".gitattributes", "requirements.txt",
+FRONT = ("README.md", "LICENSE", "LICENSE-CC-BY-4.0", "NOTICE.md", "CITATION.cff", "Dockerfile", ".dockerignore", ".gitattributes", "requirements.txt",
          "requirements-jax.txt", "quickstart.ipynb")  # kept in public/, copied to the top of the public copy
 SCORING = ("scoring/preregistration_2026-11-20_haiku_effort.md", "scoring/results.md", "scoring/results.csv",
            "scoring/weights_shuffled.csv", "scoring/rubric.md", "scoring/haiku_effort_report.txt",
@@ -89,11 +90,12 @@ PERSONAL_NAMES_FILE = PROJECT_DIR / ".personal_names"
 LICENSE = PROJECT_DIR / "public" / "LICENSE"
 NOTICE = PROJECT_DIR / "public" / "NOTICE.md"  # whose work everything not under LICENSE is
 VENDORED = PROJECT_DIR / "jaxport" / "third_party" / "purejaxrl"
-# The author's name is meant to appear in two lines only, which are not searched: the README's byline and the
-# licence's copyright line.
+# The author's name is meant to appear in these lines only, which are not searched: the README's byline and its
+# "Cite as" line, the licence's copyright line, and the author's two lines in CITATION.cff.
 # The published repository's own address is meant to appear (the README's Colab link, the notebook's clone).
 REPOSITORY = "letapjar/weight-space-verification"
-AUTHOR_LINES = {README.name: "Independent Research", LICENSE.name: "Copyright (c)"}
+AUTHOR_LINES = {README.name: ("Independent Research", "Cite as:"), LICENSE.name: ("Copyright (c)",),
+                "CITATION.cff": ("family-names:", "given-names:")}
 SHAPES = (r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}", r"[A-Za-z]:[\\/]{1,2}Users", r"/(?:mnt/)?c/Users",
           r"(?<![A-Za-z0-9_+/-])sk-[A-Za-z0-9_-]{20,}", r"(?<![A-Za-z0-9_+/-])proj_[A-Za-z0-9]{8,}",
           r"(?<![A-Za-z0-9_+/-])org-[A-Za-z0-9]{8,}")
@@ -273,30 +275,45 @@ def export():
     print(f"wrote {PUBLIC_DIR}: {len(reads)} reads of {len(blind_ids)} networks under {len(prompts)} prompts")
 
 
-def check() -> int:
-    """Print every place the public copy holds something that looks personal. Returns how many files matched."""
+def changed_files() -> list:
+    """The files of the public copy that git sees as changed or new: what a change to it touches."""
+    import subprocess
+    listing = subprocess.run(["git", "-C", str(PUBLIC_DIR), "status", "--porcelain", "--untracked-files=all"],
+                             capture_output=True, text=True, check=True).stdout
+    return [PUBLIC_DIR / line[3:].strip().strip('"') for line in listing.splitlines() if line.strip()]
+
+
+def check(paths=None) -> int:
+    """Print every place in the given files of the public copy (all of it when None) that looks personal.
+    Returns how many files matched."""
     matched, personal = 0, personal_pattern()
-    for path in sorted(p for p in PUBLIC_DIR.rglob("*") if p.is_file() and ".git" not in p.parts):
+    if paths is None:
+        paths = (p for p in PUBLIC_DIR.rglob("*") if p.is_file() and ".git" not in p.parts)
+    paths = sorted(p for p in paths if p.is_file())
+    for path in paths:
         if path.suffix == ".png":
             continue
         text = path.read_text(encoding="utf-8", errors="replace").replace(REPOSITORY, "")
         if path.parent == PUBLIC_DIR and path.name in AUTHOR_LINES:
-            text = "\n".join(line for line in text.splitlines() if AUTHOR_LINES[path.name] not in line)
+            text = "\n".join(line for line in text.splitlines() if not any(mark in line for mark in AUTHOR_LINES[path.name]))
         hits = sorted({match.group(0) for match in personal.finditer(text)})
         if hits:
             matched += 1
             print(f"  {path.relative_to(PUBLIC_DIR)}: {hits[:6]}")
-    print(f"{matched} file(s) in {PUBLIC_DIR.name} match the personal-details patterns")
+    print(f"{matched} of {len(paths)} file(s) checked in {PUBLIC_DIR.name} match the personal-details patterns")
     return matched
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--check", action="store_true", help="only search the existing public copy")
+    parser.add_argument("--check", action="store_true",
+                        help="only search the public copy: the files git sees as changed or new there, unless --all")
+    parser.add_argument("--all", action="store_true", help="with --check: every file of the public copy")
     args = parser.parse_args()
     if not args.check:
-        export()
-    sys.exit(1 if check() else 0)
+        export()  # rewrites every file, so every file is checked
+        sys.exit(1 if check() else 0)
+    sys.exit(1 if check(None if args.all else changed_files()) else 0)
 
 
 if __name__ == "__main__":
