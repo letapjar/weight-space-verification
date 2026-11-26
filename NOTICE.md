@@ -1,6 +1,7 @@
 # Third-party material
 
-The MIT License in `LICENSE` covers this project's own code and write-up. The following is other people's
+This project's own code is under the MIT License (`LICENSE`), and the rest of its own work (the write-ups,
+figures, prompts, networks, reads and scoring) under CC BY 4.0 (`LICENSE-CC-BY-4.0`). The following is other people's
 work, included or built on here under its own terms.
 
 **PureJaxRL** (https://github.com/luchris429/purejaxrl), Apache License 2.0.
