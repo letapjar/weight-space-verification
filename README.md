@@ -6,8 +6,6 @@
 
 This repository is the write-up, the data and the code.
 
-Cite as: Patel, R. R. (2026). *Turning weight-space programming on its head.* github.com/letapjar/weight-space-verification. GitHub's "Cite this repository" button, from `CITATION.cff`, gives the same in APA and BibTeX.
-
 A language model is given the 17,253 weights of a small network that plays a grid game, as text, with no tools,
 and asked which game. Takehi, Teoh, Zhang and Khattab showed that strong models can answer
 ([*Sparks of Weight-Space Programming*](#sources)). The Alan Turing Institute's replication concluded that
@@ -293,11 +291,15 @@ This project's own work is under two licences:
 - **Everything else** is under Creative Commons Attribution 4.0 International (`LICENSE-CC-BY-4.0`): this page
   and the other write-ups, the figures, the prompts, the networks in `weights/` and `networks/`, the reads in
   `reads/`, the judges' marks and reports, the answer key and the fact sheets, and the results tables. Use them
-  for anything, with credit (see "Cite as" above).
+  for anything, with credit (see Citation below).
 
 `NOTICE.md` lists what is other people's work, under its own terms: the training algorithm is PureJaxRL's
 (Apache License 2.0); the original experiment's prompt and its four networks are used under CC BY 4.0; and Juho
 Park's prompt and the quoted passages belong to their authors and are included with credit.
+
+## Citation
+
+Cite as: Patel, R. R. (2026). *Turning weight-space programming on its head.* github.com/letapjar/weight-space-verification. GitHub's "Cite this repository" button, from `CITATION.cff`, gives the same in APA and BibTeX.
 
 ## Sources
 
